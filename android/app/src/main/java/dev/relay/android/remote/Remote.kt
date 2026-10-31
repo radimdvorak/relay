@@ -203,8 +203,9 @@ class Remote(
                 // A pairing started meanwhile took over; this one doesn't put the phone back.
                 if (pairing !== wait) throw PairingFailed("Another pairing took over.")
                 pairing = null
-                "Couldn't reach ${link.name} at ${link.hosts.joinToString(" or ")}:${link.port}. " +
-                    "Check that Relay is open there and the phone is on the same network, or both on Tailscale."
+                "Couldn't reach ${link.name} (tried ${link.hosts.joinToString(" and ")}, port ${link.port}). " +
+                    "Check that Relay is open there, that this phone is on the same Wi-Fi or on Tailscale, " +
+                    "and that its firewall lets Relay in."
             }
         if (failure.isEmpty()) return
         withContext(dispatcher) {

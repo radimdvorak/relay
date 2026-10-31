@@ -124,8 +124,7 @@ fun PairScreen(remote: Remote, updates: Updates, link: String?, stopRelay: () ->
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
             } catch (e: Exception) {
-                error = (e.message ?: e.toString()) +
-                    " Check that this phone is on the same Wi-Fi, or that Tailscale is on and signed in here."
+                error = e.message ?: e.toString()
                 scan.failed()
             } finally {
                 pairing = false
