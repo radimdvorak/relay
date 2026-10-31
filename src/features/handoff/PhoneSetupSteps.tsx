@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Check } from "lucide-react";
 import {
   tailscaleAndroid,
@@ -9,6 +9,7 @@ import {
 import { androidAppDownload } from "../../../shared/updates";
 import { useCopy } from "../../lib/useCopy";
 import { QrCode } from "./qr/QrCode";
+import { useRecheckFirewall } from "./FirewallRow";
 
 type CodeShown = "tailscale" | "app";
 
@@ -30,6 +31,9 @@ export function PhoneSetupSteps({
   const [code, setCode] = useState<CodeShown>();
   const toggle = (which: CodeShown) =>
     setCode((open) => (open === which ? undefined : which));
+  // The steps show when a phone is about to be added: the firewall may have changed since.
+  const recheckFirewall = useRecheckFirewall();
+  useEffect(recheckFirewall, []); // eslint-disable-line react-hooks/exhaustive-deps
   return (
     <ol className="phone-setup" aria-label="Set up a phone">
       <TailscaleStep
@@ -38,7 +42,15 @@ export function PhoneSetupSteps({
         onToggle={() => toggle("tailscale")}
       />
       <AppStep open={code === "app"} onToggle={() => toggle("app")} />
-      <PairStep busy={busy} pairing={pairing} now={now} onPair={onPair} />
+      <PairStep
+        busy={busy}
+        pairing={pairing}
+        now={now}
+        onPair={() => {
+          recheckFirewall();
+          onPair();
+        }}
+      />
     </ol>
   );
 }

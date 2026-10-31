@@ -121,6 +121,12 @@ export interface PhoneRemoteState {
   }[];
 }
 
+/** Windows Firewall between phones and this computer. */
+export interface PhoneFirewall {
+  /** Addresses phones are told to use that the firewall keeps them from; empty when nothing's in the way. */
+  blocked: string[];
+}
+
 export interface PhonePairing {
   url: string;
   expiresAt: number;
@@ -135,4 +141,7 @@ export interface PhoneRemoteApi {
   /** A fresh QR link; the previous one stops working. */
   phonePairing(): Promise<PhonePairing>;
   revokePhone(deviceId: string): Promise<PhoneRemoteState>;
+  phoneFirewall(): Promise<PhoneFirewall>;
+  /** Shows Windows' admin prompt; false when it was declined. */
+  allowPhonesThroughFirewall(): Promise<boolean>;
 }

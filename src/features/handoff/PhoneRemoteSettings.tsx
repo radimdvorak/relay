@@ -17,6 +17,7 @@ import {
   SettingsRow,
   Switch,
 } from "../../ui/SettingsCard";
+import { FirewallRow } from "./FirewallRow";
 import { PhoneSetupSteps } from "./PhoneSetupSteps";
 import { usePoll } from "../../lib/poll";
 
@@ -121,7 +122,7 @@ export function PhoneRemoteSettings() {
   );
 }
 
-/** Whether phones may connect, and over which networks. */
+/** Whether phones may connect, over which networks, and what keeps them out. */
 function PhoneAccessRows({
   data,
   busy,
@@ -156,6 +157,7 @@ function PhoneAccessRows({
           onChange={(lan) => void onChange(() => api.setPhoneRemoteLan(lan))}
         />
       </SettingsRow>
+      {data?.listening && <FirewallRow hosts={data.hosts} />}
     </>
   );
 }
