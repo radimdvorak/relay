@@ -42,7 +42,6 @@ import {
 import { clis } from "../source-control/clis";
 import { azureDevOps } from "../source-control/azure-devops";
 import { sourceControlKinds } from "../../shared/source-control";
-import { phoneAppearanceSchema } from "../remote/phone-remote";
 import { fetchReleaseNotes } from "../app/release-notes";
 import { devSwitchState, devSwitchTo } from "../app/dev-switch";
 import { releaseGitea } from "./account";
@@ -83,11 +82,6 @@ export function settingsHandlers(ctx: ApiContext) {
           : undefined,
     });
     return result.canceled ? null : result.filePaths[0];
-  }
-  function requirePhoneRemote() {
-    const phoneRemote = ctx.phoneRemote();
-    if (!phoneRemote) throw new Error("Relay is still starting.");
-    return phoneRemote;
   }
   /** Only a CLI Relay finds can be linked by hand. */
   function cliProvider(provider: AgentProvider) {
@@ -384,17 +378,5 @@ export function settingsHandlers(ctx: ApiContext) {
       return !!win && !win.isDestroyed() && dictation.connect(win.webContents);
     },
     warmDictation: () => dictation.warm(),
-    phoneRemoteState: () => requirePhoneRemote().state(),
-    setPhoneRemote: takes([z.boolean()], (enabled) =>
-      requirePhoneRemote().setEnabled(enabled),
-    ),
-    setPhoneRemoteLan: takes([z.boolean()], (lan) =>
-      requirePhoneRemote().setLan(lan),
-    ),
-    phonePairing: () => requirePhoneRemote().pairing(),
-    phoneAppearance: takes([phoneAppearanceSchema], (appearance) =>
-      requirePhoneRemote().setAppearance(appearance),
-    ),
-    revokePhone: takes([z.uuid()], (id) => requirePhoneRemote().revoke(id)),
   } satisfies Handlers;
 }

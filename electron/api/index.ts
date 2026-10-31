@@ -30,6 +30,7 @@ import { readAloudHandlers } from "./read-aloud";
 import { renderHandlers } from "./renders";
 import { reviewCheckoutHandlers } from "./review-checkout";
 import { reviewHandlers } from "./reviews";
+import { phoneRemoteHandlers } from "./phone-remote";
 import { pluginHandlers } from "./plugins";
 import { settingsHandlers } from "./settings";
 import { settingsFileHandlers } from "./settings-file";
@@ -79,6 +80,7 @@ export function createDispatch(
     previewHandlers(ctx),
     deviceHandlers(ctx),
     settingsHandlers(ctx),
+    phoneRemoteHandlers(ctx),
     settingsFileHandlers(ctx),
     readAloudHandlers(ctx),
     renderHandlers(ctx),

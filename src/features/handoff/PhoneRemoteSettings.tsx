@@ -1,16 +1,13 @@
 import { useNow } from "../../lib/useNow";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Check } from "lucide-react";
 import {
-  tailscaleAndroid,
   tailscaleDownload,
   type PhonePairing,
   type PhoneRemoteState,
   type PhoneTailnet,
 } from "../../../shared/remote";
-import { androidAppDownload } from "../../../shared/updates";
-import { useCopy } from "../../lib/useCopy";
 import { api } from "../../lib/api";
 import { ErrorBox } from "../../ui/ui";
 import { relativeDate } from "../../lib/relative-date";
@@ -20,7 +17,7 @@ import {
   SettingsRow,
   Switch,
 } from "../../ui/SettingsCard";
-import { QrCode } from "./qr/QrCode";
+import { PhoneSetupSteps } from "./PhoneSetupSteps";
 import { usePoll } from "../../lib/poll";
 
 /**
@@ -43,15 +40,10 @@ export function PhoneRemoteSettings() {
     PhonePairing & { before: ReadonlySet<string> }
   >();
   const [busy, setBusy] = useState(false);
-  // The switch flips at once; the state catches up when the server has.
-  const [switching, setSwitching] = useState<boolean>();
   const [error, setError] = useState<unknown>();
-  const [copied, copy] = useCopy();
-  const [code, setCode] = useState<"tailscale" | "app">();
   const [another, setAnother] = useState(false);
   const now = useNow(15000, !!pairing);
   const data = state.data;
-  const tailnet = data?.tailnet;
   // Computers that paired to hand threads over have their own list, under Computers.
   const phones = data?.devices.filter((d) => d.kind !== "computer") ?? [];
   const paired = phones.length;
@@ -65,176 +57,45 @@ export function PhoneRemoteSettings() {
   const run = (action: () => Promise<unknown>) => {
     setBusy(true);
     setError(undefined);
-    void action()
+    return action()
       .then(() => qc.invalidateQueries({ queryKey: ["phone-remote"] }))
       .catch(setError)
-      .finally(() => {
-        setBusy(false);
-        setSwitching(undefined);
-      });
+      .finally(() => setBusy(false));
   };
-  const toggle = (which: "tailscale" | "app") =>
-    setCode((open) => (open === which ? undefined : which));
+  const changeAccess = (change: () => Promise<unknown>) =>
+    run(async () => {
+      setPairing(undefined);
+      await change();
+    });
+  const pair = () =>
+    void run(async () =>
+      setPairing({
+        ...(await api.phonePairing()),
+        before: new Set(phones.map((d) => d.id)),
+      }),
+    );
   const steps = data?.listening && (!paired || another || showing);
-  const phone = tailnet?.phones?.find((p) => p.online);
   return (
     <>
       <SettingsCard className="phone-remote">
-        <TailscaleRow tailnet={tailnet} lan={!!data?.lan} />
-        <SettingsRow label="Allow phone connections" hint={switchHint(data)}>
-          <Switch
-            label="Allow phone connections"
-            checked={switching ?? !!data?.enabled}
-            disabled={!data}
-            onChange={(enabled) => {
-              setSwitching(enabled);
-              run(async () => {
-                setPairing(undefined);
-                await api.setPhoneRemote(enabled);
-              });
-            }}
-          />
-        </SettingsRow>
-        <SettingsRow label="Local network" hint={lanHint(data)}>
-          <Switch
-            label="Local network"
-            checked={!!data?.lan}
-            disabled={!data || busy}
-            onChange={(lan) =>
-              run(async () => {
-                setPairing(undefined);
-                await api.setPhoneRemoteLan(lan);
-              })
-            }
-          />
-        </SettingsRow>
+        <TailscaleRow tailnet={data?.tailnet} lan={!!data?.lan} />
+        <PhoneAccessRows data={data} busy={busy} onChange={changeAccess} />
         {steps && (
-          <ol className="phone-setup" aria-label="Set up a phone">
-            <Step
-              n={1}
-              done={!!phone}
-              title={
-                data.lan ? "Tailscale on your phone, optional" : "Tailscale on your phone"
-              }
-              hint={
-                data.lan && !phone
-                  ? "Not needed on the same Wi-Fi. With it the phone reaches Relay from anywhere."
-                  : phoneHint(tailnet)
-              }
-              action={
-                <button onClick={() => toggle("tailscale")}>
-                  {code === "tailscale" ? "Hide code" : "Get Tailscale"}
-                </button>
-              }
-            >
-              {code === "tailscale" && (
-                <CodePanel text={tailscaleAndroid} label="Tailscale QR code">
-                  <p>
-                    Scan with the phone's camera to get Tailscale from Google
-                    Play, then sign in with the account this computer uses.
-                  </p>
-                  <p className="setting-muted">
-                    The phone and this computer then share a private network.
-                    {data.lan
-                      ? " The phone uses the local network when it's on the same one, Tailscale when it isn't."
-                      : " Relay listens on nothing else, so the Wi-Fi around you can't reach it."}
-                  </p>
-                </CodePanel>
-              )}
-            </Step>
-            <Step
-              n={2}
-              title="Relay on your phone"
-              hint="The Android app from Relay's releases."
-              action={
-                <button onClick={() => toggle("app")}>
-                  {code === "app" ? "Hide code" : "Get the app"}
-                </button>
-              }
-            >
-              {code === "app" && (
-                <CodePanel text={androidAppDownload} label="Download QR code">
-                  <p>
-                    Scan with the phone's camera to download the newest Relay
-                    app. Open it from the download, and allow installs from the
-                    browser when Android asks; it asks only the first time.
-                  </p>
-                  <p className="setting-muted">
-                    Later versions come from this computer, so the app stays in
-                    step with it.
-                  </p>
-                </CodePanel>
-              )}
-            </Step>
-            <Step
-              n={3}
-              title="Pair"
-              hint="Scan the code from the Relay app on the phone."
-              action={
-                <button
-                  className="primary"
-                  disabled={busy}
-                  onClick={() =>
-                    run(async () =>
-                      setPairing({
-                        ...(await api.phonePairing()),
-                        before: new Set(phones.map((d) => d.id)),
-                      }),
-                    )
-                  }
-                >
-                  {showing ? "New code" : "Show pairing code"}
-                </button>
-              }
-            >
-              {showing && (
-                <CodePanel text={pairing.url} label="Pairing QR code">
-                  <p>
-                    Open Relay on the phone and scan this code. It works once
-                    and expires in{" "}
-                    {Math.max(1, Math.ceil((pairing.expiresAt - now) / 60000))}{" "}
-                    min.
-                  </p>
-                  <p className="setting-muted">
-                    The code also pins this computer's key, so the phone only
-                    ever talks to this Relay, encrypted.
-                  </p>
-                  <button onClick={() => copy(pairing.url)}>
-                    {copied ? "Copied" : "Copy pairing link"}
-                  </button>
-                </CodePanel>
-              )}
-            </Step>
-          </ol>
+          <PhoneSetupSteps
+            data={data}
+            busy={busy}
+            pairing={showing ? pairing : undefined}
+            now={now}
+            onPair={pair}
+          />
         )}
-        {data?.listening &&
-          phones.map((d) => (
-            <SettingsRow
-              key={d.id}
-              label={d.name}
-              hint={
-                <>
-                  {d.online
-                    ? "Connected now"
-                    : d.lastSeen
-                      ? `Last seen ${relativeDate(new Date(d.lastSeen).toISOString())}`
-                      : "Paired"}
-                  <br />
-                  {d.app
-                    ? `Relay ${d.app.version}`
-                    : "App version unknown until the phone runs a newer Relay"}
-                </>
-              }
-            >
-              <button
-                aria-label={`Remove ${d.name}`}
-                disabled={busy}
-                onClick={() => run(() => api.revokePhone(d.id))}
-              >
-                Remove
-              </button>
-            </SettingsRow>
-          ))}
+        {data?.listening && (
+          <PairedPhones
+            phones={phones}
+            busy={busy}
+            onRemove={(id) => void run(() => api.revokePhone(id))}
+          />
+        )}
         {data?.listening && (
           <SettingsFooter
             note={
@@ -258,6 +119,83 @@ export function PhoneRemoteSettings() {
       {!!(error || state.error) && <ErrorBox error={error || state.error} />}
     </>
   );
+}
+
+/** Whether phones may connect, and over which networks. */
+function PhoneAccessRows({
+  data,
+  busy,
+  onChange,
+}: {
+  data?: PhoneRemoteState;
+  busy: boolean;
+  onChange: (change: () => Promise<unknown>) => Promise<unknown>;
+}) {
+  // The switch flips at once; the state catches up when the server has.
+  const [switching, setSwitching] = useState<boolean>();
+  return (
+    <>
+      <SettingsRow label="Allow phone connections" hint={switchHint(data)}>
+        <Switch
+          label="Allow phone connections"
+          checked={switching ?? !!data?.enabled}
+          disabled={!data}
+          onChange={(enabled) => {
+            setSwitching(enabled);
+            void onChange(() => api.setPhoneRemote(enabled)).finally(() =>
+              setSwitching(undefined),
+            );
+          }}
+        />
+      </SettingsRow>
+      <SettingsRow label="Local network" hint={lanHint(data)}>
+        <Switch
+          label="Local network"
+          checked={!!data?.lan}
+          disabled={!data || busy}
+          onChange={(lan) => void onChange(() => api.setPhoneRemoteLan(lan))}
+        />
+      </SettingsRow>
+    </>
+  );
+}
+
+function PairedPhones({
+  phones,
+  busy,
+  onRemove,
+}: {
+  phones: PhoneRemoteState["devices"];
+  busy: boolean;
+  onRemove: (id: string) => void;
+}) {
+  return phones.map((d) => (
+    <SettingsRow
+      key={d.id}
+      label={d.name}
+      hint={
+        <>
+          {d.online
+            ? "Connected now"
+            : d.lastSeen
+              ? `Last seen ${relativeDate(new Date(d.lastSeen).toISOString())}`
+              : "Paired"}
+          <br />
+          {d.app
+            ? `Relay ${d.app.version}`
+            : "App version unknown until the phone runs a newer Relay"}
+        </>
+      }
+    >
+      <button
+        aria-label={`Remove ${d.name}`}
+        disabled={busy}
+        onClick={() => onRemove(d.id)}
+      >
+        Remove
+      </button>
+    </SettingsRow>
+  ));
 }
 
 function TailscaleRow({
@@ -315,71 +253,13 @@ function switchHint(data?: PhoneRemoteState) {
 function reach(data: PhoneRemoteState) {
   const tailnet = data.tailnet?.status === "connected";
   if (!data.lan) return "Only devices on your tailnet";
-  return tailnet ? "Phones on this network or your tailnet" : "Phones on this network";
+  return tailnet
+    ? "Phones on this network or your tailnet"
+    : "Phones on this network";
 }
 
 function lanHint(data?: PhoneRemoteState) {
   if (!data?.lan)
     return "Let phones on the same Wi-Fi connect directly, without Tailscale.";
   return "Phones on the same Wi-Fi connect directly, and move over by themselves when one answers. Still encrypted to this computer's key: others on the network can reach the port but get nothing.";
-}
-
-function phoneHint(tailnet?: PhoneTailnet) {
-  const phones = tailnet?.phones;
-  const online = phones?.find((p) => p.online);
-  if (online) return `${online.name} is on your tailnet.`;
-  if (phones?.length)
-    return `${phones[0]!.name} is on your tailnet but offline. Open Tailscale on it.`;
-  return "Install Tailscale and sign in with the account this computer uses.";
-}
-
-function Step({
-  n,
-  done,
-  title,
-  hint,
-  action,
-  children,
-}: {
-  n: number;
-  done?: boolean;
-  title: string;
-  hint: string;
-  action: ReactNode;
-  children?: ReactNode;
-}) {
-  return (
-    <li className={done ? "phone-step done" : "phone-step"}>
-      <span
-        className="phone-step-mark"
-        role="img"
-        aria-label={done ? `Step ${n}, done` : `Step ${n}`}
-      >
-        {done ? <Check size={12} strokeWidth={3} /> : n}
-      </span>
-      <div className="settings-row-text">
-        <span>{title}</span>
-        <small>{hint}</small>
-      </div>
-      <div className="settings-row-control">{action}</div>
-      {children && <div className="phone-step-below">{children}</div>}
-    </li>
-  );
-}
-
-function CodePanel({
-  text,
-  label,
-  children,
-}: {
-  text: string;
-  label: string;
-  children: ReactNode;
-}) {
-  return (
-    <div className="phone-pairing">
-      <QrCode text={text} label={label} />
-      <div>{children}</div>
-    </div>
-  );
 }
