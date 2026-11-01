@@ -5,7 +5,7 @@ import type {
 } from "@anthropic-ai/claude-agent-sdk";
 import { foundNothing } from "../../../../shared/call-actions";
 import type { AgentActivity } from "../../../../shared/projects";
-import { claudeActivity, claudeEditedPaths } from "../../activity";
+import { claudeActivity, claudeCommand, claudeEditedPaths } from "../../activity";
 import type { ClaudeRunOptions } from "./config";
 import { ForkParents, type ForkStart } from "../forks";
 
@@ -73,6 +73,8 @@ export class ToolRows {
     // A subagent's calls fold under the agent call that started it.
     if (parent) activity.parentId = parent.slice(0, 180);
     this.calls.set(tool.id, activity);
+    const command = claudeCommand(tool.name, tool.input);
+    if (command) this.options.onCommand?.(activity.id, command);
     this.options.onActivity?.(activity);
     const edited = claudeEditedPaths(tool.name, tool.input);
     if (edited.length) this.options.onEdit?.(edited);

@@ -1,7 +1,7 @@
 import { CodexPlanRows } from "../activity";
 import { answerLimitError, TurnEnd, TurnText } from "../turn-kit";
 import type { AgentOptions } from "../types";
-import { museActivity, museEditedPaths, todoPlan } from "./activity";
+import { museActivity, museCommand, museEditedPaths, todoPlan } from "./activity";
 import type { MuseConnection } from "./connection";
 import {
   contextUsageSchema,
@@ -64,6 +64,7 @@ export class MuseTurnEvents {
       connection,
       () => this.sessionId,
       (activity) => options.onActivity?.(activity),
+      (id, command) => options.onCommand?.(id, command),
       key ? museSubagentBooks.open(key) : undefined,
     );
   }
@@ -226,6 +227,8 @@ export class MuseTurnEvents {
       }
     }
     const activity = museActivity(item);
+    const command = museCommand(item);
+    if (activity && command) options.onCommand?.(activity.id, command);
     if (activity) options.onActivity?.(activity);
   }
 }

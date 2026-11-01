@@ -151,6 +151,13 @@ export function museActivity(item: MuseItem, parentId?: string): AgentActivity |
   };
 }
 
+/** The shell command a Muse item runs, whole; empty for any other item. */
+export function museCommand(item: MuseItem) {
+  if (item.kind === "userShell") return item.text ?? "";
+  if (item.kind !== "toolCall" || !item.tool || kindOf(item.tool) !== "command") return "";
+  return text(argsOf(item), "command", "cmd", "script", "argv");
+}
+
 /** The files a Muse tool call writes, as its arguments name them. */
 export function museEditedPaths(item: MuseItem): string[] {
   if (item.kind !== "toolCall" || !item.tool || kindOf(item.tool) !== "file") return [];

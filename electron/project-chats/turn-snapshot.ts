@@ -19,6 +19,7 @@ import { commitWatch } from "./turn-commit";
  */
 export class TurnSnapshot {
   private edited = new Set<string>();
+  /** Each command call's text: whole once `command` heard it, its label until then. */
   private commands = new Map<string, string>();
   private before: Awaited<ReturnType<typeof startTurn>> | null = null;
   private ignoredStart: Awaited<ReturnType<typeof keepIgnored>> | null = null;
@@ -75,10 +76,16 @@ export class TurnSnapshot {
     if (this.commits) this.commits = await commitWatch([path, this.root]);
   }
 
+  /** A command as the agent ran it; its activity's label may be cut short. */
+  command(id: string, command: string) {
+    this.commands.set(id, command);
+  }
+
   activity(activity: AgentActivity) {
     if (activity.kind === "command") {
-      this.commands.set(activity.id, activity.label);
-      this.commits?.command(activity.label);
+      const command = this.commands.get(activity.id) ?? activity.label;
+      this.commands.set(activity.id, command);
+      this.commits?.command(command);
     } else if (activity.kind === "file") this.commits?.edited();
   }
 

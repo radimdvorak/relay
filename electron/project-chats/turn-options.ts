@@ -223,7 +223,7 @@ async function workCallbacks(
   core: ChatCore,
   { chat, root, provider, answer }: TurnState,
   snapshot: TurnSnapshot,
-): Promise<Pick<AgentOptions, "onActivity" | "onEdit">> {
+): Promise<Pick<AgentOptions, "onActivity" | "onEdit" | "onCommand">> {
   const workspace = turnWorkspace(chat, provider);
   const watchWorktrees = watchAgentWorktrees(
     await core.projects.root(chat.projectId),
@@ -243,6 +243,7 @@ async function workCallbacks(
       answer.activity(activity);
     },
     onEdit: (paths) => snapshot.edits(paths),
+    onCommand: (id, command) => snapshot.command(id, command),
   };
 }
 

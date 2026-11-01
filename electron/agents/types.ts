@@ -128,6 +128,11 @@ export interface AgentOptions {
   onActivity?: (activity: AgentActivity) => void;
   /** Paths the agent's own file tools are writing, as it reported them. */
   onEdit?: (paths: string[]) => void;
+  /**
+   * A shell command the agent or a subagent runs, whole, before its activity
+   * `id` is reported; the activity's label is cut short for the trace.
+   */
+  onCommand?: (id: string, command: string) => void;
   onTitle?: (title: string) => void;
   onPlan?: (text: string) => void;
   onContext?: (usage: ContextUsage) => void;

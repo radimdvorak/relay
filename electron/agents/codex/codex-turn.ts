@@ -1,6 +1,11 @@
 import type { AgentOptions } from "../types";
 import { ANSWER_LIMIT, cancelledByYou, guardSteer, TurnEnd } from "../turn-kit";
-import { CodexPlanRows, codexActivity, codexEditedPaths } from "../activity";
+import {
+  CodexPlanRows,
+  codexActivity,
+  codexCommand,
+  codexEditedPaths,
+} from "../activity";
 import { withTimeout } from "../../util/timeout";
 import { skillMentionPattern } from "../../../shared/skill-mentions";
 import type { ContextUsage, PromptCache } from "../../../shared/projects";
@@ -97,6 +102,7 @@ export class CodexTurn {
     this.subagents = new CodexSubagents({
       book: sessionKey ? codexSubagentBooks.open(sessionKey) : undefined,
       onActivity: (activity) => options.onActivity?.(activity),
+      onCommand: (id, command) => options.onCommand?.(id, command),
       onFileChange: (id, changes) => this.edited(id, changes),
       onUsage: (last, ran) => {
         const model = ran || options.choice.model || connection.started?.model;
@@ -429,6 +435,8 @@ export class CodexTurn {
       options.onPlan?.(this.plan);
     }
     const activity = codexActivity(method, item);
+    const command = codexCommand(item);
+    if (activity && command) options.onCommand?.(activity.id, command);
     // A /compact shows as its own line in the thread, not inside a turn.
     if (
       activity &&

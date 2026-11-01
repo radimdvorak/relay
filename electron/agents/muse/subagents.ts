@@ -1,7 +1,7 @@
 import type { AgentActivity } from "../../../shared/projects";
 import type { SubagentBook } from "../subagent-book";
 import { SubagentBooks } from "../subagent-book";
-import { museActivity } from "./activity";
+import { museActivity, museCommand } from "./activity";
 import type { MuseConnection } from "./connection";
 import { commandId, itemSchema, type MuseItem } from "./protocol";
 
@@ -21,6 +21,8 @@ export class MuseSubagents {
     private connection: MuseConnection,
     private sessionId: () => string | undefined,
     private onActivity: (activity: AgentActivity) => void,
+    /** A child's shell command, whole, counted as the run's own are. */
+    private onCommand: (id: string, command: string) => void,
     private book?: SubagentBook,
   ) {}
 
@@ -79,6 +81,8 @@ export class MuseSubagents {
     if (item.kind === "agentMessage" && method === "item/completed" && item.text)
       this.book?.say(parent, item.itemId, item.text);
     const activity = museActivity(item, parent);
+    const command = museCommand(item);
+    if (activity && command) this.onCommand(activity.id, command);
     if (activity) {
       this.onActivity(activity);
       this.book?.call(parent, activity);

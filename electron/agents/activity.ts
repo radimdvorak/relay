@@ -227,6 +227,19 @@ const claudeFileTools: Record<string, string> = {
   NotebookEdit: "notebook_path",
 };
 
+/** The shell command a Claude call runs, whole; empty for any other call. */
+export function claudeCommand(name: string, value: unknown) {
+  if (name !== "Bash" || !value || typeof value !== "object") return "";
+  const command = (value as Record<string, unknown>).command;
+  return typeof command === "string" ? command.trim() : "";
+}
+
+/** The shell command a Codex item runs, whole; empty for any other item. */
+export function codexCommand(item: Record<string, unknown>) {
+  if (item.type !== "commandExecution") return "";
+  return typeof item.command === "string" ? item.command : "";
+}
+
 /** Name a Claude tool call by what it touched, not by the tool or its raw input. */
 export function claudeActivity(
   id: string,

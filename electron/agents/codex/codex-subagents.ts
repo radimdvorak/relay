@@ -3,7 +3,7 @@
 // sure sign, since the spawn itself may show as a `subAgentActivity` item
 // (multi-agent v2), a `collabAgentToolCall` (older servers) or not at all (v1).
 import type { AgentActivity } from "../../../shared/projects";
-import { CodexPlanRows, codexActivity } from "../activity";
+import { CodexPlanRows, codexActivity, codexCommand } from "../activity";
 import { SubagentBooks, type SubagentBook } from "../subagent-book";
 import type { CodexNotification } from "./codex-schemas";
 
@@ -12,6 +12,8 @@ export const codexSubagentBooks = new SubagentBooks();
 
 export type CodexSubagentHooks = {
   onActivity?: (activity: AgentActivity) => void;
+  /** A subagent's shell command, whole, counted as the run's own are. */
+  onCommand?: (id: string, command: string) => void;
   /** A subagent's patch, kept and counted as the run's own are. */
   onFileChange: (id: string, changes: unknown) => void;
   /** One of a subagent's requests finished; `model` when Codex said which. */
@@ -174,6 +176,8 @@ export class CodexSubagents {
       if (activity) {
         if (n.method === "item/started") agent.calls.add(activity.id);
         const call = { ...activity, parentId: agent.row.id };
+        const command = codexCommand(item);
+        if (command) this.hooks.onCommand?.(call.id, command);
         this.hooks.onActivity?.(call);
         this.hooks.book?.call(agent.row.id, call);
       }
