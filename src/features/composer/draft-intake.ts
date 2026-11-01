@@ -66,12 +66,15 @@ export function draftIntake({
   >;
   imagePills: boolean;
   setError: (error: string | undefined) => void;
-  queuePreparation: (attach: () => Promise<void>) => void;
+  queuePreparation: (attach: () => Promise<void>, screenshots?: number) => void;
 }) {
   function addImages(files: File[], point?: Point) {
     const arriving = files.map((file) => ({ file }));
     if (arriving.length)
-      queuePreparation(() => attachImages(arriving, { point }));
+      queuePreparation(
+        () => attachImages(arriving, { point }),
+        arriving.length,
+      );
   }
   /**
    * Screenshots arrive as files, each getting a pill where the pointer is or
@@ -260,7 +263,10 @@ export function draftIntake({
         event.preventDefault();
         event.stopPropagation();
         const text = cleanPaste(event.clipboardData.getData("text/plain"));
-        queuePreparation(() => attachImages(copied, { text }));
+        queuePreparation(
+          () => attachImages(copied, { text }),
+          new Set(copied.map(({ file }) => file)).size,
+        );
         return;
       }
       const files = event.clipboardData.files.length

@@ -220,6 +220,8 @@ it("keeps both of two screenshots pasted while the first is still being prepared
   const draft = await composer();
   update(() => draft().addFiles([screenshot("one.png")]));
   update(() => draft().addFiles([screenshot("two.png")]));
+  // Each waits as a placeholder until its tile can take over.
+  expect(draft().incoming).toBe(2);
   await new Promise((r) => setTimeout(r, 120));
   await settle();
   expect({ ...state(draft), error: draft().error }).toEqual({
@@ -228,6 +230,7 @@ it("keeps both of two screenshots pasted while the first is still being prepared
     error: undefined,
   });
   expect(draft().preparing).toBe(false);
+  expect(draft().incoming).toBe(0);
 });
 
 it("persists a screenshot's token when its editor disappears during preparation", async () => {

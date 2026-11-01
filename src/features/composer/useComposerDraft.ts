@@ -50,6 +50,7 @@ export function useComposerDraft(
     setError,
     ...intake,
     preparing: queue.preparing,
+    incoming: queue.incoming,
     isPreparing: queue.isPreparing,
     sketching: screenshots.sketching,
     sketch: screenshots.sketch,

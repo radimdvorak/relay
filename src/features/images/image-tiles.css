@@ -28,6 +28,11 @@
   height: 100%;
   object-fit: cover;
 }
+.composer-image.incoming {
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+}
 .composer-image-open {
   display: block;
   width: 100%;

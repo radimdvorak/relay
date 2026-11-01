@@ -1,4 +1,5 @@
 import { X } from "lucide-react";
+import { Spinner } from "../../ui/ui";
 import { flattenSketch } from "../images/sketch";
 import type { ComposerDraft } from "./useComposerDraft";
 import { CopyImageMenu } from "../images/CopyImageMenu";
@@ -17,8 +18,8 @@ export function ComposerAttachmentStrip({
   onOpenPaste: (index: number) => void;
   onRemovePaste: (index: number) => void;
 }) {
-  const { attached, pastes } = draft;
-  if (!attached.length && !pastes.length) return null;
+  const { attached, pastes, incoming } = draft;
+  if (!attached.length && !pastes.length && !incoming) return null;
   return (
     <div className="composer-images" aria-label="Attachments">
       {attached.map((image) =>
@@ -64,6 +65,16 @@ export function ComposerAttachmentStrip({
           </CopyImageMenu>
         ),
       )}
+      {Array.from({ length: incoming }, (_, i) => (
+        <div
+          key={`incoming-${i}`}
+          className="composer-image incoming"
+          role="status"
+          aria-label="Preparing screenshot"
+        >
+          <Spinner size={16} />
+        </div>
+      ))}
       {pastes.map((paste, index) => (
         <PastedTextCard
           key={index}
