@@ -12,24 +12,11 @@ const attempts = [
   { size: 0.55, quality: 0.78 },
 ];
 
-function jpeg(canvas: HTMLCanvasElement, quality: number): Promise<Blob> {
-  return new Promise((resolve, reject) =>
-    canvas.toBlob(
-      (blob) =>
-        blob
-          ? resolve(blob)
-          : reject(new Error("Could not compress screenshot.")),
-      "image/jpeg",
-      quality,
-    ),
-  );
-}
-
 /** Re-encodes an image too heavy to keep as a JPEG under LIMIT, shrinking it if it must. */
-export async function shrink(file: Blob): Promise<Blob> {
+export async function compress(file: Blob): Promise<Blob> {
   const bitmap = await createImageBitmap(file);
   try {
-    const canvas = document.createElement("canvas");
+    const canvas = new OffscreenCanvas(1, 1);
     const context = canvas.getContext("2d");
     if (!context) throw new Error("Could not compress screenshot.");
     const fit = Math.min(1, LONG_SIDE / Math.max(bitmap.width, bitmap.height));
@@ -44,7 +31,7 @@ export async function shrink(file: Blob): Promise<Blob> {
         context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
         drawnAt = size;
       }
-      const blob = await jpeg(canvas, quality);
+      const blob = await canvas.convertToBlob({ type: "image/jpeg", quality });
       if (blob.size <= LIMIT) return blob;
     }
     throw new Error("Screenshot is too large after compression.");
