@@ -57,6 +57,10 @@ export function usePromptEditor(
           callbacks.current.onPasteRefused?.(plain);
         return true;
       },
+      // The composer places dropped files itself. Explorer also sends their
+      // file:/// URIs as text, which ProseMirror would insert at the drop point.
+      handleDrop: (_view, event) =>
+        !!event.dataTransfer?.types.includes("Files"),
       clipboardTextSerializer: (slice) => serialize(slice.content),
       // A pill's × removes it; elsewhere a screenshot or paste opens.
       handleClickOn(view, _pos, node, nodePos, event) {
