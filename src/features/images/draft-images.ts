@@ -290,13 +290,17 @@ function asDataUrl(file: Blob): Promise<string> {
   });
 }
 
+/** Anything heavier is shrunk in a worker, so this only stops absurd files. */
+const SOURCE_LIMIT = 200_000_000;
+
 export const isScreenshot = (file: File) =>
   ["image/png", "image/jpeg", "image/webp"].includes(file.type);
 export async function prepareScreenshot(file: File): Promise<DraftImage> {
   if (!isScreenshot(file))
     throw new Error("Paste a PNG, JPEG or WebP screenshot.");
-  if (!file.size || file.size > 12_000_000)
-    throw new Error("Screenshot exceeds the 12 MB source limit.");
+  if (!file.size) throw new Error("Screenshot is empty.");
+  if (file.size > SOURCE_LIMIT)
+    throw new Error("Screenshot is over 200 MB, too big to compress.");
   const shrunk = file.size > LIMIT ? await shrink(file) : undefined;
   return {
     id: crypto.randomUUID(),

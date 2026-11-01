@@ -14,7 +14,9 @@ const attempts = [
 
 /** Re-encodes an image too heavy to keep as a JPEG under LIMIT, shrinking it if it must. */
 export async function compress(file: Blob): Promise<Blob> {
-  const bitmap = await createImageBitmap(file);
+  const bitmap = await createImageBitmap(file).catch(() => {
+    throw new Error("Screenshot is too large or damaged to open.");
+  });
   try {
     const canvas = new OffscreenCanvas(1, 1);
     const context = canvas.getContext("2d");
