@@ -1,15 +1,17 @@
 import { useEffect, useState } from "react";
-import { useWindowFocused } from "./window-focus";
 
-/** The current time, refreshed every `interval` ms. */
+/**
+ * The current time, refreshed every `interval` ms. It keeps ticking while the
+ * window is unfocused: the sidebar's spinners keep turning then, and a clock
+ * frozen beside one reads as a hung thread.
+ */
 export function useNow(interval: number, ticking = true) {
-  const focused = useWindowFocused();
   const [now, setNow] = useState(Date.now);
   useEffect(() => {
-    if (!ticking || !focused) return;
+    if (!ticking) return;
     setNow(Date.now());
     const timer = setInterval(() => setNow(Date.now()), interval);
     return () => clearInterval(timer);
-  }, [interval, focused, ticking]);
+  }, [interval, ticking]);
   return now;
 }
