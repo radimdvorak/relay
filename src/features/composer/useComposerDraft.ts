@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
+import { useEffect, useMemo, useState, type RefObject } from "react";
 import { agentMentionPattern } from "../../../shared/agents";
 import { pastedTexts } from "../../../shared/pasted-texts";
 import { pickedSkills } from "../../../shared/skill-mentions";
@@ -8,6 +8,7 @@ import { useImagePills } from "../images/image-pills";
 import { readDraft, useDraft, writeDraft } from "./drafts";
 import { draftIntake, PASTE_TOO_LONG, type DraftEditor } from "./draft-intake";
 import { useDraftImages } from "./useDraftImages";
+import { usePreparationQueue } from "./usePreparationQueue";
 
 export type { DraftEditor } from "./draft-intake";
 export type ComposerDraft = ReturnType<typeof useComposerDraft>;
@@ -20,9 +21,7 @@ export function useComposerDraft(
   const text = useDraft(key);
   const set = (value: string) => writeDraft(key, value);
   const [error, setError] = useState<string>();
-  const [preparing, setPreparing] = useState(false);
-  const preparation = useRef<Promise<void>>(Promise.resolve());
-  const batches = useRef(0);
+  const queue = usePreparationQueue(setError);
   const screenshots = useDraftImages(key, text, setError);
   const imagePills = useImagePills();
   // Paste pills live in the draft text; their cards mirror them in order.
@@ -31,23 +30,13 @@ export function useComposerDraft(
   useEffect(() => {
     setError((error) => (error === PASTE_TOO_LONG ? undefined : error));
   }, [text]);
-  // Attachments wait their turn so each batch counts the ones before it,
-  // and Send waits until everything pasted has landed in the draft.
-  function queuePreparation(attach: () => Promise<void>) {
-    batches.current++;
-    setPreparing(true);
-    setError(undefined);
-    preparation.current = preparation.current.then(attach).finally(() => {
-      if (!--batches.current) setPreparing(false);
-    });
-  }
   const intake = draftIntake({
     key,
     editor,
     screenshots,
     imagePills,
     setError,
-    queuePreparation,
+    queuePreparation: queue.queuePreparation,
   });
   return {
     text,
@@ -60,10 +49,8 @@ export function useComposerDraft(
     error,
     setError,
     ...intake,
-    /** An attachment is being prepared; the message waits for it. */
-    preparing,
-    /** Also catches a send in the same event turn, before React rerenders. */
-    isPreparing: () => batches.current > 0,
+    preparing: queue.preparing,
+    isPreparing: queue.isPreparing,
     sketching: screenshots.sketching,
     sketch: screenshots.sketch,
     historyOf: screenshots.historyOf,
