@@ -1,5 +1,7 @@
 import { useEditor, type UseEditorOptions } from "@tiptap/react";
 import { closeHistory } from "@tiptap/pm/history";
+import type { Node } from "@tiptap/pm/model";
+import type { EditorView } from "@tiptap/pm/view";
 import { useEffect, useRef, useState, type RefObject } from "react";
 import { pasteIndex, removePill } from "../prompt-pills";
 import { promptText, serialize } from "../prompt-text";
@@ -62,29 +64,8 @@ export function usePromptEditor(
       handleDrop: (_view, event) =>
         !!event.dataTransfer?.types.includes("Files"),
       clipboardTextSerializer: (slice) => serialize(slice.content),
-      // A pill's × removes it; elsewhere a screenshot or paste opens.
-      handleClickOn(view, _pos, node, nodePos, event) {
-        if (
-          event.target instanceof Element &&
-          event.target.closest(".prompt-pill-remove")
-        ) {
-          view.dispatch(
-            closeHistory(
-              removePill(view.state.tr, nodePos, node),
-            ).scrollIntoView(),
-          );
-          return true;
-        }
-        if (node.type.name === "relayImage") {
-          callbacks.current.onOpenImage?.(node.attrs.n);
-          return true;
-        }
-        if (node.type.name === "relayPaste") {
-          callbacks.current.onOpenPaste?.(pasteIndex(view.state.doc, nodePos));
-          return true;
-        }
-        return false;
-      },
+      handleClickOn: (view, _pos, node, nodePos, event) =>
+        pillClick(view, node, nodePos, event, callbacks.current),
     },
     onUpdate({ editor }) {
       callbacks.current.onCursor(
@@ -107,4 +88,32 @@ export function usePromptEditor(
     };
   }, [editor, inputRef]);
   return editor;
+}
+
+/** A pill's × removes it; elsewhere a screenshot or paste pill opens. True when the click was a pill's. */
+function pillClick(
+  view: EditorView,
+  node: Node,
+  nodePos: number,
+  event: MouseEvent,
+  events: PromptEvents,
+) {
+  const onRemove =
+    event.target instanceof Element &&
+    !!event.target.closest(".prompt-pill-remove");
+  if (onRemove) {
+    view.dispatch(
+      closeHistory(removePill(view.state.tr, nodePos, node)).scrollIntoView(),
+    );
+    return true;
+  }
+  if (node.type.name === "relayImage") {
+    events.onOpenImage?.(node.attrs.n);
+    return true;
+  }
+  if (node.type.name === "relayPaste") {
+    events.onOpenPaste?.(pasteIndex(view.state.doc, nodePos));
+    return true;
+  }
+  return false;
 }

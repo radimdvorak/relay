@@ -74,6 +74,12 @@ export function writeDraft(key: string, value: string) {
   changed(key, had, !!value.trim());
 }
 
+/** Adds `text` to the end of a draft no editor is showing, a space apart. */
+export function appendToDraft(key: string, text: string) {
+  const now = readDraft(key);
+  writeDraft(key, `${now}${now ? " " : ""}${text}`);
+}
+
 // Told the thread whose draft went out from somewhere other than its
 // composer, a phone's send through this computer, so a composer showing it
 // drops the screenshots and attachments it holds from storage that's moved on.

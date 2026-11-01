@@ -20,7 +20,7 @@ import { draftChips } from "../../lib/thread-storage";
 import { isScreenshot, prepareScreenshot } from "../images/draft-images";
 import { copiedImages } from "../images/image-clipboard";
 import { droppedImage } from "../images/image-drag";
-import { readDraft, writeDraft } from "./drafts";
+import { appendToDraft, readDraft } from "./drafts";
 import { fileMarkdown } from "./prompt-text";
 import type { useDraftImages } from "./useDraftImages";
 
@@ -48,6 +48,13 @@ export interface DraftEditor {
 
 export const PASTE_TOO_LONG =
   "That paste is too long. A message holds up to 32,000 characters.";
+
+function clipboardFiles(data: DataTransfer): File[] {
+  if (data.files.length) return Array.from(data.files);
+  return Array.from(data.items)
+    .map((item) => item.getAsFile())
+    .filter((file): file is File => !!file);
+}
 
 /** Files and pasted text entering one draft; queued work keeps its original key. */
 export function draftIntake({
@@ -177,8 +184,7 @@ export function draftIntake({
         } else if (long && ns.length) editor.current.insertImages(ns);
       } else if (added) {
         // Navigation clears the editor ref; its tokens must still be saved.
-        const now = readDraft(key);
-        writeDraft(key, `${now}${now ? " " : ""}${added}`);
+        appendToDraft(key, added);
       }
     } catch (error) {
       setError(
@@ -191,10 +197,8 @@ export function draftIntake({
   }
   function pasteWords(words: string) {
     if (!words.trim()) return;
-    if (!screenshots.isShown() || !editor.current) {
-      const now = readDraft(key);
-      writeDraft(key, `${now}${now ? " " : ""}${words}`);
-    } else if (isLongPaste(words) && !pastedTexts(words).length) {
+    if (!screenshots.isShown() || !editor.current) appendToDraft(key, words);
+    else if (isLongPaste(words) && !pastedTexts(words).length) {
       if (!editor.current.insertPaste(words)) setError(PASTE_TOO_LONG);
     } else if (!editor.current.pasteText(words)) setError(PASTE_TOO_LONG);
   }
@@ -212,8 +216,7 @@ export function draftIntake({
       } else {
         const chips = draftChips(key).files;
         chips.save([...new Set([...chips.load(), path])]);
-        const now = readDraft(key);
-        writeDraft(key, `${now}${now ? " " : ""}${fileMarkdown(path)}`);
+        appendToDraft(key, fileMarkdown(path));
       }
     } catch (error) {
       setError(
@@ -269,11 +272,7 @@ export function draftIntake({
         );
         return;
       }
-      const files = event.clipboardData.files.length
-        ? Array.from(event.clipboardData.files)
-        : Array.from(event.clipboardData.items)
-            .map((item) => item.getAsFile())
-            .filter((file): file is File => !!file);
+      const files = clipboardFiles(event.clipboardData);
       // Files copied in Finder or Explorer paste like they drop. Files that
       // aren't on disk can't be mentioned, so the text they came with pastes.
       const placeable = files.some(
