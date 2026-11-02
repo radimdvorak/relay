@@ -95,6 +95,42 @@ it("marks the calls a Stop cut short as stopped, not failed", () => {
   vi.useRealTimers();
 });
 
+it("stops a Stop's unread steers spinning at once, before the agent has wound down", () => {
+  vi.useFakeTimers();
+  const message = streamingAnswer("claude");
+  const steer = (id: string, provider = "claude") =>
+    ({
+      id,
+      role: "user",
+      body: id,
+      provider,
+      status: "complete",
+      steered: true,
+      unread: true,
+      created: 1,
+      version: 1,
+    }) as ChatMessage;
+  const chat = {
+    id: "c",
+    messages: [message, steer("mine"), steer("codex's", "codex")],
+  } as unknown as ProjectChat;
+  const emitted: ChatMessage[] = [];
+  const answer = new AnswerRecorder(
+    chat,
+    message,
+    (m) => emitted.push(m),
+    () => {},
+  );
+  answer.stop();
+  const [, mine, other] = chat.messages;
+  expect(mine).toMatchObject({ missed: true, version: 2 });
+  expect(mine.unread).toBeUndefined();
+  expect(emitted.find((m) => m.id === "mine")?.unread).toBeUndefined();
+  // Another agent's steer belongs to its own turn.
+  expect(other.unread).toBe(true);
+  vi.useRealTimers();
+});
+
 it("makes a fresh async question unread activity without doing so again on replay", () => {
   vi.useFakeTimers();
   try {

@@ -351,7 +351,24 @@ export class AnswerRecorder {
     this.stopped = true;
     this.message.status = "cancelled";
     this.message.ended = Date.now();
+    this.missSteers();
     this.end();
+  }
+
+  /**
+   * Steers still unread when the user stops are missed now: anything the
+   * agent reads after the stop is dropped, and the agent can take seconds to
+   * wind down (a tool's process tree on Windows), spinning them meanwhile.
+   */
+  private missSteers() {
+    const { provider, parentId } = this.message;
+    const unread = this.chat.messages.filter(
+      (m) =>
+        m.unread &&
+        m.provider === provider &&
+        (m.parentId ?? null) === (parentId ?? null),
+    );
+    for (const steer of unread) this.unreadSteer(steer.id);
   }
 
   /** The turn ended with the message's status: what still ran ends with it, and the window hears it now. */
