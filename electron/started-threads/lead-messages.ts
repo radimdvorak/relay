@@ -54,7 +54,7 @@ export function answeredLead(chat: ProjectChat, lead: string) {
 export class LeadMessages {
   constructor(
     private chats: Pick<ProjectChats, "get">,
-    private reads: Pick<ThreadReads, "waitsFor" | "messaged">,
+    private reads: Pick<ThreadReads, "waitsFor" | "messaged" | "hand">,
     private send: SendToLead,
     private sender: (chat: ProjectChat) => Sender,
   ) {}
@@ -69,6 +69,10 @@ export class LeadMessages {
           : "No thread started this one; tell the user here instead.",
         true,
       );
+    // A wait of the lead's hands it over at once; queued, it would sit
+    // there until the lead's whole answer ends.
+    if (this.reads.hand(lead.id, caller, text))
+      return toolText("Sent; your lead reads it now.");
     const how = await this.tell(lead, caller, "message", [
       `From “${caller.title}” (thread ${caller.id}), a thread you started:`,
       text,

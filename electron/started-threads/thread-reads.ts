@@ -49,12 +49,51 @@ function bodyFrom(body: string, offset = 0) {
   return end < body.length ? { body: part, nextOffset: end } : { body: part };
 }
 
+/** A message from a started thread that a wait handed to its lead itself. */
+interface Heard {
+  from: string;
+  thread: string;
+  message: string;
+}
+
 /** A wait_for_threads running now: which threads it covers, every one the lead started without `ids`. */
 interface Wait {
   ids?: string[];
-  /** Threads the lead started that messaged it meanwhile. */
+  /** Threads the lead started that messaged it meanwhile, through its thread. */
   messaged: string[];
+  /** Messages the wait hands over, so they never queue in the lead's thread. */
+  heard: Heard[];
   woken: AbortController;
+}
+
+/** What a wait that ended says besides where each thread stands. */
+function waitOutcome(
+  { heard, messaged }: Wait,
+  done: boolean,
+  aborted: boolean,
+) {
+  const answer = "Answer with send_to_thread, then wait again if you need to.";
+  if (heard.length && messaged.length)
+    return {
+      heard,
+      messaged,
+      note: `\`heard\` holds messages that won't come in again; the ones from \`messaged\` come in this thread next. ${answer}`,
+    };
+  if (heard.length)
+    return {
+      heard,
+      note: `\`heard\` holds their messages; they won't come in again. ${answer}`,
+    };
+  if (messaged.length)
+    return {
+      messaged,
+      note: `They messaged you; it comes in this thread next. ${answer}`,
+    };
+  if (done) return {};
+  return {
+    timedOut: !aborted,
+    note: "Still working; wait again or read them.",
+  };
 }
 
 /** Read-only thread discovery, transcript pagination and status polling. */
@@ -234,6 +273,18 @@ export class ThreadReads {
     );
   }
 
+  /** Hands `message` from `from` to the lead's waits that cover it; whether one did. */
+  hand(lead: string, from: Pick<ProjectChat, "id" | "title">, message: string) {
+    const covering = [...(this.waits.get(lead) ?? [])].filter(
+      (w) => !w.ids || w.ids.includes(from.id),
+    );
+    for (const wait of covering) {
+      wait.heard.push({ from: from.id, thread: from.title, message });
+      wait.woken.abort();
+    }
+    return covering.length > 0;
+  }
+
   /** A thread the lead started messaged it: its waits end, so it reads the message. */
   messaged(lead: string, from: string) {
     for (const wait of this.waits.get(lead) ?? []) {
@@ -251,6 +302,7 @@ export class ThreadReads {
     const wait: Wait = {
       ...(ids ? { ids } : {}),
       messaged: [],
+      heard: [],
       woken: new AbortController(),
     };
     const waits = this.waits.get(lead.id) ?? new Set();
@@ -259,20 +311,10 @@ export class ThreadReads {
       for (;;) {
         const threads = await this.list(lead, ids);
         const done = threads.every((t) => settled.has(t.status));
-        const { messaged } = wait;
-        if (done || messaged.length || signal.aborted || Date.now() >= until)
+        const ended = done || wait.messaged.length > 0 || wait.heard.length > 0;
+        if (ended || signal.aborted || Date.now() >= until)
           return json({
-            ...(messaged.length
-              ? {
-                  messaged,
-                  note: "They messaged you; it comes in this thread next. Answer with send_to_thread, then wait again if you need to.",
-                }
-              : done
-                ? {}
-                : {
-                    timedOut: !signal.aborted,
-                    note: "Still working; wait again or read them.",
-                  }),
+            ...waitOutcome(wait, done, signal.aborted),
             threads,
           });
         await delay(Math.min(POLL_MS, until - Date.now()), undefined, {

@@ -1992,11 +1992,33 @@ test("a lead waiting on the thread hears of its end from the wait, not twice", a
   expect(sent).toEqual([]);
 });
 
-test("message_lead reaches a working lead mid-answer and ends its wait", async () => {
+test("message_lead hands its message to the lead's wait instead of queueing it", async () => {
   const { lead, chats, child, sent, threads } = await startedChild();
   child.running = true;
   chats.get(lead.id)!.running = true;
   const waiting = call(threads, lead.id, "wait_for_threads", {
+    timeoutSeconds: 5,
+  });
+  await tick();
+  const result = await call(threads, child.id, "message_lead", {
+    message: "Purple or teal?",
+  });
+  expect(resultText(result)).toBe("Sent; your lead reads it now.");
+  expect(sent).toEqual([]);
+  const waited = parse(await waiting);
+  expect(waited.heard).toEqual([
+    { from: child.id, thread: "Hangar icon", message: "Purple or teal?" },
+  ]);
+  expect(waited.messaged).toBeUndefined();
+  expect(waited.threads[0].status).toBe("working");
+});
+
+test("message_lead steers a working lead whose wait is on other threads", async () => {
+  const { lead, chats, child, sent, threads } = await startedChild();
+  child.running = true;
+  chats.get(lead.id)!.running = true;
+  const waiting = call(threads, lead.id, "wait_for_threads", {
+    ids: [lead.id],
     timeoutSeconds: 5,
   });
   await tick();
@@ -2016,7 +2038,7 @@ test("message_lead reaches a working lead mid-answer and ends its wait", async (
   );
   const waited = parse(await waiting);
   expect(waited.messaged).toEqual([child.id]);
-  expect(waited.threads[0].status).toBe("working");
+  expect(waited.heard).toBeUndefined();
 });
 
 test("message_lead wakes an idle lead with a turn", async () => {
