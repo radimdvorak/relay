@@ -170,7 +170,8 @@ function useWidth(element: HTMLElement | null) {
 /** Whether Clockify's timer shows, which takes a place in the bar. */
 function useTimerShows() {
   const on = usePluginEnabled("clockify");
-  return on && !!useClockifyStatus(on).data;
+  const status = useClockifyStatus(on);
+  return on && !!status.data;
 }
 
 /**
