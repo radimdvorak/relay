@@ -286,6 +286,8 @@ export class ChatQueue {
           mimeType: image.mimeType,
         })),
         asked.question,
+        // Another thread's message never stops what this one is doing.
+        !!next.input.fromThread,
       );
     } catch (error) {
       if (error instanceof UncertainSteerError) {

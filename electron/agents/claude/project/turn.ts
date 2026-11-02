@@ -135,7 +135,7 @@ export async function runClaudeProject(
     }
     if (!compacting)
       options.onControl?.({
-        steer: (text, id, steerImages, request) =>
+        steer: (text, id, steerImages, request, afterTools) =>
           guardSteer(
             () => reader.steerable && !options.signal.aborted,
             () =>
@@ -146,8 +146,8 @@ export async function runClaudeProject(
             ([attached, dispatch]) => {
               const uuid = randomUUID();
               reader.track(uuid, id);
-              // "now" cuts Claude off mid-reply or mid-tool, running tools
-              // included, and has it answer this message right away.
+              // "now" cuts Claude off mid-reply or mid-tool and answers at once;
+              // the tools it cuts read as turned down by the user, so "next".
               session!.input.push({
                 type: "user",
                 uuid,
@@ -160,7 +160,7 @@ export async function runClaudeProject(
                       ? userContent(text, attached, dispatch)
                       : text,
                 },
-                priority: "now",
+                priority: afterTools ? "next" : "now",
               });
             },
           ),

@@ -1022,4 +1022,6 @@ it("holds a steer you send for a moment, to be taken back before the agent gets 
     fromThread: { id: crypto.randomUUID(), name: "Lead" },
   });
   expect(steered()).toEqual([kept.id, fromAgent.id]);
+  // ...nor cuts off the tools this thread runs; your own steer does.
+  expect(steer.mock.calls.map((call) => call[4])).toEqual([false, true]);
 });

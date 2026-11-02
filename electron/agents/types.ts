@@ -90,6 +90,8 @@ export interface AgentOptions {
       images?: AgentOptions["images"],
       /** The user's own words within `text`, as `request` is within `prompt`. */
       request?: string,
+      /** Lets running tools finish first instead of cutting them off. */
+      afterTools?: boolean,
     ) => Promise<void>;
     /** Pauses or clears the goal the running turn pursues, without stopping the turn. */
     goal?: (command: "pause" | "clear") => Promise<void>;

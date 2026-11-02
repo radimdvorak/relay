@@ -224,6 +224,39 @@ it("keeps commentary out of the answer and appends the findings Claude reported"
   `);
 });
 
+it("lets running tools finish before a steer from another thread", async () => {
+  let steer!: (
+    text: string,
+    id?: string,
+    images?: undefined,
+    request?: string,
+    afterTools?: boolean,
+  ) => Promise<void>;
+  const sent: Sent[] = [];
+  claude(async function* ({ next }) {
+    const prompt = await next();
+    yield lifecycle(prompt.uuid, "started");
+    yield says("m1", "Settling the finished threads");
+    const steered = await next();
+    sent.push(steered);
+    yield lifecycle(steered.uuid, "queued");
+    yield lifecycle(steered.uuid, "started");
+    yield result("Settled.");
+  });
+  const { callbacks } = recorder();
+  const answer = run({
+    ...callbacks,
+    onControl: (control) => (steer = control.steer),
+    onText: (text) => {
+      callbacks.onText(text);
+      if (text === "Settling the finished threads")
+        void steer("A thread finished", "msg-2", undefined, undefined, true);
+    },
+  });
+  await expect(answer).resolves.toBe("Settled.");
+  expect(sent[0]).toMatchObject({ priority: "next" });
+});
+
 it("answers a steer below it once Claude reads it", async () => {
   let steer!: (text: string, id?: string) => Promise<void>;
   const sent: Sent[] = [];
