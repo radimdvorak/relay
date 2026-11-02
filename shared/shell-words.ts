@@ -2,15 +2,63 @@
 // each part runs: quotes, `;` and `&&` chains, pipes, heredocs, and the
 // `/bin/zsh -lc '…'` Codex wraps every command in.
 
-/** Codex runs everything as `/bin/zsh -lc '<command>'`; a label cut short may have lost the closing quote. */
+/**
+ * Codex runs everything as `/bin/zsh -lc '<command>'`, and on Windows as
+ * `"C:\\…\\powershell.exe" -Command "<command>"`; a label cut short may have
+ * lost the closing quote.
+ */
 export function unwrapShell(command: string): string {
-  const wrapped = /^\s*(?:\S*\/)?(?:ba|z)?sh\s+-\w*c\s+(['"])([\s\S]*)$/.exec(command);
+  const windows = windowsShell.exec(command);
+  if (windows) return shellArgs(windows[1]!).join(" ");
+  const wrapped = /^\s*(?:\S*\/)?(?:ba|z|fi)?sh\s+-\w*c\s+(['"])([\s\S]*)$/.exec(command);
   if (!wrapped) return command;
   const quote = wrapped[1]!;
   const rest = wrapped[2]!.trimEnd();
   const inner = rest.endsWith(quote) ? rest.slice(0, -1) : rest;
   // Inside single quotes a quote is written '\''; inside double quotes, \" \\ \$ \`.
   return quote === "'" ? inner.replaceAll(`'\\''`, "'") : inner.replace(/\\(["\\$`])/g, "$1");
+}
+
+/**
+ * `powershell.exe -NoProfile -Command …`, `pwsh -c …` or `cmd.exe /c …`, the
+ * program's path maybe quoted; what follows is the command, shell-quoted.
+ */
+const windowsShell = new RegExp(
+  String.raw`^\s*(?:"[^"\n]*[\\/]|'[^'\n]*[\\/]|[^\s"']*[\\/])?` +
+    String.raw`(?:(?:powershell|pwsh)(?:\.exe)?["']?\s+(?:-(?!c(?:ommand)?\s)\w+\s+(?:[^-\s]\S*\s+)?)*-c(?:ommand)?` +
+    String.raw`|cmd(?:\.exe)?["']?\s+(?:\/\w\s+)*\/c)\s+([\s\S]*)$`,
+  "i",
+);
+
+/**
+ * The words a shell-quoted line hands its program: quotes off and the pieces
+ * of `'"'!x'"'` joined back into `'!x'`. A quote a label cut short runs to the end.
+ */
+function shellArgs(line: string) {
+  const args: string[] = [];
+  let arg = "";
+  let inArg = false;
+  let quote = "";
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i]!;
+    if (quote) {
+      if (c === quote) quote = "";
+      // Inside double quotes a backslash only takes " \ $ ` as text.
+      else if (quote === '"' && c === "\\" && /["\\$`]/.test(line[i + 1] ?? "")) arg += line[++i];
+      else arg += c;
+    } else if (/\s/.test(c)) {
+      if (inArg) args.push(arg);
+      arg = "";
+      inArg = false;
+    } else {
+      inArg = true;
+      if (c === "'" || c === '"') quote = c;
+      else if (c === "\\") arg += line[++i] ?? "";
+      else arg += c;
+    }
+  }
+  if (inArg) args.push(arg);
+  return args;
 }
 
 /** Where a line's quoted stretches start and end, so a `<<` or `|` inside them is text. */
@@ -142,11 +190,15 @@ export function wordsOf(segment: string) {
 /** The words that aren't flags, redirections or heredoc marks. */
 export const positional = (args: string[]) => args.filter((a) => !/^[-<>]/.test(a));
 
-/** Programs that only trim what the one before them printed. */
-const filters = new Set(["head", "tail", "cut", "sort", "uniq", "wc", "awk", "grep", "sed", "tr"]);
+/** Programs that only trim what the one before them printed; PowerShell's in lowercase, as it ignores case. */
+const filters = new Set([
+  "head", "tail", "cut", "sort", "uniq", "wc", "awk", "grep", "sed", "tr",
+  "select-object", "select", "sort-object", "measure-object", "where-object", "select-string", "out-string",
+  "format-table", "format-list",
+]);
 
 /** Where a segment's first `|` is, outside quotes and `$( … )`; -1 when it has none. */
-function pipeAt(segment: string) {
+export function pipeAt(segment: string) {
   let quote = "";
   let depth = 0;
   for (let i = 0; i < segment.length; i++) {
@@ -168,7 +220,7 @@ export function firstStage(segment: string) {
   const at = pipeAt(segment);
   if (at === -1) return segment;
   const next = segment.slice(at + 1).trim().split(/\s+/)[0]!;
-  return filters.has(next) ? segment.slice(0, at).trim() : segment;
+  return filters.has(next.toLowerCase()) ? segment.slice(0, at).trim() : segment;
 }
 
 /** What a segment pipes into: `node` in `cat <<EOF | node`. */
@@ -200,7 +252,7 @@ export function writesTo(segment: string) {
 }
 
 /** The last part of a path: a program's name, a file's. */
-export const baseName = (path: string) => path.split("/").filter(Boolean).at(-1) ?? path;
+export const baseName = (path: string) => path.split(/[/\\]/).filter(Boolean).at(-1) ?? path;
 
 /** Words that run the command after them: `sudo`, `npx`, `nohup`. */
 export const commandWrappers = new Set(["sudo", "env", "time", "nice", "nohup", "exec", "command", "npx", "pnpx", "bunx"]);

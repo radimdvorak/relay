@@ -95,8 +95,9 @@ function liveItem(item: Record<string, any>): unknown {
   switch (item.type) {
     case "CommandExecution": {
       const command = Array.isArray(item.command)
-        ? // A shell call is ["/bin/zsh", "-lc", "<command>"].
-          item.command.length === 3 && item.command[1] === "-lc"
+        ? // A shell call is ["/bin/zsh", "-lc", "<command>"], on Windows ["…\\powershell.exe", "-Command", "<command>"].
+          item.command.length === 3 &&
+          /^(?:-lc|-command|\/c)$/i.test(item.command[1])
           ? item.command[2]
           : item.command.join(" ")
         : item.command;

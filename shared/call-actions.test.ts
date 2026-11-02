@@ -123,6 +123,49 @@ describe("what Codex ran", () => {
     ]);
   });
 
+  describe("on Windows, in PowerShell", () => {
+    // How Codex's app server hands over `["…\\powershell.exe", "-Command", "<command>"]`.
+    const powershell = (command: string) =>
+      String.raw`"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command ` + command;
+
+    it("reads the command inside, quoted the way Codex quotes it", () => {
+      const command = powershell(`"Get-Location; rg --files -g AGENTS.md -g '"'!node_modules'"'; git status --short"`);
+      expect(commandActions(command)).toEqual([
+        { kind: "search", pattern: "" },
+        { kind: "git", what: "git status" },
+      ]);
+      expect(shownCommand(command)).toBe("rg --files -g AGENTS.md -g '!node_modules'; git status --short");
+      expect(commandActions(`pwsh -NoProfile -ExecutionPolicy Bypass -c "npm test"`)).toEqual([
+        { kind: "test", failed: false },
+      ]);
+      expect(commandActions(`cmd.exe /d /c "git log -1"`)).toEqual([{ kind: "git", what: "git log" }]);
+    });
+
+    it("reads what Get-Content and Select-Object kept", () => {
+      const command = powershell(
+        `"Get-Content docs/a.md; Get-Content src/b.cpp | Select-Object -Skip 150 -First 70; gc c.h -TotalCount 40`,
+      );
+      expect(commandActions(command)).toEqual([
+        { kind: "read", file: "docs/a.md" },
+        { kind: "read", file: "src/b.cpp", lines: "151–220" },
+        { kind: "read", file: "c.h", lines: "1–40" },
+      ]);
+      expect(commandActions(powershell(`"Get-Content -LiteralPath 'C:/a/SKILL.md', 'C:/a/api.md'"`))).toEqual([
+        { kind: "read", file: "C:/a/SKILL.md" },
+        { kind: "read", file: "C:/a/api.md" },
+      ]);
+    });
+
+    it("reads Select-String as a search and skips what only sets up", () => {
+      expect(commandActions(powershell(`"Select-String -Path src/*.ts -Pattern 'useNow'"`))).toEqual([
+        { kind: "search", pattern: "useNow", where: "src/*.ts" },
+      ]);
+      expect(commandActions(powershell(`"Set-Location app; $env:CI='1'; rg -n foo src | Select-Object -First 35"`))).toEqual([
+        { kind: "search", pattern: "foo", where: "src" },
+      ]);
+    });
+  });
+
   it("names each file a patch made, edited or deleted", () => {
     const call = {
       id: "p",

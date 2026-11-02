@@ -18,6 +18,12 @@ describe("programName", () => {
     expect(programName(`bash -c "cd app && git status"`)).toBe("git");
   });
 
+  it("looks inside the PowerShell Codex runs on Windows", () => {
+    const powershell = String.raw`"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command`;
+    expect(programName(`${powershell} "$env:UE_TIMEOUT='120000'; node unreal/Tools/dev/ue.mjs"`)).toBe("node");
+    expect(programName(`${powershell} "C:\\tools\\rg.exe -n foo"`)).toBe("rg.exe");
+  });
+
   it("reads through loops and conditionals to the command they run", () => {
     expect(programName("cd /repo && for f in a b; do wc -l $f; done")).toBe(
       "wc",

@@ -2,7 +2,14 @@
 import type { AgentActivity, TraceDropped } from "./projects";
 import { askedQuestions, isQuestionCall } from "./asked-questions";
 import { isStartThreads, startedIds } from "./started-threads";
-import { baseName, commandSetup, commandWrappers, shellHeaders, shellLeads } from "./shell-words";
+import {
+  baseName,
+  commandSetup,
+  commandWrappers,
+  shellHeaders,
+  shellLeads,
+  unwrapShell,
+} from "./shell-words";
 
 export function duration(ms: number) {
   const seconds = Math.max(0, Math.floor(ms / 1000));
@@ -101,22 +108,20 @@ export function summarizeActivity(
 /** The program a command line is about: "cd app && npx vitest run" is
  *  vitest, and Codex's "/bin/zsh -lc 'rg foo'" is rg. */
 export function programName(command: string): string | undefined {
-  const shell = command.match(
-    /^\s*(?:\S*\/)?(?:ba|z|fi)?sh\s+-\w*c\s+(['"])([\s\S]*)\1\s*$/,
-  );
-  if (shell) return programName(shell[2]!);
-  for (const segment of command.split(/&&|\|\||[;|\n]/)) {
+  for (const segment of unwrapShell(command).split(/&&|\|\||[;|\n]/)) {
     const words = segment.trim().split(/\s+/);
+    // `FOO=1 npm test`, or PowerShell's `$env:FOO='1'`.
+    const setsValue = (word: string) => /^\$?[\w:]+=/.test(word);
     while (
       words[0] &&
       (commandWrappers.has(words[0]) ||
         shellLeads.has(words[0]) ||
-        /^\w+=/.test(words[0]))
+        setsValue(words[0]))
     )
       words.shift();
     const word = words[0]?.replace(/^["'(]+|["')]+$/g, "");
     if (!word || commandSetup.has(word) || shellHeaders.has(word)) continue;
-    return word.split("/").at(-1) || word;
+    return baseName(word) || word;
   }
 }
 

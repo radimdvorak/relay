@@ -5,6 +5,7 @@
 import { isImagePath } from "./answer-images";
 import type { AgentActivity, WrittenCode } from "./projects";
 import { actionsThatRan, failedByItsCall, outcomes, type Step } from "./call-verdicts";
+import { cmdletActions } from "./powershell-actions";
 import {
   baseName,
   chain,
@@ -204,6 +205,8 @@ function segmentActions(segment: string, body: string | undefined): CallAction[]
     const rest = segment.slice(assigned[0].length);
     return rest ? segmentActions(rest, body) : [];
   }
+  const cmdlet = cmdletActions(segment);
+  if (cmdlet) return cmdlet;
   const [program, ...args] = pastLeads(subshellOff(segment, wordsOf(withoutRedirects(firstStage(segment)))));
   if (!program || setup.has(program)) return [];
   if (program === "cat") return catActions(segment, args, body);
