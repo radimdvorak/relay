@@ -141,8 +141,10 @@ internal fun AnswerImageFrame(loaded: LoadedImage, label: String, onOpen: () -> 
     val picture = rememberPicture(loaded)
     val shape = RoundedCornerShape(10.dp)
     BoxWithConstraints(modifier.fillMaxWidth()) {
+        // The frame hugs the picture once it's in; a tall screenshot narrows instead of running screens long.
+        val size = loaded.bitmap?.takeIf { picture != null }?.let { fittedSize(it.width, it.height, maxWidth) }
         Box(
-            Modifier.fillMaxWidth().height(minOf(maxWidth, ANSWER_HEIGHT.dp))
+            (if (size != null) Modifier.size(size.first, size.second) else Modifier.fillMaxWidth().height(minOf(maxWidth, ANSWER_HEIGHT.dp)))
                 .clip(shape).background(RelayTheme.colors.muted).ring(RelayTheme.colors.border, shape)
                 .then(if (picture != null) Modifier.pressable(onOpen, role = Role.Image, scale = false) else Modifier),
             contentAlignment = Alignment.Center,
@@ -152,4 +154,12 @@ internal fun AnswerImageFrame(loaded: LoadedImage, label: String, onOpen: () -> 
             else Spinner(color = RelayTheme.colors.mutedForeground)
         }
     }
+}
+
+/** A picture's frame: the column's width at its own shape, no taller than [ANSWER_HEIGHT]. */
+private fun fittedSize(width: Int, height: Int, maxWidth: Dp): Pair<Dp, Dp> {
+    if (width <= 0 || height <= 0) return maxWidth to minOf(maxWidth, ANSWER_HEIGHT.dp)
+    val ratio = width.toFloat() / height
+    val frameWidth = minOf(maxWidth, ANSWER_HEIGHT.dp * ratio)
+    return frameWidth to frameWidth / ratio
 }
