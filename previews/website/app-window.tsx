@@ -344,27 +344,43 @@ const threadChanges = {
 /** The window's left edge, as the app draws it on the threads. */
 function ActivityBar() {
   return (
-    <nav className="activity-bar rw-activity-bar" aria-label="Activity bar">
-      <BarButton label="Threads" current onClick={() => {}}>
-        <MessagesSquare size={19} />
-      </BarButton>
-      <BarButton label="Search threads" onClick={() => {}}>
-        <Search size={19} />
-      </BarButton>
-      <BarButton label="Pull requests" onClick={() => {}}>
-        <GitPullRequest size={19} />
-      </BarButton>
-      <BarButton label="Schedules" onClick={() => {}}>
-        <ScheduledThreadIcon size={19} />
-      </BarButton>
+    <nav
+      className="activity-bar left rw-activity-bar"
+      aria-label="Activity bar"
+    >
+      <BarButton
+        label="Threads"
+        current
+        onClick={() => {}}
+        icon={<MessagesSquare size={19} />}
+      />
+      <BarButton
+        label="Search threads"
+        onClick={() => {}}
+        icon={<Search size={19} />}
+      />
+      <BarButton
+        label="Pull requests"
+        onClick={() => {}}
+        icon={<GitPullRequest size={19} />}
+      />
+      <BarButton
+        label="Schedules"
+        onClick={() => {}}
+        icon={<ScheduledThreadIcon size={19} />}
+      />
       <span className="activity-bar-fill" />
-      <BarButton label="Usage" onClick={() => {}}>
-        <ChartColumn size={19} />
-      </BarButton>
+      <BarButton
+        label="Usage"
+        onClick={() => {}}
+        icon={<ChartColumn size={19} />}
+      />
       <span className="activity-bar-line" aria-hidden="true" />
-      <BarButton label="Open settings" onClick={() => {}}>
-        <Settings2 size={19} />
-      </BarButton>
+      <BarButton
+        label="Open settings"
+        onClick={() => {}}
+        icon={<Settings2 size={19} />}
+      />
     </nav>
   );
 }

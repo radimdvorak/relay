@@ -3,6 +3,7 @@ import { SIDEBAR_WIDTH } from "../lib/settings-page";
 import { useShortcut } from "../lib/shortcuts";
 import { useSidebarAutoHide } from "../lib/sidebar-auto-hide";
 import { useBarFoldsWithSidebar } from "../lib/activity-bar-folds";
+import { useBarPosition } from "../lib/activity-bar-position";
 import { readText, writeText } from "../lib/persisted-store";
 import {
   chosenHidden,
@@ -69,7 +70,7 @@ export function useSidebarVisibility(
   const hidden =
     zoom.on || (crowded && !kept) || chosenHidden(choice, besidePane, autoHide);
   // Settings keeps the bar: its button is the way back.
-  const barFolded = useBarFoldsWithSidebar() && hidden && !settingsOpen;
+  const barFolded = useBarGoesWithSidebar() && hidden && !settingsOpen;
   const peek = useSidebarPeek(hidden, barFolded, layout);
   // Set by the toggle until the next commit, which reads it.
   const toggled = useRef(false);
@@ -106,6 +107,13 @@ export function useSidebarVisibility(
     layoutRef: setLayout,
     toggled,
   };
+}
+
+/** Whether hiding the sidebar takes the activity bar with it. */
+function useBarGoesWithSidebar() {
+  const folds = useBarFoldsWithSidebar();
+  // Along the sidebar's bottom it always does.
+  return useBarPosition() === "bottom" || folds;
 }
 
 /**

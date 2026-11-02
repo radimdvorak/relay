@@ -2,17 +2,10 @@ import type { ReactNode } from "react";
 import type { SidebarAttention } from "./ActivityBar";
 import "./activity-bar.css";
 
-/** One of the activity bar's icons, with the dot for what waits there. */
-export function BarButton({
-  label,
-  keys = "",
-  dot,
-  status,
-  current = false,
-  onClick,
-  children,
-}: {
+/** One of the activity bar's icons: what it's called, shows and does. */
+export interface BarEntry {
   label: string;
+  icon: ReactNode;
   keys?: string;
   /** Something waiting there, which the dot marks and the tooltip names. */
   dot?: string;
@@ -20,8 +13,18 @@ export function BarButton({
   status?: SidebarAttention;
   current?: boolean;
   onClick: () => void;
-  children: ReactNode;
-}) {
+}
+
+/** One of the activity bar's icons, with the dot for what waits there. */
+export function BarButton({
+  label,
+  icon,
+  keys = "",
+  dot,
+  status,
+  current = false,
+  onClick,
+}: BarEntry) {
   return (
     <button
       type="button"
@@ -31,20 +34,24 @@ export function BarButton({
       title={[`${label}  ${keys}`.trim(), dot].filter(Boolean).join(" · ")}
       onClick={onClick}
     >
-      {children}
-      {dot &&
-        (status ? (
-          <span
-            className={`sb-status ${status} activity-bar-status`}
-            aria-hidden="true"
-          >
-            <i />
-          </span>
-        ) : (
-          <span className="activity-bar-dot" aria-hidden="true" />
-        ))}
+      {icon}
+      {dot && <BarDot status={status} />}
     </button>
   );
+}
+
+/** The dot on a button: the sidebar's own for its news, the accent's otherwise. */
+export function BarDot({ status }: { status?: SidebarAttention }) {
+  if (status)
+    return (
+      <span
+        className={`sb-status ${status} activity-bar-status`}
+        aria-hidden="true"
+      >
+        <i />
+      </span>
+    );
+  return <span className="activity-bar-dot" aria-hidden="true" />;
 }
 
 /** A clock with a thread bubble: a thread that starts on a schedule. */

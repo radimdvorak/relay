@@ -1,17 +1,22 @@
-/* The activity bar: one column of icons down the window's left edge. */
+/* The activity bar: one column of icons down the window's left edge, or a
+   row of small ones along the sidebar's bottom. */
 :root {
   --activity-bar-width: 52px;
 }
+/* Along the sidebar's bottom it takes no column of its own. */
+.shell-brand[data-bar="bottom"] {
+  --activity-bar-width: 0px;
+}
 /* The bar sits in the row's padding, so the width the row measures
    (useSidebarVisibility) is still what the sidebar and the panes share. */
-.project-layout:has(> .activity-bar) {
+.project-layout:has(> .activity-bar.left) {
   padding-left: var(--activity-bar-width);
 }
-.project-layout:has(> .activity-bar) > .projects-sidebar.overlay {
+.project-layout:has(> .activity-bar.left) > .projects-sidebar.overlay {
   left: var(--activity-bar-width);
 }
 /* The window's darkest edge, an anchor rather than part of the sidebar. */
-.activity-bar {
+.activity-bar.left {
   position: absolute;
   top: 0;
   bottom: 0;
@@ -31,7 +36,7 @@
    darker so it still reads as the edge, with the sidebar's see-through hover.
    Folded, it peeks over the chat and stays solid like the peeking sidebar,
    or the thread shows through it. */
-:root[data-glass] .activity-bar:not(.folded) {
+:root[data-glass] .activity-bar.left:not(.folded) {
   --hover: color-mix(in srgb, var(--text) 8%, transparent);
   background:
     linear-gradient(rgb(0 0 0 / 0.08), rgb(0 0 0 / 0.08)),
@@ -93,6 +98,19 @@
 .activity-bar-fill {
   flex: 1;
 }
+/* What drags: the button inside is still what clicks. */
+.activity-bar-slot {
+  display: grid;
+}
+.activity-bar-slot[data-moving] {
+  opacity: 0.35;
+}
+/* The icon on its way shouldn't lead the others to light up under it. */
+.activity-bar[data-dragging] .activity-bar-button:not(.active):hover,
+.activity-bar[data-dragging] .clockify-trigger:hover {
+  background: transparent;
+  color: var(--muted);
+}
 /* Settings stands apart from the rest. */
 .activity-bar-line {
   width: 22px;
@@ -103,23 +121,89 @@
 /* Folded with the sidebar (Settings → Appearance), the bar leaves the row
    and the two slide away and peek back as one: the same distance, the
    sidebar's timing. */
-.project-layout:has(> .activity-bar.folded) {
+.project-layout:has(> .activity-bar.left.folded) {
   --fold-distance: calc(
     var(--activity-bar-width) + var(--sidebar-width, 250px)
   );
   padding-left: 0;
 }
-.activity-bar.folded {
+.activity-bar.left.folded {
   transform: translateX(calc(-1 * var(--fold-distance)));
   visibility: hidden;
   transition:
     transform 180ms ease,
     visibility 0s linear 180ms;
 }
-.project-layout:has(> .activity-bar.folded)
+.project-layout:has(> .activity-bar.left.folded)
   > .projects-sidebar.overlay:not(.peek) {
   transform: translateX(calc(-1 * var(--fold-distance)));
 }
+
+/* Along the sidebar's bottom: small icons in a row over the column's foot,
+   whether that's the sidebar or Settings' nav in its place. bar-layout.ts
+   counts on these sizes (BOTTOM_BAR) to tell what fits. */
+.activity-bar.bottom {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  /* Over the hidden sidebar too, which it slides away and peeks back with. */
+  z-index: 41;
+  width: calc(
+    min(var(--sidebar-width, 250px), var(--sidebar-room, 100vw)) - 1px
+  );
+  height: 37px;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 0 6px;
+  border-top: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+}
+.project-layout:has(> .activity-bar.bottom) > .projects-sidebar {
+  padding-bottom: 37px;
+}
+.project-layout:has(> .activity-bar.bottom) .settings-nav {
+  padding-bottom: calc(20px + 37px);
+}
+/* With the sidebar hidden it goes with it, as wide as the sidebar that
+   peeks out, the same way and at the same pace. */
+.activity-bar.bottom.folded {
+  width: calc(var(--sidebar-width, 250px) - 1px);
+  transform: translateX(-100%);
+  visibility: hidden;
+  transition:
+    transform 180ms ease,
+    visibility 0s linear 180ms;
+}
+.activity-bar.bottom .activity-bar-button,
+.activity-bar.bottom .clockify-trigger {
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
+}
+.activity-bar.bottom .activity-bar-fill {
+  min-width: 0;
+  align-self: stretch;
+}
+.activity-bar.bottom .activity-bar-line {
+  width: 1px;
+  height: 16px;
+  margin: 0 2px;
+}
+.activity-bar.bottom .clockify-trigger svg:not(.clockify-badge svg) {
+  width: 16px;
+  height: 16px;
+}
+.activity-bar.bottom .clockify-badge {
+  right: 4px;
+  bottom: 4px;
+}
+.activity-bar.bottom :is(.activity-bar-dot, .activity-bar-status) {
+  top: 3px;
+  right: 3px;
+  width: 6px;
+  height: 6px;
+}
+/* Either way, it peeks back with the sidebar. */
 .activity-bar.folded.peek {
   transform: none;
   visibility: visible;

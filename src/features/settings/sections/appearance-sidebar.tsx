@@ -10,9 +10,13 @@ import {
   setBarFoldsWithSidebar,
   useBarFoldsWithSidebar,
 } from "../../../lib/activity-bar-folds";
+import {
+  setBarPosition,
+  useBarPosition,
+} from "../../../lib/activity-bar-position";
 import { api } from "../../../lib/api";
 import { ErrorBox } from "../../../ui/ui";
-import { Switch } from "../../../ui/SettingsCard";
+import { Segmented, Switch } from "../../../ui/SettingsCard";
 import { useSavedSetting } from "../useSavedSetting";
 import type { SettingEntry } from "../settings-search";
 
@@ -22,6 +26,9 @@ export function useSidebarEntries(): SettingEntry[] {
   const sidebarAutoHide = useSidebarAutoHide();
   const activityBranches = useActivityBranches();
   const barFolds = useBarFoldsWithSidebar();
+  const barAt = useBarPosition();
+  // Along the bottom the bar goes with the sidebar anyway.
+  const foldEntries = barAt === "left" ? [barFoldsEntry(barFolds)] : [];
   return [
     smartNames,
     {
@@ -41,22 +48,27 @@ export function useSidebarEntries(): SettingEntry[] {
       ),
     },
     {
-      id: "activity-bar-folds",
+      id: "activity-bar-position",
       category: "appearance",
       section: "Sidebar",
-      title: "Fold the activity bar with the sidebar",
+      title: "Activity bar",
       description:
-        "Hiding the sidebar hides the icon bar beside it too, so the page gets the whole width. Both peek back from the window's edge.",
+        "A column of icons at the window's left edge, or a row of small ones along the sidebar's bottom that hides with it. Drag the icons to change their order. Along the bottom, the ones that don't fit wait behind a … button.",
       keywords:
-        "activity bar icons rail hide collapse fold compact width narrow sidebar",
+        "activity bar icons rail position bottom left vscode cursor order reorder drag overflow compact",
       render: () => (
-        <Switch
-          label="Hide the activity bar with the sidebar"
-          checked={barFolds}
-          onChange={setBarFoldsWithSidebar}
+        <Segmented
+          label="Activity bar position"
+          value={barAt}
+          options={[
+            ["left", "Left edge"],
+            ["bottom", "Sidebar's bottom"],
+          ]}
+          onChange={setBarPosition}
         />
       ),
     },
+    ...foldEntries,
     {
       id: "activity-branches",
       category: "appearance",
@@ -75,6 +87,27 @@ export function useSidebarEntries(): SettingEntry[] {
       ),
     },
   ];
+}
+
+/** Folding the left edge's bar with the sidebar, which the bottom one always does. */
+function barFoldsEntry(barFolds: boolean): SettingEntry {
+  return {
+    id: "activity-bar-folds",
+    category: "appearance",
+    section: "Sidebar",
+    title: "Fold the activity bar with the sidebar",
+    description:
+      "Hiding the sidebar hides the icon bar beside it too, so the page gets the whole width. Both peek back from the window's edge.",
+    keywords:
+      "activity bar icons rail hide collapse fold compact width narrow sidebar",
+    render: () => (
+      <Switch
+        label="Hide the activity bar with the sidebar"
+        checked={barFolds}
+        onChange={setBarFoldsWithSidebar}
+      />
+    ),
+  };
 }
 
 /** Smart project names, which the main process keeps rather than settings.json. */

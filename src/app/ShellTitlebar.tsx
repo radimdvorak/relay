@@ -19,6 +19,7 @@ import {
   sidebarDotSays,
   type SidebarAttention,
 } from "./activity-bar/ActivityBar";
+import { useBarPosition } from "../lib/activity-bar-position";
 import type { ThreadTerminalDrawer } from "./useThreadTerminal";
 import {
   panesOf,
@@ -59,8 +60,10 @@ export function TitlebarBrand({
 }) {
   const keys = useShortcutLabel("sidebar");
   const dot = barFolded ? sidebarDotSays(attention) : undefined;
+  // Along the sidebar's bottom, the bar takes no column for the brand to span.
+  const barAt = useBarPosition();
   return (
-    <div className="project-titlebar-brand shell-brand">
+    <div className="project-titlebar-brand shell-brand" data-bar={barAt}>
       <span className="traffic-space" />
       <button
         type="button"

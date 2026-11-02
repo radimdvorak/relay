@@ -106,6 +106,8 @@ interface TimerProps {
   projectId?: string;
   projectName?: string;
   chatId?: string;
+  /** Where the panel opens: beside a column of icons, above a row. */
+  side?: "right" | "top";
   onSetUp: () => void;
 }
 
@@ -115,7 +117,7 @@ interface TimerProps {
  * Hovering opens what you're on, the day's total and the controls.
  */
 export function ClockifyTimer(props: TimerProps) {
-  const { projectId, projectName, chatId, onSetUp } = props;
+  const { projectId, projectName, chatId, side = "right", onSetUp } = props;
   const on = usePluginEnabled("clockify");
   const status = useClockifyStatus(on);
   const running = !!status.data?.day;
@@ -310,7 +312,7 @@ export function ClockifyTimer(props: TimerProps) {
         <Popover.Portal>
           <Popover.Positioner
             className="composer-popup-positioner"
-            side="right"
+            side={side}
             align="end"
             sideOffset={8}
           >
