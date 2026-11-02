@@ -18,6 +18,7 @@ import {
   newTerminalSlot,
   setTerminalOpen,
 } from "./terminal-dock";
+import { wireClipboard } from "./terminal-clipboard";
 import { errorMessage } from "../../../shared/error-message";
 
 export type TerminalStatus = "idle" | "starting" | "running" | "exited";
@@ -70,28 +71,7 @@ export class ThreadTerminal {
       // would ask with confirm() and then window.open, which goes nowhere here.
       linkHandler: { activate: (_event, uri) => void api.openExternal(uri) },
     });
-    // Copy on select, once the mouse lets go rather than on every step of
-    // the drag.
-    this.element.addEventListener("mouseup", (e) => {
-      if (e.button === 0 && this.term.hasSelection())
-        void api.writeClipboard(this.term.getSelection()).catch(() => {});
-    });
-    // Right-click copies a selection, or pastes when there's none, the way
-    // Windows Terminal does. paste() keeps bracketed paste, so a clipboard of
-    // several lines doesn't run in the shell line by line.
-    this.element.addEventListener("contextmenu", (e) => {
-      e.preventDefault();
-      if (this.term.hasSelection()) {
-        void api.writeClipboard(this.term.getSelection()).catch(() => {});
-        this.term.clearSelection();
-      } else {
-        void api
-          .readClipboard()
-          .then((text) => text && this.term.paste(text))
-          .catch(() => {});
-      }
-      this.term.focus();
-    });
+    wireClipboard(this.term, this.element);
     this.element.addEventListener("focusin", () => (lastFocused = this));
     this.term.loadAddon(this.fit);
     this.term.loadAddon(

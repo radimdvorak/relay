@@ -223,7 +223,7 @@ test("terminal resizing starts at its visible height in a shorter window", async
   }
 });
 
-test("selecting in the terminal copies, and right-click pastes", async () => {
+test("selecting in the terminal copies, right-click pastes, and a pasted command stays editable", async () => {
   const root = await realpath(
     await mkdtemp(join(tmpdir(), "relay-terminal-clipboard-")),
   );
@@ -279,6 +279,19 @@ test("selecting in the terminal copies, and right-click pastes", async () => {
     });
     await page.keyboard.press("Enter");
     await expect(screen).toContainText("pasted-42");
+
+    // A command copied with its line break pastes as the command alone, so
+    // Backspace edits it rather than the empty line the break would open.
+    await app.evaluate(({ clipboard }) =>
+      clipboard.writeText("echo edit-me-1\n"),
+    );
+    await page.keyboard.press("ControlOrMeta+V");
+    await page.keyboard.press("Backspace");
+    await page.keyboard.type("2");
+    await page.keyboard.press("Enter");
+    await expect(
+      screen.locator("> div", { hasText: /^edit-me-2\s*$/ }),
+    ).toBeVisible();
   } finally {
     await app.evaluate(
       ({ clipboard }, text) => clipboard.writeText(text),
