@@ -35,7 +35,6 @@ import {
   useDraftSend,
 } from "./DraftCard";
 import { useCardSlide } from "./useCardSlide";
-import { reducedMotion } from "../../lib/slide-row";
 import { ProjectBadge } from "../projects/ProjectBadge";
 import {
   ThreadRename,
@@ -52,6 +51,7 @@ import { parseFamilyFolds, withFamilyFold } from "../../../shared/family-folds";
 import { ThreadRef } from "./ThreadRef";
 import { useActivityBranches } from "../../lib/activity-branches";
 import { CardShortcut } from "./CardShortcut";
+import { revealShelf, ShelfFloor } from "./PinnedShelves";
 
 export function ActivityView({
   rows,
@@ -201,7 +201,7 @@ export function ActivityView({
         rows={rows}
         shelves={shelves}
       />
-      <div className="sb-shelf-floor" />
+      <ShelfFloor />
     </>
   );
 }
@@ -515,37 +515,6 @@ function Shelf({
       )}
     </>
   );
-}
-
-/**
- * Scrolls a shelf just opened from its pinned header into view: as much of
- * its list as fits above the headers pinned below it, its own header no
- * higher than the top.
- */
-function revealShelf(list: HTMLElement) {
-  const scroller = list.parentElement;
-  const header = list.previousElementSibling;
-  if (!scroller || !(header instanceof HTMLElement)) return;
-  let pinned = 0;
-  for (let at = list.nextElementSibling; at; at = at.nextElementSibling)
-    if (
-      at instanceof HTMLElement &&
-      at.matches(".sb-shelf-toggle, .sb-shelf-floor")
-    )
-      pinned += at.offsetHeight;
-  const top =
-    list.getBoundingClientRect().top -
-    scroller.getBoundingClientRect().top +
-    scroller.scrollTop;
-  const to = Math.min(
-    top + list.offsetHeight - (scroller.clientHeight - pinned),
-    top - header.offsetHeight,
-  );
-  if (to > scroller.scrollTop)
-    scroller.scrollTo({
-      top: to,
-      behavior: reducedMotion() ? "auto" : "smooth",
-    });
 }
 
 /** A shelved thread: when it wakes or how long since it settled. */
