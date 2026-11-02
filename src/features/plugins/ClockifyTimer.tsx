@@ -11,6 +11,7 @@ import {
   Square,
   Timer,
   X,
+  type LucideIcon,
 } from "lucide-react";
 import {
   dayElapsed,
@@ -78,21 +79,43 @@ function DayClock({
 }
 
 /**
- * The day's timer while the Clockify plugin is on: a quiet icon in the
- * activity bar, with a small glyph on it saying whether it runs.
- * Hovering opens what you're on, the day's total and the controls.
+ * The badge is all that shows without hovering, so it states what the timer
+ * is doing and stays muted: nothing here is asking to be clicked.
  */
-export function ClockifyTimer({
-  projectId,
-  projectName,
-  chatId,
-  onSetUp,
-}: {
+function timerBadge(day: {
+  failed: boolean;
+  running: boolean;
+  paused: boolean;
+  /** The open project isn't mapped to a Clockify project. */
+  untracked: boolean;
+  reviewOpen: boolean;
+  reviewed: boolean;
+}): [LucideIcon | undefined, string] {
+  if (day.failed) return [X, "Clockify: something went wrong"];
+  if (day.running) {
+    if (day.paused) return [Pause, "Clockify: paused"];
+    if (day.untracked) return [Minus, "Clockify: this project isn't tracked"];
+    return [Play, "Clockify: tracking"];
+  }
+  if (day.reviewOpen) return [Square, "Clockify: your day is ready to review"];
+  if (day.reviewed) return [Check, "Clockify: your day is in Clockify"];
+  return [undefined, "Clockify"];
+}
+
+interface TimerProps {
   projectId?: string;
   projectName?: string;
   chatId?: string;
   onSetUp: () => void;
-}) {
+}
+
+/**
+ * The day's timer while the Clockify plugin is on: a quiet icon in the
+ * activity bar, with a small glyph on it saying whether it runs.
+ * Hovering opens what you're on, the day's total and the controls.
+ */
+export function ClockifyTimer(props: TimerProps) {
+  const { projectId, projectName, chatId, onSetUp } = props;
   const on = usePluginEnabled("clockify");
   const status = useClockifyStatus(on);
   const running = !!status.data?.day;
@@ -143,21 +166,14 @@ export function ClockifyTimer({
     }
   }
 
-  // The badge is all that shows without hovering, so it states what the
-  // timer is doing and stays muted: nothing here is asking to be clicked.
-  const [Badge, label] = error
-    ? [X, "Clockify: something went wrong"]
-    : day
-      ? pause
-        ? [Pause, "Clockify: paused"]
-        : projectId && !mapped
-          ? [Minus, "Clockify: this project isn't tracked"]
-          : [Play, "Clockify: tracking"]
-      : reviewOpen
-        ? [Square, "Clockify: your day is ready to review"]
-        : review
-          ? [Check, "Clockify: your day is in Clockify"]
-          : [undefined, "Clockify"];
+  const [Badge, label] = timerBadge({
+    failed: !!error,
+    running: !!day,
+    paused: !!pause,
+    untracked: !!projectId && !mapped,
+    reviewOpen,
+    reviewed: !!review,
+  });
 
   let content;
   if (day) {
