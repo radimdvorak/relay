@@ -14,8 +14,8 @@ const DEFAULT_WEIGHTS: Record<PaneId, number> = {
  * The narrowest each pane gets. Panes that can't all have this much yield,
  * the least recently opened first, rather than run past the window's edge.
  * Changes and the panel each hold a list beside a view, which below 360 px
- * left the view a sliver. All three fit the 1050 px window's minimum once
- * the sidebar steps aside.
+ * left the view a sliver. In a narrow window the sidebar steps aside first,
+ * then panes yield.
  */
 export const PANE_MIN: Record<PaneId, number> = {
   chat: 320,

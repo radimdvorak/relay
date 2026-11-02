@@ -30,10 +30,10 @@ const callers = new AsyncLocalStorage<BrowserWindow | null>();
 const pageErrorLimit = 100;
 /**
  * The main window's narrowest, with the projects sidebar and without it (a
- * thread window's). With the sidebar it counts the activity bar's 52px on top
- * of the 1050 the sidebar and the panes need.
+ * thread window's). With the sidebar it's the window without one plus the
+ * sidebar's narrowest (180, SIDEBAR_WIDTH.min) and the activity bar's 52px.
  */
-const MAIN_MIN_WIDTH = { sidebar: 1102, alone: 560 };
+const MAIN_MIN_WIDTH = { sidebar: 560 + 180 + 52, alone: 560 };
 
 /** Where the main window's size and state are kept between runs. */
 export interface MainWindowStore {
