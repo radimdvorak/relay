@@ -4,6 +4,9 @@ package dev.relay.android.features.thread
 // (mobile/src/screens/Thread.tsx): newest at the bottom, the strips and the
 // composer under it.
 
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.border
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -425,7 +428,12 @@ private fun ThreadBody(id: String, rootId: String?, remote: Remote, locked: Bool
                     composer.usage?.let {
                         // Padding on the rings' own modifier squeezed them sideways on the phone.
                         Box(Modifier.padding(end = 16.dp, bottom = 10.dp)) {
-                            UsageRings(it.provider, it.usage, onClick = composer::openUsage)
+                            // Its own backing, or the rings read as a spinner on whatever scrolls under them.
+                            val c = RelayTheme.colors
+                            UsageRings(
+                                it.provider, it.usage, onClick = composer::openUsage,
+                                modifier = Modifier.background(c.popover, CircleShape).border(1.dp, c.border, CircleShape),
+                            )
                         }
                     }
                 },
