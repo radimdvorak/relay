@@ -63,6 +63,27 @@ const sameChoice = (a: ModelChoice, b: ModelChoice) =>
   a.reasoningEffort === b.reasoningEffort &&
   a.fast === b.fast;
 
+type Queued = NonNullable<ProjectChat["queue"]>[number];
+
+/**
+ * The queue with `next` at its front, behind only the message a cold cache
+ * held back: that one went out as far as its sender knows, and only waits
+ * for the compaction, so nothing jumps ahead of it.
+ */
+function withNextFirst(chat: ProjectChat, next: Queued) {
+  const compacting = chat.messages.some(
+    (m) => m.compaction && m.compactedCold && m.status === "streaming",
+  );
+  const held = compacting
+    ? chat.queue!.slice(0, 1).filter((q) => q !== next)
+    : [];
+  return [
+    ...held,
+    next,
+    ...chat.queue!.filter((q) => q !== next && !held.includes(q)),
+  ];
+}
+
 /** Messages waiting for the thread's running answer, and steering it with one. */
 export class ChatQueue {
   /** How long a steer someone sent waits before its agent gets it, so they can take it back. */
@@ -210,18 +231,7 @@ export class ChatQueue {
     this.release(messageId);
     delete next.error;
     delete next.steerAt;
-    // The message a cold cache held back went out as far as its sender
-    // knows; it only waits for the compaction, so nothing jumps ahead of it.
-    const held = chat.messages.some(
-      (m) => m.compaction && m.compactedCold && m.status === "streaming",
-    )
-      ? chat.queue!.slice(0, 1).filter((q) => q !== next)
-      : [];
-    chat.queue = [
-      ...held,
-      next,
-      ...chat.queue!.filter((q) => q !== next && !held.includes(q)),
-    ];
+    chat.queue = withNextFirst(chat, next);
     chat.queuePaused = false;
     if (!active) {
       await this.core.storage.save(chat);

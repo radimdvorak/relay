@@ -76,7 +76,7 @@ export const bigFunctions: Record<string, number> = {
   "electron/preview/projects.ts › target": 143,
   "electron/project-chats/index.ts › constructor": 204,
   "electron/project-chats/project-import.ts › run": 92,
-  "electron/project-chats/queue.ts › steer": 97,
+  "electron/project-chats/queue.ts › steer": 88,
   "electron/project-chats/relay-note.ts › relayNote": 83,
   "electron/project-chats/revive.ts › reviveChat": 107,
   "electron/project-chats/terminal-continue.ts › make": 96,
