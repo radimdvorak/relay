@@ -90,7 +90,6 @@ test("dragging an icon reorders the bar and keeps the order", async () => {
     const bar = page.getByRole("navigation", { name: "Activity bar" });
     await expect(bar).toBeVisible();
     expect(await iconNames(page)).toEqual([
-      "Threads",
       "Search threads",
       "Pull requests",
       "Schedules",
@@ -99,18 +98,12 @@ test("dragging an icon reorders the bar and keeps the order", async () => {
 
     await bar
       .getByRole("button", { name: "Usage" })
-      .dragTo(bar.getByRole("button", { name: "Threads", exact: true }), {
+      .dragTo(bar.getByRole("button", { name: "Search threads" }), {
         targetPosition: { x: 2, y: 14 },
       });
     await expect
       .poll(() => iconNames(page))
-      .toEqual([
-        "Usage",
-        "Threads",
-        "Search threads",
-        "Pull requests",
-        "Schedules",
-      ]);
+      .toEqual(["Usage", "Search threads", "Pull requests", "Schedules"]);
     // Saved once it's let go, so the next window starts with it.
     await expect
       .poll(async () => {
@@ -118,9 +111,10 @@ test("dragging an icon reorders the bar and keeps the order", async () => {
           join(data, "config", "settings.json"),
           "utf8",
         );
-        return JSON.parse(file).activityBar?.order?.[0];
+        return JSON.parse(file).activityBar?.order?.slice(0, 3);
       })
-      .toBe("usage");
+      // Threads keeps its place for the left edge, where it shows.
+      .toEqual(["threads", "usage", "search"]);
     if (shots) await page.screenshot({ path: join(shots, "dragged.png") });
   } finally {
     await app.close();

@@ -195,7 +195,11 @@ function useBarFit(
   const width = useWidth(bottom ? element : null);
   const timerShows = useTimerShows();
   const room = bottom && width ? width : Infinity;
-  const fit = fitBar(order, room, (item) => item !== "clockify" || timerShows);
+  const fit = fitBar(order, room, (item) => {
+    // Along the bottom the bar sits on the threads already.
+    if (item === "threads") return !bottom;
+    return item !== "clockify" || timerShows;
+  });
   return { ref, fit };
 }
 
