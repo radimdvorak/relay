@@ -124,7 +124,7 @@ export const bigFunctions: Record<string, number> = {
   "src/features/add-project/LinkStep.tsx › LinkStep": 95,
   "src/features/add-project/ProjectFolders.tsx › ProjectFolders": 263,
   "src/features/add-project/useAdding.ts › useAdding": 100,
-  "src/features/agent-settings/AgentDetail.tsx › AgentDetail": 290,
+  "src/features/agent-settings/AgentDetail.tsx › AgentDetail": 283,
   "src/features/agent-settings/AgentsPanel.tsx › AgentsPanel": 238,
   "src/features/agent-tools/AgentTools.tsx › AgentTools": 268,
   "src/features/agent-turn/AgentTurn.tsx › AgentTurn": 186,

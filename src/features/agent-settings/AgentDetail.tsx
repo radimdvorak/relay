@@ -189,14 +189,7 @@ export function AgentDetail({
 
       {signIn.dialog}
       {agent.provider === "opencode" && !needsUpgrade(agent) && (
-        <>
-          <h5 className="agent-detail-section">Provider connections</h5>
-          <SettingsCard>
-            <SettingsRow label="OpenCode providers" hint="Sign in through your browser or connect an API key.">
-              <button type="button" onClick={() => void signIn.start()}><LogIn size={14} />Connect provider…</button>
-            </SettingsRow>
-          </SettingsCard>
-        </>
+        <OpenCodeProviders onConnect={() => void signIn.start()} />
       )}
       {!unknown && (accounts || sdk || agent.account) && (
         <>
@@ -326,6 +319,26 @@ export function AgentDetail({
           {tools}
         </>
       )}
+    </>
+  );
+}
+
+/** OpenCode signs in per model provider, not once for itself. */
+function OpenCodeProviders({ onConnect }: { onConnect: () => void }) {
+  return (
+    <>
+      <h5 className="agent-detail-section">Provider connections</h5>
+      <SettingsCard>
+        <SettingsRow
+          label="OpenCode providers"
+          hint="Sign in through your browser or connect an API key."
+        >
+          <button type="button" onClick={onConnect}>
+            <LogIn size={14} />
+            Connect provider…
+          </button>
+        </SettingsRow>
+      </SettingsCard>
     </>
   );
 }
