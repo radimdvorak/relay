@@ -29,13 +29,12 @@ import {
   type Exec,
 } from "../platform/executables";
 import { acpAccount } from "./acp";
-import { releasedBy, releaseTimes, type ReleaseTimes } from "./npm-release-age";
+import { AgentReleases, type BrewKeg } from "./agent-releases";
 import { errorMessage } from "../../shared/error-message";
 
 export const checkEvery = 4 * 60 * 60 * 1000;
 /** How long after starting, or turning checks back on, the first one waits. */
 export const firstCheckAfter = 20_000;
-const latestLifetime = 60 * 60 * 1000;
 const probeTimeout = 15_000;
 const updateTimeout = 5 * 60_000;
 
@@ -54,9 +53,6 @@ interface AgentPackage {
    */
   service?: true;
 }
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null;
 
 const forwardSlashes = (path: string) => path.replace(/\\/g, "/");
 /** A path as two spellings of it compare equal: one separator, one case. */
@@ -116,7 +112,7 @@ export interface Install {
   args: string[];
   /** Where a global npm install lives, which Windows proves with a shim. */
   npmPrefix?: string;
-  brew?: { kind: "formula" | "cask"; name: string; prefix: string };
+  brew?: BrewKeg;
 }
 
 const pnpmGlobal = [
@@ -229,8 +225,6 @@ export function ownInstall(
 const isInside = (path: string, dir: string) =>
   foldPath(path).startsWith(`${foldPath(dir).replace(/\/$/, "")}/`);
 
-type BrewKeg = NonNullable<Install["brew"]>;
-
 /**
  * The keg a path lies inside: `<prefix>/Cellar/<name>/<version>/…` for a
  * formula, `<prefix>/Caskroom/<name>/<version>/…` for a cask. The deepest one
@@ -291,23 +285,6 @@ function describeInstall(install: Install) {
 
 /** Anything past letters, digits and `_ . / : @ = -` would read differently in a shell. */
 const needsQuotes = (word: string) => !word || /[^\w./:@=-]/.test(word);
-
-/** The version `brew upgrade` would bring, out of `brew info --json=v2`. */
-function brewVersionIn(info: unknown, kind: BrewKeg["kind"]) {
-  const list = isRecord(info)
-    ? info[kind === "formula" ? "formulae" : "casks"]
-    : undefined;
-  const entry = isRecord(list) ? list[0] : undefined;
-  if (!isRecord(entry)) return undefined;
-  if (kind === "formula") {
-    const stable = isRecord(entry.versions) ? entry.versions.stable : undefined;
-    return typeof stable === "string" ? stable : undefined;
-  }
-  // A cask's version may carry a build after a comma, e.g. `1.4.2,8812`.
-  if (typeof entry.version !== "string") return undefined;
-  const comma = entry.version.indexOf(",");
-  return comma < 0 ? entry.version : entry.version.slice(0, comma);
-}
 
 export type { Exec };
 
@@ -406,17 +383,17 @@ export class AgentUpdates {
   private checking?: Promise<AgentVersions>;
   /** Updates run one at a time; two npm installs at once fight over locks. */
   private queue: Promise<unknown> = Promise.resolve();
-  private latestCache = new Map<string, { at: number; version?: string }>();
-  private timesCache = new Map<string, { at: number; times: ReleaseTimes }>();
   private started = false;
   private automatic = true;
   /** The next automatic check; a check it started re-arms only while it's still this one. */
   private timer?: ReturnType<typeof setTimeout>;
+  private readonly releases: AgentReleases;
 
   constructor(
     private readonly emit: (state: AgentVersions) => void,
     private readonly io: AgentUpdatesIo = machineIo,
   ) {
+    this.releases = new AgentReleases(io, probeTimeout);
     this.state = {
       agents: this.providers().map((provider) => ({ provider })),
       checking: false,
@@ -603,7 +580,12 @@ export class AgentUpdates {
     const behind = latest && compareVersions(current, latest) < 0;
     if (install?.installer !== "npm" || !behind)
       return { ...found, current, latest };
-    return { ...found, current, ...(await this.aged(provider, latest, fresh)) };
+    const aged = await this.releases.aged(
+      agentPackages[provider].npm,
+      latest,
+      fresh,
+    );
+    return { ...found, current, ...aged };
   }
 
   /** What the CLI runs through that isn't on this computer, e.g. Amp's `amp-acp`. */
@@ -655,36 +637,8 @@ export class AgentUpdates {
     if (!days) return tag;
     const latest = await this.latest(provider, tag, undefined, false);
     if (!latest) return tag;
-    return (await this.aged(provider, latest, false)).latest ?? tag;
-  }
-
-  /**
-   * What npm installs when its `min-release-age` holds back `latest`: an
-   * update would otherwise "finish" and leave the same version behind.
-   */
-  private async aged(
-    provider: CliProvider,
-    latest: string,
-    fresh: boolean,
-  ): Promise<Pick<AgentVersion, "latest" | "held">> {
-    const days = (await this.io.npmReleaseAge?.().catch(() => 0)) ?? 0;
     const pkg = agentPackages[provider].npm;
-    if (!days || !pkg) return { latest };
-    let cached = this.timesCache.get(pkg);
-    if (fresh || !cached || Date.now() - cached.at >= latestLifetime) {
-      const times = await this.io
-        .fetch(`https://registry.npmjs.org/${encodeURIComponent(pkg)}`, {
-          headers: { accept: "application/json" },
-          signal: AbortSignal.timeout(15_000),
-        })
-        .then((response) => (response.ok ? response.json() : undefined))
-        .then(releaseTimes)
-        .catch((): ReleaseTimes => ({}));
-      cached = { at: Date.now(), times };
-      this.timesCache.set(pkg, cached);
-    }
-    const { version, held } = releasedBy(cached.times, latest, days);
-    return { latest: version, ...(held && { held }) };
+    return (await this.releases.aged(pkg, latest, false)).latest ?? tag;
   }
 
   /** An agent that runs from an SDK Relay downloads: what's on disk, and what's newer. */
@@ -701,13 +655,9 @@ export class AgentUpdates {
     };
     if (!sdk) return { ...found, error: `This build has no ${cli}.` };
     const current = await sdk.installed().catch(() => undefined);
-    const key = `${provider}-sdk`;
-    const cached = this.latestCache.get(key);
-    let latest = cached?.version;
-    if (fresh || !cached || Date.now() - cached.at >= latestLifetime) {
-      latest = await sdk.newest().catch(() => undefined);
-      this.latestCache.set(key, { at: Date.now(), version: latest });
-    }
+    const latest = await this.releases.sdk(`${provider}-sdk`, fresh, () =>
+      sdk.newest(),
+    );
     if (!current)
       return {
         ...found,
@@ -781,53 +731,18 @@ export class AgentUpdates {
     return install;
   }
 
-  private async latest(
+  private latest(
     provider: CliProvider,
     tag: string,
     install: Install | undefined,
     fresh: boolean,
   ) {
-    // Homebrew lags npm by hours, so compare with what `brew upgrade` delivers.
-    if (install?.brew) return this.brewLatest(install.program, install.brew);
+    if (install?.brew) return this.releases.brew(install.program, install.brew);
     const pkg = agentPackages[provider].npm;
     // Nothing to compare with: it isn't on npm.
-    if (!pkg) return undefined;
-    const key = `${pkg}@${tag}`;
-    const cached = this.latestCache.get(key);
-    if (!fresh && cached && Date.now() - cached.at < latestLifetime)
-      return cached.version;
-    const version = await this.io
-      .fetch(
-        `https://registry.npmjs.org/-/package/${encodeURIComponent(pkg)}/dist-tags`,
-        {
-          headers: { accept: "application/json" },
-          signal: AbortSignal.timeout(5000),
-        },
-      )
-      .then((response) => (response.ok ? response.json() : undefined))
-      .then((tags) => {
-        const latest = isRecord(tags) ? tags[tag] : undefined;
-        return typeof latest === "string" ? latest : undefined;
-      })
-      .catch(() => undefined);
-    this.latestCache.set(key, { at: Date.now(), version });
-    return version as string | undefined;
-  }
-
-  private async brewLatest(brew: string, keg: BrewKeg) {
-    const info = await this.io.exec(
-      brew,
-      ["info", "--json=v2", keg.name],
-      probeTimeout,
-    );
-    if (info.code !== 0) return undefined;
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(info.stdout);
-    } catch {
-      return undefined;
-    }
-    return brewVersionIn(parsed, keg.kind) || undefined;
+    return pkg
+      ? this.releases.npm(pkg, tag, fresh)
+      : Promise.resolve(undefined);
   }
 
   private async runUpdate(provider: AgentProvider) {
