@@ -387,6 +387,8 @@ export class AgentUpdates {
   private automatic = true;
   /** The next automatic check; a check it started re-arms only while it's still this one. */
   private timer?: ReturnType<typeof setTimeout>;
+  /** Some look has found what's installed, so no agent is only its name. */
+  private foundInstalled = false;
   private readonly releases: AgentReleases;
 
   constructor(
@@ -424,7 +426,8 @@ export class AgentUpdates {
   private arm(after?: number) {
     clearTimeout(this.timer);
     this.timer = undefined;
-    if (!this.started || !this.automatic) return;
+    if (!this.started) return;
+    if (!this.automatic) return this.armFindInstalled();
     const due = (this.state.checkedAt ?? 0) + checkEvery - Date.now();
     const timer = setTimeout(
       () =>
@@ -435,6 +438,14 @@ export class AgentUpdates {
           }),
       after ?? Math.max(firstCheckAfter, due),
     );
+    timer.unref?.();
+    this.timer = timer;
+  }
+
+  /** With checks off, the agents still need finding once, offline. */
+  private armFindInstalled() {
+    if (this.foundInstalled) return;
+    const timer = setTimeout(() => void this.findInstalled(), firstCheckAfter);
     timer.unref?.();
     this.timer = timer;
   }
@@ -474,7 +485,7 @@ export class AgentUpdates {
       ),
     });
     for (const agent of await Promise.all(
-      added.map((provider) => this.inspect(provider, false)),
+      added.map((provider) => this.inspect(provider, false, this.automatic)),
     ))
       if (this.state.agents.some((a) => a.provider === agent.provider))
         this.put(agent);
@@ -491,31 +502,45 @@ export class AgentUpdates {
   }
 
   private async checkAll(fresh: boolean) {
-    const started = Date.now();
     this.set({ ...this.state, checking: true });
-    const found = await Promise.all(
-      this.providers().map((provider) => this.inspect(provider, fresh)),
-    );
-    this.set({
-      // An update running or finished since this check began knows better.
-      // Older outcomes give way to what's installed now.
-      agents: found.map((agent) => {
-        const { update } = this.agent(agent.provider);
-        return update && ("at" in update ? update.at >= started : true)
-          ? this.agent(agent.provider)
-          : agent;
-      }),
-      checking: false,
-      checkedAt: Date.now(),
-    });
+    const agents = await this.inspectAll(fresh, true);
+    this.foundInstalled = true;
+    this.set({ agents, checking: false, checkedAt: Date.now() });
     return this.state;
+  }
+
+  /** What's installed here, without asking any registry what's newer. */
+  private async findInstalled() {
+    if (this.checking || this.foundInstalled) return;
+    const agents = await this.inspectAll(false, false);
+    if (this.foundInstalled) return; // a full check came back first
+    this.foundInstalled = true;
+    this.set({ ...this.state, agents });
+  }
+
+  /** `online` asks the registries for newer releases too. */
+  private async inspectAll(fresh: boolean, online: boolean) {
+    const started = Date.now();
+    const found = await Promise.all(
+      this.providers().map((provider) => this.inspect(provider, fresh, online)),
+    );
+    // An update running or finished since this look began knows better.
+    // Older outcomes give way to what's installed now.
+    return found.map((agent) => {
+      const { update } = this.agent(agent.provider);
+      return update && ("at" in update ? update.at >= started : true)
+        ? this.agent(agent.provider)
+        : agent;
+    });
   }
 
   private async inspect(
     provider: AgentProvider,
     fresh: boolean,
+    online = true,
   ): Promise<AgentVersion> {
-    if (!isCliProvider(provider)) return this.inspectSdk(provider, fresh);
+    if (!isCliProvider(provider))
+      return this.inspectSdk(provider, fresh, online);
     const { cli } = agents[provider];
     const path = await this.io.find(provider).catch(() => undefined);
     const linkedPath = this.io.linked?.(provider);
@@ -576,6 +601,7 @@ export class AgentUpdates {
         error: `${cli} didn't say which version it is.`,
         output: probe.output.trim() || undefined,
       };
+    if (!online) return { ...found, current };
     const latest = await this.latest(provider, tag, install, fresh);
     const behind = latest && compareVersions(current, latest) < 0;
     if (install?.installer !== "npm" || !behind)
@@ -645,6 +671,7 @@ export class AgentUpdates {
   private async inspectSdk(
     provider: SdkProvider,
     fresh: boolean,
+    online = true,
   ): Promise<AgentVersion> {
     const { cli } = agentInfo(provider);
     const sdk = this.sdkOf(provider);
@@ -655,9 +682,9 @@ export class AgentUpdates {
     };
     if (!sdk) return { ...found, error: `This build has no ${cli}.` };
     const current = await sdk.installed().catch(() => undefined);
-    const latest = await this.releases.sdk(`${provider}-sdk`, fresh, () =>
-      sdk.newest(),
-    );
+    const latest = online
+      ? await this.releases.sdk(`${provider}-sdk`, fresh, () => sdk.newest())
+      : undefined;
     if (!current)
       return {
         ...found,

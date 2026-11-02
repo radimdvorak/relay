@@ -29,18 +29,24 @@ export const isSdk = (agent: AgentVersion) => !isCliProvider(agent.provider);
 export const isInstallable = (agent: AgentVersion) =>
   !isSdk(agent) && !agent.path && agent.installer === "relay";
 
-/** The detail's line under the agent's name: its version and how it's kept up to date. */
-export function versionLine(agent: AgentVersion) {
+/** Whether a newer release is out; nothing to say before Relay has asked. */
+function newerLine(agent: AgentVersion, checked: boolean) {
+  if (isBehind(agent)) return `${agent.latest} is available`;
+  if (agent.latest) return "Up to date";
+  return checked ? "Couldn't look for a newer one" : undefined;
+}
+
+/**
+ * The detail's line under the agent's name: its version and how it's kept up
+ * to date. `checked`: Relay has asked the registries for newer releases.
+ */
+export function versionLine(agent: AgentVersion, checked: boolean) {
   if (notLookedFor(agent)) return "Looking for it…";
   if (!agent.current) return agent.error;
   return [
     `Version ${agent.current}`,
     agent.installer && installers[agent.installer],
-    isBehind(agent)
-      ? `${agent.latest} is available`
-      : agent.latest
-        ? "Up to date"
-        : "Couldn't look for a newer one",
+    newerLine(agent, checked),
     agent.held &&
       `${agent.held.version} ${untilText(agent.held.until)} (npm min-release-age)`,
   ]

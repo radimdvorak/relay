@@ -29,6 +29,7 @@ import {
   signOutAgent,
   unlinkAgent,
   updateAgent,
+  useAgentVersions,
 } from "../updates/agent-updates";
 import {
   agentNote,
@@ -64,6 +65,7 @@ export function AgentDetail({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>();
   const signIn = useAgentSignIn(agent.provider, {});
+  const checked = !!useAgentVersions()?.checkedAt;
   async function act(run: () => Promise<unknown>) {
     setBusy(true);
     setError(undefined);
@@ -98,7 +100,7 @@ export function AgentDetail({
         <ProviderIcon provider={agent.provider} />
         <span className="agent-detail-name">
           <b>{cli}</b>
-          <span title={agent.path}>{versionLine(agent)}</span>
+          <span title={agent.path}>{versionLine(agent, checked)}</span>
         </span>
         <span className="agent-detail-tools" hidden={unknown}>
           {run?.status === "running" ? (

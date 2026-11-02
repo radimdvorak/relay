@@ -4,7 +4,7 @@
 export const bigFiles: Record<string, number> = {
   "electron/agent-host/client.ts": 775,
   "electron/agent-host/host.ts": 501,
-  "electron/agents/agent-updates.ts": 922,
+  "electron/agents/agent-updates.ts": 949,
   "electron/agents/opencode/observer.ts": 899,
   "electron/agents/provider-usage.ts": 544,
   "electron/app/updater.ts": 501,

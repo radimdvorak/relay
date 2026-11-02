@@ -9,6 +9,7 @@ import {
 } from "./agent-updates";
 import {
   compareVersions,
+  notLookedFor,
   parseVersion,
   type AgentVersions,
 } from "../../shared/agent-updates";
@@ -575,6 +576,7 @@ describe("AgentUpdates installing what's missing", () => {
 function idleMachine() {
   let release = () => {};
   let held = Promise.resolve();
+  let fetches = 0;
   const io: AgentUpdatesIo = {
     platform: "darwin",
     find: async (name) => {
@@ -584,13 +586,17 @@ function idleMachine() {
     realpath: async (path) => path,
     exists: async () => false,
     exec: async () => ({ code: 1, stdout: "", output: "", timedOut: false }),
-    fetch: async () => new Response("{}"),
+    fetch: async () => {
+      fetches++;
+      return new Response("{}");
+    },
     claudeChannel: async () => "latest",
   };
   const emitted: AgentVersions[] = [];
   const updates = new AgentUpdates((state) => emitted.push(state), io);
   return {
     updates,
+    fetches: () => fetches,
     /** How many checks have begun. */
     checks: () => emitted.filter((s) => s.checking).length,
     hold() {
@@ -633,6 +639,16 @@ describe("AgentUpdates checking on its own", () => {
     // Asking doesn't start the schedule.
     await vi.advanceTimersByTimeAsync(3 * checkEvery);
     expect(checks()).toBe(1);
+  });
+
+  it("still finds the agents with checks off, without asking any registry", async () => {
+    const { updates, checks, fetches } = idleMachine();
+    updates.start(false);
+    await vi.advanceTimersByTimeAsync(firstCheckAfter);
+    expect(notLookedFor(updates.current.agents[0])).toBe(false);
+    expect(updates.current.checkedAt).toBeUndefined();
+    expect(checks()).toBe(0);
+    expect(fetches()).toBe(0);
   });
 
   it("stops when turned off and picks up again when turned back on", async () => {
