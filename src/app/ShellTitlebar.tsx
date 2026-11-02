@@ -15,7 +15,10 @@ import { api } from "../lib/api";
 import { useNavigationLock } from "../lib/navigation-lock";
 import { useShortcutLabel } from "../lib/shortcuts";
 import type { SidebarVisibility } from "./useSidebarVisibility";
-import { sidebarDotSays, type SidebarAttention } from "./ActivityBar";
+import {
+  sidebarDotSays,
+  type SidebarAttention,
+} from "./activity-bar/ActivityBar";
 import type { ThreadTerminalDrawer } from "./useThreadTerminal";
 import {
   panesOf,

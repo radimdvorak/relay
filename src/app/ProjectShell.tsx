@@ -46,7 +46,7 @@ import {
   SchedulesTitle,
 } from "../features/schedules/SchedulesPage";
 import { ProjectTitle, TitlebarBrand } from "./ShellTitlebar";
-import { ActivityBar } from "./ActivityBar";
+import { ActivityBar } from "./activity-bar/ActivityBar";
 import { ShellSettings } from "./ShellSettings";
 import { ShellSidebar } from "./ShellSidebar";
 import { StartDialogs } from "./StartDialogs";

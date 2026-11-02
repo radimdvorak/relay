@@ -21,7 +21,7 @@ import {
 import {
   BarButton,
   ScheduledThreadIcon,
-} from "../../src/app/ActivityBarButton";
+} from "../../src/app/activity-bar/ActivityBarButton";
 import { PaneToggles } from "../../src/ui/WorkspacePanes";
 import { ProjectSidebar } from "../../src/features/sidebar/ProjectSidebar";
 import { Message } from "../../src/features/thread/ProjectMessage";

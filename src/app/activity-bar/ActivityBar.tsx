@@ -5,15 +5,15 @@ import {
   Search,
   Settings2,
 } from "lucide-react";
-import { ClockifyTimer } from "../features/plugins/ClockifyTimer";
-import { openThreadSearch } from "../features/sidebar/thread-search";
-import { usePutOffRelayUpdate } from "../features/updates/put-off";
-import type { PullsTarget } from "../features/pulls/pull-board";
-import type { useSettingsPage } from "../features/settings/useSettingsPage";
-import type { NavigationLock } from "../lib/navigation-lock";
-import { useShortcutLabel } from "../lib/shortcuts";
-import type { ShellNavigation, Surface } from "./useShellNavigation";
-import type { SidebarVisibility } from "./useSidebarVisibility";
+import { ClockifyTimer } from "../../features/plugins/ClockifyTimer";
+import { openThreadSearch } from "../../features/sidebar/thread-search";
+import { usePutOffRelayUpdate } from "../../features/updates/put-off";
+import type { PullsTarget } from "../../features/pulls/pull-board";
+import type { useSettingsPage } from "../../features/settings/useSettingsPage";
+import type { NavigationLock } from "../../lib/navigation-lock";
+import { useShortcutLabel } from "../../lib/shortcuts";
+import type { ShellNavigation, Surface } from "../useShellNavigation";
+import type { SidebarVisibility } from "../useSidebarVisibility";
 import { BarButton, ScheduledThreadIcon } from "./ActivityBarButton";
 
 /** The sidebar's unread / needs-input dot. */
