@@ -2,6 +2,7 @@ import { it, expect } from "vitest";
 import {
   CodexPlanRows,
   claudeActivity,
+  claudeCommand,
   claudeEditedPaths,
   codexActivity,
 } from "./activity";
@@ -104,6 +105,16 @@ it("labels Claude's reads, searches and MCP calls", () => {
   expect(claudeActivity("m", "mcp__linear__get_issue", { id: "x" }).label).toBe(
     "linear: get_issue",
   );
+});
+
+it("shows the command Claude runs in PowerShell, as it does one in Bash", () => {
+  const input = { command: "Get-ChildItem src", description: "List src" };
+  expect(claudeActivity("p", "PowerShell", input)).toMatchObject({
+    kind: "command",
+    label: "Get-ChildItem src",
+  });
+  expect(claudeCommand("PowerShell", input)).toBe("Get-ChildItem src");
+  expect(claudeActivity("s", "Shell", { command: "ls" }).label).toBe("ls");
 });
 
 it("takes the files Claude writes from its file tools only", () => {

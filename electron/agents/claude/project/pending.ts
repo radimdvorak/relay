@@ -1,5 +1,6 @@
 import type { ChatPending } from "../../../../shared/projects";
 import type { SDKMessage } from "./sdk";
+import { claudeCommand } from "../../activity";
 
 type Task = Extract<ChatPending, { kind: "task" }>;
 type Wakeup = Extract<ChatPending, { kind: "wakeup" }>;
@@ -37,9 +38,9 @@ export class ClaudeWork {
   observe(frame: SDKMessage) {
     if (frame.type === "assistant")
       for (const block of frame.message.content) {
-        if (block.type !== "tool_use" || block.name !== "Bash") continue;
-        const { command } = block.input as { command?: unknown };
-        if (typeof command === "string") this.rememberBash(block.id, command);
+        if (block.type !== "tool_use") continue;
+        const command = claudeCommand(block.name, block.input);
+        if (command) this.rememberBash(block.id, command);
       }
     if (frame.type !== "system" || frame.subtype !== "task_started") return;
     const command = frame.tool_use_id && this.bashCalls.get(frame.tool_use_id);

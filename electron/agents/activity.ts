@@ -227,9 +227,14 @@ const claudeFileTools: Record<string, string> = {
   NotebookEdit: "notebook_path",
 };
 
-/** The shell command a Claude call runs, whole; empty for any other call. */
+/**
+ * The shell command a Claude call runs, whole; empty for any other call.
+ * Read off the input rather than the tool's name: Bash has a PowerShell
+ * sibling on Windows, and the next shell tool shouldn't show up as its name.
+ */
 export function claudeCommand(name: string, value: unknown) {
-  if (name !== "Bash" || !value || typeof value !== "object") return "";
+  if (name.startsWith("mcp__") || !value || typeof value !== "object")
+    return "";
   const command = (value as Record<string, unknown>).command;
   return typeof command === "string" ? command.trim() : "";
 }
@@ -262,9 +267,9 @@ export function claudeActivity(
   });
   if (Object.hasOwn(claudeFileTools, name))
     return call("file", text(claudeFileTools[name]));
+  const command = claudeCommand(name, input);
+  if (command) return call("command", command);
   switch (name) {
-    case "Bash":
-      return call("command", text("command"));
     case "Read":
       return call("read", text("file_path"));
     case "Grep":
