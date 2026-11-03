@@ -345,16 +345,6 @@ export class ThreadTriage {
     return chatSummary(chat);
   }
 
-  /** Lets this thread's agent drive any thread without asking, or takes that back. */
-  async allowDriving(id: string, on: boolean) {
-    const chat = await this.core.storage.load(id);
-    if (!!chat.drivesThreads === on) return chatSummary(chat);
-    if (on) chat.drivesThreads = true;
-    else delete chat.drivesThreads;
-    await this.core.storage.save(chat);
-    return chatSummary(chat);
-  }
-
   /** Only moves forward, so a device that read less can't mark a thread unread again. */
   async markSeen(id: string, seenAt: number) {
     const chat = await this.core.storage.load(id);

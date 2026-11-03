@@ -138,9 +138,11 @@ export function chatHandlers(ctx: ApiContext) {
       projectChats.rename(id, title),
     ),
     detachProjectChat: takes([idSchema], (id) => projectChats.detach(id)),
-    stopProjectChatDriving: takes([idSchema], (id) =>
-      projectChats.allowDriving(id, false),
-    ),
+    threadDriving: () => projectChats.drivesThreads(),
+    saveThreadDriving: takes([z.boolean()], async (enabled) => {
+      await projectChats.allowDriving(enabled);
+      return projectChats.drivesThreads();
+    }),
     markProjectChatSeen: takes(
       [idSchema, z.number().int().min(0)],
       (id, seenAt) => projectChats.markSeen(id, seenAt),

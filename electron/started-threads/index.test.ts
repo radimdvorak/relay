@@ -62,8 +62,10 @@ function fakeChats() {
     },
   };
   chats.set(lead.id, lead);
+  const driving = { allowed: false };
   return {
     lead,
+    driving,
     sent,
     chats,
     api: {
@@ -75,10 +77,10 @@ function fakeChats() {
         [...chats.values()].filter(
           (c) => c.startedBy?.chatId === leadId,
         ) as ChatSummary[],
-      allowDriving: async (id: string, on: boolean) => {
-        if (on) chats.get(id)!.drivesThreads = true;
-        else delete chats.get(id)!.drivesThreads;
+      allowDriving: async (on: boolean) => {
+        driving.allowed = on;
       },
+      drivesThreads: () => driving.allowed,
       get: async (id: string) => {
         const chat = chats.get(id);
         if (!chat) throw new Error("No such thread.");
@@ -205,7 +207,7 @@ const call = (
 
 const parse = (result: ToolResult) => JSON.parse(resultText(result));
 const ALWAYS =
-  "Always lets this thread start, message, stop and settle any thread in any project without asking again. Reading needs no permission.";
+  "Always lets every thread's agent start, message, stop and settle any thread in any project without asking again. Settings → Threads takes it back. Reading needs no permission.";
 
 test.each(["missing_tool", "constructor", "__proto__"])(
   "rejects unknown tool %s before reading the caller's thread",
@@ -1196,7 +1198,7 @@ test("another project's threads can't take the lead's uncommitted work, nor star
 });
 
 test("messaging a thread in another project asks in full access until always allowed", async () => {
-  const { lead, api, asked, answer, chats } = fakeChats();
+  const { lead, api, asked, answer, chats, driving } = fakeChats();
   lead.lastInput!.runtimeMode = "full-access";
   const { home, projects } = await fakeProjects();
   const other = await projects.add(join(home, "site"));
@@ -1218,16 +1220,16 @@ test("messaging a thread in another project asks in full access until always all
   answer.decision = "accept";
   await send();
   await send();
-  expect(lead.drivesThreads).toBeUndefined();
+  expect(driving.allowed).toBe(false);
   answer.decision = "acceptForSession";
   await send();
-  expect(chats.get(lead.id)!.drivesThreads).toBe(true);
+  expect(driving.allowed).toBe(true);
   await send();
   expect(
     asked.slice(1).map((a) => (a.request as { title: string }).title),
   ).toEqual(Array(4).fill("Send to “Header” in “site”?"));
-  // Saved before drivesThreads, a message leave still counts.
-  delete chats.get(lead.id)!.drivesThreads;
+  // Saved before driving was allowed for all of Relay, a message leave still counts.
+  driving.allowed = false;
   chats.get(child.id)!.startedBy!.sendsApproved = true;
   await send();
   expect(asked).toHaveLength(5);
@@ -1301,6 +1303,28 @@ test("any other thread asks once to drive, then never again", async () => {
     { isError: true },
   );
   expect(asked).toHaveLength(5);
+});
+
+test("always from one thread lets every other thread drive without asking", async () => {
+  const { lead, chats, api, asked, answer } = fakeChats();
+  const threads = new StartedThreads(api, {});
+  const fix = await api.create("p", { kind: "project" });
+  Object.assign(chats.get(fix.id)!, { title: "Fix login", running: true });
+  await api.send(fix.id, { ...lead.lastInput!, id: "m1", body: "Fix it" });
+  const other = await api.create("p", { kind: "project" });
+  chats.get(other.id)!.lastInput = lead.lastInput;
+
+  answer.decision = "acceptForSession";
+  await call(threads, lead.id, "send_to_thread", { id: fix.id, message: "Go" });
+  expect(asked).toHaveLength(1);
+  answer.decision = "decline";
+  expect(
+    await call(threads, other.id, "send_to_thread", {
+      id: fix.id,
+      message: "Also the footer",
+    }),
+  ).not.toHaveProperty("isError");
+  expect(asked).toHaveLength(1);
 });
 
 test("a thread doesn't stop itself, settles itself only once done, and waits on any thread without asking", async () => {

@@ -137,8 +137,6 @@ export interface ChatSummary {
   reviewer?: ReviewerTask;
   /** Started by another thread's agent through Relay's tools; listed under that thread. */
   startedBy?: StartedBy;
-  /** The user let this thread's agent start, message, stop and settle any thread, in any project, without asking. */
-  drivesThreads?: true;
   /** Continues a Claude Code or Codex session started in a terminal. */
   fromTerminal?: FromTerminal;
   /** Opened to import this app's history with an agent; its agent gets the import tools. */
@@ -166,7 +164,7 @@ export interface StartedBy {
   chatId: string;
   /** The agent that started it. */
   agent: AgentProvider;
-  /** The user let the lead message it, in another project than the lead's. Saved before drivesThreads; still honoured. */
+  /** The user let the lead message it, in another project than the lead's. Saved before driving was allowed for all of Relay; still honoured. */
   sendsApproved?: true;
   /** The user asked it for a second opinion on this answer of the lead's, by message id. */
   secondOpinionOn?: string;

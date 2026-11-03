@@ -555,8 +555,16 @@ export class ProjectChats {
     return this.threads.started(leadId);
   }
 
-  allowDriving(id: string, on: boolean) {
-    return this.triaging.allowDriving(id, on);
+  /** Whether every thread's agent may drive other threads without asking. */
+  drivesThreads() {
+    return this.store.get().drivesThreads === true;
+  }
+
+  async allowDriving(on: boolean) {
+    await this.store.update((s) => {
+      if (on) s.drivesThreads = true;
+      else delete s.drivesThreads;
+    });
   }
 
   setAccount(id: string, provider: AccountProvider, account: string) {

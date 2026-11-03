@@ -83,7 +83,7 @@ export function useThreadEntries(): SettingEntry[] {
   ];
 }
 
-/** What Relay does while agents work: keep the computer up and tip. */
+/** What Relay does while agents work: keep the computer up, tip, drive threads. */
 function whileAgentsWork(tipsShown: boolean): SettingEntry[] {
   return [
     {
@@ -110,6 +110,17 @@ function whileAgentsWork(tipsShown: boolean): SettingEntry[] {
         <Switch label="Show tips" checked={tipsShown} onChange={setTipsShown} />
       ),
     },
+    {
+      id: "drive-threads",
+      category: "threads",
+      section: "While agents work",
+      title: "Let agents drive other threads",
+      description:
+        "Any thread's agent may start, message, steer, stop and settle other threads, in any project, without asking. Off, Relay asks first, unless a full-access thread drives threads it started itself. Answering Always to one of those questions turns this on.",
+      keywords:
+        "drive threads message send steer stop settle start approve approval permission always ask agents lead",
+      render: () => <DrivesThreadsSwitch />,
+    },
   ];
 }
 
@@ -128,6 +139,25 @@ function KeepAwakeSwitch() {
         onChange={(enabled) => keepAwake.set(enabled)}
       />
       {keepAwake.error && <ErrorBox error={keepAwake.error} />}
+    </>
+  );
+}
+
+function DrivesThreadsSwitch() {
+  const drives = useSavedSetting(
+    { queryKey: ["drives-threads"], queryFn: () => api.threadDriving() },
+    (enabled) => api.saveThreadDriving(enabled),
+    ["drives-threads"],
+  );
+  return (
+    <>
+      <Switch
+        label="Let agents drive other threads"
+        checked={drives.value ?? false}
+        disabled={!drives.loaded || drives.saving}
+        onChange={(enabled) => drives.set(enabled)}
+      />
+      {drives.error && <ErrorBox error={drives.error} />}
     </>
   );
 }

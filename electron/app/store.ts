@@ -17,6 +17,8 @@ interface State {
   projectGroups?: string[];
   /** Prettify automatic project names; unset keeps the original default (on). */
   smartProjectNames?: boolean;
+  /** Every thread's agent starts, messages, stops and settles threads in any project without asking; unset is off. */
+  drivesThreads?: boolean;
   /** Look for newer agent releases every few hours and offer them under the sidebar; unset is on. */
   agentUpdateChecks?: boolean;
   /** When big conversations compact unasked; unset is both off. */

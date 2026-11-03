@@ -56,6 +56,7 @@ type Chats = Pick<
   | "list"
   | "startedThreads"
   | "allowDriving"
+  | "drivesThreads"
   | "get"
   | "statuses"
   | "create"

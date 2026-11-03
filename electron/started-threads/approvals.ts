@@ -4,18 +4,21 @@ import { toolText } from "../relay-mcp";
 import { leadSide } from "./lead-side";
 
 const DRIVE_ALWAYS =
-  "Always lets this thread start, message, stop and settle any thread in any project without asking again. Reading needs no permission.";
+  "Always lets every thread's agent start, message, stop and settle any thread in any project without asking again. Settings → Threads takes it back. Reading needs no permission.";
 
 /** Asking the user, in the lead's own turn, before a tool acts for it. */
 export class Approvals {
   constructor(
-    private chats: Pick<ProjectChats, "askInTurn" | "allowDriving">,
+    private chats: Pick<
+      ProjectChats,
+      "askInTurn" | "allowDriving" | "drivesThreads"
+    >,
   ) {}
 
   /**
    * Whether the user lets the lead start or message a thread of its own: a
    * new turn spends usage and may edit the project. A lead with full access
-   * or leave to drive threads may, unless `always`.
+   * may, and any lead once the user let agents drive threads, unless `always`.
    */
   async ask(
     lead: ProjectChat,
@@ -24,7 +27,8 @@ export class Approvals {
     signal: AbortSignal,
     always = false,
   ) {
-    if (!always && (lead.drivesThreads || this.fullAccess(lead))) return true;
+    if (!always && (this.chats.drivesThreads() || this.fullAccess(lead)))
+      return true;
     const response = await this.chats.askInTurn(
       lead.id,
       {
@@ -41,7 +45,7 @@ export class Approvals {
   /**
    * Whether the user lets the lead drive a thread beyond its own in its
    * project. Full access doesn't: it was given for the lead's own folder.
-   * Always keeps the leave on the lead, so it asks only once.
+   * Always lets every thread drive, so Relay asks only once.
    */
   async askToDrive(
     lead: ProjectChat,
@@ -49,7 +53,7 @@ export class Approvals {
     detail: string,
     signal: AbortSignal,
   ) {
-    if (lead.drivesThreads) return true;
+    if (this.chats.drivesThreads()) return true;
     const response = await this.chats.askInTurn(
       lead.id,
       {
@@ -62,7 +66,7 @@ export class Approvals {
     );
     if (response.kind !== "approval") return false;
     if (response.decision === "acceptForSession")
-      await this.chats.allowDriving(lead.id, true);
+      await this.chats.allowDriving(true);
     return (
       response.decision === "accept" || response.decision === "acceptForSession"
     );
