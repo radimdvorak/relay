@@ -604,13 +604,11 @@ export class AgentUpdates {
     if (!online) return { ...found, current };
     const latest = await this.latest(provider, tag, install, fresh);
     const behind = latest && compareVersions(current, latest) < 0;
-    if (install?.installer !== "npm" || !behind)
-      return { ...found, current, latest };
-    const aged = await this.releases.aged(
-      agentPackages[provider].npm,
-      latest,
-      fresh,
-    );
+    // npm's global installs and Relay's own both sit under an npm prefix,
+    // where min-release-age decides what an update can install.
+    if (!install?.npmPrefix || !behind) return { ...found, current, latest };
+    const { npm } = agentPackages[provider];
+    const aged = await this.releases.aged(npm, latest, fresh);
     return { ...found, current, ...aged };
   }
 

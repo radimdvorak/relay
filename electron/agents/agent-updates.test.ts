@@ -414,6 +414,8 @@ function bareMachine(options: {
   tags: Record<string, string>;
   releaseAge?: number;
   packument?: unknown;
+  /** What every CLI's `--version` prints. */
+  version?: string;
 }) {
   const on = { ...options.installed };
   const runs: string[][] = [];
@@ -433,7 +435,8 @@ function bareMachine(options: {
     realpath: async (path) => path,
     exists: async () => false,
     exec: async (file, args, _timeout, onOutput) => {
-      if (args[0] === "--version") return done("cli 1.0.0");
+      if (args[0] === "--version")
+        return done(`cli ${options.version ?? "1.0.0"}`);
       runs.push([file, ...args]);
       onOutput?.("npm http fetch GET 200 https://registry.npmjs.org/x 80ms");
       // npm -g --prefix puts each package's commands in <prefix>/bin.
@@ -539,6 +542,32 @@ describe("AgentUpdates installing what's missing", () => {
       "@ampcode/cli@0.0.200-gb",
       "amp-acp@latest",
     ]);
+  });
+
+  it("doesn't fail updating its own Amp to the release npm's min-release-age lets in", async () => {
+    const ago = (days: number) =>
+      new Date(Date.now() - days * 86_400_000).toISOString();
+    const { updates, agent } = bareMachine({
+      installed: {
+        amp: "/relay/clis/amp/bin/amp",
+        "amp-acp": "/relay/clis/amp/bin/amp-acp",
+      },
+      tags: { latest: "0.0.300-gc" },
+      releaseAge: 3,
+      version: "0.0.200-gb",
+      packument: {
+        versions: { "0.0.200-gb": {}, "0.0.300-gc": {} },
+        time: { "0.0.200-gb": ago(4), "0.0.300-gc": ago(1) },
+      },
+    });
+    await updates.check();
+    expect(agent("amp")).toMatchObject({
+      latest: "0.0.200-gb",
+      held: { version: "0.0.300-gc" },
+    });
+
+    await updates.update("amp");
+    expect(agent("amp").update).toMatchObject({ status: "updated" });
   });
 
   it("installs amp-acp beside an Amp the user has, which keeps running", async () => {
