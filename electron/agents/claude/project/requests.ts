@@ -9,6 +9,7 @@ import type { ClaudeRunOptions } from "./config";
 import { RELAY_SERVER } from "../../../relay-mcp";
 import { ANSWER_LIMIT } from "../../turn-kit";
 import { sideInstructions } from "../../instructions";
+import { claudeCommand } from "../../activity";
 
 /** The session a request comes from, as answering it needs. */
 type Asker = {
@@ -62,7 +63,7 @@ export function sessionCallbacks(holder: Asker) {
         };
       // Claude Code runs the commands it knows only read without asking,
       // so a command that gets here might change files.
-      if (tool === "Bash")
+      if (claudeCommand(tool, input))
         return {
           behavior: "deny",
           message:

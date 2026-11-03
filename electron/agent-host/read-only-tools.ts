@@ -28,8 +28,17 @@ const deny = (reason: string) => ({
 
 /** The PreToolUse hook: anything that could change something is turned down. */
 export async function readOnlyHook(input: unknown) {
-  const { tool_name: tool = "" } = (input ?? {}) as { tool_name?: string };
+  const { tool_name: tool = "", tool_input } = (input ?? {}) as {
+    tool_name?: string;
+    tool_input?: { command?: unknown };
+  };
   if (tool === "Bash") return readOnlyBashHook(input);
+  // PowerShell, or whatever shell comes next: the allowlist only parses bash.
+  const runsCommand = typeof tool_input?.command === "string";
+  if (runsCommand && !tool.startsWith("mcp__"))
+    return deny(
+      "This thread only reads. Use Read, Grep and Glob, or a read-only command like git diff in Bash, and report what should change instead of changing files.",
+    );
   if (writes.has(tool))
     return deny(
       "This thread only reads. Report what should change instead of changing files.",

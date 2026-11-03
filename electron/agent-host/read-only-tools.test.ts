@@ -13,6 +13,10 @@ it("turns down tools that write, act or move the session", async () => {
   expect(await call("mcp__relay__send_to_thread")).toMatchObject(denied);
   expect(await call("mcp__computer-use__click")).toMatchObject(denied);
   expect(await call("Bash", { command: "rm -rf src" })).toMatchObject(denied);
+  expect(await call("PowerShell", { command: "git log -5" })).toMatchObject(
+    denied,
+  );
+  expect(await call("Shell", { command: "ls" })).toMatchObject(denied);
 });
 
 it("lets reading through", async () => {
