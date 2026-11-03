@@ -23,6 +23,7 @@ export const RELAY_SERVER = "relay";
 
 export { relayToolLabel, relayToolsWhere } from "./tool-meta";
 export { startedNote } from "./started-note";
+export { peerNote } from "./peer-note";
 export {
   relayToolSchemas,
   relayToolList,

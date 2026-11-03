@@ -9,7 +9,12 @@ import { linksInstructions, threadLinks } from "../../shared/projects";
 import { goalChanged } from "../../shared/goal";
 import type { AgentOptions } from "../agents/types";
 import { projectTasks } from "../terminal/tasks";
-import { relayToolsFor, startedNote, type RelayCaller } from "../relay-mcp";
+import {
+  peerNote,
+  relayToolsFor,
+  startedNote,
+  type RelayCaller,
+} from "../relay-mcp";
 import {
   threadWorktreePaths,
   turnWorkspace,
@@ -71,6 +76,7 @@ export async function turnOptions(
         ),
         linksInstructions(links),
         startedNoteFor(core, chat, input, access.canMessageLead),
+        peerNote(chat, input, access.canSendToThreads),
       ]
         .filter(Boolean)
         .join("\n\n") || undefined,
@@ -137,7 +143,10 @@ function accessOf(core: ChatCore, { chat, input, rules }: TurnState) {
     // The thread's running answer owns its requests; a side turn asks none.
     onRequest: rules.side ? undefined : core.active.get(chat.id)?.requests.ask,
   };
-  return { options, canMessageLead: !!relayTools && !readOnly };
+  const canMessageLead = !!relayTools && !readOnly;
+  // A started thread only reads other threads; it can't send to them.
+  const canSendToThreads = canMessageLead && !chat.startedBy;
+  return { options, canMessageLead, canSendToThreads };
 }
 
 /** Where what the agent writes and reports lands in the answer. */
