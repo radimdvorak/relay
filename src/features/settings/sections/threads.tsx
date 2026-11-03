@@ -23,30 +23,7 @@ import { useSavedSetting } from "../useSavedSetting";
 export function useThreadEntries(): SettingEntry[] {
   const tipsShown = useTipsShown();
   return [
-    {
-      id: "keep-awake",
-      category: "threads",
-      section: "While agents work",
-      title: "Keep this computer awake",
-      description:
-        "So agents keep working and a phone can still reach it after you walk away. Plugged in, it never idles to sleep while Relay runs; on battery, only while an agent works or a phone is paired, and not under 20%. The screen still turns off and locks, and closing the lid still sleeps it.",
-      keywords:
-        "sleep awake caffeinate idle power battery plugged lid screen lock reachable phone",
-      render: () => <KeepAwakeSwitch />,
-    },
-    {
-      id: "tips",
-      category: "threads",
-      section: "While agents work",
-      title: "Tips from Clip",
-      description:
-        "When an agent has been working a while, Clip peeks up at the right of its thinking line with one thing Relay can do that you haven't set up. Right-click him to turn tips off.",
-      keywords:
-        "tips clip paperclip clippy hints suggestions peek eyes working onboarding",
-      render: () => (
-        <Switch label="Show tips" checked={tipsShown} onChange={setTipsShown} />
-      ),
-    },
+    ...whileAgentsWork(tipsShown),
     {
       id: "render-mode",
       category: "threads",
@@ -102,6 +79,36 @@ export function useThreadEntries(): SettingEntry[] {
       keywords:
         "worktree cleanup clean remove delete disk space settled branch folder prune",
       render: () => <WorktreeCleanupSelect />,
+    },
+  ];
+}
+
+/** What Relay does while agents work: keep the computer up and tip. */
+function whileAgentsWork(tipsShown: boolean): SettingEntry[] {
+  return [
+    {
+      id: "keep-awake",
+      category: "threads",
+      section: "While agents work",
+      title: "Keep this computer awake",
+      description:
+        "So agents keep working and a phone can still reach it after you walk away. Plugged in, it never idles to sleep while Relay runs; on battery, only while an agent works or a phone is paired, and not under 20%. The screen still turns off and locks, and closing the lid still sleeps it.",
+      keywords:
+        "sleep awake caffeinate idle power battery plugged lid screen lock reachable phone",
+      render: () => <KeepAwakeSwitch />,
+    },
+    {
+      id: "tips",
+      category: "threads",
+      section: "While agents work",
+      title: "Tips from Clip",
+      description:
+        "When an agent has been working a while, Clip peeks up at the right of its thinking line with one thing Relay can do that you haven't set up. Right-click him to turn tips off.",
+      keywords:
+        "tips clip paperclip clippy hints suggestions peek eyes working onboarding",
+      render: () => (
+        <Switch label="Show tips" checked={tipsShown} onChange={setTipsShown} />
+      ),
     },
   ];
 }
