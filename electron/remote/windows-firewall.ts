@@ -87,11 +87,11 @@ New-NetFirewallRule -Name 'Relay-phones' -DisplayName 'Relay phone access' -Dire
 const encoded = (script: string) =>
   Buffer.from(script, "utf16le").toString("base64");
 
-const powershell = (script: string) =>
+const powershell = (script: string, timeout = 30_000) =>
   run(
     "powershell.exe",
     ["-NoProfile", "-NonInteractive", "-EncodedCommand", encoded(script)],
-    { windowsHide: true, timeout: 30_000 },
+    { windowsHide: true, timeout },
   );
 
 /** Where the firewall keeps phones out; empty off Windows and when nothing's in the way. */
@@ -103,6 +103,9 @@ export async function firewallBlocks(hosts: string[]): Promise<string[]> {
 
 // ERROR_CANCELLED, what Start-Process throws when the admin prompt is declined.
 const declined = 1223;
+// The admin prompt waits on the user: killed under it, a slow Yes would
+// still change the firewall after Relay said it failed.
+const promptTimeout = 10 * 60_000;
 
 /** Lets Relay in after Windows' admin prompt; false when that was declined. */
 export async function allowThroughFirewall(): Promise<boolean> {
@@ -114,7 +117,7 @@ export async function allowThroughFirewall(): Promise<boolean> {
   throw
 }`;
   try {
-    await powershell(elevated);
+    await powershell(elevated, promptTimeout);
     return true;
   } catch (error) {
     if ((error as { code?: unknown }).code === declined) return false;
