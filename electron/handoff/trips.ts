@@ -1,6 +1,7 @@
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { errorMessage } from "../../shared/error-message";
+import type { ProjectChat } from "../../shared/projects";
 import { needsFullBundle, type HandoffThread } from "../../shared/handoff";
 import {
   folderHandoffBridge,
@@ -8,7 +9,7 @@ import {
   startHandoffBridge,
   type HomeThread,
 } from "../../shared/remote";
-import { Unanswered } from "../../shared/remote-client";
+import { Unanswered, type RemoteClient } from "../../shared/remote-client";
 import type { Store } from "../app/store";
 import {
   bundleBranch,
@@ -114,11 +115,7 @@ export class HandoffTrips {
         title: chat.title,
         scope: chat.scope,
         settings: settingsOf(input),
-        messages: await sendPastes(
-          portableMessages(chat.messages),
-          client,
-          info!.bridge,
-        ),
+        messages: await carriedMessages(chat, client, info!.bridge),
         git: {
           branch: worktree.branch!,
           tip,
@@ -128,26 +125,7 @@ export class HandoffTrips {
         },
         ...(start ? { start: true as const } : {}),
       };
-      await mkdir(folder, { recursive: true, mode: 0o700 });
-      const bundle = join(folder, "bundle");
-      const across = async (full: boolean) => {
-        await rm(bundle, { force: true });
-        thread.git.bundle =
-          (await bundleBranch(root, thread.git.branch, bundle, { full })) !==
-          false;
-        const json = join(folder, "thread");
-        await writeFile(json, JSON.stringify(thread), { mode: 0o600 });
-        await upload(client, id, "thread", json);
-        if (thread.git.bundle) await upload(client, id, "bundle", bundle);
-        await client.call("receiveHandoff", id);
-      };
-      try {
-        await across(false);
-      } catch (e) {
-        // The other side lacks what the lean bundle builds on.
-        if (errorMessage(e) !== needsFullBundle) throw e;
-        await across(true);
-      }
+      await carry(client, id, folder, root, thread);
       await this.chats.handoffs.updateSentTo(chatId, id, {
         state: "away",
         error: undefined,
@@ -275,11 +253,7 @@ export class HandoffTrips {
         title: chat.title,
         scope: chat.scope,
         settings: settingsOf(input),
-        messages: await sendPastes(
-          portableMessages(chat.messages),
-          client,
-          info.bridge,
-        ),
+        messages: await carriedMessages(chat, client, info.bridge),
       };
       asked = true;
       await client.call("startInProject", id, project.projectId, thread);
@@ -319,3 +293,41 @@ export class HandoffTrips {
     }
   }
 }
+
+/**
+ * Hands the thread and its branch, as a bundle, to the other computer to
+ * take in. A full bundle when it lacks what a lean one builds on.
+ */
+async function carry(
+  client: RemoteClient,
+  id: string,
+  folder: string,
+  root: string,
+  thread: HandoffThread,
+) {
+  await mkdir(folder, { recursive: true, mode: 0o700 });
+  const bundle = join(folder, "bundle");
+  const across = async (full: boolean) => {
+    await rm(bundle, { force: true });
+    thread.git.bundle =
+      (await bundleBranch(root, thread.git.branch, bundle, { full })) !== false;
+    const json = join(folder, "thread");
+    await writeFile(json, JSON.stringify(thread), { mode: 0o600 });
+    await upload(client, id, "thread", json);
+    if (thread.git.bundle) await upload(client, id, "bundle", bundle);
+    await client.call("receiveHandoff", id);
+  };
+  try {
+    await across(false);
+  } catch (e) {
+    if (errorMessage(e) !== needsFullBundle) throw e;
+    await across(true);
+  }
+}
+
+/** A thread's messages as the other computer takes them, with the pastes they name copied there. */
+const carriedMessages = (
+  chat: ProjectChat,
+  client: RemoteClient,
+  bridge: number,
+) => sendPastes(portableMessages(chat.messages), client, bridge);
