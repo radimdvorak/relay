@@ -46,7 +46,11 @@ export function renderHandlers(ctx: ApiContext) {
     return win;
   };
   const read = (target: z.infer<typeof targetSchema>) =>
-    ctx.projectChats.renderPage(target.chatId, target.renderId, target.page);
+    ctx.projectChats.liveHandoff.renderPage(
+      target.chatId,
+      target.renderId,
+      target.page,
+    );
   return {
     exportRenderImage: takes(
       [targetSchema, shotSchema],

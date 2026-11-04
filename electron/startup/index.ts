@@ -341,7 +341,7 @@ export function remoteServices({
       // The bridge forwards only its allowlist; see shared/remote-methods.ts.
       dispatch,
       renderPage: (chatId, renderId, page) =>
-        chats.renderPage(chatId, renderId, page),
+        chats.liveHandoff.renderPage(chatId, renderId, page),
       news: (cursor) => chats.newsSince(cursor),
       handoffs: receiver,
       uploadFile: writeUploadChunk,

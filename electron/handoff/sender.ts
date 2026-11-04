@@ -133,6 +133,10 @@ export class Handoffs {
     chats.startsThereWith((chatId, computerId) =>
       this.handOff(chatId, computerId),
     );
+    // The pages its answers showed there are fetched as they're shown here.
+    chats.liveHandoff.rendersFrom((sentTo, renderId, page) =>
+      this.threads.renderPage(sentTo, renderId, page),
+    );
   }
 
   /** See HandoffForwarding. */

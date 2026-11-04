@@ -450,7 +450,7 @@ app
     });
     serveMedia();
     serveRenders((chatId, renderId, page) =>
-      chats.renderPage(chatId, renderId, page),
+      chats.liveHandoff.renderPage(chatId, renderId, page),
     );
     const triageService = new TriageService(loaded, app.getPath("userData"));
     triage = triageService;

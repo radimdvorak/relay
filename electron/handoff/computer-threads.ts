@@ -1,6 +1,12 @@
 // The paired computers' own threads: what each lists, so the Computers
 // sidebar can show them beside the ones that went there from here.
-import { liveAway, type PairedComputer } from "../../shared/handoff";
+import { z } from "zod";
+import {
+  liveAway,
+  type ChatSentTo,
+  type PairedComputer,
+} from "../../shared/handoff";
+import { RENDER_MAX_CHARS } from "../../shared/html-render";
 import type {
   ComputerThreadHere,
   ComputerThreads as ListedThreads,
@@ -115,6 +121,13 @@ export class ComputerThreads {
     });
     await this.following.follow(computerId, chat.id);
     return { projectId: project.id, chatId: chat.id, peek: true };
+  }
+
+  /** A page one of the thread's answers showed there, no bigger than a page may be. */
+  async renderPage(sentTo: ChatSentTo, renderId: string, page: number) {
+    const client = await this.computers.connected(sentTo.computerId);
+    const html = await client.call("threadRender", sentTo.id, renderId, page);
+    return z.string().max(RENDER_MAX_CHARS).parse(html);
   }
 
   /** Settles, snoozes or wakes one of the computer's own threads there. */

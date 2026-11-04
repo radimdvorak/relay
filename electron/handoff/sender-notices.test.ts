@@ -44,6 +44,7 @@ async function setup(call: (method: string, id: string) => Promise<void>) {
   vi.spyOn(computers, "connected").mockResolvedValue({ call } as RemoteClient);
   const chats = {
     startsThereWith: () => {},
+    liveHandoff: { rendersFrom: () => {} },
     handoffs: {
       abandon: async (chatId: string, id: string) => {
         if (store.get().chats!.find((c) => c.id === chatId)?.sentTo?.id !== id)

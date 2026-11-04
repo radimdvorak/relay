@@ -32,6 +32,7 @@ const liveThreadMethods = [
   "handoffStatus",
   "computerThreads",
   "threadTriage",
+  "threadRender",
 ] as const satisfies readonly ComputerMethod[];
 
 type LiveThreadMethod = (typeof liveThreadMethods)[number];
@@ -61,6 +62,8 @@ export class LiveThreads {
         return this.list(deviceId);
       case "threadTriage":
         return this.triage(args, deviceId);
+      case "threadRender":
+        return this.render(args, deviceId);
     }
   }
 
@@ -147,6 +150,14 @@ export class LiveThreads {
     const triage = chatTriageSchema.parse(args[1]);
     if (!this.host.dispatch) throw new Error("This Relay can't do that.");
     await this.host.dispatch("triageProjectChat", [chat.id, triage]);
+  }
+
+  /** A page one of the thread's answers showed, for the device to show it there too. */
+  private async render(args: unknown[], deviceId: string) {
+    const chat = await this.followable(idSchema.parse(args[0]), deviceId);
+    const renderId = z.uuid().parse(args[1]);
+    const page = z.number().int().min(0).parse(args[2]);
+    return this.host.chats.renderPage(chat.id, renderId, page);
   }
 
   /** How each thread stands here, by handoff id; null for one that isn't here (`handoffStatus`). */

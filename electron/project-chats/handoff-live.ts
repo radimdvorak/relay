@@ -1,6 +1,11 @@
 import { randomUUID } from "node:crypto";
 import type { ComputerThread } from "../../shared/computer-threads";
-import type { ChatSentTo, HandoffLive, HeldSend } from "../../shared/handoff";
+import {
+  liveAway,
+  type ChatSentTo,
+  type HandoffLive,
+  type HeldSend,
+} from "../../shared/handoff";
 import type {
   ChatMessage,
   ChatSummary,
@@ -35,8 +40,16 @@ const mirrorSaveMs = 1000;
  * from; that one keeps the thread as a mirror, everything after the
  * messages it left with written only by what arrives.
  */
+/** Where the page of an answer written on another computer comes from. */
+type RenderThere = (
+  sentTo: ChatSentTo,
+  renderId: string,
+  page: number,
+) => Promise<string>;
+
 export class LiveHandoff {
   private saves = new Map<string, NodeJS.Timeout>();
+  private renderThere?: RenderThere;
 
   constructor(
     private core: ChatCore,
@@ -53,6 +66,29 @@ export class LiveHandoff {
     const handedBack = !!chat.cameFrom && !awaitsReturn(chat);
     if (handedBack || chat.carriedIds?.[message.id]) return;
     return mirrorOf(message, chat.carriedIds ?? {});
+  }
+
+  /** How a page missing here is fetched from the computer its thread lives on. */
+  rendersFrom(fetch: RenderThere) {
+    this.renderThere = fetch;
+  }
+
+  /**
+   * A page an answer showed: saved here, or for a thread live on another
+   * computer, written there and fetched the first time it's shown. Kept
+   * here then, so it shows while that computer is away too.
+   */
+  async renderPage(id: string, renderId: string, page: number) {
+    const renders = this.core.storage.renders;
+    try {
+      return await renders.read(id, renderId, page);
+    } catch (missing) {
+      const { sentTo } = await this.core.storage.load(id);
+      if (!this.renderThere || !sentTo || !liveAway({ sentTo })) throw missing;
+      const html = await this.renderThere(sentTo, renderId, page);
+      await renders.keep(id, renderId, page, html);
+      return html;
+    }
   }
 
   /**

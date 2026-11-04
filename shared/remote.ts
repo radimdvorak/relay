@@ -227,6 +227,8 @@ export interface RemoteApi {
   computerThreads(): Promise<ComputerThreadList>;
   /** Settles, snoozes or wakes one of this computer's own threads, by the id it lists it by. */
   threadTriage(id: string, triage: ChatTriage): Promise<void>;
+  /** A page one of the thread's answers showed, by the id it lists the thread by. */
+  threadRender(id: string, renderId: string, page: number): Promise<string>;
   /** The folders in `dir` here (`~` is the home folder), for adding one as a project. From `remoteProjectsBridge`. */
   computerFolders(dir: string): Promise<ComputerFolders>;
   /** Adds the folder here as a project, or finds the project it already is. */

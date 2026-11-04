@@ -154,6 +154,7 @@ export const computerMethods = [
   "handoffCall",
   "computerThreads",
   "threadTriage",
+  "threadRender",
   "computerFolders",
   "computerAddProject",
   "startInProject",

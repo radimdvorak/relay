@@ -2418,3 +2418,31 @@ it("settles and snoozes the other computer's own thread there, from here", async
     mini.chats.list(mini.projectId).find((c) => c.id === own.id)?.snoozedUntil,
   ).toBe(until);
 });
+
+it("shows a page the other computer's thread showed, fetched from there and kept here", async () => {
+  const { laptop, mini, sender, computerId, computers } =
+    await pairedComputers();
+  const own = await mini.chats.create(mini.projectId, { kind: "project" });
+  await mini.chats.send(own.id, input("@codex Tidy the README"));
+  await finished(mini.chats, own.id, 2);
+  const renderId = randomUUID();
+  const there = join(mini.dir, "chats", "renders", own.id, renderId);
+  await mkdir(there, { recursive: true });
+  await writeFile(join(there, "0.html"), "<p>Dirt tyre loops</p>");
+
+  const here = await sender.threads.open(computerId, own.id);
+  expect(
+    await laptop.chats.liveHandoff.renderPage(here.chatId, renderId, 0),
+  ).toBe("<p>Dirt tyre loops</p>");
+  // There, only the pages of a thread this computer may follow.
+  const client = await computers.connected(computerId);
+  await expect(
+    client.call("threadRender", randomUUID(), renderId, 0),
+  ).rejects.toThrow("This computer has no such thread.");
+
+  // Kept here: it shows with the other computer gone.
+  computers.close();
+  expect(
+    await laptop.chats.liveHandoff.renderPage(here.chatId, renderId, 0),
+  ).toBe("<p>Dirt tyre loops</p>");
+});

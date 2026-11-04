@@ -27,6 +27,13 @@ export class RenderFiles {
     );
   }
 
+  /** One page fetched from the computer the thread lives on, kept for showing it again. */
+  async keep(chatId: string, renderId: string, page: number, html: string) {
+    const folder = this.folder(chatId, renderId);
+    await mkdir(folder, { recursive: true, mode: 0o700 });
+    await writeFile(join(folder, `${page}.html`), html, { mode: 0o600 });
+  }
+
   read(chatId: string, renderId: string, page: number) {
     if (!Number.isInteger(page) || page < 0 || page >= RENDER_MAX_PAGES)
       throw new Error("Invalid render page.");
