@@ -113,7 +113,7 @@ export class ComputerThreads {
       peek: true,
     });
     await this.following.follow(computerId, chat.id);
-    return { projectId: project.id, chatId: chat.id };
+    return { projectId: project.id, chatId: chat.id, peek: true };
   }
 
   /** The threads here that follow one on the computer, by what they follow it by. */

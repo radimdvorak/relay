@@ -2371,7 +2371,11 @@ it("follows the other computer's own thread from here, in its project there, and
     ),
   );
   const [listed] = await sender.threads.list();
-  expect(listed!.threads.find((t) => t.id === own.id)?.here).toEqual(here);
+  // Written in from here, it's no longer only looked at.
+  expect(listed!.threads.find((t) => t.id === own.id)?.here).toEqual({
+    projectId: here.projectId,
+    chatId: here.chatId,
+  });
 });
 
 it("only looks at the other computer's thread until it's written in from here", async () => {
