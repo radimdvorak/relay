@@ -10,13 +10,17 @@ const setup = new Set([
   "write-host",
 ]);
 
-/** What a PowerShell command did; undefined when it isn't a cmdlet known here. */
-export function cmdletActions(segment: string): CallAction[] | undefined {
+/** Aliases that are commands of their own in bash and zsh: there `type npm` says what npm is. */
+const posixToo = new Set(["type", "gc", "sl", "sls"]);
+
+/** What a PowerShell command did, `windows` when a Windows shell ran it; undefined when it isn't a cmdlet known here. */
+export function cmdletActions(segment: string, windows: boolean): CallAction[] | undefined {
   // `$env:UE_TIMEOUT = '120000'` only sets a value for what comes next.
   if (/^\s*\$[\w:]+\s*=/.test(segment)) return [];
   const at = pipeAt(segment);
   const [name = [], ...args] = cmdletArgs(at === -1 ? segment : segment.slice(0, at));
   const cmdlet = name[0]?.toLowerCase() ?? "";
+  if (!windows && posixToo.has(cmdlet)) return undefined;
   if (setup.has(cmdlet)) return [];
   switch (cmdlet) {
     case "get-content":

@@ -19,6 +19,9 @@ export function unwrapShell(command: string): string {
   return quote === "'" ? inner.replaceAll(`'\\''`, "'") : inner.replace(/\\(["\\$`])/g, "$1");
 }
 
+/** Whether a Windows shell ran the command, where `type a.txt` prints a file. */
+export const ranInWindowsShell = (command: string) => windowsShell.test(command);
+
 /**
  * `powershell.exe -NoProfile -Command …`, `pwsh -c …` or `cmd.exe /c …`, the
  * program's path maybe quoted; what follows is the command, shell-quoted.

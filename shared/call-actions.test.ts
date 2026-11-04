@@ -156,6 +156,14 @@ describe("what Codex ran", () => {
       ]);
     });
 
+    it("leaves bash's own type, gc and sls alone outside a Windows shell", () => {
+      expect(commandActions(powershell(`"type README.md"`))).toEqual([{ kind: "read", file: "README.md" }]);
+      expect(commandActions(`cmd.exe /c "type a.txt"`)).toEqual([{ kind: "read", file: "a.txt" }]);
+      expect(commandActions("type npm")).toEqual([{ kind: "run", what: "type" }]);
+      expect(commandActions(`/bin/zsh -lc 'sls deploy'`)).toEqual([{ kind: "run", what: "sls" }]);
+      expect(commandActions("Get-Content a.ts")).toEqual([{ kind: "read", file: "a.ts" }]);
+    });
+
     it("reads Select-String as a search and skips what only sets up", () => {
       expect(commandActions(powershell(`"Select-String -Path src/*.ts -Pattern 'useNow'"`))).toEqual([
         { kind: "search", pattern: "useNow", where: "src/*.ts" },

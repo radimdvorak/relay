@@ -19,6 +19,7 @@ import {
   segments,
   shellHeaders,
   shellLeads,
+  ranInWindowsShell,
   unwrapShell,
   withoutRedirects,
   wordsOf,
@@ -113,11 +114,12 @@ const leads = new Set([...commandWrappers, ...shellLeads]);
 /** Every action in a command line that ran, in order; nothing it only set up for. */
 export function commandActions(command: string, output = ""): CallAction[] {
   const { head, bodies } = heredocs(unwrapShell(command));
+  const windows = ranInWindowsShell(command);
   let next = 0;
   const steps: Step[] = [];
   for (const { segment, joinedBy } of chain(head)) {
     const body = heredocOpened(segment) ? bodies[next++] : undefined;
-    steps.push({ actions: segmentActions(segment, body), joinedBy });
+    steps.push({ actions: segmentActions(segment, body, windows), joinedBy });
   }
   const actions = steps.flatMap((step) => step.actions);
   if (!actions.length) return [{ kind: "run", what: onlySetup(head) }];
@@ -142,12 +144,13 @@ function onlySetup(head: string) {
 /** The command as you'd retype it: no shell wrapper, no `cd` or `echo`, no `| head`, no heredoc body. */
 export function shownCommand(command: string) {
   const { head } = heredocs(unwrapShell(command));
+  const windows = ranInWindowsShell(command);
   let shown = "";
   // What joined the commands left out between two shown ones.
   let between: Joiner[] = [];
   for (const { segment, joinedBy } of chain(head)) {
     if (joinedBy) between.push(joinedBy);
-    if (!segmentActions(segment, "").length) continue;
+    if (!segmentActions(segment, "", windows).length) continue;
     const text = withoutRedirects(firstStage(segment), keepsCopy).trim();
     shown += shown ? `${joinedAs(loosest(between))}${text}` : text;
     between = [];
@@ -198,14 +201,14 @@ function pastLeads(words: string[]) {
 }
 
 /** What one command of a line did: nothing when it only set up, a read of each file `cat a b` printed. */
-function segmentActions(segment: string, body: string | undefined): CallAction[] {
+function segmentActions(segment: string, body: string | undefined, windows = false): CallAction[] {
   // `b=$(git merge-base HEAD main)` only works out a value for what comes next.
   const assigned = /^\s*\w+=\$\((?:[^()]|\([^()]*\))*\)\s*/.exec(segment);
   if (assigned) {
     const rest = segment.slice(assigned[0].length);
-    return rest ? segmentActions(rest, body) : [];
+    return rest ? segmentActions(rest, body, windows) : [];
   }
-  const cmdlet = cmdletActions(segment);
+  const cmdlet = cmdletActions(segment, windows);
   if (cmdlet) return cmdlet;
   const [program, ...args] = pastLeads(subshellOff(segment, wordsOf(withoutRedirects(firstStage(segment)))));
   if (!program || setup.has(program)) return [];
