@@ -12,7 +12,13 @@ const run = promisify(execFile);
 
 const reportSchema = z.object({
   rules: z.array(
-    z.object({ action: z.string(), profile: z.string(), protocol: z.string() }),
+    z.object({
+      action: z.string(),
+      profile: z.string(),
+      protocol: z.string(),
+      /** "Any", or ports and ranges like "8080 9000-9100", or keywords like "RPC". */
+      localPorts: z.string(),
+    }),
   ),
   networks: z.array(
     z.object({ host: z.string(), category: z.string().nullable() }),
@@ -32,20 +38,29 @@ const profileOf = (category: string | null) => {
   return "Public";
 };
 
-/** The hosts phones are told to use that the firewall keeps them away from. */
-export function blockedHosts(report: FirewallReport): string[] {
+/** The hosts phones are told to use that the firewall keeps away from Relay's `port`. */
+export function blockedHosts(report: FirewallReport, port: number): string[] {
   return report.networks
-    .filter((network) => !letsIn(report, profileOf(network.category)))
+    .filter((network) => !letsIn(report, profileOf(network.category), port))
     .map((network) => network.host);
 }
 
-function letsIn(report: FirewallReport, profile: string) {
+function coversPort(localPorts: string, port: number) {
+  if (localPorts === "Any") return true;
+  return localPorts.split(/[\s,]+/).some((entry) => {
+    const [from, to = from] = entry.split("-").map(Number);
+    return from! <= port && port <= to!;
+  });
+}
+
+function letsIn(report: FirewallReport, profile: string, port: number) {
   const firewall = report.profiles.find((p) => p.name === profile);
   if (firewall?.enabled === "False") return true;
   const rules = report.rules.filter(
     (rule) =>
       (rule.profile === "Any" || rule.profile.split(", ").includes(profile)) &&
-      (rule.protocol === "Any" || rule.protocol === "TCP"),
+      (rule.protocol === "Any" || rule.protocol === "TCP") &&
+      coversPort(rule.localPorts, port),
   );
   // A block rule beats every allow rule.
   if (rules.some((rule) => rule.action === "Block")) return false;
@@ -65,7 +80,8 @@ $relayRules = Get-NetFirewallApplicationFilter -PolicyStore ${store} |
 const reportScript = (hosts: string[]) => `$ErrorActionPreference = 'Stop'
 ${relayRules("ActiveStore")}
 $rules = @($relayRules | ForEach-Object {
-  @{ action = "$($_.Action)"; profile = "$($_.Profile)"; protocol = "$(($_ | Get-NetFirewallPortFilter).Protocol)" }
+  $ports = $_ | Get-NetFirewallPortFilter
+  @{ action = "$($_.Action)"; profile = "$($_.Profile)"; protocol = "$($ports.Protocol)"; localPorts = "$($ports.LocalPort)" }
 })
 $networks = @(@(${hosts.map(quoted).join(", ")}) | ForEach-Object {
   $ip = Get-NetIPAddress -IPAddress $_ -ErrorAction SilentlyContinue | Select-Object -First 1
@@ -94,11 +110,14 @@ const powershell = (script: string, timeout = 30_000) =>
     { windowsHide: true, timeout },
   );
 
-/** Where the firewall keeps phones out; empty off Windows and when nothing's in the way. */
-export async function firewallBlocks(hosts: string[]): Promise<string[]> {
+/** Where the firewall keeps phones from `port`; empty off Windows and when nothing's in the way. */
+export async function firewallBlocks(
+  hosts: string[],
+  port: number,
+): Promise<string[]> {
   if (process.platform !== "win32" || !hosts.length) return [];
   const { stdout } = await powershell(reportScript(hosts));
-  return blockedHosts(reportSchema.parse(JSON.parse(stdout)));
+  return blockedHosts(reportSchema.parse(JSON.parse(stdout)), port);
 }
 
 // ERROR_CANCELLED, what Start-Process throws when the admin prompt is declined.

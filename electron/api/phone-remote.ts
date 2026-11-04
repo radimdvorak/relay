@@ -17,11 +17,13 @@ export function phoneRemoteHandlers(ctx: ApiContext) {
   async function phoneFirewall() {
     const state = await requirePhoneRemote().state();
     if (!state.listening) return { blocked: [] };
-    const blocked = await firewallBlocks(state.hosts).catch((error) => {
-      // Not knowing mustn't stop pairing; the phone says when it can't connect.
-      console.warn("Phone remote: couldn't read Windows Firewall:", error);
-      return [];
-    });
+    const blocked = await firewallBlocks(state.hosts, state.port).catch(
+      (error) => {
+        // Not knowing mustn't stop pairing; the phone says when it can't connect.
+        console.warn("Phone remote: couldn't read Windows Firewall:", error);
+        return [];
+      },
+    );
     return { blocked };
   }
 
