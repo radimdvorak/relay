@@ -10,14 +10,13 @@
   font-weight: 400;
   color: var(--muted);
 }
-.computers-sidebar .sb-section-toggle {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
+/* A computer that lists nothing: why, in the count's place, and dimmed. */
+.computer-unlisted .sb-folder-toggle {
+  opacity: 0.6;
+  cursor: default;
 }
-/* A computer's projects sit under its heading like Projects' under theirs. */
-.computer-section + .computer-section {
-  margin-top: 6px;
+.sb .computer-unlisted .sb-folder-count {
+  text-transform: none;
 }
 .computers-sidebar .sb-thread[aria-busy] {
   opacity: 0.6;

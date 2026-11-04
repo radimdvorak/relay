@@ -6,7 +6,6 @@ import type {
 } from "../../../shared/computer-threads";
 import { useStoredState } from "../../lib/persisted-store";
 import { ErrorBox } from "../../ui/ui";
-import { DeviceIcon } from "../handoff/DeviceIcon";
 import { useOpenThreadId } from "../thread/arrival";
 import { ComputerThreadRow, type ListedThread } from "./ComputerThreadRow";
 import { useComputerThreads } from "./useComputerThreads";
@@ -40,7 +39,7 @@ export function ComputersSidebar() {
         </h2>
       </div>
       <div className="sb-scroll">
-        {computers.map((c) => (
+        {inListOrder(computers).map((c) => (
           <ComputerSection
             key={c.id}
             computer={c}
@@ -63,16 +62,36 @@ export function ComputersSidebar() {
   );
 }
 
-/** The computer's name, and muted after it whether it's reachable. */
+/** The computer's name, and muted after it when it can't be reached. */
 function ComputerName({ computer }: { computer: ComputerThreads }) {
   return (
     <span className="computer-name">
       {computer.name}
-      <small>{computer.online ? "online" : "offline"}</small>
+      {!computer.online && <small>offline</small>}
     </span>
   );
 }
 
+/** Why the computer lists no threads, in a word for its row; none when it lists some. */
+function nothingListed(computer: ComputerThreads) {
+  if (!computer.online) return "offline";
+  if (computer.problem) return "update Relay";
+  if (!computer.threads.length) return "no threads";
+}
+
+/** The computer's latest thread, and 0 when it lists none, for the order they're in. */
+const latest = (computer: ComputerThreads) => computer.threads[0]?.updated ?? 0;
+
+/** Those with threads first, latest first; offline ones last. */
+const inListOrder = (computers: ComputerThreads[]) =>
+  [...computers].sort(
+    (a, b) => Number(b.online) - Number(a.online) || latest(b) - latest(a),
+  );
+
+/**
+ * With several computers, each is a group like the projects' groups in
+ * Threads; one that lists nothing is a dim line saying why.
+ */
 function ComputerSection({
   computer,
   heading,
@@ -90,36 +109,45 @@ function ComputerSection({
   opening?: string;
   onOpen: (thread: ListedThread) => void;
 }) {
-  return (
-    <section className="computer-section" aria-label={computer.name}>
-      {heading && (
-        <div className="sb-section-heading">
-          <h2>
-            <button
-              className="sb-section-toggle"
-              aria-expanded={open}
-              onClick={onFold}
-            >
-              <DeviceIcon name={computer.name} size={13} />
-              <ComputerName computer={computer} />
-              <ChevronRight
-                size={11}
-                className="sb-project-chevron"
-                data-open={open || undefined}
-                aria-hidden
-              />
-            </button>
-          </h2>
+  const projects = (
+    <ComputerProjects
+      computer={computer}
+      openChatId={openChatId}
+      opening={opening}
+      onOpen={onOpen}
+    />
+  );
+  if (!heading) return projects;
+  const why = nothingListed(computer);
+  if (why)
+    return (
+      <section
+        className="sb-folder computer-unlisted"
+        aria-label={computer.name}
+      >
+        <div className="sb-folder-row" title={computer.problem}>
+          <span className="sb-folder-toggle">
+            <span>{computer.name}</span>
+            <span className="sb-folder-count">{why}</span>
+          </span>
         </div>
-      )}
-      {(open || !heading) && (
-        <ComputerProjects
-          computer={computer}
-          openChatId={openChatId}
-          opening={opening}
-          onOpen={onOpen}
-        />
-      )}
+      </section>
+    );
+  return (
+    <section className="sb-folder" aria-label={computer.name}>
+      <div className="sb-folder-row">
+        <button
+          className="sb-folder-toggle"
+          aria-label={`${open ? "Collapse" : "Expand"} ${computer.name}`}
+          aria-expanded={open}
+          onClick={onFold}
+        >
+          <span>{computer.name}</span>
+          <ChevronRight size={11} />
+          <span className="sb-folder-count">{computer.threads.length}</span>
+        </button>
+      </div>
+      {open && <div className="sb-folder-body">{projects}</div>}
     </section>
   );
 }
