@@ -12,8 +12,6 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { z } from "zod";
 import {
-  handoffFolderMethods,
-  handoffMethods,
   remoteProjectMethods,
   handoffChunk,
   handoffMessagesSchema,
@@ -21,12 +19,10 @@ import {
   maxHandoffThread,
   needsFullBundle,
   type HandBack,
-  type HandoffRemoteStatus,
   type HandoffThread,
 } from "../../shared/handoff";
 import {
   chatScopeSchema,
-  knownMessagesSchema,
   projectChatSendSchema,
   type ChatMessage,
 } from "../../shared/projects";
@@ -44,7 +40,6 @@ import type { ApiMethod } from "../../shared/types";
 import type { NewsItem } from "../../shared/thread-news";
 import type { UpdateState } from "../../shared/updates";
 import { idSchema } from "../../shared/validation";
-import { workspaceId } from "../../shared/workspaces";
 import { branchNameProblem } from "../../shared/branch-names";
 import { git } from "../git/git";
 import type { ProjectChats } from "../project-chats";
@@ -58,13 +53,13 @@ import {
 } from "../git/bundles";
 import { ComputerShells } from "./computer-shells";
 import { LiveFeed, type FeedLink } from "./live-feed";
+import { isLiveThreadMethod, LiveThreads } from "./live-threads";
 import { CloneRequests, type CloneHost } from "./remote-setup";
 import { SetupAgents } from "./setup-agent";
 import { readPaste, writePasteChunk } from "../drafts";
 import { expandHome, listFolders } from "../projects/folder-inspect";
 import { fromHome } from "./setup-agent";
 
-const folderMethods = new Set<string>(handoffFolderMethods);
 const partSchema = z.enum(["thread", "bundle"]);
 const base64 = z
   .string()
@@ -168,12 +163,16 @@ export class HandoffReceiver {
   /** Threads being started in a project here, by id, so a repeat waits for the first. */
   private starting = new Map<string, Promise<{ chatId: string }>>();
   private feed: LiveFeed;
+  private live: LiveThreads;
   private shells = new ComputerShells();
   private clones?: CloneRequests;
   private setups?: SetupAgents;
 
   constructor(private host: ReceiverHost) {
     this.feed = new LiveFeed(host.chats);
+    this.live = new LiveThreads(host, this.feed, (id) =>
+      this.receiving.get(id),
+    );
     const { adding, dispatch } = host;
     if (!adding) return;
     this.clones = new CloneRequests({
@@ -233,6 +232,8 @@ export class HandoffReceiver {
     args: unknown[],
     device: { id: string; name: string },
   ): Promise<unknown> {
+    if (isLiveThreadMethod(method))
+      return this.live.handle(method, args, device.id);
     switch (method) {
       case "uploadPaste":
         return writePasteChunk(
@@ -280,7 +281,7 @@ export class HandoffReceiver {
       }
       case "setupProgress": {
         if (!this.setups) throw new Error("This Relay can't set projects up.");
-        this.mine(idSchema.parse(args[0]), device.id);
+        this.live.fromDevice(idSchema.parse(args[0]), device.id);
         return this.setups.progress(
           repositoriesSchema.parse(args[1]),
           args[2] == null
@@ -321,8 +322,6 @@ export class HandoffReceiver {
         }
         return job;
       }
-      case "handoffStatus":
-        return this.status(z.array(idSchema).max(200).parse(args[0]));
       case "handBack": {
         const id = idSchema.parse(args[0]);
         this.handingBack.add(id);
@@ -354,7 +353,7 @@ export class HandoffReceiver {
       case "updateNow":
         return this.update();
       case "handoffDownload":
-        this.mine(idSchema.parse(args[0]), device.id);
+        this.live.fromDevice(idSchema.parse(args[0]), device.id);
         return this.download(
           idSchema.parse(args[0]),
           partSchema.parse(args[1]),
@@ -362,30 +361,9 @@ export class HandoffReceiver {
         );
       case "handoffAbandoned":
         return this.abandoned(idSchema.parse(args[0]), device.id);
-      case "handoffChat": {
-        const id = idSchema.parse(args[0]);
-        const chat = this.mine(id, device.id);
-        const known =
-          args[1] == null ? undefined : knownMessagesSchema.parse(args[1]);
-        return this.feed.follow(chat, known);
-      }
-      case "handoffCall": {
-        const chat = this.mine(idSchema.parse(args[0]), device.id);
-        const method = z.enum(handoffMethods).parse(args[1]);
-        const rest = z.array(z.unknown()).max(9).parse(args[2]).slice(1);
-        if (!this.host.dispatch) throw new Error("This Relay can't do that.");
-        // A folder call names the thread's worktree as this computer has it.
-        const first = folderMethods.has(method)
-          ? workspaceId(chat.projectId, chat.id)
-          : chat.id;
-        return this.host.dispatch(method, [
-          first,
-          ...(await this.host.chats.liveHandoff.inbound(chat.id, rest)),
-        ]);
-      }
       case "handedBack": {
         const id = idSchema.parse(args[0]);
-        const chat = this.mine(id, device.id);
+        const chat = this.live.fromDevice(id, device.id);
         await this.host.chats.handoffs.handedBack(chat.id);
         await rm(join(this.host.dir, id), { recursive: true, force: true });
         return;
@@ -683,43 +661,8 @@ export class HandoffReceiver {
     await rm(join(this.host.dir, id), { recursive: true, force: true });
   }
 
-  private mine(id: string, deviceId: string) {
-    const chat = this.host.chats.handoffs.handedOver(id);
-    if (!chat || chat.cameFrom?.deviceId !== deviceId)
-      throw new Error("This computer has no such thread from you.");
-    return chat;
-  }
-
-  private async status(ids: string[]) {
-    const result: Record<string, HandoffRemoteStatus | null> = {};
-    for (const id of ids) {
-      // Asked mid-arrival, "no such thread" would be a lie a moment later.
-      await this.receiving.get(id)?.catch(() => undefined);
-      const found = this.host.chats.handoffs.handedOver(id);
-      const live =
-        found &&
-        this.host.chats.list(found.projectId).find((c) => c.id === found.id);
-      if (!found || !live) {
-        result[id] = null;
-        continue;
-      }
-      result[id] = {
-        title: live.title,
-        running: !!live.running,
-        waiting: !!live.waiting,
-        ...(live.asking ? { asking: true as const } : {}),
-        ...(live.blocked ? { blocked: true as const } : {}),
-        settled: !!live.settledAt,
-        updated: live.updated,
-        ...(await this.host.chats.handoffs.latestTurn(found.id)),
-        returned: !!live.cameFrom?.returnedAt,
-      };
-    }
-    return result;
-  }
-
   private async handBack(id: string, deviceId: string): Promise<HandBack> {
-    const chat = this.mine(id, deviceId);
+    const chat = this.live.fromDevice(id, deviceId);
     const back = await this.host.chats.handoffs.handBack(chat.id, deviceId);
     const folder = join(this.host.dir, id);
     await mkdir(folder, { recursive: true, mode: 0o700 });
