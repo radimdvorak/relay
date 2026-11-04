@@ -5,6 +5,7 @@ afterEach(() => vi.unstubAllEnvs());
 
 it("leaves out the editor and terminal of the session Relay was started from", () => {
   vi.stubEnv("EDITOR", "vi");
+  vi.stubEnv("TERM_PROGRAM", "iTerm.app");
   vi.stubEnv("ITERM_SESSION_ID", "w0t0p0");
   vi.stubEnv("LC_TERMINAL", "iTerm2");
   vi.stubEnv("RELAY_DEV_URL", "http://127.0.0.1:5177");
@@ -15,4 +16,11 @@ it("leaves out the editor and terminal of the session Relay was started from", (
   expect(env).not.toHaveProperty("LC_TERMINAL");
   expect(env).not.toHaveProperty("RELAY_DEV_URL");
   expect(env.NVM_DIR).toBe("/Users/someone/.nvm");
+});
+
+it("keeps the editor set for the whole login when no terminal started Relay", () => {
+  vi.stubEnv("EDITOR", "code --wait");
+  vi.stubEnv("TERM_PROGRAM", undefined);
+  vi.stubEnv("TERM_SESSION_ID", undefined);
+  expect(inheritedEnv().EDITOR).toBe("code --wait");
 });

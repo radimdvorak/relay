@@ -5,25 +5,34 @@
  */
 const relayOnly = /^(npm_|RELAY_|ELECTRON_)|^INIT_CWD$/i;
 
-/**
- * Started from a terminal, Relay carries that terminal's description of
- * itself, and the editor picked in that session. Shells here run in Relay's
- * terminal, and their profile picks its own editor: an inherited EDITOR=vi
- * would switch zsh to vi keys.
- */
+/** What the terminal session Relay was started from says about itself. */
 const launchingTerminal =
-  /^(ITERM_|LC_TERMINAL|TERM_SESSION_ID$|TERM_PROGRAM_VERSION$|TERM_FEATURES$|COLORFGBG$|EDITOR$|VISUAL$)/;
+  /^(ITERM_|LC_TERMINAL|TERM_SESSION_ID$|TERM_PROGRAM_VERSION$|TERM_FEATURES$|COLORFGBG$)/;
+
+/**
+ * The editor that session picked. Shells here run in Relay's terminal and
+ * their profile picks its own: an inherited EDITOR=vi would switch zsh to vi
+ * keys. Started from the Dock, a desktop session or on Windows, it's the
+ * user's own setting, and stays.
+ */
+const sessionEditor = /^(EDITOR|VISUAL)$/;
+
+function startedFromTerminal() {
+  if (process.platform === "win32") return false;
+  return Boolean(process.env.TERM_PROGRAM || process.env.TERM_SESSION_ID);
+}
+
+function leftOut(name: string, fromTerminal: boolean) {
+  if (relayOnly.test(name) || launchingTerminal.test(name)) return true;
+  return fromTerminal && sessionEditor.test(name);
+}
 
 /** Relay's own environment minus what only concerns Relay or how it was started. */
 export function inheritedEnv() {
+  const fromTerminal = startedFromTerminal();
   const env: Record<string, string> = {};
   for (const [name, value] of Object.entries(process.env))
-    if (
-      value !== undefined &&
-      !relayOnly.test(name) &&
-      !launchingTerminal.test(name)
-    )
-      env[name] = value;
+    if (value !== undefined && !leftOut(name, fromTerminal)) env[name] = value;
   return env;
 }
 
