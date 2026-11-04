@@ -1,18 +1,16 @@
 import { useState, type ReactNode } from "react";
-import { useQueryClient } from "@tanstack/react-query";
 import { ChevronRight, Folder, FolderOpen } from "lucide-react";
 import type {
   ComputerThreadProject,
   ComputerThreads,
 } from "../../../shared/computer-threads";
-import { api } from "../../lib/api";
-import { openThreadByIds } from "../../lib/open-thread";
 import { useStoredState } from "../../lib/persisted-store";
 import { ErrorBox } from "../../ui/ui";
 import { DeviceIcon } from "../handoff/DeviceIcon";
 import { useOpenThreadId } from "../thread/arrival";
 import { ComputerThreadRow, type ListedThread } from "./ComputerThreadRow";
 import { useComputerThreads } from "./useComputerThreads";
+import { useOpenComputerThread } from "./useOpenComputerThread";
 import "./computer-threads.css";
 
 /**
@@ -20,26 +18,10 @@ import "./computer-threads.css";
  * by computer and project. With several computers each folds away.
  */
 export function ComputersSidebar() {
-  const qc = useQueryClient();
   const listing = useComputerThreads(true);
   const computers = listing.data ?? [];
   const openChatId = useOpenThreadId();
-  const [error, setError] = useState<unknown>();
-  // Opening one the first time follows it from here, which takes a moment.
-  const [opening, setOpening] = useState<string>();
-  const open = (computer: ComputerThreads, thread: ListedThread) => {
-    setError(undefined);
-    setOpening(thread.id);
-    api
-      .openComputerThread(computer.id, thread.id)
-      .then((here) => {
-        openThreadByIds(here);
-        // The row now knows the thread here that follows it.
-        void qc.invalidateQueries({ queryKey: ["computer-threads"] });
-      })
-      .catch(setError)
-      .finally(() => setOpening(undefined));
-  };
+  const { open, opening, error } = useOpenComputerThread();
   const [folded, setFolded] = useStoredState(
     "relay-computers-folded",
     (saved) =>
@@ -68,7 +50,7 @@ export function ComputersSidebar() {
             onFold={() => fold(c.id)}
             openChatId={openChatId}
             opening={opening}
-            onOpen={(thread) => open(c, thread)}
+            onOpen={(thread) => open(c.id, thread.id)}
           />
         ))}
         {!!error && <ErrorBox error={error} />}

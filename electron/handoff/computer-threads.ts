@@ -121,7 +121,11 @@ export class ComputerThreads {
     const here = new Map<string, ComputerThreadHere>();
     for (const c of this.store.get().chats ?? [])
       if (c.sentTo?.computerId === computerId && liveAway(c))
-        here.set(c.sentTo.id, { projectId: c.projectId, chatId: c.id });
+        here.set(c.sentTo.id, {
+          projectId: c.projectId,
+          chatId: c.id,
+          ...(c.sentTo.peek ? { peek: true as const } : {}),
+        });
     return here;
   }
 }

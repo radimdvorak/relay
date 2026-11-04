@@ -28,6 +28,7 @@ import { useSidebarThreads } from "./useSidebarThreads";
 import { useUnread } from "./useUnread";
 import {
   chatAgents,
+  filterCount,
   passes,
   pruneTree,
   SCRATCHPAD,
@@ -147,7 +148,7 @@ export function ProjectSidebar({
   const projectKey = (id: string) => (scratchIds.has(id) ? SCRATCHPAD : id);
   const filtering = useThreadFilter();
   const filter = withoutRemoved(filtering.filter, byId);
-  const filtered = !!(filter.projects.length || filter.agents.length);
+  const filtered = filterCount(filter) > 0;
   const all = filtered
     ? everything.filter((c) => passes(filter, projectKey(c.projectId), c))
     : everything;

@@ -45,6 +45,8 @@ export interface ComputerThreadList {
 export interface ComputerThreadHere {
   projectId: string;
   chatId: string;
+  /** Only looked at from here, not written in: Threads doesn't list it. */
+  peek?: true;
 }
 
 /** A paired computer's own threads, as the Computers sidebar lists them. */

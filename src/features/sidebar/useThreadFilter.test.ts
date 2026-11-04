@@ -1,7 +1,12 @@
 import { describe, expect, it } from "vitest";
 import type { ProjectFolderNode } from "../../../shared/project-folders";
 import type { ChatSummary, Project } from "../../../shared/projects";
-import { passes, pruneTree } from "./useThreadFilter";
+import {
+  passes,
+  passesThere,
+  pruneTree,
+  THIS_COMPUTER,
+} from "./useThreadFilter";
 
 const project = (id: string) => ({ id, name: id }) as Project;
 
@@ -37,11 +42,45 @@ describe("passes", () => {
   const chat = (c: Partial<ChatSummary>) => c as ChatSummary;
 
   it("matches an agent that worked in the thread, not only the latest", () => {
-    const f = { projects: [], agents: ["codex" as const] };
+    const f = { projects: [], agents: ["codex" as const], computers: [] };
     expect(passes(f, "p", chat({ providers: ["claude", "codex"] }))).toBe(true);
     expect(passes(f, "p", chat({ provider: "codex" }))).toBe(true);
     expect(passes(f, "p", chat({ provider: "claude" }))).toBe(false);
     // A thread no agent answered yet has nothing to match.
     expect(passes(f, "p", chat({}))).toBe(false);
+  });
+
+  it("takes a thread by the computer it runs on, this one's own by THIS_COMPUTER", () => {
+    const f = { projects: [], agents: [], computers: ["pc"] };
+    const there = chat({
+      sentTo: {
+        id: "h",
+        computerId: "pc",
+        computer: "lubopc",
+        at: 0,
+        state: "away",
+        live: true,
+      },
+    });
+    expect(passes(f, "p", there)).toBe(true);
+    expect(passes(f, "p", chat({}))).toBe(false);
+    const here = { ...f, computers: [THIS_COMPUTER] };
+    expect(passes(here, "p", chat({}))).toBe(true);
+    expect(passes(here, "p", there)).toBe(false);
+  });
+
+  it("takes another computer's thread by its project only once a thread here follows it", () => {
+    const f = { projects: ["mine"], agents: [], computers: [] };
+    const thread = {
+      id: "t",
+      projectId: "theirs",
+      title: "",
+      scope: { kind: "project" as const },
+      updated: 0,
+    };
+    expect(passesThere(f, "pc", thread)).toBe(false);
+    expect(
+      passesThere(f, "pc", { ...thread, here: { projectId: "mine" } }),
+    ).toBe(true);
   });
 });

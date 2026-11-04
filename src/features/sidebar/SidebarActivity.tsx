@@ -52,7 +52,7 @@ import { ThreadRef } from "./ThreadRef";
 import { useActivityBranches } from "../../lib/activity-branches";
 import { CardShortcut } from "./CardShortcut";
 import { revealShelf, ShelfFloor } from "./PinnedShelves";
-import { InboxZero } from "./InboxZero";
+import { ActivityEnd } from "./ActivityEnd";
 
 export function ActivityView({
   rows,
@@ -176,7 +176,7 @@ export function ActivityView({
           );
         })}
       </div>
-      {!sections.active.length && !unsent.length && <InboxZero />}
+      <ActivityEnd quietHere={!sections.active.length && !unsent.length} />
       <Shelf
         kind="snoozed"
         label="Snoozed"

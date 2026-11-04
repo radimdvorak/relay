@@ -1,3 +1,5 @@
+import type { ComputerThread } from "../../../shared/computer-threads";
+import { liveAway } from "../../../shared/handoff";
 import type { ProjectFolderNode } from "../../../shared/project-folders";
 import type { AgentProvider, ChatSummary } from "../../../shared/projects";
 import { persistedStore } from "../../lib/persisted-store";
@@ -6,7 +8,12 @@ import { persistedStore } from "../../lib/persisted-store";
 export interface ThreadFilter {
   projects: string[];
   agents: AgentProvider[];
+  /** Paired computers by id, and THIS_COMPUTER. */
+  computers: string[];
 }
+
+/** This computer, among the computers the filter takes. */
+export const THIS_COMPUTER = "here";
 
 const strings = (saved: unknown) =>
   Array.isArray(saved)
@@ -14,7 +21,7 @@ const strings = (saved: unknown) =>
     : [];
 
 export const filterCount = (f: ThreadFilter) =>
-  f.projects.length + f.agents.length;
+  f.projects.length + f.agents.length + f.computers.length;
 
 /** The agents that worked in `chat`, most recent first. */
 export const chatAgents = (chat: ChatSummary): AgentProvider[] =>
@@ -36,9 +43,32 @@ export const withoutRemoved = (
 export const takesProject = (f: ThreadFilter, project: string) =>
   !f.projects.length || f.projects.includes(project);
 
+/** A paired computer's id, or THIS_COMPUTER. */
+export const takesComputer = (f: ThreadFilter, computer: string) =>
+  !f.computers.length || f.computers.includes(computer);
+
+/** The computer a thread runs on: the one it's live on, or this one. */
+const computerOf = (chat: ChatSummary) =>
+  liveAway(chat) ? chat.sentTo!.computerId : THIS_COMPUTER;
+
 export const passes = (f: ThreadFilter, project: string, chat: ChatSummary) =>
   takesProject(f, project) &&
+  takesComputer(f, computerOf(chat)) &&
   (!f.agents.length || chatAgents(chat).some((a) => f.agents.includes(a)));
+
+/**
+ * One of a paired computer's own threads, which has a project here only
+ * once a thread here follows it.
+ */
+export const passesThere = (
+  f: ThreadFilter,
+  computerId: string,
+  thread: ComputerThread & { here?: { projectId: string } },
+) =>
+  takesComputer(f, computerId) &&
+  takesProject(f, thread.here?.projectId ?? "") &&
+  (!f.agents.length ||
+    (!!thread.provider && f.agents.includes(thread.provider)));
 
 /** The tree with only the projects `keep` takes, and the groups holding them. */
 export function pruneTree(
@@ -63,6 +93,7 @@ function parseFilter(saved: string | null): ThreadFilter {
   return {
     projects: strings(s.projects),
     agents: strings(s.agents) as AgentProvider[],
+    computers: strings(s.computers),
   };
 }
 
@@ -85,6 +116,6 @@ export function useThreadFilter() {
           : [...f[kind], id],
       });
     },
-    clear: () => stored.set({ projects: [], agents: [] }),
+    clear: () => stored.set({ projects: [], agents: [], computers: [] }),
   };
 }

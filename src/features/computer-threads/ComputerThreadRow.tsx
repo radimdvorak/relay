@@ -4,7 +4,8 @@ import { Spinner } from "../../ui/ui";
 export type ListedThread = ComputerThreads["threads"][number];
 
 /** Whether it waits on an answer from you: a question, an approval or a block. */
-const needsYou = (t: ListedThread) => !!(t.waiting || t.asking || t.blocked);
+export const needsYou = (t: ListedThread) =>
+  !!(t.waiting || t.asking || t.blocked);
 
 /** Working or waiting on you, as the sidebar's own marks say it. */
 function StatusMark({ thread }: { thread: ListedThread }) {
