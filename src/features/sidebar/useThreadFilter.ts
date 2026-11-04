@@ -1,6 +1,6 @@
 import type { ProjectFolderNode } from "../../../shared/project-folders";
 import type { AgentProvider, ChatSummary } from "../../../shared/projects";
-import { useStoredState } from "../../lib/persisted-store";
+import { persistedStore } from "../../lib/persisted-store";
 
 /** Which threads the sidebar lists; an empty list lets every one through. */
 export interface ThreadFilter {
@@ -56,28 +56,35 @@ export function pruneTree(
 
 export type ThreadFilterState = ReturnType<typeof useThreadFilter>;
 
+function parseFilter(saved: string | null): ThreadFilter {
+  const s = (saved ? JSON.parse(saved) : {}) as Partial<
+    Record<keyof ThreadFilter, unknown>
+  >;
+  return {
+    projects: strings(s.projects),
+    agents: strings(s.agents) as AgentProvider[],
+  };
+}
+
+/** One filter for every part of the sidebar that reads it, kept per device. */
+const stored = persistedStore("relay-sidebar-filter", parseFilter, (f) =>
+  JSON.stringify(f),
+);
+
 /** The sidebar's filter, kept per device. */
 export function useThreadFilter() {
-  const [filter, setFilter] = useStoredState(
-    "relay-sidebar-filter",
-    (saved): ThreadFilter => {
-      const s = (saved ?? {}) as Partial<Record<keyof ThreadFilter, unknown>>;
-      return {
-        projects: strings(s.projects),
-        agents: strings(s.agents) as AgentProvider[],
-      };
-    },
-  );
+  const filter = stored.use();
   return {
     filter,
     toggle(kind: keyof ThreadFilter, id: string) {
-      setFilter((f) => ({
+      const f = stored.get();
+      stored.set({
         ...f,
         [kind]: (f[kind] as string[]).includes(id)
           ? f[kind].filter((x) => x !== id)
           : [...f[kind], id],
-      }));
+      });
     },
-    clear: () => setFilter({ projects: [], agents: [] }),
+    clear: () => stored.set({ projects: [], agents: [] }),
   };
 }
