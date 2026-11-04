@@ -21,9 +21,14 @@ type FeedChats = {
   handoffs: Pick<ProjectChats["handoffs"], "handedOver">;
 };
 
-interface Followed {
+/** Who follows a thread: a device, and what it knows the thread by. */
+export interface Follower {
+  /** The handoff that brought it here, or for a thread of this computer's own, its id. */
   handoffId: string;
   deviceId: string;
+}
+
+interface Followed extends Follower {
   projectId: string;
   /** The live state as last sent, its running time left out. */
   sent?: string;
@@ -38,14 +43,16 @@ const liveKey = ({ runningFor: _, ...live }: HandoffLive) =>
   JSON.stringify(live);
 
 /**
- * On the computer that took threads over: keeps the computer each came from
- * up to date with what's written in it and what runs and waits there, once
- * that computer has asked to follow it (`handoffChat`). Not saved: a
+ * Keeps the computers following a thread here up to date with what's
+ * written in it and what runs and waits there, once each has asked to
+ * follow it (`handoffChat`): the one a handed-over thread came from, or any
+ * paired computer for a thread of this computer's own. Not saved: a
  * computer that reconnects asks again.
  */
 export class LiveFeed {
   private link?: FeedLink;
-  private followed = new Map<string, Followed>();
+  /** By thread, then by device. */
+  private followed = new Map<string, Map<string, Followed>>();
   private held = new Map<
     string,
     { timer: NodeJS.Timeout; next?: [string, RemoteEvent] }
@@ -57,55 +64,62 @@ export class LiveFeed {
     this.link = link;
   }
 
-  /** The computer the thread came from follows it from now on; what it lacks comes back. */
-  async follow(chat: ChatSummary, known?: KnownMessages): Promise<HandoffChat> {
+  /** The device follows the thread from now on; what it lacks comes back. */
+  async follow(
+    chat: ChatSummary,
+    known: KnownMessages | undefined,
+    who: Follower,
+  ): Promise<HandoffChat> {
     const [messages, live] = await Promise.all([
       this.chats.liveHandoff.writtenHere(chat.id, known),
       this.chats.liveHandoff.live(chat.id),
     ]);
     // Only from here, or pushes could reach it ahead of the older answer.
-    this.followed.set(chat.id, {
-      handoffId: chat.cameFrom!.id,
-      deviceId: chat.cameFrom!.deviceId,
+    const devices = this.followed.get(chat.id) ?? new Map<string, Followed>();
+    devices.set(who.deviceId, {
+      ...who,
       projectId: chat.projectId,
       sent: liveKey(live),
     });
+    this.followed.set(chat.id, devices);
     return { messages, live };
   }
 
   message(chatId: string, message: ChatMessage) {
-    const entry = this.followed.get(chatId);
-    if (!entry || !this.link) return;
+    const devices = this.followed.get(chatId);
+    if (!devices || !this.link) return;
     void this.chats.liveHandoff
       .outgoing(chatId, message)
       .then((out) => {
         if (out)
-          this.push(out.deviceId, {
-            kind: "message",
-            chatId: out.handoffId,
-            message: out.message,
-          });
+          for (const f of devices.values())
+            this.push(f.deviceId, {
+              kind: "message",
+              chatId: f.handoffId,
+              message: out,
+            });
         if (message.status !== "streaming") return this.update(chatId);
       })
       .catch((e) => console.warn("A live handoff's message didn't go:", e));
   }
 
-  /** News of a followed thread is the other computer's to tell there too. */
+  /** News of a followed thread is the other computers' to tell there too. */
   news(item: NewsItem) {
-    const entry = this.followed.get(item.chatId);
-    if (!entry || !this.link) return;
-    this.link.send(entry.deviceId, {
-      kind: "news",
-      item: { ...item, chatId: entry.handoffId },
-    });
+    const devices = this.followed.get(item.chatId);
+    if (!devices || !this.link) return;
+    for (const f of devices.values())
+      this.link.send(f.deviceId, {
+        kind: "news",
+        item: { ...item, chatId: f.handoffId },
+      });
   }
 
   changed(projectId: string) {
     if (!this.link || this.settling.has(projectId)) return;
     const timer = setTimeout(() => {
       this.settling.delete(projectId);
-      for (const [chatId, entry] of this.followed)
-        if (entry.projectId === projectId)
+      for (const [chatId, devices] of this.followed)
+        if ([...devices.values()].some((f) => f.projectId === projectId))
           void this.update(chatId).catch((e) =>
             console.warn("A live handoff's state didn't go:", e),
           );
@@ -115,27 +129,32 @@ export class LiveFeed {
   }
 
   private async update(chatId: string) {
-    const entry = this.followed.get(chatId);
-    if (!entry) return;
-    const chat = this.chats.handoffs.handedOver(entry.handoffId);
-    if (!chat || chat.cameFrom?.returnedAt || chat.cameFrom?.abandonedAt) {
+    const devices = this.followed.get(chatId);
+    if (!devices) return;
+    if (this.handedBack(chatId, devices)) {
       this.followed.delete(chatId);
       return;
     }
     const live = await this.chats.liveHandoff.live(chatId);
     const key = liveKey(live);
-    if (key === entry.sent) return;
-    entry.sent = key;
-    this.link?.send(entry.deviceId, {
-      kind: "handoff",
-      id: entry.handoffId,
-      live,
-    });
+    for (const f of devices.values()) {
+      if (key === f.sent) continue;
+      f.sent = key;
+      this.link?.send(f.deviceId, { kind: "handoff", id: f.handoffId, live });
+    }
+  }
+
+  /** A thread handed here that's gone back, or was taken back: nobody follows it here anymore. */
+  private handedBack(chatId: string, devices: Map<string, Followed>) {
+    const [first] = devices.values();
+    if (!first || first.handoffId === chatId) return false;
+    const chat = this.chats.handoffs.handedOver(first.handoffId);
+    return !chat || !!chat.cameFrom?.returnedAt || !!chat.cameFrom?.abandonedAt;
   }
 
   /** Sends a message, a streaming one at most every `streamMs`. */
   private push(deviceId: string, event: RemoteEvent & { kind: "message" }) {
-    const key = event.message.id;
+    const key = `${deviceId}:${event.message.id}`;
     const held = this.held.get(key);
     if (event.message.status !== "streaming") {
       if (held) clearTimeout(held.timer);

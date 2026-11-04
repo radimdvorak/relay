@@ -9,7 +9,7 @@ import type {
   RouteCheck,
   SshHost,
 } from "./handoff";
-import type { ComputerThreads } from "./computer-threads";
+import type { ComputerThreadHere, ComputerThreads } from "./computer-threads";
 import type { ComputerFolders } from "./remote";
 import type { Project, ProjectChatSend } from "./projects";
 import type { UpdateState } from "./updates";
@@ -42,6 +42,14 @@ export interface ComputersApi {
   handoffTargets(chatId: string): Promise<HandoffTarget[]>;
   /** Each paired computer's own threads, as it lists them now. */
   computerThreads(): Promise<ComputerThreads[]>;
+  /**
+   * Follows one of a paired computer's own threads from here, as a thread
+   * that runs there: the thread here, made the first time.
+   */
+  openComputerThread(
+    computerId: string,
+    threadId: string,
+  ): Promise<ComputerThreadHere>;
   /** The folders in `dir` on a paired computer, `~` its home folder. */
   computerFolders(computerId: string, dir: string): Promise<ComputerFolders>;
   /** Adds a folder on a paired computer as a project that lives there. */

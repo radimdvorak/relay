@@ -2339,3 +2339,37 @@ it("lists the other computer's own threads and the ones it took from here, not a
     title: (await mini.chats.get(own.id)).title,
   });
 });
+
+it("follows the other computer's own thread from here, in its project there, and runs what's sent from here there", async () => {
+  const { laptop, mini, sender, computerId } = await pairedComputers();
+  const own = await mini.chats.create(mini.projectId, { kind: "project" });
+  await mini.chats.send(own.id, input("@codex Tidy the README"));
+  await finished(mini.chats, own.id, 2);
+
+  const here = await sender.threads.open(computerId, own.id);
+  expect(await sender.threads.open(computerId, own.id)).toEqual(here);
+  expect(laptop.projects.get(here.projectId).computer).toMatchObject({
+    id: computerId,
+    projectId: mini.projectId,
+  });
+  const ids = async (chats: ProjectChats, id: string) =>
+    (await chats.get(id)).messages.map((m) => m.id);
+  await vi.waitFor(async () =>
+    expect(await ids(laptop.chats, here.chatId)).toEqual(
+      await ids(mini.chats, own.id),
+    ),
+  );
+
+  const more = input("@codex One more thing");
+  expect(sender.forwards("sendProjectChat", [here.chatId, more])).toBe(true);
+  await sender.forward("sendProjectChat", [here.chatId, more]);
+  await finished(mini.chats, own.id, 4);
+  expect((await prompts()).at(-1)).toContain("One more thing");
+  await vi.waitFor(async () =>
+    expect(await ids(laptop.chats, here.chatId)).toEqual(
+      await ids(mini.chats, own.id),
+    ),
+  );
+  const [listed] = await sender.threads.list();
+  expect(listed!.threads.find((t) => t.id === own.id)?.here).toEqual(here);
+});

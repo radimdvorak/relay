@@ -79,3 +79,7 @@ export function useArrival(chatId: string | undefined) {
 
 /** The thread on screen, as the sidebar last marked it read; undefined with none open. */
 export const openThreadId = () => current?.chatId;
+
+/** `openThreadId`, as it changes. */
+export const useOpenThreadId = () =>
+  useSyncExternalStore(subscribe, openThreadId);

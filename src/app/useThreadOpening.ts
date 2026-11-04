@@ -3,6 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import type { ChatSummary, Project } from "../../shared/projects";
 import type { ThreadWindow } from "../../shared/thread-windows";
 import { api } from "../lib/api";
+import { onOpenThreadByIds } from "../lib/open-thread";
 import { useStableCallback } from "../lib/useStableCallback";
 import { projectChatsQuery } from "../lib/workspace-queries";
 import { hasOwnWindow } from "../features/thread-windows/thread-windows";
@@ -59,10 +60,8 @@ export function useThreadOpening(
     void api.takeOpenThread().then(show).catch(setError);
     return api.onOpenThread(show);
   }, [loaded]);
-  // A thread its agent moved to another project goes along while it shows,
-  // into a project the agent may have only just added.
-  const followMoved = useStableCallback(async (t: ThreadWindow) => {
-    if (t.chatId !== nav.chatId) return;
+  /** The thread and its project as they are now, either of them maybe only just added. */
+  async function lookUpFresh(t: ThreadWindow) {
     const listed = projects.data?.some((p) => p.id === t.projectId)
       ? projects.data
       : (await projects.refetch()).data;
@@ -70,11 +69,27 @@ export function useThreadOpening(
     if (!p) return;
     const list = await qc.query({ ...projectChatsQuery(p.id), staleTime: 0 });
     const next = list.find((c) => c.id === t.chatId);
-    if (next) navigate(p, next);
+    return next && { p, next };
+  }
+  // A thread its agent moved to another project goes along while it shows,
+  // into a project the agent may have only just added.
+  const followMoved = useStableCallback(async (t: ThreadWindow) => {
+    if (t.chatId !== nav.chatId) return;
+    const found = await lookUpFresh(t);
+    if (found) navigate(found.p, found.next);
   });
   useEffect(
     () => api.onThreadMoved((t) => void followMoved(t).catch(setError)),
     [followMoved],
+  );
+  // One of another computer's threads, followed from here only just now.
+  const openFresh = useStableCallback(async (t: ThreadWindow) => {
+    const found = await lookUpFresh(t);
+    if (found) open(found.p, found.next);
+  });
+  useEffect(
+    () => onOpenThreadByIds((t) => void openFresh(t).catch(setError)),
+    [openFresh],
   );
   return { open, openChatById };
 }

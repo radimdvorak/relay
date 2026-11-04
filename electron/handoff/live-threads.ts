@@ -30,7 +30,6 @@ const liveThreadMethods = [
 
 type LiveThreadMethod = (typeof liveThreadMethods)[number];
 
-
 export const isLiveThreadMethod = (
   method: ComputerMethod,
 ): method is LiveThreadMethod =>
@@ -89,17 +88,38 @@ export class LiveThreads {
     return chat;
   }
 
+  /**
+   * A thread the device may follow and drive, by the id it knows it by: one
+   * it handed here, or one of this computer's own.
+   */
+  private async followable(id: string, deviceId: string) {
+    if (this.host.chats.handoffs.handedOver(id))
+      return this.fromDevice(id, deviceId);
+    const own = await this.own(id);
+    if (!own) throw new Error("This computer has no such thread.");
+    return own;
+  }
+
+  /** One of this computer's own threads, which any paired computer may follow. */
+  private async own(id: string) {
+    for (const p of await this.host.projects()) {
+      const chat = this.host.chats.list(p.id).find((c) => c.id === id);
+      if (chat) return ownThread(chat) ? chat : undefined;
+    }
+  }
+
   /** The thread as written here; the device follows it live from now on (`handoffChat`). */
-  private chat(args: unknown[], deviceId: string) {
-    const chat = this.fromDevice(idSchema.parse(args[0]), deviceId);
+  private async chat(args: unknown[], deviceId: string) {
+    const id = idSchema.parse(args[0]);
+    const chat = await this.followable(id, deviceId);
     const known =
       args[1] == null ? undefined : knownMessagesSchema.parse(args[1]);
-    return this.feed.follow(chat, known);
+    return this.feed.follow(chat, known, { handoffId: id, deviceId });
   }
 
   /** One of `handoffMethods` on the thread, as its own window would call it (`handoffCall`). */
   private async call(args: unknown[], deviceId: string) {
-    const chat = this.fromDevice(idSchema.parse(args[0]), deviceId);
+    const chat = await this.followable(idSchema.parse(args[0]), deviceId);
     const method = z.enum(handoffMethods).parse(args[1]);
     const rest = z.array(z.unknown()).max(9).parse(args[2]).slice(1);
     if (!this.host.dispatch) throw new Error("This Relay can't do that.");
@@ -120,7 +140,8 @@ export class LiveThreads {
     for (const id of ids) {
       // Asked mid-arrival, "no such thread" would be a lie a moment later.
       await this.arriving(id)?.catch(() => undefined);
-      const found = this.host.chats.handoffs.handedOver(id);
+      const found =
+        this.host.chats.handoffs.handedOver(id) ?? (await this.own(id));
       const live =
         found &&
         this.host.chats.list(found.projectId).find((c) => c.id === found.id);
@@ -147,15 +168,20 @@ export class LiveThreads {
 /** The most threads a list carries; older ones aren't worth the bytes. */
 const maxListed = 500;
 
+/** Started here and still here: not handed here, nor handed on, nor a deep review's reviewer. */
+const ownThread = (chat: ChatSummary) =>
+  !chat.cameFrom && !chat.sentTo && !chat.reviewer;
+
 /**
- * What the device follows the thread by, if it may: a thread of this
+ * What the device follows the thread by, if it lists it: a thread of this
  * computer's own, or one that device handed here. Not a thread another
- * computer handed here, nor one this computer handed on.
+ * computer handed here, nor one this computer handed on, nor a deep review.
  */
 function followedBy(chat: ChatSummary, deviceId: string) {
-  if (chat.archivedAt || chat.reviewer || chat.sentTo) return;
+  if (chat.archivedAt || chat.scope.kind === "review") return;
+  if (ownThread(chat)) return chat.id;
   const from = chat.cameFrom;
-  if (!from) return chat.id;
+  if (!from || chat.sentTo) return;
   const stillHere = !from.returnedAt && !from.abandonedAt && !from.setup;
   if (from.deviceId === deviceId && stillHere) return from.id;
 }

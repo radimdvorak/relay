@@ -19,6 +19,7 @@
 .computer-section + .computer-section {
   margin-top: 6px;
 }
-.computers-sidebar .sb-thread:disabled {
-  cursor: default;
+.computers-sidebar .sb-thread[aria-busy] {
+  opacity: 0.6;
+  cursor: progress;
 }

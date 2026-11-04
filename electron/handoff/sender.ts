@@ -57,7 +57,6 @@ export class Handoffs {
     reuse = { statusMs: 4000, infoMs: 3000 },
   ) {
     this.infos = new ComputerInfos(computers, reuse.infoMs);
-    this.threads = new ComputerThreads(store, computers, this.infos);
     this.places = new HandoffTargets(store, computers, projects, this.infos);
     this.statuses = new RemoteStatuses(
       store,
@@ -82,6 +81,14 @@ export class Handoffs {
       this.infos,
       (chatId) => void this.forwarding.flush(chatId),
       (chatId) => this.checkSetup(chatId),
+    );
+    this.threads = new ComputerThreads(
+      store,
+      computers,
+      this.infos,
+      projects,
+      chats,
+      this.following,
     );
     this.setups = new HandoffSetups(
       store,

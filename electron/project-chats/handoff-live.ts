@@ -1,4 +1,6 @@
-import type { HandoffLive, HeldSend } from "../../shared/handoff";
+import { randomUUID } from "node:crypto";
+import type { ComputerThread } from "../../shared/computer-threads";
+import type { ChatSentTo, HandoffLive, HeldSend } from "../../shared/handoff";
 import type {
   ChatMessage,
   ChatSummary,
@@ -7,6 +9,7 @@ import type {
   ProjectChatSend,
 } from "../../shared/projects";
 import type { ChatCore } from "./core";
+import { chatSummary } from "./chat-summaries";
 import { awaitsReturn } from "./handoff";
 
 /**
@@ -40,15 +43,41 @@ export class LiveHandoff {
     private list: (projectId: string) => ChatSummary[],
   ) {}
 
-  /** For the computer the thread came from: the message as it mirrors it, unless it's one that came along. */
+  /**
+   * For a computer following the thread: the message as it mirrors it,
+   * unless it's one that came along. A thread handed here stops going out
+   * once it's gone back; one of this computer's own never does.
+   */
   async outgoing(id: string, message: ChatMessage) {
     const chat = await this.core.storage.load(id);
-    if (!awaitsReturn(chat) || chat.carriedIds?.[message.id]) return;
-    return {
-      handoffId: chat.cameFrom!.id,
-      deviceId: chat.cameFrom!.deviceId,
-      message: mirrorOf(message, chat.carriedIds ?? {}),
+    const handedBack = !!chat.cameFrom && !awaitsReturn(chat);
+    if (handedBack || chat.carriedIds?.[message.id]) return;
+    return mirrorOf(message, chat.carriedIds ?? {});
+  }
+
+  /**
+   * A thread that lives on another computer, followed from here: kept as a
+   * mirror of what's written there, which comes once it's followed.
+   */
+  async followThere(
+    projectId: string,
+    thread: ComputerThread,
+    sentTo: ChatSentTo,
+  ) {
+    const chat: ProjectChat = {
+      id: randomUUID(),
+      projectId,
+      scope: thread.scope,
+      title: thread.title,
+      renamed: true,
+      created: Date.now(),
+      updated: thread.updated,
+      ...(thread.branch ? { branch: thread.branch } : {}),
+      messages: [],
+      sentTo,
     };
+    await this.core.storage.add(chat);
+    return chatSummary(chat);
   }
 
   /** What was written here since the thread came; those it holds at the same version as their ids. */

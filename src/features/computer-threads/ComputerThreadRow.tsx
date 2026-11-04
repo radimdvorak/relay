@@ -28,20 +28,24 @@ export function ComputerThreadRow({
   thread,
   computer,
   selected,
+  opening,
   onOpen,
 }: {
   thread: ListedThread;
   computer: string;
   selected: boolean;
-  onOpen?: (thread: ListedThread) => void;
+  /** Being followed from here for the first time. */
+  opening: boolean;
+  onOpen: (thread: ListedThread) => void;
 }) {
   return (
     <div className="sb-thread-row">
       <button
         className={`sb-thread ${selected ? "selected" : ""}`}
         title={`${thread.title} · on ${computer}`}
-        disabled={!onOpen}
-        onClick={() => onOpen?.(thread)}
+        disabled={opening}
+        aria-busy={opening || undefined}
+        onClick={() => onOpen(thread)}
       >
         <span className="sb-thread-content">
           <span className="sb-thread-title">{thread.title}</span>

@@ -12,6 +12,7 @@ import { bugReportHandlers } from "./bug-reports";
 import { checkHandlers } from "./checks";
 import { combine } from "./combine";
 import { computerRouteHandlers } from "./computer-routes";
+import { computerThreadHandlers } from "./computer-threads";
 import { computerHandlers } from "./computers";
 import type { ApiContext, Handlers } from "./context";
 import { desktopHandlers } from "./desktop";
@@ -92,6 +93,7 @@ export function createDispatch(
     draftHandlers(ctx),
     computerHandlers(ctx),
     computerRouteHandlers(ctx),
+    computerThreadHandlers(ctx),
     usageHandlers(ctx),
     processHandlers(),
     scheduleHandlers(ctx),

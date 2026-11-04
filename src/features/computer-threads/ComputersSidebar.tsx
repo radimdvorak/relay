@@ -1,12 +1,16 @@
 import { useState, type ReactNode } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { ChevronRight, Folder, FolderOpen } from "lucide-react";
 import type {
   ComputerThreadProject,
   ComputerThreads,
 } from "../../../shared/computer-threads";
+import { api } from "../../lib/api";
+import { openThreadByIds } from "../../lib/open-thread";
 import { useStoredState } from "../../lib/persisted-store";
 import { ErrorBox } from "../../ui/ui";
 import { DeviceIcon } from "../handoff/DeviceIcon";
+import { useOpenThreadId } from "../thread/arrival";
 import { ComputerThreadRow, type ListedThread } from "./ComputerThreadRow";
 import { useComputerThreads } from "./useComputerThreads";
 import "./computer-threads.css";
@@ -15,16 +19,27 @@ import "./computer-threads.css";
  * Every thread on the paired computers, the ones each started itself too,
  * by computer and project. With several computers each folds away.
  */
-export function ComputersSidebar({
-  openChatId,
-  onOpen,
-}: {
-  /** The thread the main pane shows. */
-  openChatId?: string;
-  onOpen?: (computer: ComputerThreads, thread: ListedThread) => void;
-}) {
+export function ComputersSidebar() {
+  const qc = useQueryClient();
   const listing = useComputerThreads(true);
   const computers = listing.data ?? [];
+  const openChatId = useOpenThreadId();
+  const [error, setError] = useState<unknown>();
+  // Opening one the first time follows it from here, which takes a moment.
+  const [opening, setOpening] = useState<string>();
+  const open = (computer: ComputerThreads, thread: ListedThread) => {
+    setError(undefined);
+    setOpening(thread.id);
+    api
+      .openComputerThread(computer.id, thread.id)
+      .then((here) => {
+        openThreadByIds(here);
+        // The row now knows the thread here that follows it.
+        void qc.invalidateQueries({ queryKey: ["computer-threads"] });
+      })
+      .catch(setError)
+      .finally(() => setOpening(undefined));
+  };
   const [folded, setFolded] = useStoredState(
     "relay-computers-folded",
     (saved) =>
@@ -52,9 +67,11 @@ export function ComputersSidebar({
             open={!folded.includes(c.id)}
             onFold={() => fold(c.id)}
             openChatId={openChatId}
-            onOpen={onOpen && ((thread) => onOpen(c, thread))}
+            opening={opening}
+            onOpen={(thread) => open(c, thread)}
           />
         ))}
+        {!!error && <ErrorBox error={error} />}
         {listing.isSuccess && !computers.length && (
           <p className="sb-note">Pair a computer in Settings → Computers.</p>
         )}
@@ -80,6 +97,7 @@ function ComputerSection({
   open,
   onFold,
   openChatId,
+  opening,
   onOpen,
 }: {
   computer: ComputerThreads;
@@ -87,7 +105,8 @@ function ComputerSection({
   open: boolean;
   onFold: () => void;
   openChatId?: string;
-  onOpen?: (thread: ListedThread) => void;
+  opening?: string;
+  onOpen: (thread: ListedThread) => void;
 }) {
   return (
     <section className="computer-section" aria-label={computer.name}>
@@ -115,6 +134,7 @@ function ComputerSection({
         <ComputerProjects
           computer={computer}
           openChatId={openChatId}
+          opening={opening}
           onOpen={onOpen}
         />
       )}
@@ -125,11 +145,13 @@ function ComputerSection({
 function ComputerProjects({
   computer,
   openChatId,
+  opening,
   onOpen,
 }: {
   computer: ComputerThreads;
   openChatId?: string;
-  onOpen?: (thread: ListedThread) => void;
+  opening?: string;
+  onOpen: (thread: ListedThread) => void;
 }) {
   if (computer.problem) return <p className="sb-note">{computer.problem}</p>;
   if (!computer.online)
@@ -152,6 +174,7 @@ function ComputerProjects({
           thread={t}
           computer={computer.name}
           selected={!!openChatId && t.here?.chatId === openChatId}
+          opening={opening === t.id}
           onOpen={onOpen}
         />
       ))}

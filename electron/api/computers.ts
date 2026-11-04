@@ -24,7 +24,6 @@ export function computerHandlers(ctx: ApiContext) {
     handoffTargets: takes([idSchema], (chatId) =>
       handoffs().sender.targets(chatId),
     ),
-    computerThreads: () => handoffs().sender.threads.list(),
     handOffThread: takes([idSchema, idSchema], (chatId, computerId) =>
       handoffs().sender.handOff(chatId, computerId),
     ),
