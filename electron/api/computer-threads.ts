@@ -1,3 +1,4 @@
+import { chatTriageSchema } from "../../shared/projects";
 import { idSchema } from "../../shared/validation";
 import { takes, type ApiContext, type Handlers } from "./context";
 
@@ -12,6 +13,11 @@ export function computerThreadHandlers(ctx: ApiContext) {
     computerThreads: () => threads().list(),
     openComputerThread: takes([idSchema, idSchema], (computerId, threadId) =>
       threads().open(computerId, threadId),
+    ),
+    triageComputerThread: takes(
+      [idSchema, idSchema, chatTriageSchema],
+      (computerId, threadId, triage) =>
+        threads().triage(computerId, threadId, triage),
     ),
   } satisfies Handlers;
 }

@@ -10,7 +10,12 @@ import type {
   ComputerThread,
   ComputerThreadList,
 } from "../../shared/computer-threads";
-import { knownMessagesSchema, type ChatSummary } from "../../shared/projects";
+import { chatActivitySection } from "../../shared/chat-activity";
+import {
+  chatTriageSchema,
+  knownMessagesSchema,
+  type ChatSummary,
+} from "../../shared/projects";
 import { idSchema } from "../../shared/validation";
 import { workspaceId } from "../../shared/workspaces";
 import type { ComputerMethod } from "../../shared/remote";
@@ -26,6 +31,7 @@ const liveThreadMethods = [
   "handoffCall",
   "handoffStatus",
   "computerThreads",
+  "threadTriage",
 ] as const satisfies readonly ComputerMethod[];
 
 type LiveThreadMethod = (typeof liveThreadMethods)[number];
@@ -53,6 +59,8 @@ export class LiveThreads {
         return this.statuses(args);
       case "computerThreads":
         return this.list(deviceId);
+      case "threadTriage":
+        return this.triage(args, deviceId);
     }
   }
 
@@ -133,6 +141,14 @@ export class LiveThreads {
     ]);
   }
 
+  /** Settles, snoozes or wakes the thread here, as its own Activity would. */
+  private async triage(args: unknown[], deviceId: string) {
+    const chat = await this.followable(idSchema.parse(args[0]), deviceId);
+    const triage = chatTriageSchema.parse(args[1]);
+    if (!this.host.dispatch) throw new Error("This Relay can't do that.");
+    await this.host.dispatch("triageProjectChat", [chat.id, triage]);
+  }
+
   /** How each thread stands here, by handoff id; null for one that isn't here (`handoffStatus`). */
   private async statuses(args: unknown[]) {
     const ids = z.array(idSchema).max(200).parse(args[0]);
@@ -204,6 +220,6 @@ function listed(chat: ChatSummary, id: string): ComputerThread {
     ...(chat.waiting ? { waiting: true as const } : {}),
     ...(chat.asking ? { asking: true as const } : {}),
     ...(chat.blocked ? { blocked: true as const } : {}),
-    ...(chat.settledAt ? { settledAt: chat.settledAt } : {}),
+    section: chatActivitySection(chat, Date.now()),
   };
 }

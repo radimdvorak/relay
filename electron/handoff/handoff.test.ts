@@ -173,6 +173,8 @@ async function pairedComputers() {
           if (method === "respondProjectChat")
             return mini.chats.respond(id, rest[0] as string, rest[1] as never);
           if (method === "cancelProjectChat") return mini.chats.cancel(id);
+          if (method === "triageProjectChat")
+            return mini.chats.triage(id, rest[0] as never);
           if (method === "createScratch")
             return mini.projects.scratch(
               join(mini.dir, "scratch"),
@@ -2393,4 +2395,26 @@ it("only looks at the other computer's thread until it's written in from here", 
   await sender.forward("sendProjectChat", [here.chatId, input("@codex More")]);
   expect((await laptop.chats.get(here.chatId)).sentTo?.peek).toBeUndefined();
   await finished(mini.chats, own.id, 4);
+});
+
+it("settles and snoozes the other computer's own thread there, from here", async () => {
+  const { mini, sender, computerId } = await pairedComputers();
+  const own = await mini.chats.create(mini.projectId, { kind: "project" });
+  await mini.chats.send(own.id, input("@codex Tidy the README"));
+  await finished(mini.chats, own.id, 2);
+  const section = async () =>
+    (await sender.threads.list())[0]!.threads.find((t) => t.id === own.id)
+      ?.section;
+  expect(await section()).toBe("active");
+
+  await sender.threads.triage(computerId, own.id, { kind: "settle" });
+  expect(await section()).toBe("settled");
+
+  const until = Date.now() + 3_600_000;
+  await sender.threads.triage(computerId, own.id, { kind: "unsettle" });
+  await sender.threads.triage(computerId, own.id, { kind: "snooze", until });
+  expect(await section()).toBe("snoozed");
+  expect(
+    mini.chats.list(mini.projectId).find((c) => c.id === own.id)?.snoozedUntil,
+  ).toBe(until);
 });

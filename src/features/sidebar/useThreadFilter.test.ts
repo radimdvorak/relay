@@ -23,11 +23,15 @@ const node = (
 
 describe("pruneTree", () => {
   it("keeps the groups on the way to a kept project and drops the rest", () => {
-    const tree = node("", ["top"], [
-      node("work", ["a"], [node("work/deep", ["b"])]),
-      node("play", ["c"]),
-      node("empty", []),
-    ]);
+    const tree = node(
+      "",
+      ["top"],
+      [
+        node("work", ["a"], [node("work/deep", ["b"])]),
+        node("play", ["c"]),
+        node("empty", []),
+      ],
+    );
     const pruned = pruneTree(tree, (id) => id === "b");
     expect(pruned.projects).toEqual([]);
     expect(pruned.folders.map((f) => f.path)).toEqual(["work"]);
@@ -77,6 +81,7 @@ describe("passes", () => {
       title: "",
       scope: { kind: "project" as const },
       updated: 0,
+      section: "active" as const,
     };
     expect(passesThere(f, "pc", thread)).toBe(false);
     expect(

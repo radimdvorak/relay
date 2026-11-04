@@ -1,6 +1,7 @@
 // A paired computer's own threads, which another computer lists and follows
 // live, the ones it started itself too.
 import type { AgentProvider } from "./agents";
+import type { ChatActivitySection } from "./chat-activity";
 import type { ChatScope } from "./projects";
 
 /** A thread on a paired computer, as that computer lists its own (`computerThreads`). */
@@ -23,7 +24,8 @@ export interface ComputerThread {
   waiting?: true;
   asking?: true;
   blocked?: true;
-  settledAt?: number;
+  /** Where its Activity there has it: settled and snoozed ones wait apart. */
+  section: ChatActivitySection;
 }
 
 /** A project of a paired computer's own, holding threads it lists. */

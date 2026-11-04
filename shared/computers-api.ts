@@ -11,7 +11,7 @@ import type {
 } from "./handoff";
 import type { ComputerThreadHere, ComputerThreads } from "./computer-threads";
 import type { ComputerFolders } from "./remote";
-import type { Project, ProjectChatSend } from "./projects";
+import type { ChatTriage, Project, ProjectChatSend } from "./projects";
 import type { UpdateState } from "./updates";
 
 export interface ComputersApi {
@@ -50,6 +50,12 @@ export interface ComputersApi {
     computerId: string,
     threadId: string,
   ): Promise<ComputerThreadHere>;
+  /** Settles, snoozes or wakes one of a paired computer's own threads, there. */
+  triageComputerThread(
+    computerId: string,
+    threadId: string,
+    triage: ChatTriage,
+  ): Promise<void>;
   /** The folders in `dir` on a paired computer, `~` its home folder. */
   computerFolders(computerId: string, dir: string): Promise<ComputerFolders>;
   /** Adds a folder on a paired computer as a project that lives there. */

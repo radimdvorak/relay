@@ -7,6 +7,7 @@ import type {
 } from "../../shared/computer-threads";
 import { errorMessage } from "../../shared/error-message";
 import { computerThreadsBridge } from "../../shared/remote";
+import type { ChatTriage } from "../../shared/projects";
 import type { Store } from "../app/store";
 import type { ProjectChats } from "../project-chats";
 import type { Projects } from "../projects/projects";
@@ -114,6 +115,12 @@ export class ComputerThreads {
     });
     await this.following.follow(computerId, chat.id);
     return { projectId: project.id, chatId: chat.id, peek: true };
+  }
+
+  /** Settles, snoozes or wakes one of the computer's own threads there. */
+  async triage(computerId: string, threadId: string, triage: ChatTriage) {
+    const client = await this.computers.connected(computerId);
+    await client.call("threadTriage", threadId, triage);
   }
 
   /** The threads here that follow one on the computer, by what they follow it by. */

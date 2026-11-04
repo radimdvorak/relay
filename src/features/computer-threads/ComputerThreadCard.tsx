@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { Monitor } from "lucide-react";
 import { shortAge } from "../../../shared/chat-activity";
 import type { Project } from "../../../shared/projects";
@@ -35,6 +36,7 @@ export function ComputerThreadCard({
   computer,
   selected,
   opening,
+  actions,
   onOpen,
 }: {
   thread: ListedThread;
@@ -43,6 +45,8 @@ export function ComputerThreadCard({
   computer: string;
   selected: boolean;
   opening: boolean;
+  /** Its triage buttons, shown on hover as other cards' are. */
+  actions: ReactNode;
   onOpen: () => void;
 }) {
   // Its project here, once a thread here follows it, has the icon.
@@ -68,6 +72,7 @@ export function ComputerThreadCard({
           <span className="sb-card-project">{project}</span>
         </span>
         <CardState thread={thread} />
+        <div className="sb-card-actions">{actions}</div>
       </div>
       <span className="sb-card-title">{thread.title}</span>
       <div className="sb-card-meta">
