@@ -38,7 +38,7 @@ upload_log() { # <log>
 }
 
 # A release's tests, before its tag: a failure here costs a commit, not a version.
-check="$(git ls-remote "git@github.com:$REPO.git" refs/heads/release-check | cut -f1)"
+check="$(git ls-remote "https://github.com/$REPO.git" refs/heads/release-check | cut -f1)"
 if [[ -n "$check" && "$check" != "$(cat "$state/checked" 2>/dev/null)" ]]; then
   log="$ROOT/logs/$(date +%Y-%m-%d-%H%M)-check-${check:0:9}.log"
   echo "$(date '+%F %T') testing ${check:0:7} → $log"
@@ -54,7 +54,7 @@ if [[ -n "$check" && "$check" != "$(cat "$state/checked" 2>/dev/null)" ]]; then
   echo "$check" >"$state/checked"
 fi
 
-refs="$(git ls-remote --tags "git@github.com:$REPO.git" 'refs/tags/v*')"
+refs="$(git ls-remote --tags "https://github.com/$REPO.git" 'refs/tags/v*')"
 tag="$(awk '$2 ~ /^refs\/tags\/v[0-9]+\.[0-9]+\.[0-9]+$/ { sub("refs/tags/v", "", $2); print $2 }' <<<"$refs" |
   sort -t. -k1,1n -k2,2n -k3,3n | tail -1)"
 [[ -n "$tag" ]] || exit 0

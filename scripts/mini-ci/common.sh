@@ -2,7 +2,9 @@
 # share, and the test run a release has to pass.
 
 ROOT="$HOME/relay-ci.noindex"
-REPO_URL="git@github.com:relaycodehq/relay.git"
+# Over HTTPS: the repo is public, and SSH logins from the mini get turned
+# down now and then, which failed v0.27.0 at its checkout.
+REPO_URL="https://github.com/relaycodehq/relay.git"
 
 export PATH="/opt/homebrew/opt/node@22/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 export JAVA_HOME="$ROOT/jdk21/Contents/Home"
@@ -19,6 +21,7 @@ step() { printf '\n==> %s  %s\n' "$(date '+%H:%M:%S')" "$*"; }
 checkout() { # <ref>
   [[ -d "$src/.git" ]] || git clone --quiet "$REPO_URL" "$src"
   cd "$src"
+  git remote set-url origin "$REPO_URL"
   # --force: a tag moved to another commit on GitHub moves here too.
   git fetch --quiet --force --tags origin '+refs/heads/*:refs/remotes/origin/*'
   git checkout --quiet --force --detach "$1"
