@@ -27,7 +27,6 @@ export const bigFiles: Record<string, number> = {
   "electron/terminal/tasks.ts": 711,
   "electron/triage/classifier.ts": 579,
   "electron/triage/service.ts": 561,
-  "shared/handoff.ts": 543,
   "shared/open-vsx.ts": 536,
   "shared/projects/api.ts": 534,
   "shared/remote-client.ts": 776,

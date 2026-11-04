@@ -53,7 +53,7 @@ import type {
 } from "./checks";
 import type { TriageState } from "./triage";
 import type { PhoneRemoteApi } from "./remote";
-import type { ComputersApi } from "./handoff";
+import type { ComputersApi } from "./computers-api";
 
 interface User {
   id: number;
