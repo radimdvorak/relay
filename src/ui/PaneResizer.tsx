@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Splitter } from "./Splitter";
 import { readText, writeText } from "../lib/persisted-store";
 
@@ -29,6 +29,10 @@ export function PaneResizer({
     document.documentElement.style.setProperty(variable, `${next}px`);
     writeText(key, String(next));
   };
+  // A narrowest that grows while the pane is narrower takes the pane with it.
+  useEffect(() => {
+    if (width < min) update(min);
+  }, [width, min]);
   return (
     <Splitter
       className="pane-resizer"

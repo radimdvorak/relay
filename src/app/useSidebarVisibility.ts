@@ -1,9 +1,8 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { SIDEBAR_WIDTH } from "../lib/settings-page";
 import { useShortcut } from "../lib/shortcuts";
 import { useSidebarAutoHide } from "../lib/sidebar-auto-hide";
 import { useBarFoldsWithSidebar } from "../lib/activity-bar-folds";
-import { useBarPosition } from "../lib/activity-bar-position";
+import { useBarPosition, useSidebarMin } from "../lib/activity-bar-position";
 import { readText, writeText } from "../lib/persisted-store";
 import {
   chosenHidden,
@@ -48,7 +47,8 @@ export function useSidebarVisibility(
     observer.observe(layout);
     return () => observer.disconnect();
   }, [layout]);
-  const crowded = !!room && need > room - SIDEBAR_WIDTH.min;
+  const sidebarMin = useSidebarMin();
+  const crowded = !!room && need > room - sidebarMin;
   useLayoutEffect(() => {
     const style = document.documentElement.style;
     if (room && !crowded)

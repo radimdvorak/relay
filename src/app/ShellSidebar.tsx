@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { ScheduleList } from "../features/schedules/ScheduleList";
+import { useSidebarMin } from "../lib/activity-bar-position";
 import { SIDEBAR_WIDTH } from "../lib/settings-page";
 import { PaneResizer } from "../ui/PaneResizer";
 import { ErrorBox } from "../ui/ui";
@@ -24,6 +25,7 @@ export function ShellSidebar({
   children: ReactNode;
 }) {
   const away = sidebar.hidden && !sidebar.peek;
+  const sidebarMin = useSidebarMin();
   // Schedules lists them here, beside the one it shows.
   const pageList = page === "schedules" && <ScheduleList />;
   return (
@@ -42,7 +44,7 @@ export function ShellSidebar({
       }}
       onMouseLeave={sidebar.hidden ? sidebar.peekClose : undefined}
     >
-      <PaneResizer pane="sidebar" {...SIDEBAR_WIDTH} />
+      <PaneResizer pane="sidebar" {...SIDEBAR_WIDTH} min={sidebarMin} />
       {pageList}
       {/* Kept mounted under a page's list, so the threads keep their place. */}
       <div className="shell-sidebar-threads" hidden={!!pageList}>
