@@ -324,6 +324,7 @@ export function AssistantMessage({
       {!!stripImages.length && m.status !== "streaming" && (
         <AgentImageStrip
           chatId={chatId}
+          messageId={m.id}
           images={stripImages}
           onOpen={(image) => open(image.key)}
         />

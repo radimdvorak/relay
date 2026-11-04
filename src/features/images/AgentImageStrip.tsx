@@ -1,20 +1,22 @@
 import { useId } from "react";
 import { ChevronRight, Images } from "lucide-react";
-import { useStoredFlag } from "../../lib/useStoredFlag";
 import { IMAGE_STRIPS } from "../../lib/thread-storage";
+import { useTurnFlag } from "../../lib/useTurnFlag";
 import { ImageThumbnail, type PreviewImage } from "./ImagePreview";
 
-/** Images inspected during an answer, folded by default and remembered per thread. */
+/** Images inspected during an answer, folded by default and remembered per answer. */
 export function AgentImageStrip({
   chatId,
+  messageId,
   images,
   onOpen,
 }: {
   chatId: string;
+  messageId: string;
   images: PreviewImage[];
   onOpen: (image: PreviewImage) => void;
 }) {
-  const [expanded, setExpanded] = useStoredFlag(IMAGE_STRIPS + chatId);
+  const [expanded, setExpanded] = useTurnFlag(IMAGE_STRIPS, chatId, messageId);
   const id = useId();
   return (
     <div className="agent-image-strip">
@@ -23,7 +25,7 @@ export function AgentImageStrip({
         className="agent-image-toggle"
         aria-expanded={expanded}
         aria-controls={id}
-        onClick={() => setExpanded((open) => !open)}
+        onClick={() => setExpanded(!expanded)}
       >
         <ChevronRight size={13} className="agent-image-chevron" />
         <Images size={14} />
