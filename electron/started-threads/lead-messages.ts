@@ -71,7 +71,7 @@ export class LeadMessages {
       );
     // A wait of the lead's hands it over at once; queued, it would sit
     // there until the lead's whole answer ends.
-    if (this.reads.hand(lead.id, caller, text))
+    if (await this.reads.hand(lead.id, caller, text))
       return toolText("Sent; your lead reads it now.");
     const how = await this.tell(lead, caller, "message", [
       `From “${caller.title}” (thread ${caller.id}), a thread you started:`,

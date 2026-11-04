@@ -59,35 +59,42 @@ interface Heard {
 /** A wait_for_threads running now: which threads it covers, every one the lead started without `ids`. */
 interface Wait {
   ids?: string[];
+  /** Aborted when the lead's call is: what it returns then never reaches the lead. */
+  signal: AbortSignal;
   /** Threads the lead started that messaged it meanwhile, through its thread. */
   messaged: string[];
   /** Messages the wait hands over, so they never queue in the lead's thread. */
   heard: Heard[];
+  /** Threads whose message another wait of the lead's handed over. */
+  heardElsewhere: string[];
   woken: AbortController;
+  /** Whether the wait's result reached the lead, once it returned. */
+  reached: Promise<boolean>;
 }
 
+const covers = (wait: Wait, id: string) => !wait.ids || wait.ids.includes(id);
+
+const messagedMeanwhile = (wait: Wait) =>
+  wait.messaged.length + wait.heard.length + wait.heardElsewhere.length > 0;
+
 /** What a wait that ended says besides where each thread stands. */
-function waitOutcome(
-  { heard, messaged }: Wait,
-  done: boolean,
-  aborted: boolean,
-) {
-  const answer = "Answer with send_to_thread, then wait again if you need to.";
-  if (heard.length && messaged.length)
-    return {
-      heard,
-      messaged,
-      note: `\`heard\` holds messages that won't come in again; the ones from \`messaged\` come in this thread next. ${answer}`,
-    };
+function waitOutcome(wait: Wait, done: boolean, aborted: boolean) {
+  const { heard, messaged, heardElsewhere } = wait;
+  const notes: string[] = [];
   if (heard.length)
-    return {
-      heard,
-      note: `\`heard\` holds their messages; they won't come in again. ${answer}`,
-    };
+    notes.push("`heard` holds their messages; they won't come in again.");
   if (messaged.length)
+    notes.push("The messages from `messaged` come in this thread next.");
+  if (heardElsewhere.length)
+    notes.push(
+      "The messages from `heardElsewhere` are in another wait_for_threads of yours.",
+    );
+  if (notes.length)
     return {
-      messaged,
-      note: `They messaged you; it comes in this thread next. ${answer}`,
+      ...(heard.length ? { heard } : {}),
+      ...(messaged.length ? { messaged } : {}),
+      ...(heardElsewhere.length ? { heardElsewhere } : {}),
+      note: `${notes.join(" ")} Answer with send_to_thread, then wait again if you need to.`,
     };
   if (done) return {};
   return {
@@ -268,21 +275,32 @@ export class ThreadReads {
 
   /** Whether the lead is in a wait_for_threads that covers `id`, a thread it started. */
   waitsFor(lead: string, id: string) {
-    return [...(this.waits.get(lead) ?? [])].some(
-      (w) => !w.ids || w.ids.includes(id),
-    );
+    return [...(this.waits.get(lead) ?? [])].some((w) => covers(w, id));
   }
 
-  /** Hands `message` from `from` to the lead's waits that cover it; whether one did. */
-  hand(lead: string, from: Pick<ProjectChat, "id" | "title">, message: string) {
-    const covering = [...(this.waits.get(lead) ?? [])].filter(
-      (w) => !w.ids || w.ids.includes(from.id),
+  /**
+   * Hands `message` from `from` to one of the lead's waits that covers it,
+   * and ends the rest: the lead reads no result until all its calls are
+   * back. Whether the message reached the lead; when it didn't, it's the
+   * caller's to deliver.
+   */
+  async hand(
+    lead: string,
+    from: Pick<ProjectChat, "id" | "title">,
+    message: string,
+  ) {
+    const live = [...(this.waits.get(lead) ?? [])].filter(
+      (w) => !w.signal.aborted,
     );
-    for (const wait of covering) {
-      wait.heard.push({ from: from.id, thread: from.title, message });
+    const taker = live.find((w) => covers(w, from.id));
+    if (!taker) return false;
+    taker.heard.push({ from: from.id, thread: from.title, message });
+    for (const wait of live) {
+      if (wait !== taker && !wait.heardElsewhere.includes(from.id))
+        wait.heardElsewhere.push(from.id);
       wait.woken.abort();
     }
-    return covering.length > 0;
+    return taker.reached;
   }
 
   /** A thread the lead started messaged it: its waits end, so it reads the message. */
@@ -299,24 +317,31 @@ export class ThreadReads {
     signal: AbortSignal,
   ) {
     const until = Date.now() + timeoutSeconds * 1000;
+    let tellReached = (_reached: boolean) => {};
     const wait: Wait = {
       ...(ids ? { ids } : {}),
+      signal,
       messaged: [],
       heard: [],
+      heardElsewhere: [],
       woken: new AbortController(),
+      reached: new Promise((resolve) => (tellReached = resolve)),
     };
     const waits = this.waits.get(lead.id) ?? new Set();
     this.waits.set(lead.id, waits.add(wait));
+    let reached = false;
     try {
       for (;;) {
         const threads = await this.list(lead, ids);
         const done = threads.every((t) => settled.has(t.status));
-        const ended = done || wait.messaged.length > 0 || wait.heard.length > 0;
-        if (ended || signal.aborted || Date.now() >= until)
+        const ended = done || messagedMeanwhile(wait);
+        if (ended || signal.aborted || Date.now() >= until) {
+          reached = !signal.aborted;
           return json({
             ...waitOutcome(wait, done, signal.aborted),
             threads,
           });
+        }
         await delay(Math.min(POLL_MS, until - Date.now()), undefined, {
           signal: AbortSignal.any([signal, wait.woken.signal]),
         }).catch(() => {});
@@ -324,6 +349,7 @@ export class ThreadReads {
     } finally {
       waits.delete(wait);
       if (!waits.size) this.waits.delete(lead.id);
+      tellReached(reached);
     }
   }
 }

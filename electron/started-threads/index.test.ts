@@ -2015,6 +2015,79 @@ test("message_lead hands its message to the lead's wait instead of queueing it",
   expect(waited.threads[0].status).toBe("working");
 });
 
+test("a wait that ends with the lead's call cancelled leaves the message to the lead's thread", async () => {
+  const { lead, chats, child, sent, threads, api } = await startedChild();
+  child.running = true;
+  chats.get(lead.id)!.running = true;
+  const cancel = new AbortController();
+  const waiting = threads.handle(
+    lead.id,
+    "wait_for_threads",
+    { timeoutSeconds: 5 },
+    cancel.signal,
+  );
+  await tick();
+  // Cancelled after the wait took the message, before its result was out.
+  const statuses = api.statuses;
+  api.statuses = async (...args: Parameters<typeof statuses>) => {
+    cancel.abort();
+    return statuses(...args);
+  };
+  const result = await call(threads, child.id, "message_lead", {
+    message: "Purple or teal?",
+  });
+  await waiting;
+  expect(resultText(result)).toBe("Sent; your lead reads it mid-answer.");
+  expect(sent).toHaveLength(1);
+  expect(sent[0]!.input.body).toContain("Purple or teal?");
+});
+
+test("a cancelled wait takes no message", async () => {
+  const { lead, chats, child, sent, threads } = await startedChild();
+  chats.get(lead.id)!.running = true;
+  const cancel = new AbortController();
+  const waiting = threads.handle(
+    lead.id,
+    "wait_for_threads",
+    { timeoutSeconds: 5 },
+    cancel.signal,
+  );
+  await tick();
+  cancel.abort();
+  const result = await call(threads, child.id, "message_lead", {
+    message: "Purple or teal?",
+  });
+  await waiting;
+  expect(resultText(result)).toBe("Sent; your lead reads it mid-answer.");
+  expect(sent).toHaveLength(1);
+});
+
+test("a handed message ends the lead's other waits too, and comes back once", async () => {
+  const { lead, chats, child, threads } = await startedChild();
+  child.running = true;
+  chats.get(lead.id)!.running = true;
+  const covering = call(threads, lead.id, "wait_for_threads", {
+    timeoutSeconds: 5,
+  });
+  const alsoCovering = call(threads, lead.id, "wait_for_threads", {
+    ids: [child.id],
+    timeoutSeconds: 5,
+  });
+  const other = call(threads, lead.id, "wait_for_threads", {
+    ids: [lead.id],
+    timeoutSeconds: 5,
+  });
+  await tick();
+  await call(threads, child.id, "message_lead", { message: "Purple or teal?" });
+  const results = (await Promise.all([covering, alsoCovering, other])).map(
+    parse,
+  );
+  expect(results.map((r) => r.heard?.length ?? 0)).toEqual([1, 0, 0]);
+  expect(results[1].heardElsewhere).toEqual([child.id]);
+  expect(results[2].heardElsewhere).toEqual([child.id]);
+  expect(results[2].timedOut).toBeUndefined();
+});
+
 test("message_lead steers a working lead whose wait is on other threads", async () => {
   const { lead, chats, child, sent, threads } = await startedChild();
   child.running = true;
