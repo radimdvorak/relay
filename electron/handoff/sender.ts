@@ -105,6 +105,12 @@ export class Handoffs {
       this.statuses,
       this.notices,
     );
+    this.listen();
+  }
+
+  /** What the paired computers say and do, and the sends that start a thread on one. */
+  private listen() {
+    const { computers, store, chats } = this;
     computers.onOnline((id) => {
       void this.notices.acknowledge(id);
       void this.notices.notifyAbandoned(id);
