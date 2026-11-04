@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   defaultAutoCompact,
@@ -144,10 +145,19 @@ function KeepAwakeSwitch() {
 }
 
 function DrivesThreadsSwitch() {
+  const qc = useQueryClient();
   const drives = useSavedSetting(
     { queryKey: ["drives-threads"], queryFn: () => api.threadDriving() },
     (enabled) => api.saveThreadDriving(enabled),
     ["drives-threads"],
+  );
+  // An Always in a thread's own window turns it on while this page is open.
+  useEffect(
+    () =>
+      api.onThreadDriving((enabled) =>
+        qc.setQueryData(["drives-threads"], enabled),
+      ),
+    [qc],
   );
   return (
     <>

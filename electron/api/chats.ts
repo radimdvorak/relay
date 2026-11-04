@@ -37,6 +37,10 @@ const branchSchema = z.string().trim().min(1).max(250);
 /** Project threads: their turns, agents, worktrees and sharing. */
 export function chatHandlers(ctx: ApiContext) {
   const { store, projectChats, pullMerges } = ctx;
+  // An Always in any thread turns driving on; Settings shows it in every window.
+  projectChats.driving.onChange((on) =>
+    ctx.window.send("relay:thread-driving", on),
+  );
   return {
     projectChats: takes([idSchema], (id) => ctx.listChats(id)),
     createProjectChat: takes(

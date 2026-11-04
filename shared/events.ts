@@ -62,6 +62,8 @@ export interface RelayEvents {
   "relay:auto-compact": import("./context-usage").AutoCompact;
   /** The schedules changed: one saved, removed, or a run started or ended. */
   "relay:schedules": import("./schedules").Schedule[];
+  /** Whether every thread's agent may drive other threads, changed in any window. */
+  "relay:thread-driving": boolean;
   /** settings.json changed outside the window it goes to. */
   "relay:settings-file": import("./settings-file").SettingsFileState;
   /** What a language server reports for a file now; the editor shows these as markers. */

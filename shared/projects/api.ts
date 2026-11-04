@@ -242,6 +242,8 @@ export interface ProjectChatApi {
   /** Every thread's agent starts, messages, stops and settles other threads without asking; off by default. */
   threadDriving(): Promise<boolean>;
   saveThreadDriving(enabled: boolean): Promise<boolean>;
+  /** Driving was turned on or off, here or by an Always in any window. */
+  onThreadDriving(callback: (enabled: boolean) => void): () => void;
   /** Marks the thread read up to `seenAt`, for the desktop and every phone. */
   markProjectChatSeen(id: string, seenAt: number): Promise<void>;
   /** A new thread holding the conversation up to this answer, or up to the latest finished one. */
