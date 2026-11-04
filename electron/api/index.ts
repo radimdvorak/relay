@@ -11,6 +11,7 @@ import { deepReviewHandlers } from "./deep-reviews";
 import { bugReportHandlers } from "./bug-reports";
 import { checkHandlers } from "./checks";
 import { combine } from "./combine";
+import { computerRouteHandlers } from "./computer-routes";
 import { computerHandlers } from "./computers";
 import type { ApiContext, Handlers } from "./context";
 import { desktopHandlers } from "./desktop";
@@ -90,6 +91,7 @@ export function createDispatch(
     desktopHandlers(ctx),
     draftHandlers(ctx),
     computerHandlers(ctx),
+    computerRouteHandlers(ctx),
     usageHandlers(ctx),
     processHandlers(),
     scheduleHandlers(ctx),
