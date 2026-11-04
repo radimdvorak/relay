@@ -27,7 +27,7 @@ import { outdated, type ComputerInfos } from "./computer-infos";
 import { computerName, type Computers } from "./computers";
 import type { HandoffFollowing } from "./following";
 import type { HandoffNotices } from "./notices";
-import { sendPastes } from "./pastes";
+import { keepYourFiles, sendPastes } from "./pastes";
 import type { RemoteStatuses } from "./remote-statuses";
 import type { HandoffSetups } from "./setups";
 import { nameOf } from "./targets";
@@ -325,9 +325,21 @@ async function carry(
   }
 }
 
-/** A thread's messages as the other computer takes them, with the pastes they name copied there. */
-const carriedMessages = (
+/**
+ * A thread's messages as the other computer takes them, with the pastes they
+ * name copied there. One nothing answered yet starts there, so the files its
+ * first message names go too.
+ */
+async function carriedMessages(
   chat: ProjectChat,
   client: RemoteClient,
   bridge: number,
-) => sendPastes(portableMessages(chat.messages), client, bridge);
+) {
+  const messages = portableMessages(chat.messages);
+  const starts = !messages.some((m) => m.role === "assistant");
+  return sendPastes(
+    starts ? await keepYourFiles(messages) : messages,
+    client,
+    bridge,
+  );
+}

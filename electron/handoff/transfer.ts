@@ -11,14 +11,11 @@ import type {
   ProjectChat,
   ProjectChatSend,
 } from "../../shared/projects";
-import {
-  skillsBridge,
-  type HandoffPart,
-} from "../../shared/remote";
+import { skillsBridge, type HandoffPart } from "../../shared/remote";
 import type { RemoteClient } from "../../shared/remote-client";
 import { sentAgent } from "../../shared/recipient";
 import type { ComputerInfos } from "./computer-infos";
-import { receivePastes, sendPastes } from "./pastes";
+import { keepYourFiles, receivePastes, sendPastes } from "./pastes";
 
 /** The agent and settings a thread's next turn there runs with: its last send's. */
 export const settingsOf = (
@@ -37,7 +34,10 @@ export const readMirrored = (messages: unknown) =>
     ChatMessage | string
   )[];
 
-/** A send as a computer this old takes it: one before `skillsBridge` refuses its pills' skills. */
+/**
+ * A send as the computer takes it: with the files it names copied there,
+ * and without its pills' skills on one before `skillsBridge`, which refuses them.
+ */
 export async function sendFor(
   infos: ComputerInfos,
   computerId: string,
@@ -45,7 +45,7 @@ export async function sendFor(
   send: ProjectChatSend,
 ) {
   const [carried] = await sendPastes(
-    [send],
+    await keepYourFiles([send]),
     client,
     async () => (await infos.get(computerId, client))?.bridge ?? 0,
   );

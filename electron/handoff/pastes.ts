@@ -8,6 +8,7 @@ import {
   type UploadedFile,
 } from "../../shared/remote";
 import {
+  keptToSend,
   pasteSize,
   readPaste,
   receiveFileChunk,
@@ -95,6 +96,35 @@ async function uploadFile(
       throw new Error("The other computer stopped taking the file.");
     offset = there.received;
   } while (true);
+}
+
+// A path in backticks, as a dropped file's pill puts it in the message.
+const quotedPath = /`([^`\r\n]+)`/g;
+
+/**
+ * The user's messages with each file of this computer they name swapped for
+ * a copy among the pastes, which `sendPastes` then carries over. An answer's
+ * paths are left alone: they're the agent's, about where it ran.
+ */
+export async function keepYourFiles<
+  T extends { body: string; role?: "user" | "assistant" },
+>(messages: T[]): Promise<T[]> {
+  const copies = new Map<string, string | null>();
+  const out: T[] = [];
+  for (const message of messages) {
+    if (message.role === "assistant") {
+      out.push(message);
+      continue;
+    }
+    for (const [, path] of message.body.matchAll(quotedPath))
+      if (!copies.has(path!)) copies.set(path!, await keptToSend(path!));
+    const body = message.body.replace(quotedPath, (whole, path: string) => {
+      const copy = copies.get(path);
+      return copy ? `\`${copy}\`` : whole;
+    });
+    out.push(body === message.body ? message : { ...message, body });
+  }
+  return out;
 }
 
 /** Finish copying attachments before sending a message or replaying an offline send. */

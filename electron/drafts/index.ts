@@ -21,6 +21,7 @@ export {
   setPastesRoot,
   sweepPastes,
 } from "./pastes";
+export { keptToSend } from "./attached";
 export { receiveFileChunk, writeUploadChunk } from "./uploads";
 
 /** How long a phone's send waits on the desktop's page; the phone gives a send two minutes. */

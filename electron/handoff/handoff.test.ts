@@ -19,7 +19,7 @@ import { ProjectChats } from "../project-chats";
 import { PhoneRemote } from "../remote/phone-remote";
 import { Computers } from "./computers";
 import { ProjectAdding } from "../project-add";
-import { savePaste, setPastesRoot } from "../drafts";
+import { savePaste, setPastesRoot, writeUploadChunk } from "../drafts";
 import type { ChatMessage } from "../../shared/projects";
 import type { NewsItem } from "../../shared/thread-news";
 
@@ -150,6 +150,16 @@ async function pairedComputers() {
       chats: (id) => mini.chats.list(id),
       chat: (id) => mini.chats.get(id),
       dispatch: async () => undefined,
+      // A file a message names arrives into the mini's pastes, as the app's does.
+      uploadFile: (id, name, size, offset, bytes) =>
+        writeUploadChunk(
+          id,
+          name,
+          size,
+          offset,
+          bytes,
+          join(mini.dir, "pastes"),
+        ),
       handoffs: new HandoffReceiver({
         projects: () => mini.projects.list(null),
         root: (id) => mini.projects.root(id),
@@ -968,8 +978,9 @@ async function startedThread(withPaste = false) {
   const paste = withPaste
     ? await savePaste("initial log\n".repeat(4000), 1)
     : undefined;
+  const dropped = withPaste ? await droppedFile(laptop.dir) : undefined;
   const first = input(
-    `@codex Add a changelog${paste ? ` using \`${paste}\`` : ""}`,
+    `@codex Add a changelog${paste ? ` using \`${paste}\` and \`${dropped}\`` : ""}`,
   );
   await laptop.chats.firstMessageOnly(thread.id, first);
   const kept = await laptop.chats.get(thread.id);
@@ -993,11 +1004,23 @@ async function startedThread(withPaste = false) {
       (await laptop.chats.get(thread.id)).messages.map((m) => m.id),
     ).toEqual(there.messages.map((m) => m.id)),
   );
-  return { ...paired, thread, first, there, paste };
+  return { ...paired, thread, first, there, paste, dropped };
 }
 
+/** A file somewhere on the laptop, outside Relay's pastes, as one dropped in the composer. */
+async function droppedFile(dir: string) {
+  const path = join(dir, "Downloads", "song.mp3");
+  await mkdir(join(dir, "Downloads"), { recursive: true });
+  await writeFile(path, Buffer.alloc(3000, 9));
+  return path;
+}
+
+/** The files a message there names, by their place there. */
+const namedThere = (body: string) =>
+  [...body.matchAll(/`([^`]+)`/g)].map((m) => m[1]!);
+
 it("starts a new thread on the other computer with its first message, answered only there", async () => {
-  const { first, there, paste, mini } = await startedThread(true);
+  const { first, there, paste, dropped, mini } = await startedThread(true);
   // Its own words as the first turn, not a note to carry on from.
   const prompt = (await prompts()).at(-1)!;
   expect(prompt).toContain("Add a changelog");
@@ -1005,12 +1028,31 @@ it("starts a new thread on the other computer with its first message, answered o
   expect(there.messages[0]).toMatchObject({ id: first.id, role: "user" });
   expect(there.messages[0]!.handedOver).toBeUndefined();
   expect(there.messages.at(-1)).toMatchObject({ role: "assistant" });
-  const remotePaste = there.messages[0]!.body.match(/`([^`]+)`/)![1]!;
-  expect(remotePaste.startsWith(join(mini.dir, "pastes"))).toBe(true);
-  expect(await readFile(remotePaste, "utf8")).toBe(
+  const [remotePaste, remoteSong] = namedThere(there.messages[0]!.body);
+  expect(remotePaste!.startsWith(join(mini.dir, "pastes"))).toBe(true);
+  expect(await readFile(remotePaste!, "utf8")).toBe(
     await readFile(paste!, "utf8"),
   );
   expect(prompt).toContain(remotePaste);
+  // A file dropped from anywhere on the laptop goes along as a copy.
+  expect(remoteSong!.startsWith(join(mini.dir, "pastes"))).toBe(true);
+  expect(remoteSong!.endsWith("song.mp3")).toBe(true);
+  expect(await readFile(remoteSong!)).toEqual(await readFile(dropped!));
+});
+
+it("sends a file dropped on the laptop to a thread running on the other computer", async () => {
+  const { laptop, mini, sender, thread, there } = await startedThread();
+  const song = await droppedFile(laptop.dir);
+  const more = input(`@codex Transcribe \`${song}\``);
+  await sender.forward("sendProjectChat", [thread.id, more]);
+  await finished(mini.chats, there.id);
+  const [remoteSong] = namedThere(
+    (await mini.chats.get(there.id)).messages.find((m) => m.id === more.id)!
+      .body,
+  );
+  expect(remoteSong!.startsWith(join(mini.dir, "pastes"))).toBe(true);
+  expect(await readFile(remoteSong!)).toEqual(await readFile(song));
+  expect((await prompts()).at(-1)).toContain(remoteSong);
 });
 
 it("keeps a started thread's first message when it's taken back without the other computer", async () => {
