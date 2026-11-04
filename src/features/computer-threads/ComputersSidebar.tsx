@@ -142,8 +142,8 @@ function ComputerSection({
           aria-expanded={open}
           onClick={onFold}
         >
-          <span>{computer.name}</span>
           <ChevronRight size={11} />
+          <span>{computer.name}</span>
           <span className="sb-folder-count">{computer.threads.length}</span>
         </button>
       </div>

@@ -22,3 +22,15 @@
   opacity: 0.6;
   cursor: progress;
 }
+
+/* The chevron leads the name and always shows: a computer is a place to
+   open, not a label. One that lists nothing keeps its name in line. */
+.computers-sidebar .sb-folder-toggle {
+  align-items: center;
+}
+.sb.computers-sidebar .sb-folder-toggle > svg {
+  opacity: 1;
+}
+.computer-unlisted .sb-folder-toggle > span:first-child {
+  padding-left: 16px;
+}
