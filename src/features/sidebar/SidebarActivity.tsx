@@ -52,6 +52,7 @@ import { ThreadRef } from "./ThreadRef";
 import { useActivityBranches } from "../../lib/activity-branches";
 import { CardShortcut } from "./CardShortcut";
 import { revealShelf, ShelfFloor } from "./PinnedShelves";
+import { InboxZero } from "./InboxZero";
 
 export function ActivityView({
   rows,
@@ -175,15 +176,7 @@ export function ActivityView({
           );
         })}
       </div>
-      {!sections.active.length && !unsent.length && (
-        <div className="sb-empty">
-          <span className="sb-empty-icon">
-            <Check size={18} />
-          </span>
-          <strong>Inbox zero</strong>
-          <p>Threads come back here when an agent replies or needs you.</p>
-        </div>
-      )}
+      {!sections.active.length && !unsent.length && <InboxZero />}
       <Shelf
         kind="snoozed"
         label="Snoozed"

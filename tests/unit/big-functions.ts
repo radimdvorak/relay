@@ -291,7 +291,7 @@ export const bigFunctions: Record<string, number> = {
   "src/features/sidebar/ProjectTree.tsx › GroupSection": 117,
   "src/features/sidebar/ProjectTree.tsx › RealProject": 170,
   "src/features/sidebar/SearchPalette.tsx › SearchPalette": 151,
-  "src/features/sidebar/SidebarActivity.tsx › ActivityView": 152,
+  "src/features/sidebar/SidebarActivity.tsx › ActivityView": 144,
   "src/features/sidebar/SidebarActivity.tsx › ThreadCard": 192,
   "src/features/sidebar/SidebarThread.tsx › ThreadRow": 86,
   "src/features/sidebar/SnoozeMenu.tsx › SnoozeMenu": 85,
