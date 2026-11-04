@@ -110,6 +110,7 @@ export class ComputerThreads {
       kept: 0,
       folder: true,
       home: true,
+      peek: true,
     });
     await this.following.follow(computerId, chat.id);
     return { projectId: project.id, chatId: chat.id };

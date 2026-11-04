@@ -83,6 +83,11 @@ export interface ChatSentTo {
    * started there, in the project's folder, and never comes back here.
    */
   home?: true;
+  /**
+   * One of that computer's own threads, opened from its list and not
+   * written in from here yet: Threads doesn't list it until it is.
+   */
+  peek?: true;
 }
 
 /**

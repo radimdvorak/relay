@@ -28,6 +28,13 @@ import { sendFor } from "./transfer";
 
 const chatMethods = new Set<string>(handoffChatMethods);
 
+/** Writing in the thread from here, which makes one only looked at a thread of yours. */
+const writes = new Set<string>([
+  "sendProjectChat",
+  "respondProjectChat",
+  "answerProjectChatQuestion",
+] satisfies HandoffChatMethod[]);
+
 /**
  * The calls a thread waiting on a setup makes to the setup's agent: talking
  * to it, answering it, stopping it. The rest are about the thread's own
@@ -114,6 +121,10 @@ export class HandoffForwarding {
       if (here) return here();
       throw new Error(`${sentTo.computer} runs an older Relay.`);
     }
+    if (sentTo.peek && writes.has(method))
+      await this.chats.handoffs.updateSentTo(chatId, sentTo.id, {
+        peek: undefined,
+      });
     const online = () => this.computers.status(sentTo.computerId) === "online";
     const send =
       method === "sendProjectChat"

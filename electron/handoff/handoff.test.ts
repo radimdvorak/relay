@@ -2373,3 +2373,20 @@ it("follows the other computer's own thread from here, in its project there, and
   const [listed] = await sender.threads.list();
   expect(listed!.threads.find((t) => t.id === own.id)?.here).toEqual(here);
 });
+
+it("only looks at the other computer's thread until it's written in from here", async () => {
+  const { laptop, mini, sender, computerId } = await pairedComputers();
+  const own = await mini.chats.create(mini.projectId, { kind: "project" });
+  await mini.chats.send(own.id, input("@codex Tidy the README"));
+  await finished(mini.chats, own.id, 2);
+
+  const here = await sender.threads.open(computerId, own.id);
+  expect((await laptop.chats.get(here.chatId)).sentTo?.peek).toBe(true);
+  // Stopping it isn't writing in it.
+  await sender.forward("cancelProjectChat", [here.chatId]);
+  expect((await laptop.chats.get(here.chatId)).sentTo?.peek).toBe(true);
+
+  await sender.forward("sendProjectChat", [here.chatId, input("@codex More")]);
+  expect((await laptop.chats.get(here.chatId)).sentTo?.peek).toBeUndefined();
+  await finished(mini.chats, own.id, 4);
+});
