@@ -138,10 +138,10 @@ export function chatHandlers(ctx: ApiContext) {
       projectChats.rename(id, title),
     ),
     detachProjectChat: takes([idSchema], (id) => projectChats.detach(id)),
-    threadDriving: () => projectChats.drivesThreads(),
+    threadDriving: () => projectChats.driving.allowed(),
     saveThreadDriving: takes([z.boolean()], async (enabled) => {
-      await projectChats.allowDriving(enabled);
-      return projectChats.drivesThreads();
+      await projectChats.driving.allow(enabled);
+      return projectChats.driving.allowed();
     }),
     markProjectChatSeen: takes(
       [idSchema, z.number().int().min(0)],

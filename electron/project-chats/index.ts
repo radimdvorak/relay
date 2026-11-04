@@ -78,6 +78,7 @@ import { ProjectImports } from "./project-import";
 import { defaultPrefs, type AppPrefs } from "../settings";
 import { ImportOffers } from "./import-offers";
 import { ProjectMoves } from "./project-move";
+import { ThreadDriving } from "./thread-driving";
 import * as marks from "./answer-marks";
 import { ChatReads } from "./chat-reads";
 import * as running from "./running-answer";
@@ -135,6 +136,7 @@ export class ProjectChats {
   readonly importOffers: ImportOffers;
   /** Threads moving to another project at their agent's asking. */
   readonly projectMoves: ProjectMoves;
+  private drivingSetting?: ThreadDriving;
 
   constructor(
     private store: Store,
@@ -556,15 +558,8 @@ export class ProjectChats {
   }
 
   /** Whether every thread's agent may drive other threads without asking. */
-  drivesThreads() {
-    return this.store.get().drivesThreads === true;
-  }
-
-  async allowDriving(on: boolean) {
-    await this.store.update((s) => {
-      if (on) s.drivesThreads = true;
-      else delete s.drivesThreads;
-    });
+  get driving() {
+    return (this.drivingSetting ??= new ThreadDriving(this.store));
   }
 
   setAccount(id: string, provider: AccountProvider, account: string) {

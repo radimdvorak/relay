@@ -8,12 +8,7 @@ const DRIVE_ALWAYS =
 
 /** Asking the user, in the lead's own turn, before a tool acts for it. */
 export class Approvals {
-  constructor(
-    private chats: Pick<
-      ProjectChats,
-      "askInTurn" | "allowDriving" | "drivesThreads"
-    >,
-  ) {}
+  constructor(private chats: Pick<ProjectChats, "askInTurn" | "driving">) {}
 
   /**
    * Whether the user lets the lead start or message a thread of its own: a
@@ -27,7 +22,7 @@ export class Approvals {
     signal: AbortSignal,
     always = false,
   ) {
-    if (!always && (this.chats.drivesThreads() || this.fullAccess(lead)))
+    if (!always && (this.chats.driving.allowed() || this.fullAccess(lead)))
       return true;
     const response = await this.chats.askInTurn(
       lead.id,
@@ -53,7 +48,7 @@ export class Approvals {
     detail: string,
     signal: AbortSignal,
   ) {
-    if (this.chats.drivesThreads()) return true;
+    if (this.chats.driving.allowed()) return true;
     const response = await this.chats.askInTurn(
       lead.id,
       {
@@ -66,7 +61,7 @@ export class Approvals {
     );
     if (response.kind !== "approval") return false;
     if (response.decision === "acceptForSession")
-      await this.chats.allowDriving(true);
+      await this.chats.driving.allow(true);
     return (
       response.decision === "accept" || response.decision === "acceptForSession"
     );

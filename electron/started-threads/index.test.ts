@@ -77,10 +77,12 @@ function fakeChats() {
         [...chats.values()].filter(
           (c) => c.startedBy?.chatId === leadId,
         ) as ChatSummary[],
-      allowDriving: async (on: boolean) => {
-        driving.allowed = on;
+      driving: {
+        allowed: () => driving.allowed,
+        allow: async (on: boolean) => {
+          driving.allowed = on;
+        },
       },
-      drivesThreads: () => driving.allowed,
       get: async (id: string) => {
         const chat = chats.get(id);
         if (!chat) throw new Error("No such thread.");
