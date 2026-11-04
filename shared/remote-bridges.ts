@@ -2,7 +2,9 @@
 // version may use it. Bump `remoteBridgeVersion` when the bridge gains calls.
 
 /** Bumped when the bridge gains calls; a phone asks for an update of an older desktop. */
-export const remoteBridgeVersion = 38;
+export const remoteBridgeVersion = 39;
+/** A paired computer lists its own threads (`computerThreads`). */
+export const computerThreadsBridge = 39;
 /**
  * Phones may ask for a thread with only its latest turn's steps (`chat`'s
  * `steps`), and fetch a finished turn's when its fold opens (`messageSteps`).

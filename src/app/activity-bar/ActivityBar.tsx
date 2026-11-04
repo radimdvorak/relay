@@ -3,10 +3,13 @@ import {
   ChartColumn,
   GitPullRequest,
   MessagesSquare,
+  Monitor,
   Search,
   Settings2,
 } from "lucide-react";
 import { ClockifyTimer } from "../../features/plugins/ClockifyTimer";
+import { DeviceIcon } from "../../features/handoff/DeviceIcon";
+import { usePairedComputers } from "../../features/handoff/usePairedComputers";
 import {
   useClockifyStatus,
   usePluginEnabled,
@@ -28,6 +31,11 @@ import {
 import { BarMore } from "./BarMore";
 import { fitBar, useBarOrder, type BarSlot, type MenuItem } from "./bar-layout";
 import { useBarDrag } from "./useBarDrag";
+import {
+  setSidebarShows,
+  useSidebarShows,
+  type SidebarShows,
+} from "./sidebar-shows";
 
 /** The sidebar's unread / needs-input dot. */
 export type SidebarAttention = "waiting" | "unread";
@@ -59,22 +67,37 @@ function barPageFor(surface: Surface, settingsOpen: boolean): BarPage {
 }
 
 /** Which button is lit, and where each button goes. */
-function barNavigation(props: BarProps) {
+function barNavigation(props: BarProps, shows: SidebarShows) {
   const { nav, settings, sidebar, lock, goToPulls, onUsage, onSchedules } =
     props;
   const page = barPageFor(nav.surface, settings.open);
+  const showing = (list: SidebarShows) => page === "threads" && shows === list;
+  /** To the threads' page from another, unless something there holds it. */
+  const leavePage = () => {
+    if (page === "threads") return true;
+    if (lock.blocked()) return false;
+    settings.close();
+    nav.setSurface("project");
+    return true;
+  };
   // Settings covers the page but not the bar, so the page's own button
   // uncovers it rather than moving it.
   const coveredBySettings = (surface: Surface) =>
     settings.open && nav.surface === surface;
   return {
     page,
+    showing,
     /** Back to the threads from a page or Settings; on them already, the sidebar folds. */
     showThreads() {
-      if (page === "threads") return sidebar.toggle();
-      if (lock.blocked()) return;
-      settings.close();
-      nav.setSurface("project");
+      if (showing("threads")) return sidebar.toggle();
+      if (leavePage()) setSidebarShows("threads");
+    },
+    /** The paired computers' own threads in the sidebar; on them already, it folds. */
+    showComputers() {
+      if (showing("computers")) return sidebar.toggle();
+      if (!leavePage()) return;
+      setSidebarShows("computers");
+      if (sidebar.hidden) sidebar.toggle();
     },
     /** From the page itself back to its board; from anywhere else to where it was left. */
     openPulls() {
@@ -105,6 +128,8 @@ function useBarEntries(
   iconSize: number,
 ): Record<MenuItem | "settings", BarEntry> {
   const { page } = bar;
+  const computers = usePairedComputers().data ?? [];
+  const one = computers.length === 1 ? computers[0] : undefined;
   const searchKeys = useShortcutLabel("search-threads");
   const settingsKeys = useShortcutLabel("settings");
   const putOffUpdate = usePutOffRelayUpdate();
@@ -115,8 +140,18 @@ function useBarEntries(
       // The sidebar shows its own dots; hidden, Threads carries them.
       dot: props.sidebar.hidden ? sidebarDotSays(props.attention) : undefined,
       status: props.attention,
-      current: page === "threads",
+      current: bar.showing("threads"),
       onClick: bar.showThreads,
+    },
+    computers: {
+      label: one ? `Threads on ${one.name}` : "Threads on other computers",
+      icon: one ? (
+        <DeviceIcon name={one.name} size={iconSize} />
+      ) : (
+        <Monitor size={iconSize} />
+      ),
+      current: bar.showing("computers"),
+      onClick: bar.showComputers,
     },
     search: {
       label: "Search threads",
@@ -194,10 +229,12 @@ function useBarFit(
   );
   const width = useWidth(bottom ? element : null);
   const timerShows = useTimerShows();
+  const paired = !!usePairedComputers().data?.length;
   const room = bottom && width ? width : Infinity;
   const fit = fitBar(order, room, (item) => {
     // Along the bottom the bar sits on the threads already.
     if (item === "threads") return !bottom;
+    if (item === "computers") return paired;
     return item !== "clockify" || timerShows;
   });
   return { ref, fit };
@@ -213,7 +250,7 @@ export function ActivityBar(props: BarProps) {
   const { nav, settings, sidebar } = props;
   const position = useBarPosition();
   const bottom = position === "bottom";
-  const bar = barNavigation(props);
+  const bar = barNavigation(props, useSidebarShows());
   const entries = useBarEntries(props, bar, bottom ? 16 : 19);
   const drag = useBarDrag(useBarOrder(), !bottom);
   const { ref, fit } = useBarFit(bottom, drag.order, sidebar.barRef);

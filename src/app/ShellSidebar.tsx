@@ -1,11 +1,13 @@
 import type { ReactNode } from "react";
 import { ScheduleList } from "../features/schedules/ScheduleList";
+import { ComputersSidebar } from "../features/computer-threads/ComputersSidebar";
 import { useSidebarMin } from "../lib/activity-bar-position";
 import { SIDEBAR_WIDTH } from "../lib/settings-page";
 import { PaneResizer } from "../ui/PaneResizer";
 import { ErrorBox } from "../ui/ui";
 import type { Surface } from "./useShellNavigation";
 import type { SidebarVisibility } from "./useSidebarVisibility";
+import { useSidebarShows } from "./activity-bar/sidebar-shows";
 
 /**
  * The resizable column right of the activity bar. Folded, it floats over
@@ -26,8 +28,12 @@ export function ShellSidebar({
 }) {
   const away = sidebar.hidden && !sidebar.peek;
   const sidebarMin = useSidebarMin();
+  const shows = useSidebarShows();
   // Schedules lists them here, beside the one it shows.
   const pageList = page === "schedules" && <ScheduleList />;
+  const computers = page === "project" && shows === "computers" && (
+    <ComputersSidebar />
+  );
   return (
     <aside
       ref={sidebar.asideRef}
@@ -45,9 +51,9 @@ export function ShellSidebar({
       onMouseLeave={sidebar.hidden ? sidebar.peekClose : undefined}
     >
       <PaneResizer pane="sidebar" {...SIDEBAR_WIDTH} min={sidebarMin} />
-      {pageList}
+      {pageList || computers}
       {/* Kept mounted under a page's list, so the threads keep their place. */}
-      <div className="shell-sidebar-threads" hidden={!!pageList}>
+      <div className="shell-sidebar-threads" hidden={!!(pageList || computers)}>
         {children}
       </div>
       {!!error && <ErrorBox error={error} />}

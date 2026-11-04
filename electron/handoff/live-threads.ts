@@ -6,12 +6,17 @@ import {
   handoffMethods,
   type HandoffRemoteStatus,
 } from "../../shared/handoff";
-import { knownMessagesSchema } from "../../shared/projects";
+import type {
+  ComputerThread,
+  ComputerThreadList,
+} from "../../shared/computer-threads";
+import { knownMessagesSchema, type ChatSummary } from "../../shared/projects";
 import { idSchema } from "../../shared/validation";
 import { workspaceId } from "../../shared/workspaces";
 import type { ComputerMethod } from "../../shared/remote";
 import type { LiveFeed } from "./live-feed";
 import type { ReceiverHost } from "./receiver";
+import { fromHome } from "./setup-agent";
 
 const folderMethods = new Set<string>(handoffFolderMethods);
 
@@ -20,9 +25,11 @@ const liveThreadMethods = [
   "handoffChat",
   "handoffCall",
   "handoffStatus",
+  "computerThreads",
 ] as const satisfies readonly ComputerMethod[];
 
 type LiveThreadMethod = (typeof liveThreadMethods)[number];
+
 
 export const isLiveThreadMethod = (
   method: ComputerMethod,
@@ -45,7 +52,33 @@ export class LiveThreads {
         return this.call(args, deviceId);
       case "handoffStatus":
         return this.statuses(args);
+      case "computerThreads":
+        return this.list(deviceId);
     }
+  }
+
+  /** This computer's own threads, latest first, for the device to list. */
+  private async list(deviceId: string): Promise<ComputerThreadList> {
+    const projects = (await this.host.projects()).filter(
+      (p) => !p.scratch && !p.computer && !p.removed,
+    );
+    const threads = projects
+      .flatMap((p) => this.host.chats.list(p.id))
+      .flatMap((c) => {
+        const id = followedBy(c, deviceId);
+        return id ? [listed(c, id)] : [];
+      })
+      .sort((a, b) => b.updated - a.updated)
+      .slice(0, maxListed);
+    return {
+      projects: projects.map((p) => ({
+        id: p.id,
+        name: p.name,
+        folder: fromHome(p.path),
+        ...(p.plain ? { plain: true as const } : {}),
+      })),
+      threads,
+    };
   }
 
   /** The thread a handoff from the device made here; no other device's. */
@@ -109,4 +142,42 @@ export class LiveThreads {
     }
     return result;
   }
+}
+
+/** The most threads a list carries; older ones aren't worth the bytes. */
+const maxListed = 500;
+
+/**
+ * What the device follows the thread by, if it may: a thread of this
+ * computer's own, or one that device handed here. Not a thread another
+ * computer handed here, nor one this computer handed on.
+ */
+function followedBy(chat: ChatSummary, deviceId: string) {
+  if (chat.archivedAt || chat.reviewer || chat.sentTo) return;
+  const from = chat.cameFrom;
+  if (!from) return chat.id;
+  const stillHere = !from.returnedAt && !from.abandonedAt && !from.setup;
+  if (from.deviceId === deviceId && stillHere) return from.id;
+}
+
+function listed(chat: ChatSummary, id: string): ComputerThread {
+  return {
+    id,
+    projectId: chat.projectId,
+    title: chat.title,
+    scope: chat.scope,
+    updated: chat.updated,
+    ...(chat.branch ? { branch: chat.branch } : {}),
+    ...(chat.provider ? { provider: chat.provider } : {}),
+    ...(chat.running
+      ? {
+          running: true as const,
+          runningFor: Date.now() - (chat.runningSince ?? Date.now()),
+        }
+      : {}),
+    ...(chat.waiting ? { waiting: true as const } : {}),
+    ...(chat.asking ? { asking: true as const } : {}),
+    ...(chat.blocked ? { blocked: true as const } : {}),
+    ...(chat.settledAt ? { settledAt: chat.settledAt } : {}),
+  };
 }

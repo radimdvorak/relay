@@ -152,6 +152,7 @@ export const computerMethods = [
   "updateNow",
   "handoffChat",
   "handoffCall",
+  "computerThreads",
   "computerFolders",
   "computerAddProject",
   "startInProject",

@@ -2294,3 +2294,48 @@ it("opens a remote project's shells on its computer, in its folder, and shows th
   await miniRemote.revoke(device);
   expect(closeAll).toHaveBeenCalledTimes(1);
 }, 90000);
+
+it("lists the other computer's own threads and the ones it took from here, not another computer's", async () => {
+  const { laptop, mini, sender, computerId } = await pairedComputers();
+  const own = await mini.chats.create(mini.projectId, { kind: "project" });
+  await mini.chats.send(own.id, input("@codex Tidy the README"));
+  await finished(mini.chats, own.id, 2);
+  const archived = await mini.chats.create(mini.projectId, {
+    kind: "project",
+  });
+  await mini.chats.send(archived.id, input("@codex Old work"));
+  await finished(mini.chats, archived.id, 2);
+  await mini.chats.triage(archived.id, { kind: "archive" });
+
+  const sent = await laptop.chats.create(
+    laptop.projectId,
+    { kind: "project" },
+    "worktree",
+  );
+  await laptop.chats.send(sent.id, input("@codex Add a changelog"));
+  await finished(laptop.chats, sent.id, 2);
+  await sender.handOff(sent.id, computerId);
+  await vi.waitFor(async () =>
+    expect((await laptop.chats.get(sent.id)).sentTo?.state).toBe("away"),
+  );
+  const handoffId = (await laptop.chats.get(sent.id)).sentTo!.id;
+
+  const [listed] = await sender.threads.list();
+  expect(listed).toMatchObject({
+    id: computerId,
+    online: true,
+    projects: [{ id: mini.projectId, name: "App" }],
+  });
+  // The one from here goes by its handoff, and says which thread here follows it.
+  expect(listed!.threads.map((t) => [t.id, t.here?.chatId])).toEqual(
+    expect.arrayContaining([
+      [own.id, undefined],
+      [handoffId, sent.id],
+    ]),
+  );
+  expect(listed!.threads).toHaveLength(2);
+  expect(listed!.threads.find((t) => t.id === own.id)).toMatchObject({
+    projectId: mini.projectId,
+    title: (await mini.chats.get(own.id)).title,
+  });
+});

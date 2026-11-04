@@ -15,6 +15,7 @@ import type {
   HandoffRemoteStatus,
   RemoteProjectMethod,
 } from "./handoff";
+import type { ComputerThreadList } from "./computer-threads";
 import type { PhoneAppReport } from "./phone-app";
 import type {
   ChatMessage,
@@ -221,6 +222,8 @@ export interface RemoteApi {
     method: HandoffMethod,
     args: unknown[],
   ): Promise<unknown>;
+  /** This computer's own threads, for the one asking to list; from `computerThreadsBridge`. */
+  computerThreads(): Promise<ComputerThreadList>;
   /** The folders in `dir` here (`~` is the home folder), for adding one as a project. From `remoteProjectsBridge`. */
   computerFolders(dir: string): Promise<ComputerFolders>;
   /** Adds the folder here as a project, or finds the project it already is. */

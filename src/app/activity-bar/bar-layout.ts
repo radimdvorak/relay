@@ -3,6 +3,7 @@ import { fileSetting } from "../../lib/settings-file";
 /** The activity bar's icons that move; Settings stays last. */
 export const barItems = [
   "threads",
+  "computers",
   "search",
   "pulls",
   "schedules",
@@ -18,6 +19,7 @@ export type BarSlot = BarItem | "fill";
 
 export const defaultBarOrder: readonly BarSlot[] = [
   "threads",
+  "computers",
   "search",
   "pulls",
   "schedules",

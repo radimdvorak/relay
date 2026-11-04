@@ -18,6 +18,7 @@ describe("barOrderFrom", () => {
       "usage",
       "fill",
       "threads",
+      "computers",
       "search",
       "pulls",
       "schedules",
@@ -56,16 +57,17 @@ describe("placeSlot", () => {
 
 describe("fitBar", () => {
   it("shows everything when it fits, with no menu", () => {
-    const fit = fitBar([...defaultBarOrder], roomFor(6), everything);
+    const fit = fitBar([...defaultBarOrder], roomFor(7), everything);
     expect(fit).toEqual({ shown: defaultBarOrder, more: [] });
   });
 
   it("folds the last icons into the menu, which takes one icon's room", () => {
-    const fit = fitBar([...defaultBarOrder], roomFor(5), everything);
-    // Five places: the timer, three icons and "…".
+    const fit = fitBar([...defaultBarOrder], roomFor(6), everything);
+    // Six places: the timer, four icons and "…".
     expect(fit.more).toEqual(["schedules", "usage"]);
     expect(fit.shown).toEqual([
       "threads",
+      "computers",
       "search",
       "pulls",
       "fill",
@@ -81,13 +83,19 @@ describe("fitBar", () => {
     const fit = fitBar(order, roomFor(3), everything);
     expect(fit.shown).toContain("clockify");
     // Three places: the timer, Threads and "…".
-    expect(fit.more).toEqual(["search", "pulls", "schedules", "usage"]);
+    expect(fit.more).toEqual([
+      "computers",
+      "search",
+      "pulls",
+      "schedules",
+      "usage",
+    ]);
   });
 
   it("leaves out a timer that doesn't show, giving its room to the others", () => {
     const fit = fitBar(
       [...defaultBarOrder],
-      roomFor(5),
+      roomFor(6),
       (item) => item !== "clockify",
     );
     expect(fit.more).toEqual([]);

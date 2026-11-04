@@ -13,6 +13,7 @@ import type { ProjectChats } from "../project-chats";
 import type { Projects } from "../projects/projects";
 import { listed, liveOn, named, setupsOn, stays, summaryOf } from "./away";
 import { ComputerInfos } from "./computer-infos";
+import { ComputerThreads } from "./computer-threads";
 import type { Computers } from "./computers";
 import { HandoffFollowing } from "./following";
 import { HandoffForwarding } from "./forwarding";
@@ -42,6 +43,8 @@ export class Handoffs {
   private following: HandoffFollowing;
   private setups: HandoffSetups;
   private trips: HandoffTrips;
+  /** The paired computers' own threads. */
+  readonly threads: ComputerThreads;
 
   constructor(
     private store: Store,
@@ -54,6 +57,7 @@ export class Handoffs {
     reuse = { statusMs: 4000, infoMs: 3000 },
   ) {
     this.infos = new ComputerInfos(computers, reuse.infoMs);
+    this.threads = new ComputerThreads(store, computers, this.infos);
     this.places = new HandoffTargets(store, computers, projects, this.infos);
     this.statuses = new RemoteStatuses(
       store,
