@@ -51,13 +51,19 @@ export function useWorkingImages(images: PreviewImage[], keep?: string) {
   );
 }
 
-/** A thumbnail that loads once scrolled near and opens the image in the viewer. */
+/**
+ * A thumbnail that loads once scrolled near and opens the image in the viewer.
+ * One that won't load keeps its place with a Retry, unless `hideWhenMissing`:
+ * a file the agent read may simply be gone since.
+ */
 export function ImageThumbnail({
   image,
   onOpen,
+  hideWhenMissing = false,
 }: {
   image: PreviewImage;
   onOpen: () => void;
+  hideWhenMissing?: boolean;
 }) {
   const container = useRef<HTMLDivElement>(null);
   const [visible, setVisible] = useState(false);
@@ -73,8 +79,14 @@ export function ImageThumbnail({
     if (container.current) observer.observe(container.current);
     return () => observer.disconnect();
   }, []);
-  const { data: source, isError } = useImageSource(image, visible);
-  if (isError && !source) return null;
+  const {
+    data: source,
+    isError,
+    isFetching,
+    refetch,
+  } = useImageSource(image, visible);
+  const failed = isError && !source;
+  if (failed && hideWhenMissing) return null;
   return (
     <div ref={container} className="message-image">
       {source ? (
@@ -90,6 +102,18 @@ export function ImageThumbnail({
             <img src={source} alt={image.name} loading="lazy" />
           </button>
         </CopyImageMenu>
+      ) : failed ? (
+        <span className="message-image-failed" role="status">
+          Couldn't load
+          <button
+            type="button"
+            disabled={isFetching}
+            onClick={() => void refetch()}
+            aria-label={`Retry ${image.name}`}
+          >
+            Retry
+          </button>
+        </span>
       ) : (
         <span>Loading image…</span>
       )}

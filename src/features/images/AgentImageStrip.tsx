@@ -42,6 +42,7 @@ export function AgentImageStrip({
                 key={image.key}
                 image={image}
                 onOpen={() => onOpen(image)}
+                hideWhenMissing
               />
             ))}
           </div>
