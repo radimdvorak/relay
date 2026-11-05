@@ -407,6 +407,8 @@ class ProjectTasks {
   }
 
   private async read(costed: boolean) {
+    // One not in a table read after it was handed over is gone; its pid may be a stranger's next.
+    const handedOver = new Map(this.adopting);
     const procs = await processTable({ usage: costed });
     if (costed) this.rates.fill(procs);
     this.costed = costed;
@@ -486,10 +488,10 @@ class ProjectTasks {
         fresh.push(child.pid);
       }
     }
-    for (const [pid, task] of this.adopting) {
+    for (const [pid, task] of handedOver) {
       const p = byPid.get(pid);
+      if (this.adopting.get(pid) === task) this.adopting.delete(pid);
       if (!p) continue;
-      this.adopting.delete(pid);
       firstSight(p);
       fresh.push(p.pid);
       const id = `${p.pid}:${p.started}`;

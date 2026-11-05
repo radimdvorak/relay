@@ -525,3 +525,18 @@ it("stops a server an agent started a moment ago in a worktree about to go away"
     kill.mockRestore();
   }
 });
+
+it("doesn't take a stranger that reuses the pid of a dev server gone before a scan saw it", async () => {
+  const root = "/projects/quick-exit";
+  fake.cwd = root;
+  const pid = 9_000_101;
+  fake.rows = [];
+  projectTasks.trackServer(pid, "npm run dev", root, async () => {});
+  expect(await projectTasks.list(root, [], { fresh: true })).toEqual([]);
+
+  // Much later another program in the folder gets the same pid.
+  fake.rows = [
+    { pid, ppid: 77, pgid: pid, started: Date.now(), line: "vitest --watch" },
+  ];
+  expect(await projectTasks.list(root, [], { fresh: true })).toEqual([]);
+});
