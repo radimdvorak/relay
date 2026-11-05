@@ -489,6 +489,37 @@ it("classifies prompt-time authentication refusals so the thread offers sign-in;
   }
 });
 
+it("starts a fresh process after a session refused for sign-in, so a login made since is used", async () => {
+  let loggedIn = false;
+  const launched: boolean[] = [];
+  const { acp, root, sent } = await agent(
+    {},
+    { provider: "opencode", name: "OpenCode" },
+  );
+  const command = acp.command;
+  acp.command = async (...args) => {
+    const launch = await command(...args);
+    launched.push(loggedIn);
+    const scenario = { signIn: "cli", signedIn: loggedIn };
+    return {
+      ...launch,
+      env: { ...launch.env, RELAY_ACP_SCENARIO: JSON.stringify(scenario) },
+    };
+  };
+  const session = { key: "signed-out", onId: async () => {} };
+
+  await expect(runAcp(acp, options(root, { session }))).rejects.toMatchObject({
+    kind: "signedOut",
+  });
+  loggedIn = true;
+  await expect(runAcp(acp, options(root, { session }))).resolves.toBe("");
+
+  expect(launched).toEqual([false, true]);
+  expect(
+    (await sent()).filter((m) => m.method === "session/prompt"),
+  ).toHaveLength(1);
+});
+
 const editing = {
   toolCallId: "t1",
   title: "Edit a.ts",

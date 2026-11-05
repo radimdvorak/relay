@@ -271,9 +271,11 @@ async function signedIn<T>(
   try {
     return await call();
   } catch (error) {
-    if (error instanceof AcpRequestError && error.code === AUTH_REQUIRED)
-      throw signedOutError(agent.profile.provider);
-    throw error;
+    if (!(error instanceof AcpRequestError && error.code === AUTH_REQUIRED))
+      throw error;
+    // Its process holds the refused credentials; a login made since needs a new one.
+    agent.close();
+    throw signedOutError(agent.profile.provider);
   }
 }
 
