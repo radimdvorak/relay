@@ -211,6 +211,12 @@ describe("preview", () => {
     expect(preview("word ".repeat(100), 80)).toHaveLength(80);
   });
 
+  it("doesn't cut an emoji in half", () => {
+    expect(preview("a".repeat(238) + "😅".repeat(5))).toBe(
+      "a".repeat(238) + "…",
+    );
+  });
+
   it("reads a long answer of unmatched marks quickly", () => {
     const bodies = ["`".repeat(30_000) + "!", "[a".repeat(15_000), "[a](".repeat(8_000)];
     for (const body of bodies) {

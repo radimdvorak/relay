@@ -145,7 +145,8 @@ export function preview(markdown: string, length = previewLength) {
     .replace(/(\*\*|__|\*|_|~~|`)(?=\S)([^\n]*?\S)\1/g, "$2")
     .replace(/\s+/g, " ")
     .trim();
-  return text.length > length
-    ? `${text.slice(0, length - 1).trimEnd()}…`
-    : text;
+  if (text.length <= length) return text;
+  // Not half an emoji, which shows as a broken glyph in the notification.
+  const cut = text.slice(0, length - 1).replace(/[\uD800-\uDBFF]$/, "");
+  return `${cut.trimEnd()}…`;
 }
