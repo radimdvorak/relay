@@ -42,6 +42,15 @@ afterEach(async () => {
 
 afterAll(() => rm(root, { recursive: true, force: true }));
 
+const alive = (pid: number) => {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+};
+
 const hostsFor = (hostScript = script) => {
   const hosts = new AgentHosts(join(root, "hosts"), hostScript);
   opened.push(hosts);
@@ -120,3 +129,32 @@ it("ends a process taken back from a host that has since died", async () => {
   const late = new Promise<"hung">((r) => setTimeout(() => r("hung"), 2000));
   expect(await Promise.race([exited, late])).toBe("exited");
 });
+
+it("kills a process that ignores being asked to stop when its host shuts down", async () => {
+  const hosts = hostsFor();
+  const running = await hosts.openProcess({
+    key: "agent",
+    meta: { provider: "fixture" },
+    process: {
+      ...server,
+      // Ignores both SIGTERM and the end of its input.
+      args: [
+        "-e",
+        'process.on("SIGTERM", () => {}); process.stdin.resume(); console.log("up"); setInterval(() => {}, 1000);',
+      ],
+      stopByInput: true,
+    },
+  });
+  await new Promise<void>((resolve) =>
+    running.read({ entry: (e) => e.kind === "line" && resolve() }),
+  );
+  const childPid = (await running.pid())!;
+  strays.push(childPid);
+  const [hostPid] = hosts.pids();
+  // Relay quits for good; the host is told to stop, as when it idles out.
+  process.kill(hostPid!, "SIGTERM");
+  await expect
+    .poll(() => alive(hostPid!), { timeout: 6000, interval: 250 })
+    .toBe(false);
+  expect(alive(childPid)).toBe(false);
+}, 15000);

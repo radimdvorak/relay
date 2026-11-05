@@ -441,17 +441,30 @@ const server = createServer((socket) => {
   });
 });
 
+/** How long a stopped session gets to end: its 3s grace, then the kill. */
+const closingMs = 4000;
+let shuttingDown = false;
+
 function shutdown(reason: string) {
+  if (shuttingDown) return;
+  shuttingDown = true;
   log(`exit: ${reason}`);
   for (const call of [...toolCalls.values()])
     call.resolve(toolText("Relay's agent host closed.", true));
   stopTools();
+  const closing = [...sessions.values()];
   for (const id of [...sessions.keys()]) closeSession(id);
+  server.close();
+  client?.destroy();
   try {
     rmSync(recordFile, { force: true });
     if (socketDir) rmSync(socketDir, { recursive: true, force: true });
   } catch {}
-  process.exit(0);
+  // Exiting at once would skip the kill a child ignoring its stop gets after the grace.
+  const deadline = Date.now() + closingMs;
+  setInterval(() => {
+    if (closing.every((s) => s.ended) || Date.now() > deadline) process.exit(0);
+  }, 100);
 }
 
 function settle() {
