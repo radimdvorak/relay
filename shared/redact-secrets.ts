@@ -51,9 +51,11 @@ const values: RegExp[] = [
     String.raw`(\b[a-z][a-z0-9+.-]*://)${reference}(?=[^\s:/@]*\d)([A-Za-z0-9_-]{32,})(?=@)`,
     "gi",
   ),
-  // X-API-Key: …, PRIVATE-TOKEN: …, Ocp-Apim-Subscription-Key: …
+  // X-API-Key: …, PRIVATE-TOKEN: …, Ocp-Apim-Subscription-Key: …, always
+  // hyphenated, so code's `apiKey: config.key` stays. A quoted name is code
+  // too, whose secret is quoted: `"x-api-key": this.key` stays.
   new RegExp(
-    String.raw`(\b(?:[A-Za-z]+-)*(?:API-?Key|Auth-Token|Access-Token|Private-Token|Subscription-Key|Functions-Key)["']?\s*:\s*["']?)${reference}([A-Za-z0-9._~+/=-]{12,})`,
+    String.raw`(\b(?:[A-Za-z]+-)*(?:API-Key|Auth-Token|Access-Token|Private-Token|Subscription-Key|Functions-Key)(?:\s*:\s*["']?|["']\s*:\s*["']))${reference}([A-Za-z0-9._~+/=-]{12,})`,
     "gi",
   ),
   // SECRET=…, export GITHUB_TOKEN=…, API_KEY: …

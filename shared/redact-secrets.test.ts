@@ -137,6 +137,22 @@ describe("redactSecrets", () => {
     );
   });
 
+  it("keeps code that names an API key header or field", () => {
+    const text = [
+      "const client = new OpenAI({ apiKey: config.openaiApiKey });",
+      'headers: { "x-api-key": this.options.apiKey },',
+      "X-Request-Id: 3f2a1b4c-5d6e-7f80-9a1b-2c3d4e5f6a7b",
+    ].join("\n");
+    expect(redactSecrets(text)).toEqual({ text, found: 0 });
+  });
+
+  it("drops a quoted subscription key", () => {
+    const json = '{ "Ocp-Apim-Subscription-Key": "9f8e7d6c5b4a3f2e1d0c" }';
+    expect(redactSecrets(json).text).toBe(
+      '{ "Ocp-Apim-Subscription-Key": "[redacted]" }',
+    );
+  });
+
   it("takes linear time on long runs of near-secrets", () => {
     const inputs = [
       "https://" + "a".repeat(50_000),
