@@ -80,6 +80,29 @@ it.skipIf(!lfsInstalled)(
   },
 );
 
+it.skipIf(!lfsInstalled || process.platform === "win32")(
+  "doesn't let an LFS extension in the repository's config run",
+  async () => {
+    gitIn(repo, "lfs", "install", "--local");
+    gitIn(repo, "lfs", "track", "*.bin");
+    await writeFile(join(repo, "big.bin"), "large content\n");
+    gitIn(repo, "add", ".");
+    gitIn(repo, "commit", "-qm", "lfs");
+    const extension = join(repo, "..", `${repo.split("/").pop()}-ext.sh`);
+    await writeFile(extension, `#!/bin/sh\ntouch '${marker}'\ncat\n`, {
+      mode: 0o755,
+    });
+    gitIn(repo, "config", "lfs.extension.x.clean", extension);
+    gitIn(repo, "config", "lfs.extension.x.smudge", "cat");
+    gitIn(repo, "config", "lfs.extension.x.priority", "0");
+    const later = new Date(Date.now() + 5000);
+    await utimes(join(repo, "big.bin"), later, later);
+    await workingTree(repo).catch(() => undefined);
+    await rm(extension, { force: true });
+    expect(existsSync(marker)).toBe(false);
+  },
+);
+
 it("keeps Git LFS's own commands and the user's global filters", async () => {
   const file = await gitExecutable();
   gitIn(repo, "config", "filter.lfs.process", "git-lfs filter-process");

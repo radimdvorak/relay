@@ -28,9 +28,25 @@ type FilterCheck = {
 
 const checks = new Map<string, FilterCheck>();
 
+type ConfigEntry = { scope: string; key: string; value: string };
+
+/** `git config --show-scope -z --get-regexp` output, one entry per key. */
+function configEntries(listed: string) {
+  const fields = listed.split("\0");
+  const entries: ConfigEntry[] = [];
+  for (let i = 0; i + 1 < fields.length; i += 2) {
+    const [key, value = ""] = fields[i + 1].split(/\n(.*)/s);
+    entries.push({ scope: fields[i], key, value });
+  }
+  return entries;
+}
+
 /**
- * Filter keys from the repository's own config (`.git/config`, a worktree's
- * config, or a file either includes) that name a command Relay didn't vet.
+ * Filter keys that name a command Relay didn't vet. A filter from the
+ * repository's own config (`.git/config`, a worktree's config, or a file
+ * either includes) is foreign unless it's Git LFS. LFS runs any
+ * `lfs.extension.<x>.clean` command in the config, so once the repository
+ * names one, every LFS filter is foreign too, the user's global one included.
  */
 async function foreignFilterKeys(
   file: string,
@@ -46,7 +62,7 @@ async function foreignFilterKeys(
       "--show-scope",
       "-z",
       "--get-regexp",
-      "^filter\\..*\\.(clean|smudge|process)$",
+      "^(filter\\..*\\.(clean|smudge|process)|lfs\\.extension\\..*)$",
     ],
     { env, timeout: 15000 },
   ).then(
@@ -54,13 +70,18 @@ async function foreignFilterKeys(
     // None set exits 1; config Git can't read fails the read itself too.
     () => "",
   );
-  const fields = listed.split("\0");
+  const entries = configEntries(listed);
+  const repositoryExtendsLfs = entries.some(
+    ({ scope, key }) =>
+      key.startsWith("lfs.extension.") && !ownScopes.has(scope),
+  );
   const keys: string[] = [];
-  for (let i = 0; i + 1 < fields.length; i += 2) {
-    const scope = fields[i];
-    const [key, command = ""] = fields[i + 1].split(/\n(.*)/s);
-    if (ownScopes.has(scope) || lfsCommands.has(command)) continue;
-    keys.push(key);
+  for (const { scope, key, value } of entries) {
+    if (!key.startsWith("filter.")) continue;
+    const trusted = lfsCommands.has(value)
+      ? !repositoryExtendsLfs
+      : ownScopes.has(scope);
+    if (!trusted) keys.push(key);
   }
   return keys;
 }
