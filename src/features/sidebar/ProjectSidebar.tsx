@@ -188,7 +188,7 @@ export function ProjectSidebar({
   const families = startedFamilies(sections.active, sections.settled);
   const actions = useThreadActions({
     chatId: shown,
-    active: sections.active,
+    cards: families.cards,
     projects: byId,
     scratch: scratchIds,
     open: openChat,

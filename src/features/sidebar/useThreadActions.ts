@@ -87,7 +87,7 @@ async function forkThread(qc: QueryClient, c: ChatSummary) {
  */
 export function useThreadActions({
   chatId,
-  active,
+  cards,
   projects,
   scratch,
   open,
@@ -97,8 +97,8 @@ export function useThreadActions({
 }: {
   /** The open thread. */
   chatId: string | undefined;
-  /** Activity's open threads, in order. */
-  active: ChatSummary[];
+  /** Activity's thread cards in order, started threads left under their lead. */
+  cards: ChatSummary[];
   projects: Map<string, Project>;
   /** Scratchpad's projects, whose threads share one list. */
   scratch: Set<string>;
@@ -207,7 +207,7 @@ export function useThreadActions({
    * comes back to `c` unless you went elsewhere meanwhile.
    */
   const moveOn = (c: ChatSummary) => {
-    const next = nextAfterSettle(active, c.id);
+    const next = nextAfterSettle(cards, c);
     const p = projects.get(c.projectId);
     if (next) open(next);
     else if (p) onNew(p);
