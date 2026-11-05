@@ -47,6 +47,10 @@ export class DeepReviews {
   private awaiting = new Set<string>();
   /** Rounds whose next pass is starting, by request: its reviewers aren't at work yet. */
   private advancing = new Set<string>();
+  /** Reviewers the review is sending their tasks to, by thread. */
+  private sending = new Set<string>();
+  /** Of those, the ones whose review stopped meanwhile. */
+  private stoppedSending = new Set<string>();
   constructor(private host: DeepReviewHost) {}
 
   /**
@@ -224,11 +228,13 @@ export class DeepReviews {
   /**
    * A turn is about to start in a reviewer's thread, sent from it like in
    * any thread. A review that stopped before its lead started waits for that
-   * reviewer again, so its answer goes to the lead with the others.
+   * reviewer again, so its answer goes to the lead with the others. A task
+   * the review was still sending when it stopped doesn't start.
    */
   async memberStarting(member: ProjectChat) {
     const task = member.reviewer;
     if (!task) return;
+    if (this.stoppedSending.has(member.id)) return this.host.stop(member.id);
     const chat = await this.host.load(task.parent).catch(() => undefined);
     const state = chat && reviewerRound(chat.reviews, task);
     if (
@@ -251,6 +257,8 @@ export class DeepReviews {
     state.status = "stopped";
     const abandoning: Promise<void>[] = [];
     for (const r of state.reviewers) {
+      // A task still on its way has no turn yet to stop; it's stopped as it starts.
+      if (this.sending.has(r.chatId)) this.stoppedSending.add(r.chatId);
       this.host.stop(r.chatId);
       // Between turns, only closing its session ends the subagents it waits for.
       if (!this.host.active(r.chatId) && this.host.waiting(r.chatId))
@@ -389,12 +397,25 @@ export class DeepReviews {
   }
 
   /** Asks `slots` for their reviews; one that can't start counts as done. */
-  private ask(chat: ProjectChat, state: DeepReviewState, slots: number[]) {
+  private async ask(
+    chat: ProjectChat,
+    state: DeepReviewState,
+    slots: number[],
+  ) {
     // Stopped while the round was being saved: Resume asks them later.
-    if (state.status !== "reviewing") return Promise.resolve();
-    return sendReviewers(this.host, chat, state, slots, () =>
-      this.reviewerDone(chat.id, state.request),
-    );
+    if (state.status !== "reviewing") return;
+    const asked = slots.map((slot) => state.reviewers[slot]!.chatId);
+    for (const id of asked) this.sending.add(id);
+    try {
+      await sendReviewers(this.host, chat, state, slots, () =>
+        this.reviewerDone(chat.id, state.request),
+      );
+    } finally {
+      for (const id of asked) {
+        this.sending.delete(id);
+        this.stoppedSending.delete(id);
+      }
+    }
   }
 
   /** Starts the next pass's reviewers; the lead waits for the last pass. */
