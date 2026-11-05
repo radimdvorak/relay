@@ -183,6 +183,8 @@ async function pairedComputers() {
           if (method === "respondProjectChat")
             return mini.chats.respond(id, rest[0] as string, rest[1] as never);
           if (method === "cancelProjectChat") return mini.chats.cancel(id);
+          if (method === "projectChatImage")
+            return mini.chats.files.image(id, rest[0] as string);
           if (method === "triageProjectChat")
             return mini.chats.triage(id, rest[0] as never);
           if (method === "createScratch")
@@ -1053,6 +1055,32 @@ it("sends a file dropped on the laptop to a thread running on the other computer
   expect(remoteSong!.startsWith(join(mini.dir, "pastes"))).toBe(true);
   expect(await readFile(remoteSong!)).toEqual(await readFile(song));
   expect((await prompts()).at(-1)).toContain(remoteSong);
+});
+
+it("keeps here a screenshot sent to a thread on the other computer, once fetched, for when it's offline", async () => {
+  const { laptop, mini, computers, sender, thread, there } =
+    await startedThread();
+  const dataUrl =
+    "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==";
+  const more = {
+    ...input("@codex Look at this"),
+    images: [{ name: "shot.png", mimeType: "image/png" as const, dataUrl }],
+  };
+  await sender.forward("sendProjectChat", [thread.id, more]);
+  await finished(mini.chats, there.id);
+  const sentImage = async () =>
+    (await laptop.chats.get(thread.id)).messages.find((m) => m.id === more.id)
+      ?.images?.[0];
+  await vi.waitFor(async () => expect(await sentImage()).toBeTruthy());
+  const { id } = (await sentImage())!;
+  const here = () => laptop.chats.files.image(thread.id, id);
+  await expect(here()).rejects.toThrow();
+
+  const args = [thread.id, id];
+  expect(sender.forwards("projectChatImage", args)).toBe(true);
+  expect(await sender.forward("projectChatImage", args, here)).toBe(dataUrl);
+  computers.close();
+  expect(await sender.forward("projectChatImage", args, here)).toBe(dataUrl);
 });
 
 it("keeps a started thread's first message when it's taken back without the other computer", async () => {
