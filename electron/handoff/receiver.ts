@@ -1,46 +1,26 @@
 import { folderInputSchema } from "../../shared/projects";
-import {
-  mkdir,
-  open,
-  readFile,
-  realpath,
-  rm,
-  stat,
-  writeFile,
-} from "node:fs/promises";
-import { homedir } from "node:os";
+import { mkdir, open, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { z } from "zod";
 import {
-  remoteProjectMethods,
   handoffChunk,
-  handoffMessagesSchema,
   maxHandoffBundle,
   maxHandoffThread,
   needsFullBundle,
   type HandBack,
   type HandoffThread,
 } from "../../shared/handoff";
+import type { ChatMessage } from "../../shared/projects";
 import {
-  chatScopeSchema,
-  projectChatSendSchema,
-  type ChatMessage,
-} from "../../shared/projects";
-import {
-  computerCallMethods,
   remoteBridgeVersion,
-  type ComputerFolders,
   type ComputerMethod,
   type ComputerProject,
-  type HomeThread,
   type SetupRequest,
-  terminalOps,
 } from "../../shared/remote";
 import type { ApiMethod } from "../../shared/types";
 import type { NewsItem } from "../../shared/thread-news";
 import type { UpdateState } from "../../shared/updates";
 import { idSchema } from "../../shared/validation";
-import { branchNameProblem } from "../../shared/branch-names";
 import { git } from "../git/git";
 import type { ProjectChats } from "../project-chats";
 import { adoptWorktree, newBranchProblem } from "../git/worktrees";
@@ -51,74 +31,19 @@ import {
   hasCommit,
   repositoryNames,
 } from "../git/bundles";
-import { ComputerShells } from "./computer-shells";
+import { HostedProjects, isHostedMethod } from "./hosted-projects";
+import {
+  partSchema,
+  base64,
+  repositoriesSchema,
+  setupRequestSchema,
+  threadSchema,
+} from "./schemas";
 import { LiveFeed, type FeedLink } from "./live-feed";
 import { isLiveThreadMethod, LiveThreads } from "./live-threads";
 import { CloneRequests, type CloneHost } from "./remote-setup";
 import { SetupAgents } from "./setup-agent";
 import { readPaste, writePasteChunk } from "../drafts";
-import { expandHome, listFolders } from "../projects/folder-inspect";
-import { fromHome } from "./setup-agent";
-
-const partSchema = z.enum(["thread", "bundle"]);
-const base64 = z
-  .string()
-  .max(Math.ceil(handoffChunk / 3) * 4)
-  .regex(/^[A-Za-z0-9+/]*={0,2}$/);
-const shaSchema = z.string().regex(/^[0-9a-f]{40,64}$/);
-// Any name git takes: a thread's branch may be one the user chose.
-const branchSchema = z
-  .string()
-  .max(250)
-  .refine((b) => !branchNameProblem(b));
-const repositoriesSchema = z.array(z.string().max(300)).min(1).max(20);
-
-const settingsSchema = projectChatSendSchema.pick({
-  provider: true,
-  choice: true,
-  runtimeMode: true,
-  interactionMode: true,
-  contextWindow: true,
-});
-
-const setupRequestSchema = z
-  .object({
-    url: z.string().trim().min(1).max(2000),
-    repositories: repositoriesSchema,
-    error: z.string().max(8000),
-    settings: settingsSchema,
-  })
-  .strict();
-const threadSchema = z
-  .object({
-    from: z.string().trim().min(1).max(80),
-    repositories: repositoriesSchema,
-    title: z.string().max(200),
-    scope: chatScopeSchema,
-    settings: settingsSchema,
-    messages: handoffMessagesSchema,
-    git: z
-      .object({
-        branch: branchSchema,
-        tip: shaSchema,
-        bundle: z.boolean(),
-        from: branchSchema.optional(),
-        start: shaSchema.optional(),
-      })
-      .strict(),
-    start: z.literal(true).optional(),
-  })
-  .strict();
-const homeThreadSchema = threadSchema
-  .pick({
-    from: true,
-    title: true,
-    scope: true,
-    settings: true,
-    messages: true,
-  })
-  .strict();
-const folderSchema = z.string().trim().min(1).max(4096);
 
 export interface ReceiverHost {
   projects(): Promise<import("../../shared/projects").Project[]>;
@@ -160,16 +85,15 @@ export class HandoffReceiver {
     string,
     Promise<{ chatId: string; project: string }>
   >();
-  /** Threads being started in a project here, by id, so a repeat waits for the first. */
-  private starting = new Map<string, Promise<{ chatId: string }>>();
   private feed: LiveFeed;
   private live: LiveThreads;
-  private shells = new ComputerShells();
+  private hosted: HostedProjects;
   private clones?: CloneRequests;
   private setups?: SetupAgents;
 
   constructor(private host: ReceiverHost) {
     this.feed = new LiveFeed(host.chats);
+    this.hosted = new HostedProjects(host);
     this.live = new LiveThreads(host, this.feed, (id) =>
       this.receiving.get(id),
     );
@@ -195,7 +119,7 @@ export class HandoffReceiver {
   /** How the computers threads came from are reached; the phone remote's server. */
   connect(link: FeedLink) {
     this.feed.connect(link);
-    this.shells.connect(link);
+    this.hosted.shells.connect(link);
   }
 
   /**
@@ -203,8 +127,8 @@ export class HandoffReceiver {
    * removed, or every one when this Relay is quitting.
    */
   closeShells(deviceId?: string) {
-    if (deviceId) this.shells.closeDevice(deviceId);
-    else this.shells.closeAll();
+    if (deviceId) this.hosted.shells.closeDevice(deviceId);
+    else this.hosted.shells.closeAll();
   }
 
   /** A message written in a thread here. */
@@ -234,6 +158,7 @@ export class HandoffReceiver {
   ): Promise<unknown> {
     if (isLiveThreadMethod(method))
       return this.live.handle(method, args, device.id);
+    if (isHostedMethod(method)) return this.hosted.handle(method, args, device);
     switch (method) {
       case "uploadPaste":
         return writePasteChunk(
@@ -368,108 +293,7 @@ export class HandoffReceiver {
         await rm(join(this.host.dir, id), { recursive: true, force: true });
         return;
       }
-      case "computerFolders":
-        return this.folders(folderSchema.parse(args[0]));
-      case "computerAddProject": {
-        if (!this.host.adding)
-          throw new Error("This Relay can't add projects.");
-        const path = folderSchema.parse(args[0]);
-        return this.describe(await this.host.adding.addAt(path));
-      }
-      case "startInProject": {
-        const id = idSchema.parse(args[0]);
-        let job = this.starting.get(id);
-        if (!job) {
-          job = this.startIn(
-            id,
-            idSchema.parse(args[1]),
-            homeThreadSchema.parse(args[2]) as HomeThread,
-            device,
-          ).finally(() => this.starting.delete(id));
-          this.starting.set(id, job);
-        }
-        return job;
-      }
-      case "computerCall": {
-        const method = z.enum(computerCallMethods).parse(args[0]);
-        const rest = z.array(z.unknown()).max(9).parse(args[1]);
-        if (!this.host.dispatch) throw new Error("This Relay can't do that.");
-        return this.host.dispatch(method, rest);
-      }
-      case "projectCall": {
-        const project = await this.own(idSchema.parse(args[0]));
-        const method = z.enum(remoteProjectMethods).parse(args[1]);
-        const rest = z.array(z.unknown()).max(9).parse(args[2]).slice(1);
-        if (!this.host.dispatch) throw new Error("This Relay can't do that.");
-        return this.host.dispatch(method, [project.id, ...rest]);
-      }
-      case "projectTerminal": {
-        const project = await this.own(idSchema.parse(args[0]));
-        const cwd = await this.host.root(project.id);
-        return this.shells.open(device.id, cwd, args.slice(1));
-      }
-      case "terminalCall":
-        return this.shells.call(
-          device.id,
-          z.enum(terminalOps).parse(args[0]),
-          z.string().parse(args[1]),
-          z.array(z.unknown()).max(4).parse(args[2]),
-        );
     }
-  }
-
-  /** A project of this computer's own, not one another computer hosts or a Scratchpad's. */
-  private async own(projectId: string) {
-    const project = (await this.host.projects()).find(
-      (p) => p.id === projectId && !p.scratch && !p.computer,
-    );
-    if (!project) throw new Error("This computer has no such project.");
-    return project;
-  }
-
-  /** The folders in `dir`, the ones that are projects here already marked. */
-  private async folders(dir: string): Promise<ComputerFolders> {
-    const resolved = await realpath(expandHome(dir));
-    const projects = (await this.host.projects()).filter(
-      (p) => !p.scratch && !p.computer,
-    );
-    const folders = await listFolders(resolved);
-    return {
-      home: homedir(),
-      dir: resolved,
-      folders: folders.map((f) => {
-        const project = projects.find((p) => p.path === f.path);
-        return project
-          ? { ...f, project: { id: project.id, name: project.name } }
-          : f;
-      }),
-    };
-  }
-
-  /**
-   * A thread another computer starts in a project of this one that it shows
-   * as its own: its first message runs here as the thread's first turn, in
-   * the project's checkout, and that computer follows it live by `id`.
-   */
-  private async startIn(
-    id: string,
-    projectId: string,
-    thread: HomeThread,
-    device: { id: string; name: string },
-  ) {
-    const known = this.host.chats.handoffs.handedOver(id);
-    if (known) return { chatId: known.id };
-    const project = await this.own(projectId);
-    const chat = await this.host.chats.handoffs.adoptHome(project.id, thread, {
-      id,
-      computer: thread.from,
-      deviceId: device.id,
-      at: Date.now(),
-    });
-    console.info(
-      `Thread ${id.slice(0, 8)} from ${device.name}: started in ${project.name}.`,
-    );
-    return { chatId: chat.id };
   }
 
   /**
@@ -523,23 +347,6 @@ export class HandoffReceiver {
           .catch(() => []),
       })),
     );
-  }
-
-  private async describe(
-    project: import("../../shared/projects").Project,
-  ): Promise<ComputerProject> {
-    return {
-      id: project.id,
-      name: project.name,
-      repositories: project.plain
-        ? []
-        : await this.host
-            .root(project.id)
-            .then(repositoryNames)
-            .catch(() => []),
-      folder: fromHome(project.path),
-      ...(project.plain ? { plain: true as const } : {}),
-    };
   }
 
   private async upload(

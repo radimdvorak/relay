@@ -54,7 +54,7 @@ export const bigFunctions: Record<string, number> = {
   "electron/git/commit-split.ts › readUnits": 101,
   "electron/git/working-tree.ts › workingTree": 96,
   "electron/git/worktrees/create.ts › createWorktree": 96,
-  "electron/handoff/receiver.ts › handle": 190,
+  "electron/handoff/receiver.ts › handle": 144,
   "electron/handoff/setups.ts › setUp": 88,
   "electron/handoff/trips.ts › send": 96,
   "electron/headless/commands/args.ts › parse": 108,
