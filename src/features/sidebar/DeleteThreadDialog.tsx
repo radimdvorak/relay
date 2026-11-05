@@ -4,6 +4,7 @@ import type { ChatSummary } from "../../../shared/projects";
 import { errorMessage } from "../../../shared/error-message";
 import { api } from "../../lib/api";
 import { Modal } from "../../ui/ui";
+import { forgetThreadTerminals } from "../terminal/thread-terminals";
 
 /** The thread whose deletion waits for a yes, and deleting it once it has one. */
 export function useThreadDelete({
@@ -31,6 +32,7 @@ export function useThreadDelete({
     setError(undefined);
     try {
       const gone = await api.deleteProjectChat(c.id);
+      for (const id of gone) forgetThreadTerminals(id);
       // Only once it's gone: a refusal leaves you in the thread. One of its
       // reviewers may be what's open.
       const opened = openId();

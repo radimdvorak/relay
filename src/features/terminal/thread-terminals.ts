@@ -337,6 +337,15 @@ export function closeTerminal(
   void api.closeTerminal(key).catch(() => {});
 }
 
+/** Lets go of a deleted thread's shells; the main process has already ended them. */
+export function forgetThreadTerminals(chatId: string) {
+  for (const [key, terminal] of [...terminals]) {
+    if (terminalBaseKey(key) !== chatId) continue;
+    terminal.dispose();
+    terminals.delete(key);
+  }
+}
+
 /**
  * Opens the thread's terminal (a draft's, with no `chatId`) with the agent's
  * sign-in command typed at the prompt, for the user to run. False when a

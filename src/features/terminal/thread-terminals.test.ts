@@ -2,7 +2,11 @@
 import { afterEach, expect, it, vi } from "vitest";
 import type { TerminalOpened } from "../../../shared/terminals";
 import { api } from "../../lib/api";
-import { closeTerminal, terminalFor } from "./thread-terminals";
+import {
+  closeTerminal,
+  forgetThreadTerminals,
+  terminalFor,
+} from "./thread-terminals";
 
 vi.mock("../../lib/api", () => ({
   api: {
@@ -66,4 +70,25 @@ it("sends a paste too big for one write in pieces, none of it lost", async () =>
   expect(writes.every((data) => data.length <= 1 << 20)).toBe(true);
   expect(writes.join("")).toBe(pasted);
   expect(writes[0].endsWith("a")).toBe(true);
+});
+
+it("lets go of a deleted thread's shells, each delete leaving none behind", () => {
+  const kept = [];
+  for (let round = 0; round < 5; round++) {
+    const chatId = `deleted-${round}`;
+    const shells = [
+      terminalFor("project", chatId),
+      terminalFor("project", chatId, "two"),
+    ];
+    for (const shell of shells) document.body.append(shell.element);
+    const disposes = shells.map((shell) => vi.spyOn(shell.term, "dispose"));
+
+    forgetThreadTerminals(chatId);
+
+    for (const dispose of disposes) expect(dispose).toHaveBeenCalledTimes(1);
+    for (const shell of shells) expect(shell.element.isConnected).toBe(false);
+    expect(terminalFor("project", chatId)).not.toBe(shells[0]);
+    kept.push(terminalFor("project", "other"));
+  }
+  expect(new Set(kept).size).toBe(1);
 });
