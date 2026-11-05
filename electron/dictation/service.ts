@@ -216,8 +216,7 @@ export class Dictation {
       if (notice.type === "busy") {
         this.busy = notice.busy;
         this.touch(!notice.busy);
-      }
-      else if (notice.type === "failed") {
+      } else if (notice.type === "failed") {
         // The page hears it over its port; this worker won't be reused.
         console.error("Dictation engine failed to load:", notice.message);
         this.broken = true;

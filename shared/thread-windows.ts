@@ -184,10 +184,7 @@ export function placeOnScreen(saved: Rect, displays: Rect[], fallback: Rect) {
   const titleBarOn = (d: Rect) =>
     across(d) >= Math.min(saved.width, 100) &&
     down(d, saved.y, saved.y + titleBarHeight) >= 10;
-  if (
-    displays.some((d) => visible(d) >= enough) &&
-    displays.some(titleBarOn)
-  )
+  if (displays.some((d) => visible(d) >= enough) && displays.some(titleBarOn))
     return saved;
   const width = Math.min(saved.width, fallback.width),
     height = Math.min(saved.height, fallback.height);
