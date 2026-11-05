@@ -124,6 +124,8 @@ export async function askCodexSide(
   const abort = () => void stop().then(settle);
   signal.addEventListener("abort", abort, { once: true });
   try {
+    // Called off while forking: abort came before its listener, so no turn may start.
+    if (signal.aborted) return { reply: null };
     const started = (await wire.request("turn/start", {
       threadId: forkId,
       input: [

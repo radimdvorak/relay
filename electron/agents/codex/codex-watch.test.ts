@@ -141,6 +141,30 @@ describe("askCodexSide", () => {
     expect(answer.reply).toBe("learn: x");
   });
 
+  it("starts no turn on a fork when the check was called off while forking", async () => {
+    const { wire, calls } = fakeServer([
+      ["turn/started", { turn: { id: "side-turn" } }],
+      ["item/completed", { item: { type: "agentMessage", text: "learn: x" } }],
+      ["turn/completed", { turn: { id: "side-turn", status: "completed" } }],
+    ]);
+    const stop = new AbortController();
+    const request = wire.request.bind(wire);
+    wire.request = async (method, params) => {
+      const answer = await request(method, params);
+      if (method === "thread/fork") stop.abort();
+      return answer;
+    };
+    const answer = await askCodexSide(
+      wire,
+      "thread",
+      settings,
+      "Is there one thing?",
+      stop.signal,
+    );
+    expect(calls.map((c) => c.method)).not.toContain("turn/start");
+    expect(answer.reply).toBeNull();
+  });
+
   it("stops a fork that starts a tool and drops what it says", async () => {
     const { wire, calls } = fakeServer([
       ["turn/started", { turn: { id: "side-turn" } }],
