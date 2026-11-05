@@ -133,7 +133,7 @@ const read = (c: Pick<RemoteChatSummary, "seenAt" | "updated"> | undefined) =>
 const FENCE = /(?<!`)(`{3,})[^\n`]*\n[\s\S]*?(?:\1|$)/g;
 
 // Neither part holds a bracket or paren of its own beyond one level of
-// parentheses in the target, as in https://en.wikipedia.org/wiki/Foo_(bar), so
+// parentheses in the target, as in https://example.com/wiki/Foo_(bar), so
 // an unclosed link stops at the next instead of rescanning the answer.
 const LINK_TARGET = String.raw`\((?:[^()]|\([^()]*\))*\)`;
 const IMAGE = new RegExp(String.raw`!\[([^[\]]*)\]${LINK_TARGET}`, "g");
