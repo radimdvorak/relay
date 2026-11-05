@@ -2052,8 +2052,12 @@ it("sends nothing to take over when the thread is taken back before its upload s
   await sender.handOff(thread.id, computerId);
   await sender.finished(thread.id);
   expect(tookBack).toBe(true);
-  expect((await laptop.chats.get(thread.id)).sentTo).toBeUndefined();
+  const after = await laptop.chats.get(thread.id);
+  expect(after.sentTo).toBeUndefined();
   expect(mini.chats.list(mini.projectId).filter((c) => c.cameFrom)).toEqual([]);
+  // What was uploaded anyway isn't left behind there.
+  const [{ id }] = after.abandonedHandoffs!;
+  expect(existsSync(join(mini.dir, "handoffs", id))).toBe(false);
 });
 
 it("adds a folder on the other computer as a project that lives there, and starts its threads there in that folder", async () => {

@@ -318,7 +318,12 @@ async function carry(
     await writeFile(json, JSON.stringify(thread), { mode: 0o600 });
     await upload(client, id, "thread", json);
     if (thread.git.bundle) await upload(client, id, "bundle", bundle);
-    if (!still()) return false;
+    if (!still()) {
+      // It let go of this handoff before the upload came, so it drops it again.
+      await client.call("handoffAbandoned", id).catch(() => {});
+      await rm(folder, { recursive: true, force: true });
+      return false;
+    }
     await client.call("receiveHandoff", id);
     return true;
   };
