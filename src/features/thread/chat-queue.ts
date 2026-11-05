@@ -23,8 +23,14 @@ export function moveQueued<T extends { input: { id: string } }>(
   };
 }
 
-/** The newest message queued in conversation `rootId`; see `conversationOf`. */
-export function newestQueued<T extends { input: I; created: number }, I>(
+/**
+ * The newest message queued in conversation `rootId`. A queued compaction
+ * isn't one: it has nothing to take back, and goes ahead of older messages.
+ */
+export function newestQueued<
+  T extends { input: I; created: number; compact?: boolean },
+  I,
+>(
   queue: T[],
   rootId: string | null,
   conversationOf: (input: I) => string | null,
@@ -32,6 +38,7 @@ export function newestQueued<T extends { input: I; created: number }, I>(
   let last: T | undefined;
   for (const queued of queue)
     if (
+      !queued.compact &&
       conversationOf(queued.input) === rootId &&
       (!last || queued.created >= last.created)
     )
