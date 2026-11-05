@@ -56,6 +56,14 @@ it("names no variable Codex's default shell environment policy drops", () => {
   expect(names.filter((name) => /KEY|SECRET|TOKEN/i.test(name))).toEqual([]);
 });
 
+it("passes its setting in the form git before 2.31 also reads", () => {
+  // Older git splits GIT_CONFIG_PARAMETERS into shell-quoted 'key=value'
+  // words and refuses every command on 'key'='value', which 2.31 added.
+  // Debian 11 and Ubuntu 20.04 servers still ship such a git.
+  const { GIT_CONFIG_PARAMETERS } = readOnlyGitEnv({});
+  expect(GIT_CONFIG_PARAMETERS).toMatch(/^'[^']+=[^']+'$/);
+});
+
 it("keeps settings the environment already passes to git", () => {
   const checkout = checkoutWithTrap(join(root, "ran"));
   const base = {

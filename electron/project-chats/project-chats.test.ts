@@ -322,7 +322,7 @@ it("keeps git in a Read only turn from opening a bare repository it finds", asyn
   const started = JSON.parse((await agentCalls()).trim().split("\n")[0]);
   expect(started.gitConfig).toEqual({
     GIT_CONFIG_PARAMETERS:
-      "'user.name'='Someone' 'safe.bareRepository'='explicit'",
+      "'user.name'='Someone' 'safe.bareRepository=explicit'",
   });
 });
 
