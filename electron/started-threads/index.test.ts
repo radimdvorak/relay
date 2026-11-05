@@ -2161,3 +2161,37 @@ test("a deep review's running reviewers don't use up the lead's started-thread l
   expect(resultText(result)).not.toMatch(/at most 6 may at once/);
   expect(result.isError).toBeFalsy();
 });
+
+test("a wait cancelled as the thread ends still leaves the end report to the lead", async () => {
+  const { lead, chats, child, sent, threads, api, end } = await startedChild();
+  child.running = true;
+  chats.get(lead.id)!.running = true;
+  const cancel = new AbortController();
+  const waiting = threads.handle(
+    lead.id,
+    "wait_for_threads",
+    { timeoutSeconds: 5 },
+    cancel.signal,
+  );
+  await tick();
+  // The wait's last read is in flight when the lead's call is cancelled.
+  let release = () => {};
+  const gate = new Promise<void>((r) => (release = r));
+  const statuses = api.statuses;
+  api.statuses = async (...args: Parameters<typeof statuses>) => {
+    await gate;
+    return statuses(...args);
+  };
+  cancel.abort();
+  await tick();
+  child.running = false;
+  end(child.id);
+  await tick();
+  release();
+  await waiting;
+  await tick();
+  // The cancelled wait never reached the lead, so only the report tells it.
+  expect(sent).toHaveLength(1);
+  expect(sent[0]!.id).toBe(lead.id);
+  expect(sent[0]!.input.body).toContain("Saved in artwork/.");
+});
