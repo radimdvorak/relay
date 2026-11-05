@@ -285,7 +285,7 @@ function commandsIn(line: string): ShellCommand[] | undefined {
   for (let i = 0; i < line.length; i++) {
     const c = line[i]!;
     const next = line[i + 1];
-    const startsWord = newWord;
+    const startsWord: boolean = newWord;
     newWord = c === " " || c === "\t";
     if (c === "\n" || c === ";") {
       endCommand();
