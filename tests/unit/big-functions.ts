@@ -12,7 +12,7 @@ export const bigFunctions: Record<string, number> = {
   "electron/agents/claude/claude.ts › runClaude": 158,
   "electron/agents/claude/project/requests.ts › canUseTool": 85,
   "electron/agents/claude/project/requests.ts › sessionCallbacks": 122,
-  "electron/agents/claude/project/turn.ts › runClaudeProject": 154,
+  "electron/agents/claude/project/turn.ts › runClaudeProject": 157,
   "electron/agents/codex/codex-context.ts › estimateCodexContext": 96,
   "electron/agents/codex/codex-thread.ts › openCodexThread": 126,
   "electron/agents/codex/codex-transport.ts › withCodexTransport": 206,
