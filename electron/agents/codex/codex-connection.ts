@@ -241,14 +241,20 @@ export async function acquireCodexConnection(
   key: string | undefined,
   executable: string,
   args: string[],
-  { cwd, readOnly = false }: { cwd: string; readOnly?: boolean },
+  {
+    cwd,
+    readOnly = false,
+    adopting = false,
+  }: { cwd: string; readOnly?: boolean; adopting?: boolean },
   account: { id: string; env: Record<string, string> },
 ) {
   // Another account needs an app server signed in as it, and Read only on or
-  // off a thread with other tools; the thread resumes there.
+  // off a thread with other tools; the thread resumes there. Picking up a
+  // turn a restart cut off gives it nothing new, so it stays where it runs.
   const live = key ? sessions.get(key) : undefined;
   const otherAccount = (live?.account ?? SYSTEM_ACCOUNT) !== account.id;
-  if (live && !live.busy && (otherAccount || live.readOnly !== readOnly))
+  const otherMode = !adopting && live?.readOnly !== readOnly;
+  if (live && !live.busy && (otherAccount || otherMode))
     await sessions.close(key!);
   // A thread's session runs in the host; helper jobs end with their turn.
   return sessions.acquire(key, async () => {
