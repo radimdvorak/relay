@@ -44,11 +44,7 @@ export async function runCodex(options: AgentOptions): Promise<string> {
     sessionKey,
     executable,
     appServerArgs(options, helper),
-    {
-      cwd: options.cwd,
-      readOnly: options.readOnly,
-      adopting: job.kind === "adopt",
-    },
+    options,
     {
       ...account,
       env: withWorktreeEnv(account.env, {

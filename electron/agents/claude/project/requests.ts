@@ -1,4 +1,4 @@
-import type { Options } from "@anthropic-ai/claude-agent-sdk";
+import type { Options, PermissionResult } from "@anthropic-ai/claude-agent-sdk";
 import type { HostedHandlers } from "../../../agent-host/client";
 import {
   SKIPPED_QUESTIONS,
@@ -44,6 +44,32 @@ async function promptNote(holder: Asker) {
     : {};
 }
 
+/** A reviewer, a Read only thread or a /btw changes nothing, unattended. */
+function readOnlyPermission(
+  tool: string,
+  input: Record<string, unknown>,
+): PermissionResult {
+  if (tool === "AskUserQuestion" || tool === "ExitPlanMode")
+    return {
+      behavior: "deny",
+      message:
+        "Nobody can answer this here. Decide on your own and keep going; ask in your answer if you must.",
+    };
+  // Claude Code runs the commands it knows only read without asking,
+  // so a command that gets here might change files.
+  if (claudeCommand(tool, input))
+    return {
+      behavior: "deny",
+      message:
+        "This thread only reads the code. Run only commands that read, and report what should change instead of changing files.",
+    };
+  // The read-only hook turns these down first; this holds should a
+  // session ever run without it.
+  const refusal = readOnlyRefusal(tool, input);
+  if (refusal) return { behavior: "deny", message: refusal };
+  return { behavior: "allow", updatedInput: input };
+}
+
 /** What Claude Code asks of Relay while a session runs, answered with the current turn's options. */
 export function sessionCallbacks(holder: Asker) {
   const promptSubmit = () => promptNote(holder);
@@ -54,28 +80,7 @@ export function sessionCallbacks(holder: Asker) {
   ) => {
     await holder.ready?.promise;
     const options = holder.options;
-    // A reviewer, a Read only thread or a /btw changes nothing, unattended.
-    if (options.readOnly) {
-      if (tool === "AskUserQuestion" || tool === "ExitPlanMode")
-        return {
-          behavior: "deny",
-          message:
-            "Nobody can answer this here. Decide on your own and keep going; ask in your answer if you must.",
-        };
-      // Claude Code runs the commands it knows only read without asking,
-      // so a command that gets here might change files.
-      if (claudeCommand(tool, input))
-        return {
-          behavior: "deny",
-          message:
-            "This thread only reads the code. Run only commands that read, and report what should change instead of changing files.",
-        };
-      // The read-only hook turns these down first; this holds should a
-      // session ever run without it.
-      const refusal = readOnlyRefusal(tool, input);
-      if (refusal) return { behavior: "deny", message: refusal };
-      return { behavior: "allow", updatedInput: input };
-    }
+    if (options.readOnly) return readOnlyPermission(tool, input);
     // Relay's own tools ask the user themselves where it matters (starting threads).
     if (tool.startsWith(`mcp__${RELAY_SERVER}__`))
       return { behavior: "allow", updatedInput: input };

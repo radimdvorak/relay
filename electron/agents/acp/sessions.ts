@@ -10,6 +10,7 @@ import { withWorktreeEnv } from "../worktree-env";
 import { hearCommands } from "./commands";
 import { AcpConnection, AcpRequestError } from "./connection";
 import type { AcpProfile, AcpProvider } from "./profiles";
+import type { AgentOptions } from "../types";
 import {
   ACP_VERSION,
   AUTH_REQUIRED,
@@ -344,6 +345,27 @@ export function detachAcp(profile: AcpProfile) {
 
 export function disposeAcp(profile: AcpProfile) {
   sessionsOf(profile).dispose();
+}
+
+/**
+ * The agent process a turn runs in. A Read only thread's starts with the
+ * profile's read-only environment; switching mode starts another.
+ */
+export async function acquireTurnAgent(
+  profile: AcpProfile,
+  options: AgentOptions,
+  key: string | undefined,
+) {
+  const readOnly = options.readOnly
+    ? await profile.readOnlyEnv?.(options.cwd)
+    : undefined;
+  if (readOnly?.warning)
+    options.onCommentary?.(`${profile.provider}-read-only`, readOnly.warning);
+  return acquireAcpAgent(profile, key, options.cwd, {
+    env: { ...options.env, ...readOnly?.env },
+    readOnly: !!options.readOnly,
+    adopting: options.job.kind === "adopt",
+  });
 }
 
 /**

@@ -140,21 +140,14 @@ export async function initialize(agent: MuseAgent) {
  */
 export async function acquireMuse(
   key: string | undefined,
-  cwd: string,
-  {
-    env,
-    ephemeral = false,
-    readOnly = false,
-    adopting = false,
-  }: {
-    env?: Record<string, string>;
-    ephemeral?: boolean;
-    readOnly?: boolean;
-    adopting?: boolean;
-  } = {},
+  turn: { cwd: string; env?: Record<string, string>; readOnly?: boolean; job?: { kind: string } },
+  ephemeral = false,
 ): Promise<MuseAgent> {
+  const { cwd, env } = turn;
+  const readOnly = !!turn.readOnly;
   const previous = key ? sessions.get(key) : undefined;
   // Picking up a turn a restart cut off gives it nothing new, so it stays where it runs.
+  const adopting = turn.job?.kind === "adopt";
   const otherMode = !!previous && !adopting && previous.readOnly !== readOnly;
   if (otherMode && !previous.busy) await sessions.close(key!);
   return sessions.acquire(key, async () => {
