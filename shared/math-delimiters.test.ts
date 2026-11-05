@@ -76,4 +76,16 @@ describe("normalizeMath", () => {
     ])
       expect(normalizeMath(normalizeMath(text))).toBe(normalizeMath(text));
   });
+
+  it("reads a long line of unclosed openers in linear time", () => {
+    for (const text of ["\\(".repeat(25_000), "\\[a".repeat(20_000)]) {
+      const started = performance.now();
+      expect(normalizeMath(text)).toBe(text);
+      expect(performance.now() - started).toBeLessThan(500);
+    }
+  });
+
+  it("pairs an opener with the closer after the last opener", () => {
+    expect(normalizeMath("a \\( b \\(x^2\\) c")).toBe("a \\( b $$x^2$$ c");
+  });
 });

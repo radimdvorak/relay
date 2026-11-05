@@ -120,11 +120,18 @@ const formulaLook = (tex: string) =>
       .replace(/\{\d+(?:,\d*)?\}/g, ""),
   );
 
+// A formula never holds its own opener, so an unclosed one stops looking at
+// the next; otherwise a long line of them takes quadratic time.
+const INLINE_PARENS = /\\\(((?:(?!\\\().)+?)\\\)/g;
+const INLINE_BRACKETS = /\\\[((?:(?!\\\[).)+?)\\\]/g;
+
+const trimmedTex = (tex: string) => tex.trim() || tex;
+
 function convertInline(text: string): string {
   const parens = text
-    .replace(/\\\(\s*(.+?)\s*\\\)/g, (_, tex: string) => `$$${tex}$$`)
-    .replace(/\\\[\s*(.+?)\s*\\\]/g, (all, tex: string) =>
-      formulaLook(tex) ? `$$${tex}$$` : all,
+    .replace(INLINE_PARENS, (_, tex: string) => `$$${trimmedTex(tex)}$$`)
+    .replace(INLINE_BRACKETS, (all, tex: string) =>
+      formulaLook(trimmedTex(tex)) ? `$$${trimmedTex(tex)}$$` : all,
     );
   return pandocDollars(parens);
 }
