@@ -7,7 +7,7 @@ import type {
 } from "../../shared/projects";
 import { linksInstructions, threadLinks } from "../../shared/projects";
 import { goalChanged } from "../../shared/goal";
-import { readOnlyGitEnv } from "../agents/read-only-git";
+import { readOnlyGitEnvIn } from "../agents/read-only-git";
 import type { AgentOptions } from "../agents/types";
 import { projectTasks } from "../terminal/tasks";
 import {
@@ -49,7 +49,9 @@ export async function turnOptions(
   const access = accessOf(core, t);
   const env = {
     ...(await host.env(chat)),
-    ...(access.options.readOnly ? readOnlyGitEnv(process.env) : {}),
+    ...(access.options.readOnly
+      ? await readOnlyGitEnvIn(root, process.env)
+      : {}),
   };
   const links = await linksOf(core, chat, root);
   const attached = [

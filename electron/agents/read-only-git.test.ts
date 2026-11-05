@@ -4,7 +4,7 @@ import { mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, expect, it } from "vitest";
-import { readOnlyGitEnv } from "./read-only-git";
+import { readOnlyGitEnv, readOnlyGitEnvIn } from "./read-only-git";
 
 let root: string;
 
@@ -98,6 +98,53 @@ it.skipIf(process.platform === "win32")(
       });
       expect(existsSync(marker), args.join(" ")).toBe(false);
     }
+  },
+);
+
+it.skipIf(process.platform === "win32")(
+  "keeps git reads from running the checkout's own filter and diff commands",
+  async () => {
+    const checkout = join(root, "filtered");
+    const ran = (what: string) => join(root, `ran-${what}`);
+    const git = (...args: string[]) =>
+      execFileSync("git", args, { cwd: checkout, stdio: "ignore" });
+    execFileSync("git", ["init", "--quiet", checkout]);
+    await writeFile(join(checkout, ".gitattributes"), "*.t diff=x filter=x\n");
+    await writeFile(join(checkout, "a.t"), "before\n");
+    git("add", "-A");
+    git("-c", "user.email=a@b", "-c", "user.name=a", "commit", "-qm", "one");
+    await writeFile(join(checkout, "a.t"), "after\n");
+    git("config", "filter.x.clean", `touch '${ran("clean")}'; cat`);
+    git("config", "filter.x.smudge", `touch '${ran("smudge")}'; cat`);
+    git("config", "filter.x.required", "true");
+    git("config", "diff.x.textconv", `touch '${ran("textconv")}'; cat`);
+    git("config", "diff.x.command", `touch '${ran("command")}'; true`);
+    git("config", "diff.external", `touch '${ran("external")}'; true`);
+    const env = {
+      ...process.env,
+      ...(await readOnlyGitEnvIn(checkout, process.env)),
+    };
+    // With its external command emptied, a plain diff fails rather than run one.
+    spawnSync("git", ["diff"], { cwd: checkout, env });
+    const reads = [
+      ["status", "--short"],
+      ["log", "-p", "--no-ext-diff"],
+      ["show", "--textconv", "HEAD:a.t"],
+      ["cat-file", "--textconv", "HEAD:a.t"],
+      ["cat-file", "--filters", "HEAD:a.t"],
+    ];
+    for (const args of reads) {
+      const read = spawnSync("git", args, { cwd: checkout, env });
+      expect(read.status, `${args.join(" ")}: ${read.stderr}`).toBe(0);
+    }
+    const shown = spawnSync("git", ["diff", "--no-ext-diff"], {
+      cwd: checkout,
+      env,
+      encoding: "utf8",
+    });
+    expect(shown.stdout).toContain("+after");
+    const markers = ["clean", "smudge", "textconv", "command", "external"];
+    expect(markers.filter((what) => existsSync(ran(what)))).toEqual([]);
   },
 );
 

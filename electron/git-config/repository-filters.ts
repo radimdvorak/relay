@@ -32,6 +32,45 @@ function configEntries(listed: string) {
   return entries;
 }
 
+/** The config keys matching `pattern`, each with the scope it came from. */
+async function configMatching(
+  file: string,
+  root: string,
+  env: NodeJS.ProcessEnv,
+  pattern: string,
+) {
+  const listed = await exec(
+    file,
+    ["-C", root, "config", "--show-scope", "-z", "--get-regexp", pattern],
+    { env, timeout: 15000 },
+  ).then(
+    ({ stdout }) => stdout,
+    // None set exits 1; config Git can't read fails the read itself too.
+    () => "",
+  );
+  return configEntries(listed);
+}
+
+/**
+ * Diff settings from the repository's own config that name a command: a
+ * driver's `textconv` or `command`, and `diff.external`.
+ */
+export async function foreignDiffCommandKeys(
+  file: string,
+  root: string,
+  env: NodeJS.ProcessEnv,
+) {
+  const entries = await configMatching(
+    file,
+    root,
+    env,
+    "^diff\\.(external|.*\\.(textconv|command))$",
+  );
+  return entries
+    .filter(({ scope }) => !ownScopes.has(scope))
+    .map(({ key }) => key);
+}
+
 /**
  * Filter keys that name a command Relay didn't vet. A filter from the
  * repository's own config (`.git/config`, a worktree's config, or a file
@@ -44,24 +83,12 @@ export async function foreignFilterKeys(
   root: string,
   env: NodeJS.ProcessEnv,
 ) {
-  const listed = await exec(
+  const entries = await configMatching(
     file,
-    [
-      "-C",
-      root,
-      "config",
-      "--show-scope",
-      "-z",
-      "--get-regexp",
-      "^(filter\\..*\\.(clean|smudge|process)|lfs\\.extension\\..*)$",
-    ],
-    { env, timeout: 15000 },
-  ).then(
-    ({ stdout }) => stdout,
-    // None set exits 1; config Git can't read fails the read itself too.
-    () => "",
+    root,
+    env,
+    "^(filter\\..*\\.(clean|smudge|process)|lfs\\.extension\\..*)$",
   );
-  const entries = configEntries(listed);
   const repositoryExtendsLfs = entries.some(
     ({ scope, key }) =>
       key.startsWith("lfs.extension.") && !ownScopes.has(scope),
