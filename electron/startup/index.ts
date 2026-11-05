@@ -45,6 +45,7 @@ import {
   prepareRelayTools,
   threadAgents,
 } from "../started-threads/serve";
+import { toolText } from "../relay-mcp/tools";
 import { projectTasks } from "../terminal/tasks";
 import { Schedules } from "../schedules";
 import { chatIsEmpty } from "../../shared/chat-activity";
@@ -393,6 +394,10 @@ export async function resumeThreads({
       agentProjects(projects, () => login.client, dir),
       { ...tools, agents: threadAgents(agentUpdates, aiSettings) },
     );
+  // A call a host carried over from the last run would wait for them forever.
+  else if (agentHosts)
+    agentHosts.tools = async () =>
+      toolText("Relay's tools are off: they couldn't start.", true);
   chats.armWakeups();
   schedules.armAll();
   void chats

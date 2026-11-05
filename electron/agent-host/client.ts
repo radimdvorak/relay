@@ -52,8 +52,8 @@ export type ToolHandler = (
 ) => Promise<ToolResult>;
 
 export class AgentHosts {
-  /** Who answers the agents' calls to Relay's tools, once Relay can. */
-  tools: ToolHandler | undefined;
+  private handler?: ToolHandler;
+  private waitingForTools = new Set<(handler: ToolHandler) => void>();
   private connections: HostConnection[] = [];
   private starting?: Promise<HostConnection>;
   private discovered?: Promise<FoundSession[]>;
@@ -70,6 +70,35 @@ export class AgentHosts {
       .update(readFileSync(script))
       .digest("hex")
       .slice(0, 16);
+  }
+
+  /** Who answers the agents' calls to Relay's tools, once Relay can. */
+  get tools() {
+    return this.handler;
+  }
+
+  set tools(handler: ToolHandler | undefined) {
+    this.handler = handler;
+    if (!handler) return;
+    for (const answer of this.waitingForTools) answer(handler);
+    this.waitingForTools.clear();
+  }
+
+  /** Relay's tools. A call carried over a restart, before Relay answers any, waits. */
+  private toolsFor(signal: AbortSignal): Promise<ToolHandler> {
+    if (this.handler) return Promise.resolve(this.handler);
+    return new Promise((resolve, reject) => {
+      const answer = (handler: ToolHandler) => {
+        signal.removeEventListener("abort", giveUp);
+        resolve(handler);
+      };
+      const giveUp = () => {
+        this.waitingForTools.delete(answer);
+        reject(signal.reason);
+      };
+      this.waitingForTools.add(answer);
+      signal.addEventListener("abort", giveUp, { once: true });
+    });
   }
 
   /** The hosts' process ids: the agents they start are Relay's own. */
@@ -103,7 +132,7 @@ export class AgentHosts {
           connection = await HostConnection.open(
             record,
             () => this.forget(connection),
-            () => this.tools,
+            (signal) => this.toolsFor(signal),
           );
         } catch (error) {
           console.warn("Could not reach an agent host:", error);
@@ -204,7 +233,7 @@ export class AgentHosts {
     connection = await HostConnection.open(
       record,
       () => this.forget(connection),
-      () => this.tools,
+      (signal) => this.toolsFor(signal),
     );
     this.connections.push(connection);
     return connection;
@@ -240,13 +269,13 @@ class HostConnection {
   private constructor(
     private socket: Socket,
     private onClose: () => void,
-    private tools: () => ToolHandler | undefined,
+    private tools: (signal: AbortSignal) => Promise<ToolHandler>,
   ) {}
 
   static open(
     record: HostRecord,
     onClose: () => void,
-    tools: () => ToolHandler | undefined,
+    tools: (signal: AbortSignal) => Promise<ToolHandler>,
   ) {
     return new Promise<HostConnection>((resolve, reject) => {
       if (record.protocol !== protocolVersion)
@@ -433,17 +462,15 @@ class HostConnection {
   private async tool(message: Extract<HostMessage, { t: "tool" }>) {
     const abort = new AbortController();
     this.toolCalls.set(message.id, abort);
-    const handler = this.tools();
     let result: ToolResult;
     try {
-      result = handler
-        ? await handler(
-            message.chatId,
-            message.name,
-            message.args,
-            abort.signal,
-          )
-        : toolText("Relay is still starting. Try again in a moment.", true);
+      const handler = await this.tools(abort.signal);
+      result = await handler(
+        message.chatId,
+        message.name,
+        message.args,
+        abort.signal,
+      );
     } catch (error) {
       result = toolText(errorMessage(error), true);
     } finally {

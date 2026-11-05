@@ -1,6 +1,13 @@
 import { afterAll, afterEach, beforeAll, expect, it } from "vitest";
 import { build } from "esbuild";
-import { mkdtemp, readdir, realpath, rm, writeFile } from "node:fs/promises";
+import {
+  mkdtemp,
+  readdir,
+  readFile,
+  realpath,
+  rm,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { AgentHosts } from "./client";
@@ -99,6 +106,42 @@ it("turns down a freshly started host that hangs up, without throwing in Relay",
     process.off("uncaughtException", onUncaught);
   }
   expect(uncaught.map(String)).toEqual([]);
+});
+
+it("holds a tool call carried over a restart until Relay can answer it", async () => {
+  // Like host.ts resendTools: a wait_for_threads call still waiting from the
+  // last Relay goes to the new one as soon as it says hello.
+  const answered = join(root, "answered.json");
+  const hosts = await fakeHost(
+    "carried-tool",
+    `
+    s.setEncoding("utf8");
+    let rest = "";
+    s.on("data", (chunk) => {
+      rest += chunk;
+      let i;
+      while ((i = rest.indexOf("\\n")) >= 0) {
+        const m = JSON.parse(rest.slice(0, i));
+        rest = rest.slice(i + 1);
+        if (m.t === "hello") {
+          s.write(JSON.stringify({ t: "welcome", version: "v", pid: process.pid, sessions: [] }) + "\\n");
+          s.write(JSON.stringify({ t: "tool", id: 1, chatId: "lead", name: "wait_for_threads", args: {} }) + "\\n");
+        }
+        if (m.t === "toolResult") writeFileSync(${JSON.stringify(answered)}, JSON.stringify(m.result));
+      }
+    });
+    `,
+  );
+  // Relay reattaches its sessions, reaching the host, before it can answer.
+  await hosts.ensure();
+  await new Promise((r) => setTimeout(r, 200));
+  hosts.tools = async () => ({
+    content: [{ type: "text", text: "threads done" }],
+  });
+
+  await expect
+    .poll(() => readFile(answered, "utf8").catch(() => ""))
+    .toContain("threads done");
 });
 
 it("ends a process taken back from a host that has since died", async () => {
