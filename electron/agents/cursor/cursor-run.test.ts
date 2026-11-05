@@ -296,7 +296,8 @@ describe("a Cursor turn", () => {
   });
 
   it("stops a turn stopped while its prompt was being prepared", async () => {
-    const { controller, options } = turn("[[slow]]");
+    // Stuck, so only Relay giving up on the worker can end it.
+    const { controller, options } = turn("[[stuck]]");
     vi.mocked(cursorPrompt).mockImplementationOnce(async (prompt) => {
       controller.abort();
       return prompt;
