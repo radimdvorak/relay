@@ -12,6 +12,8 @@ import { agentUpdateChecksQuery } from "../../updates/agent-updates";
 import { AccountRows } from "../../accounts/AccountRows";
 import { ModelField } from "../../agents/ModelField";
 import { useOfferedAgents } from "../../agents/registry-agents";
+import { helperProviders } from "../../../../shared/agents";
+import { offeredAgents } from "../../../../shared/agent-prefs";
 import { QuickSwitchSettings } from "../../quick-switch/QuickSwitchSettings";
 import { SettingsCard, Switch } from "../../../ui/SettingsCard";
 import { ErrorBox } from "../../../ui/ui";
@@ -136,10 +138,11 @@ const reviewRows: {
 
 function ReviewModelsCard({ ai }: { ai: AISave }) {
   const saved = useRecent(ai.savedAt, 2000);
-  const runnable = useOfferedAgents(
-    ...reviewRows.map((row) => ai.values?.[`${row.kind}Provider`]),
-  );
   const { values } = ai;
+  const keep = reviewRows.map((row) => values?.[`${row.kind}Provider`]);
+  const runnable = useOfferedAgents(...keep);
+  // Pull request steps and line questions run only on a helper agent.
+  const helpers = offeredAgents(helperProviders, values, keep);
   if (!values)
     return ai.settings.error ? (
       <ErrorBox
@@ -170,7 +173,7 @@ function ReviewModelsCard({ ai }: { ai: AISave }) {
                   label={row.label}
                   value={values[row.kind]}
                   provider={values[`${row.kind}Provider`]}
-                  providers={row.anyAgent ? runnable : undefined}
+                  providers={row.anyAgent ? runnable : helpers}
                   allowDefault={row.allowDefault}
                   onChange={(value, provider) =>
                     void ai.save({
