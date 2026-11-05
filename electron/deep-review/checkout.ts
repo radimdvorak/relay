@@ -397,7 +397,11 @@ export async function sweepReviewCheckouts(
  */
 export async function discardReviewCheckout(checkout: ReviewCheckout) {
   if (!checkout.made) return;
-  if (await dirty(checkout.path).catch(() => false)) return;
+  // A worktree Git can't read may hold edits too; a half-made folder can't.
+  const holdsEdits = await dirty(checkout.path).catch(() =>
+    exists(join(checkout.path, ".git")),
+  );
+  if (holdsEdits) return;
   await removeReviewCheckout(checkout.path).catch(async (e: unknown) => {
     if (await exists(join(checkout.path, ".git")))
       return console.warn(

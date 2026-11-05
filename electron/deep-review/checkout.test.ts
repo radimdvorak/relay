@@ -459,3 +459,18 @@ it("takes back a review's worktree a discard couldn't remove when the review sta
     branch,
   );
 });
+
+it("keeps a review's worktree Git can't read, edits and all", async () => {
+  const made = (await openReviewCheckout(repo, scope(), worktrees, "c17"))!;
+  await writeFile(join(made.path, "panel.ts"), "export const v = 9;\n");
+  const index = git(
+    made.path,
+    "rev-parse",
+    "--path-format=absolute",
+    "--git-path",
+    "index",
+  );
+  await writeFile(index, "not an index");
+  await discardReviewCheckout(made);
+  expect(await exists(join(made.path, "panel.ts"))).toBe(true);
+});
