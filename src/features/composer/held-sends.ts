@@ -31,8 +31,11 @@ import {
 import { quietly } from "./draft-sync";
 import { errorMessage } from "../../../shared/error-message";
 
-// A thread made for a draft whose message then failed takes the next try.
+// A thread made for a message that then failed takes that message's retry.
+// Phones send a retry under the message's id; a new message in the same
+// new-thread slot gets a thread of its own.
 const started = new Map<string, string>();
+const attemptOf = (key: string, send: ProjectChatSend) => `${key}\n${send.id}`;
 
 /** Answers the phones' sends the main process hands this page, and those it held while none was open. */
 export function followHeldSends() {
@@ -89,7 +92,8 @@ async function sendHeld({
   const value = attachments
     ? { ...withAttachments(base, attachments), id: send.id }
     : base;
-  let target = chatId ?? started.get(key);
+  const attempt = attemptOf(key, send);
+  let target = chatId ?? started.get(attempt);
   if (!target) {
     const projectId = newDraftProject(key);
     const project = (await api.projects()).find((p) => p.id === projectId);
@@ -107,10 +111,10 @@ async function sendHeld({
       scope.kind === "project" ? draftWorktreeStart(key, project) : undefined,
     );
     target = made.id;
-    started.set(key, target);
+    started.set(attempt, target);
   }
   await api.sendProjectChat(target, value);
-  started.delete(key);
+  started.delete(attempt);
   // What went goes; the computer drops the draft itself once this answers.
   const sent = new Set(
     outgoing.images.flatMap((image) => ("id" in image ? [image.id] : [])),

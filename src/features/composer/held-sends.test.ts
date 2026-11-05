@@ -63,8 +63,38 @@ it("sends a new thread's retry to the thread its failed first try made", async (
   followHeldSends();
   take({ id: "r1", key: "new:p1", send: send("m1") });
   await vi.waitFor(() => expect(results).toHaveLength(1));
-  take({ id: "r2", key: "new:p1", send: send("m2") });
+  // Phones retry a message under its own id.
+  take({ id: "r2", key: "new:p1", send: send("m1") });
   await vi.waitFor(() => expect(results).toHaveLength(2));
   expect(results[1]).toEqual({ chatId: "chat-1" });
   expect(api.createProjectChat).toHaveBeenCalledTimes(1);
+});
+
+it("starts a new thread for the slot's next message after a failed one was given up", async () => {
+  let take!: (request: HeldSend) => void;
+  api.onDraftSend.mockImplementation((listener) => {
+    take = listener;
+    return () => {};
+  });
+  let made = 0;
+  api.createProjectChat.mockImplementation(async () => ({
+    id: `chat-${++made}`,
+  }));
+  api.sendProjectChat
+    .mockRejectedValueOnce(new Error("Claude isn't signed in"))
+    .mockResolvedValueOnce(undefined);
+  const results: HeldSendResult[] = [];
+  api.finishDraftSend.mockImplementation((_id, result: HeldSendResult) =>
+    results.push(result),
+  );
+  followHeldSends();
+  take({ id: "r1", key: "new:p1", send: send("m1") });
+  await vi.waitFor(() => expect(results).toHaveLength(1));
+  take({ id: "r2", key: "new:p1", send: send("m2") });
+  await vi.waitFor(() => expect(results).toHaveLength(2));
+  expect(results[1]).toEqual({ chatId: "chat-2" });
+  expect(api.sendProjectChat).toHaveBeenLastCalledWith(
+    "chat-2",
+    expect.objectContaining({ id: "m2" }),
+  );
 });
