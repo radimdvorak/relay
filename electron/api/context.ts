@@ -115,10 +115,21 @@ export type Handlers = {
     ArgTypes<Parameters<Api[M]>, Parameters<Api[M]>>;
 };
 
-/** `value` as `schema` reads it; the error is the first problem in words, not Zod's JSON list of them. */
+/**
+ * `value` as `schema` reads it; the error is the first problem in words, not
+ * Zod's JSON list of them. A left-out argument is null or undefined depending
+ * on the way it came: JSON from a phone or a paired computer turns undefined
+ * into null, and phones leave trailing nulls out. Either one stands for the
+ * other where the schema takes only one.
+ */
 function parsed(schema: z.ZodType, value: unknown) {
   const result = schema.safeParse(value);
   if (result.success) return result.data;
+  const missing = value === null || value === undefined;
+  if (missing) {
+    const otherMissing = schema.safeParse(value === null ? undefined : null);
+    if (otherMissing.success) return otherMissing.data;
+  }
   throw new Error(result.error.issues[0]?.message ?? "Invalid request.");
 }
 
