@@ -2135,3 +2135,29 @@ test("message_lead is refused in a thread nothing started", async () => {
   expect(resultText(result)).toMatch(/No thread started this one/);
   expect(sent).toEqual([]);
 });
+
+test("a deep review's running reviewers don't use up the lead's started-thread limit", async () => {
+  const { lead, chats, api } = fakeChats();
+  lead.lastInput!.runtimeMode = "full-access";
+  const threads = new StartedThreads(api);
+  for (let i = 0; i < 6; i++) {
+    const reviewer = await api.create(
+      lead.projectId,
+      { kind: "project" },
+      "checkout",
+      {
+        startedBy: { chatId: lead.id, agent: "claude" },
+        startingAgent: "codex",
+      },
+    );
+    Object.assign(chats.get(reviewer.id)!, {
+      reviewer: { title: "Reviewer" },
+      running: true,
+    });
+  }
+  const result = await call(threads, lead.id, "start_threads", {
+    threads: [{ prompt: "Fix the build" }],
+  });
+  expect(resultText(result)).not.toMatch(/at most 6 may at once/);
+  expect(result.isError).toBeFalsy();
+});
