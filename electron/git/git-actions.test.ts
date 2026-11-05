@@ -1,10 +1,11 @@
 import { afterEach, beforeEach, expect, it } from "vitest";
-import { mkdir, mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { performGitAction } from "./git-actions";
 import { workingTree } from "./working-tree";
 import { gitIn } from "../../tests/fixtures/git-repo";
+import { writeLongPaths } from "../../tests/fixtures/long-paths";
 
 let root: string;
 const git = (...args: string[]) => gitIn(root, ...args);
@@ -20,17 +21,7 @@ beforeEach(async () => {
 afterEach(() => rm(root, { recursive: true, force: true }));
 
 it("commits more picked files than fit on a command line", async () => {
-  // Windows refuses a command line past 32k characters, macOS past 1MB:
-  // 1,500 paths of ~740 characters are past both.
-  const folder = Array.from({ length: 3 }, (_, i) => `${i}`.repeat(240)).join(
-    "/",
-  );
-  await mkdir(join(root, folder), { recursive: true });
-  const paths = Array.from(
-    { length: 1500 },
-    (_, i) => `${folder}/file-${String(i).padStart(4, "0")}.ts`,
-  );
-  await Promise.all(paths.map((p) => writeFile(join(root, p), p)));
+  const paths = await writeLongPaths(root);
   await writeFile(join(root, "left-out.ts"), "not picked");
   const tree = await workingTree(root);
 

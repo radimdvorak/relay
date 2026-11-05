@@ -15,7 +15,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { NotText, decodeText, textLimit } from "./working-files";
 import { ownFiles, type TurnClaim } from "./turn-claims";
-import { durable, noMonitor, run, snapshot } from "./turn-snapshots";
+import { checkOut, durable, noMonitor, run, snapshot } from "./turn-snapshots";
 import { digest } from "../util/hash";
 import { imageSides, type FileSource } from "./image-pair";
 import { videoSides } from "./video-pair";
@@ -466,7 +466,7 @@ async function applySteps(
       await run(root, ["read-tree", to], env);
       await deleteSteps(root, steps);
       for (const path of restore) await clearEmptyDirectory(root, path);
-      await run(root, ["checkout-index", "-f", "--", ...restore], env);
+      await checkOut(root, restore, env);
       for (const path of restore) {
         const mode = permissions.get(path);
         if (mode === undefined) continue;

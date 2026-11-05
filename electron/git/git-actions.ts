@@ -18,7 +18,7 @@ import {
   type WorkingTree,
 } from "../../shared/working-tree";
 import { chunks } from "../util/chunks";
-import { git, gitBytes } from "./git";
+import { git, gitBytes, nulSeparated, pathsFromStdin } from "./git";
 import {
   fetchUpstream,
   pushDestination,
@@ -96,7 +96,6 @@ const actions: { [K in Kind]: (act: Act<K>) => Promise<void> } = {
       const untracked = paths.filter(
         (p) => state.changes.find((c) => c.path === p)?.index === "?",
       );
-      // Paths go through stdin: hundreds of them overflow Windows' 32k command line.
       if (untracked.length)
         await git(root, ["add", ...pathsFromStdin], {
           input: nulSeparated(untracked),
@@ -140,9 +139,6 @@ const actions: { [K in Kind]: (act: Act<K>) => Promise<void> } = {
     return push(root, state.branch);
   },
 };
-
-const pathsFromStdin = ["--pathspec-from-file=-", "--pathspec-file-nul"];
-const nulSeparated = (paths: string[]) => paths.join("\0") + "\0";
 
 /** Commits, pulls and pushes need a branch checked out with nothing half done. */
 function onBranch(state: WorkingTree) {

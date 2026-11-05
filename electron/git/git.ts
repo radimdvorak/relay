@@ -278,6 +278,16 @@ function writeInput(stdin: Writable | null, input: string | undefined) {
   stdin.end(input);
 }
 
+/**
+ * Arguments that read pathspecs from `nulSeparated` input on stdin, for a
+ * command that takes `--pathspec-from-file`: hundreds of paths on the
+ * command line overflow Windows' 32k characters.
+ */
+export const pathsFromStdin = ["--pathspec-from-file=-", "--pathspec-file-nul"];
+
+export const nulSeparated = (paths: readonly string[]) =>
+  paths.join("\0") + "\0";
+
 /** Whether commit `a` is in `b`'s history. */
 export const isAncestor = (root: string, a: string, b: string) =>
   git(root, ["merge-base", "--is-ancestor", a, b]).then(

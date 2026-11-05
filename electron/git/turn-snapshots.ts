@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { copyFile, rm, stat, utimes } from "node:fs/promises";
-import { exitCodeOf, git } from "./git";
+import { exitCodeOf, git, nulSeparated } from "./git";
 
 // Snapshots of a whole worktree as commits outside any branch, made without
 // touching the real index.
@@ -25,6 +25,21 @@ export const noMonitor = ["-c", "core.fsmonitor=false"];
 /** Snapshots walk the whole worktree, so they get twice Git's usual time. */
 export const run = (root: string, args: string[], env?: NodeJS.ProcessEnv) =>
   git(root, args, { timeout: 30000, env });
+
+/**
+ * Writes `paths` out of the index `env` points Git at. They go through stdin:
+ * hundreds of them overflow Windows' 32k command line.
+ */
+export const checkOut = (
+  root: string,
+  paths: string[],
+  env: NodeJS.ProcessEnv,
+) =>
+  git(root, ["checkout-index", "-f", "-z", "--stdin"], {
+    timeout: 30000,
+    env,
+    input: nulSeparated(paths),
+  });
 
 /** Writes the worktree's tree, untracked files included, without touching the real index. */
 export async function snapshotTree(root: string) {

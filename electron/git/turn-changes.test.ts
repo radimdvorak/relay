@@ -14,6 +14,7 @@ import {
   turnRef,
 } from "./turn-changes";
 import { gitIn, tempRepo } from "../../tests/fixtures/git-repo";
+import { writeLongPaths } from "../../tests/fixtures/long-paths";
 
 let root: string;
 const git = (...args: string[]) => gitIn(root, ...args);
@@ -489,6 +490,22 @@ it("does not replace a directory containing later or ignored files, even when fo
     expect(await read("a.ts/build/later.txt")).toBe("keep me\n");
   }
 });
+
+it("rolls back a turn that deleted more files than fit on a command line", async () => {
+  const paths = await writeLongPaths(root);
+  git("add", ".");
+  git("commit", "-qm", "Many files");
+  const id = randomUUID();
+  const before = await startTurn(root, id);
+  await rm(join(root, "0".repeat(240)), { recursive: true });
+  await finishTurn(root, id, before!);
+
+  const result = await revertTurn(root, id, paths);
+
+  expect(result.conflicts).toEqual([]);
+  expect(await read(paths[1499]!)).toBe(paths[1499]);
+  expect(git("status", "--porcelain")).toBe("");
+}, 60000);
 
 it("rolls back one file and leaves the rest of the turn", async () => {
   const id = await agentTurn();
