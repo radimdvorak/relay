@@ -17,6 +17,7 @@ import { errorMessage } from "../../../shared/error-message";
 import { forkThreadSettings } from "../agents/composer-settings";
 import { fetchChat } from "../../lib/chat-events";
 import { useThreadDelete } from "./DeleteThreadDialog";
+import type { StartedFamilies } from "../../../shared/started-families";
 
 export type ThreadMenuAction =
   | { kind: "new" }
@@ -87,7 +88,7 @@ async function forkThread(qc: QueryClient, c: ChatSummary) {
  */
 export function useThreadActions({
   chatId,
-  cards,
+  families,
   projects,
   scratch,
   open,
@@ -97,8 +98,8 @@ export function useThreadActions({
 }: {
   /** The open thread. */
   chatId: string | undefined;
-  /** Activity's thread cards in order, started threads left under their lead. */
-  cards: ChatSummary[];
+  /** Activity's cards in order, started threads left under their lead. */
+  families: Pick<StartedFamilies<ChatSummary>, "top" | "headers">;
   projects: Map<string, Project>;
   /** Scratchpad's projects, whose threads share one list. */
   scratch: Set<string>;
@@ -207,7 +208,7 @@ export function useThreadActions({
    * comes back to `c` unless you went elsewhere meanwhile.
    */
   const moveOn = (c: ChatSummary) => {
-    const next = nextAfterSettle(cards, c);
+    const next = nextAfterSettle(families, c);
     const p = projects.get(c.projectId);
     if (next) open(next);
     else if (p) onNew(p);

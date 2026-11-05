@@ -2,6 +2,7 @@
 // it, where settling the open thread moves on to, and what the bell counts.
 import type { ChatSummary, ChatTriage } from "../../../shared/projects";
 import { setTriageState } from "../../../shared/chat-activity";
+import type { StartedFamilies } from "../../../shared/started-families";
 
 export { draftsFirst } from "../../../shared/chat-activity";
 
@@ -46,19 +47,26 @@ export function triaged(
 
 /**
  * What opens once the open thread `settled` is settled, among Activity's
- * `cards`: the card that takes its place, the one before when it was last, or
+ * cards: the card that takes its place, the one before when it was last, or
  * the first when it wasn't listed. A thread another started has no card of
- * its own and goes back to its lead's. Undefined when it was the only one.
+ * its own: it goes back to its lead's card, or stands where its settled
+ * lead's header does. Undefined when it was the only one.
  */
 export function nextAfterSettle(
-  cards: ChatSummary[],
+  { top, headers }: Pick<StartedFamilies<ChatSummary>, "top" | "headers">,
   settled: Pick<ChatSummary, "id" | "startedBy">,
 ) {
-  const lead = cards.find((c) => c.id === settled.startedBy?.chatId);
+  const leadId = settled.startedBy?.chatId;
+  const cards = top.filter((c) => !headers.has(c.id));
+  const lead = cards.find((c) => c.id === leadId);
   if (lead) return lead;
-  const index = cards.findIndex((c) => c.id === settled.id);
   const rest = cards.filter((c) => c.id !== settled.id);
-  return rest[Math.min(Math.max(index, 0), rest.length - 1)];
+  const place = top.findIndex((c) => c.id === settled.id || c.id === leadId);
+  if (place < 0) return rest[0];
+  const cardsAbove = top
+    .slice(0, place)
+    .filter((c) => !headers.has(c.id)).length;
+  return rest[Math.min(cardsAbove, rest.length - 1)];
 }
 
 /**
