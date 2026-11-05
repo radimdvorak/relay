@@ -13,7 +13,7 @@ import { api } from "../../lib/api";
 import { fileManager } from "../../lib/mod-key";
 
 /** The `/add-dir` option that opens the system's folder picker. */
-export const CHOOSE = ":choose";
+const CHOOSE = ":choose";
 
 /** What the query cache holds for a key, fetching it when it holds nothing. */
 type Cached = <T>(key: unknown[], load: () => Promise<T>) => T | undefined;
@@ -89,12 +89,41 @@ function pathOptions(
 }
 
 /**
- * What `/add-dir` offers for what's typed after it: folders beside the
- * project and other projects, or what's in a typed path so far. Listings are
- * fetched as the menu asks for them; `listed` goes up as each arrives.
+ * `/add-dir`: linking the folder typed or picked, and what it offers for
+ * what's typed after it: folders beside the project and other projects, or
+ * what's in a typed path so far. Listings are fetched as the menu asks for
+ * them; `listed` goes up as each arrives.
  */
-export function useAddDirOptions(project: Project, links: LinkedFolder[]) {
+export function useAddDir({
+  project,
+  links,
+  link,
+  onError,
+}: {
+  project: Project;
+  links: LinkedFolder[];
+  /** Links a folder; an error says why it can't. */
+  link: (path: string) => Promise<string | undefined>;
+  onError: (error: unknown) => void;
+}) {
   const { cached, listed } = useListing();
+
+  function command(
+    command: RelayCommand,
+    args: string,
+  ): boolean | string | undefined {
+    if (command !== "add-dir") return undefined;
+    const typed = args.trim();
+    if (!typed) return "Type a folder after /add-dir, or pick one.";
+    void (async () => {
+      const path =
+        typed === CHOOSE ? await api.chooseFolder("Link a folder") : typed;
+      if (!path) return;
+      const problem = await link(path);
+      if (problem) onError(new Error(problem));
+    })().catch(onError);
+    return true;
+  }
 
   function options(
     command: RelayCommand,
@@ -134,5 +163,5 @@ export function useAddDirOptions(project: Project, links: LinkedFolder[]) {
     ];
   }
 
-  return { options, listed };
+  return { options, command, listed };
 }

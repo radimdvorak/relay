@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import type { RelayCommand } from "../../../shared/commands";
 import {
   linkedFoldersSchema,
   linkName,
@@ -12,7 +11,7 @@ import {
 } from "../../../shared/projects";
 import { threadStorage } from "../../lib/thread-storage";
 import { api } from "../../lib/api";
-import { CHOOSE, useAddDirOptions } from "./useAddDirOptions";
+import { useAddDir } from "./useAddDir";
 
 export type ThreadLinks = ReturnType<typeof useThreadLinks>;
 
@@ -62,7 +61,6 @@ export function useThreadLinks({
     return next;
   }
   const links = threadLinks(project.settings?.links, own, project.path);
-  const { options, listed } = useAddDirOptions(project, links);
 
   async function save(next: LinkedFolder[]) {
     next = linkedFoldersSchema.parse(next);
@@ -103,13 +101,21 @@ export function useThreadLinks({
     await save([...current.current, { path: info.path, access: "read" }]);
   }
 
+  const linkFolder = (path: string) => enqueue(() => link(path));
+  const { options, command, listed } = useAddDir({
+    project,
+    links,
+    link: linkFolder,
+    onError,
+  });
+
   return {
     links,
     /** Goes up as each listing `/add-dir` asked for arrives. */
     listed,
     /** What the unsent thread is made with. */
     draftLinks: chat ? undefined : own,
-    link: (path: string) => enqueue(() => link(path)),
+    link: linkFolder,
     async change(path: string, next: Partial<LinkedFolder>) {
       await enqueue(() =>
         save(
@@ -151,19 +157,7 @@ export function useThreadLinks({
         }
       }),
     /** `/add-dir`, typed or picked from its menu. */
-    command(command: RelayCommand, args: string): boolean | string | undefined {
-      if (command !== "add-dir") return undefined;
-      const typed = args.trim();
-      if (!typed) return "Type a folder after /add-dir, or pick one.";
-      void (async () => {
-        const path =
-          typed === CHOOSE ? await api.chooseFolder("Link a folder") : typed;
-        if (!path) return;
-        const problem = await enqueue(() => link(path));
-        if (problem) onError(new Error(problem));
-      })().catch(onError);
-      return true;
-    },
+    command,
     /** What `/add-dir` offers for what's typed after it. */
     options,
   };
