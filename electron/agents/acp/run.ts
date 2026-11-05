@@ -1,20 +1,15 @@
 import { readFile } from "node:fs/promises";
 import { agentName } from "../../../shared/agents";
-import type { AgentDecision } from "../../../shared/agent-modes";
 import { signedOutError } from "../errors";
 import { CANCEL_GRACE_MS, cancelledByYou, TurnText } from "../turn-kit";
 import type { AgentOptions } from "../types";
-import { editKinds, lookKinds } from "./activity";
 import { AcpRequestError } from "./connection";
 import { answerElicitation } from "./elicitation";
 import type { AcpProfile } from "./profiles";
+import { permission } from "./permission";
 import {
-  cancelledPermission,
-  permissionRequestSchema,
-  picked,
   promptResultSchema,
   AUTH_REQUIRED,
-  type AcpPermissionRequest,
   type AcpPromptResult,
 } from "./protocol";
 import {
@@ -24,92 +19,8 @@ import {
   type McpServer,
 } from "./sessions";
 import { applySettings } from "./settings";
-import {
-  answerAntigravityQuestion,
-  antigravityHelper,
-  compactAntigravity,
-} from "../antigravity";
+import { antigravityHelper, compactAntigravity } from "../antigravity";
 import { AcpTurnEvents } from "./turn-events";
-
-const decisionKinds: Record<Exclude<AgentDecision, "cancel">, string> = {
-  accept: "allow_once",
-  acceptForSession: "allow_always",
-  decline: "reject_once",
-};
-
-/** The option of `kind` the agent offered, falling back along `kinds`. */
-const optionOf = (request: AcpPermissionRequest, ...kinds: string[]) =>
-  kinds
-    .map((kind) => request.options.find((o) => o.kind === kind))
-    .find(Boolean);
-
-/** What the user sees of a permission request: the command, or the files it changes. */
-function requestDetail(request: AcpPermissionRequest) {
-  const raw = request.toolCall.rawInput as Record<string, unknown> | undefined;
-  const command = typeof raw?.command === "string" ? raw.command : undefined;
-  const paths = [
-    ...(request.toolCall.content ?? []).flatMap((c) =>
-      c.type === "diff" && c.path ? [c.path] : [],
-    ),
-    ...(request.toolCall.locations ?? []).map((l) => l.path),
-  ];
-  return command ?? ([...new Set(paths)].join("\n") || undefined);
-}
-
-/**
- * Answers the agent's ask to run a tool. Relay's mode answers what it can;
- * the rest goes to the user, and with nobody to ask the tool is refused.
- */
-async function permission(
-  options: AgentOptions,
-  name: string,
-  raw: unknown,
-  signal: AbortSignal,
-  isAntigravity: boolean,
-) {
-  const request = permissionRequestSchema.parse(raw);
-  if (isAntigravity && request.toolCall.toolCallId?.startsWith("interaction_"))
-    return answerAntigravityQuestion(options, request, signal);
-  const kind = request.toolCall.kind ?? "other";
-  const allow = () => optionOf(request, "allow_once", "allow_always");
-  const reject = () => optionOf(request, "reject_once", "reject_always");
-  const answer = (option?: { optionId: string }) =>
-    option ? picked(option.optionId) : cancelledPermission;
-  if (signal.aborted) return cancelledPermission;
-  if (
-    options.job.kind === "helper" ||
-    (isAntigravity && options.job.kind === "compact")
-  )
-    return answer(reject());
-  if (options.readOnly && !lookKinds.has(kind)) return answer(reject());
-  if (options.runtimeMode === "full-access") return answer(allow());
-  if (options.runtimeMode === "auto-accept-edits" && editKinds.has(kind))
-    return answer(allow());
-  if (!options.onRequest || options.readOnly) return answer(reject());
-
-  const decisions = (
-    Object.keys(decisionKinds) as (keyof typeof decisionKinds)[]
-  ).filter((decision) =>
-    request.options.some((o) => o.kind === decisionKinds[decision]),
-  );
-  const response = await options
-    .onRequest(
-      {
-        kind: "approval",
-        title: request.toolCall.title || `${name} wants to run a tool`,
-        detail: requestDetail(request),
-        decisions,
-      },
-      signal,
-    )
-    .catch(() => undefined);
-  if (signal.aborted || response?.kind !== "approval")
-    return cancelledPermission;
-  if (response.decision === "cancel") return answer(reject());
-  return answer(
-    optionOf(request, decisionKinds[response.decision]) ?? reject(),
-  );
-}
 
 /** The turn's prompt as ACP content blocks. */
 async function promptBlocks(
