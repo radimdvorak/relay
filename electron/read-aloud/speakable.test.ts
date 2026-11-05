@@ -87,6 +87,12 @@ describe("spokenInline", () => {
     );
   });
 
+  it("ends inline code at its backtick even after a backslash", () => {
+    expect(spokenInline("Run `C:\\` then `D:\\Users\\` now.")).toBe(
+      "Run C:\\ then D:\\Users\\ now.",
+    );
+  });
+
   it("says file names in code by name, with the extension spelled out", () => {
     expect(
       spokenInline(
