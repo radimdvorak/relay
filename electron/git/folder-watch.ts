@@ -181,13 +181,28 @@ class EachFolder extends EventEmitter implements FolderWatch {
       // would watch all of it again under its name.
       if (!(await lstat(join(this.root, rel))).isDirectory()) return;
     } catch {
-      return this.drop(rel);
+      this.drop(rel);
+      if (!rel.includes("/")) await this.rootGone();
+      return;
     }
     // Deleted and made again, or another moved over it: the old watch sees
     // the folder that went.
     this.drop(rel);
     if (await this.options.skipLater?.(rel).catch(() => false)) return;
     await this.add(rel).catch((error: Error) => this.fail(error));
+  }
+
+  /**
+   * inotify watches a folder, not its path: once the root is deleted (a
+   * worktree removed), one made again in its place is never seen. Failing
+   * sends the owner to poll and watch again once it's back.
+   */
+  private async rootGone() {
+    const gone = await lstat(this.root).then(
+      () => false,
+      (error: unknown) => unreachable(error),
+    );
+    if (gone) this.fail(new Error(`${this.root} is gone`));
   }
 
   private fail(error: Error) {

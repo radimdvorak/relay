@@ -1,7 +1,7 @@
 import { afterEach, expect, it, vi } from "vitest";
 import { mkdir, mkdtemp, realpath, rm, rmdir, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { WatchPool, watchEachFolder } from "./folder-watch";
 
 /** Watches that change only when told to; real folders are read as they are. */
@@ -267,5 +267,21 @@ it("leaves a link to a folder that appears unwatched, as the first crawl does", 
   watches.made.find((w) => w.dir === join(temp, "b"))!.change("rename", "up");
   await new Promise((done) => setTimeout(done, 50));
   expect(watching()).toEqual(["", "/a", "/a/deep", "/b"]);
+  folders.close();
+});
+
+it("fails once its own folder goes, which Linux's watch won't see made again", async () => {
+  await open();
+  const folders = await watchEachFolder(
+    temp,
+    { skip: () => false, skipLater: async () => false, budget: 100 },
+    () => {},
+  );
+  const broke = vi.fn();
+  folders.on("error", broke);
+  await rm(temp, { recursive: true });
+  // inotify names the watched folder itself when it's deleted.
+  watches.made[0]!.change("rename", basename(temp));
+  await vi.waitFor(() => expect(broke).toHaveBeenCalled());
   folders.close();
 });
