@@ -14,10 +14,15 @@ import { menuAcceleratorsSchema } from "../../shared/shortcuts";
 import { setApplicationMenu } from "../app/menu";
 import { takes, type ApiContext, type Handlers } from "./context";
 
-/** A link from the window, opened by the OS: only web addresses. */
+/** A link from the window, opened by the OS: web and mail addresses only. */
 async function openOutside(url: string) {
   const u = new URL(url);
-  if (!["https:", "http:"].includes(u.protocol) || u.username || u.password)
+  // Markdown and the pages answers show link to mail as well as the web.
+  if (
+    !["https:", "http:", "mailto:"].includes(u.protocol) ||
+    u.username ||
+    u.password
+  )
     throw new Error("Unsupported URL.");
   await shell.openExternal(u.href);
 }
