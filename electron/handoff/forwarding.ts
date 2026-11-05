@@ -119,6 +119,8 @@ export class HandoffForwarding {
       throw new Error(
         `This thread's files are on ${sentTo.computer}; the copy here is as it left.`,
       );
+    if (method === "projectChatImage")
+      return this.sentImage(sentTo, args as [string, string], here);
     if (folderMethods.has(method) && !sentTo.folder) {
       if (here) return here();
       throw new Error(`${sentTo.computer} runs an older Relay.`);
@@ -256,6 +258,31 @@ export class HandoffForwarding {
         ? projectChatSendSchema.parse(args[1])
         : undefined,
     );
+  }
+
+  /**
+   * A sent image of the thread, from here once it was fetched: the computer
+   * the thread is live on saved it, and the link there can drop.
+   */
+  private async sentImage(
+    sentTo: NonNullable<ChatSummary["sentTo"]>,
+    args: [chatId: string, imageId: string],
+    here?: () => unknown,
+  ) {
+    const kept = await Promise.resolve(here?.()).catch(() => undefined);
+    if (typeof kept === "string") return kept;
+    const image = await this.callThere(
+      sentTo.computerId,
+      sentTo.id,
+      "projectChatImage",
+      args,
+    );
+    if (typeof image !== "string")
+      throw new Error(`${sentTo.computer} sent the image back unreadable.`);
+    await this.chats.files
+      .keepImage(...args, image)
+      .catch((e) => console.warn("A thread's image from there wasn't kept:", e));
+    return image;
   }
 
   /**

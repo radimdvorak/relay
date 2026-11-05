@@ -20,7 +20,8 @@ import {
 import { worktreeExists } from "../git/worktrees";
 import { linkedFileOnDisk } from "../platform/msys-path";
 import type { ChatCore } from "./core";
-import { imageFileData } from "./images";
+import { writeFileAtomic } from "../util/atomic-write";
+import { imageFileData, imageMimeType } from "./images";
 import type { ThreadWorktrees } from "./worktrees";
 
 const exists = (path: string) =>
@@ -40,12 +41,34 @@ export class TurnFiles {
   ) {}
 
   async image(chatId: string, imageId: string): Promise<string> {
+    const image = await this.sentImage(chatId, imageId);
+    return this.core.storage.image(chatId, image);
+  }
+
+  /**
+   * Saves here a sent image of a thread live on another computer, as that
+   * computer gave it, so it still shows while the link to it is down.
+   */
+  async keepImage(chatId: string, imageId: string, dataUrl: string) {
+    const image = await this.sentImage(chatId, imageId);
+    const bytes = Buffer.from(
+      dataUrl.slice(dataUrl.indexOf(",") + 1),
+      "base64",
+    );
+    if (imageMimeType(bytes) !== image.mimeType)
+      throw new Error("The image isn't the screenshot this message names.");
+    await writeFileAtomic(this.core.storage.imagePath(chatId, image), bytes, {
+      mkdir: true,
+    });
+  }
+
+  private async sentImage(chatId: string, imageId: string) {
     const chat = await this.core.storage.load(chatId);
     const image = chat.messages
       .flatMap((message) => message.images ?? [])
       .find((item) => item.id === imageId);
     if (!image) throw new Error("Screenshot not found in this conversation.");
-    return this.core.storage.image(chatId, image);
+    return image;
   }
 
   /** Only a path the turn itself read or its answer shows, so the renderer can't reach any other file on disk. */

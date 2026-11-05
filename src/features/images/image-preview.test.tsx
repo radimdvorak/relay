@@ -4,6 +4,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   AnswerImage,
+  ImageThumbnail,
   imageQuery,
   useWorkingImages,
   type PreviewImage,
@@ -103,5 +104,24 @@ it("offers retry instead of silently dropping an embedded image that fails to lo
   );
   expect(markup).toContain("This image couldn&#x27;t load.");
   expect(markup).toContain("Retry image");
+  client.clear();
+});
+
+it("keeps a sent image's tile with Retry when it fails, but drops a missing one the agent read", async () => {
+  const client = new QueryClient();
+  await client.query({ ...imageQuery(missing), retry: false }).catch(() => {});
+  const tile = (hideWhenMissing: boolean) =>
+    renderToStaticMarkup(
+      <QueryClientProvider client={client}>
+        <ImageThumbnail
+          image={missing}
+          onOpen={() => {}}
+          hideWhenMissing={hideWhenMissing}
+        />
+      </QueryClientProvider>,
+    );
+  expect(tile(false)).toContain("Couldn&#x27;t load");
+  expect(tile(false)).toContain("Retry");
+  expect(tile(true)).toBe("");
   client.clear();
 });
