@@ -10,6 +10,7 @@ import {
   devopsKey,
   useClockifyProjects,
   useDevOpsFields,
+  useSetPluginEnabled,
 } from "./plugins";
 
 const mocks = vi.hoisted(() => ({
@@ -17,6 +18,7 @@ const mocks = vi.hoisted(() => ({
   status: vi.fn(),
   devopsStatus: vi.fn(),
   fields: vi.fn(),
+  setEnabled: vi.fn(),
 }));
 
 vi.mock("../../lib/api", () => ({
@@ -25,6 +27,7 @@ vi.mock("../../lib/api", () => ({
     clockifyStatus: mocks.status,
     devopsStatus: mocks.devopsStatus,
     devopsFields: mocks.fields,
+    setPluginEnabled: mocks.setEnabled,
   },
 }));
 
@@ -122,4 +125,29 @@ it("lists the fields of the organization now saved", async () => {
   await act(async () => client.setQueryData(devopsKey, statusAt("fabrikam")));
   await settle();
   expect(fields).toEqual(["Team of fabrikam"]);
+});
+
+it("puts the switch back and says why when turning a plugin on fails", async () => {
+  let setEnabled: ReturnType<typeof useSetPluginEnabled> | undefined;
+  function Toggle() {
+    setEnabled = useSetPluginEnabled();
+    return null;
+  }
+  mocks.setEnabled.mockRejectedValue(new Error("Couldn't save settings.json"));
+  client.setQueryData(["plugins"], { clockify: false, devops: false });
+  await act(async () =>
+    root.render(
+      <QueryClientProvider client={client}>
+        <Toggle />
+      </QueryClientProvider>,
+    ),
+  );
+
+  await expect(setEnabled!("clockify", true)).rejects.toThrow(
+    "Couldn't save settings.json",
+  );
+  expect(client.getQueryData(["plugins"])).toEqual({
+    clockify: false,
+    devops: false,
+  });
 });
