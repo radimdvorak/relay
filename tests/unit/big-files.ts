@@ -9,7 +9,6 @@ export const bigFiles: Record<string, number> = {
   "electron/agents/provider-usage.ts": 544,
   "electron/app/updater.ts": 501,
   "electron/bug-report/service.ts": 724,
-  "electron/checks/service.ts": 651,
   "electron/git/turn-changes.ts": 743,
   "electron/handoff/receiver.ts": 700,
   "electron/main.ts": 672,

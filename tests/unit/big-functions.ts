@@ -43,7 +43,6 @@ export const bigFunctions: Record<string, number> = {
   "electron/app/menu.ts › setApplicationMenu": 104,
   "electron/app/window.ts › build": 121,
   "electron/checks/detect.ts › detectProject": 98,
-  "electron/checks/service.ts › launch": 210,
   "electron/deep-review/scope.ts › resolveScope": 116,
   "electron/dictation/apple.ts › serveAppleSpeech": 83,
   "electron/dictation/parakeet.ts › loadParakeet": 150,
