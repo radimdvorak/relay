@@ -238,17 +238,17 @@ export async function serviceHome(kind: ServiceKind) {
     return /^env\("RELAY_HOME"\) = "((?:[^"]|"")*)"\r?$/m
       .exec(text)?.[1]
       ?.replace(/""/g, '"');
-  const found =
-    kind === "launchd"
-      ? /<key>RELAY_HOME<\/key>\s*<string>([^<]*)<\/string>/.exec(text)?.[1]
-      : /^Environment="RELAY_HOME=(.*)"$/m.exec(text)?.[1];
-  return found
+  if (kind === "systemd")
+    // Undoes unitQuote in one pass, so an escape never reads another's output.
+    return /^Environment="RELAY_HOME=(.*)"$/m
+      .exec(text)?.[1]
+      ?.replace(/\\(["\\])|%%/g, (_, escaped?: string) => escaped ?? "%");
+  return /<key>RELAY_HOME<\/key>\s*<string>([^<]*)<\/string>/
+    .exec(text)?.[1]
     ?.replace(/&quot;/g, '"')
     .replace(/&lt;/g, "<")
     .replace(/&gt;/g, ">")
-    .replace(/&amp;/g, "&")
-    .replace(/\\"/g, '"')
-    .replace(/\\\\/g, "\\");
+    .replace(/&amp;/g, "&");
 }
 
 const uid = () => userInfo().uid;
