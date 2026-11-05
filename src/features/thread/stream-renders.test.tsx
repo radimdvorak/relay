@@ -130,7 +130,7 @@ vi.mock("./UserMessage", async (importOriginal) => {
   };
 });
 
-import { act } from "react";
+import { act, createRef } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type {
@@ -140,6 +140,7 @@ import type {
   ProjectChat as ProjectChatData,
 } from "../../../shared/projects";
 import { chatKey } from "../../lib/chat-events";
+import type { ComposerControls } from "../composer/ProjectComposer";
 import { ProjectChat } from "./ProjectChat";
 
 (
@@ -190,6 +191,7 @@ const opening = "Looking into it. ".repeat(30);
 
 let root: Root | undefined;
 let container: HTMLElement | undefined;
+const composer = createRef<ComposerControls>();
 
 afterEach(() => {
   act(() => root?.unmount());
@@ -241,6 +243,7 @@ async function openStreamingThread() {
           onProjectSettings={noop}
           opens={{ onOpenCode: noop, onOpenFile: noop, onOpenTurnDiff: noop }}
           viewing={{ path: null, viewed: 0, total: 0 }}
+          ref={composer}
         />
       </QueryClientProvider>,
     );
@@ -289,11 +292,20 @@ it("doesn't measure the timeline again while its turns read the same", async () 
   expect(watched.get("thread-message-column") ?? 0).toBe(0);
 });
 
-// The composer and the controls around it still render on every piece:
-// ProjectChat reads the whole thread and hands them fresh objects. This may
-// shrink, never grow; lower it when you cut renders.
-it("renders at most 93 components a streamed piece", async () => {
+it("leaves the draft and the composer's controls alone", async () => {
+  await streamThreePieces();
+  expect(rendered.get("ComposerBody") ?? 0).toBe(0);
+  expect(rendered.get("ComposerPromptInput") ?? 0).toBe(0);
+  expect(rendered.get("ComposerToolbar") ?? 0).toBe(0);
+  // Through the memo, the window still reaches it.
+  expect(composer.current?.focus).toBeTypeOf("function");
+});
+
+// The composer's slots, the controls around it, still render on every
+// piece: ProjectChat reads the whole thread and hands them fresh objects.
+// This may shrink, never grow; lower it when you cut renders.
+it("renders at most 71 components a streamed piece", async () => {
   await streamThreePieces();
   const total = [...rendered.values()].reduce((sum, n) => sum + n, 0);
-  expect(total / 3).toBeLessThanOrEqual(93);
+  expect(total / 3).toBeLessThanOrEqual(71);
 });
