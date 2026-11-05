@@ -191,3 +191,27 @@ it("clones through the receiving service with the chosen folder and forwards set
   );
   expect(clone).toHaveBeenCalledTimes(1);
 });
+
+it("leaves a trailing left-out argument out of the call, which JSON would send as null", async () => {
+  // MergeSheet's projectMergePlan(where, undefined); an older Relay there refuses the null.
+  const call = vi.fn(async (..._: unknown[]) => ({}));
+  const computers = {
+    onEvent: () => {},
+    onOnline: () => {},
+    get: () => ({ id: "pc", name: "Studio" }),
+    status: () => "online",
+    list: () => [{ id: "pc", name: "Studio", status: "online" }],
+    asleep: () => false,
+    connected: async () => ({ call }),
+  } as unknown as Computers;
+  const projects = {
+    get: () => ({
+      id: "p",
+      computer: { id: "pc", name: "Studio", projectId: "there" },
+    }),
+  } as unknown as Projects;
+  const remote = new RemoteProjects(computers, projects);
+  await remote.forward("projectMergePlan", ["p", undefined], () => {});
+  const args = call.mock.calls[0]?.[3];
+  expect(JSON.parse(JSON.stringify(args))).toEqual(["p"]);
+});

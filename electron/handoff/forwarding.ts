@@ -1,4 +1,5 @@
 import {
+  forwardedArgs,
   handoffChatMethods,
   handoffFolderMethods,
   handoffHereOnlyMethods,
@@ -274,7 +275,7 @@ export class HandoffForwarding {
       method as HandoffMethod,
       send
         ? [args[0], await sendFor(this.infos, computerId, client, send)]
-        : args,
+        : forwardedArgs(args),
     );
   }
 
