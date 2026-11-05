@@ -71,6 +71,7 @@ import dev.relay.android.ui.theme.resolveColors
 import dev.relay.android.ui.theme.withContrast
 import androidx.compose.foundation.isSystemInDarkTheme
 import kotlinx.coroutines.channels.ReceiveChannel
+import kotlinx.coroutines.flow.first
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 
@@ -145,7 +146,13 @@ fun RelayRoot(container: AppContainer, links: ReceiveChannel<DeepLink>, crash: C
             for (link in links) {
                 val route = link.route
                 // A notification posted before a switch: its thread is on the computer it names.
-                if (link.computer != null && !remote.switchTo(link.computer)) continue
+                if (link.computer != null) {
+                    remote.ready.first { it }
+                    val leaving = remote.active.value != link.computer
+                    if (!remote.switchTo(link.computer)) continue
+                    // Whatever is open belongs to the computer being left.
+                    if (leaving) navigator.home()
+                }
                 if (navigator.stack.lastOrNull() != route) {
                     focus.clearFocus()
                     keyboard?.hide()
