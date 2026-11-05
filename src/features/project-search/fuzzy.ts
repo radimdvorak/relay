@@ -227,16 +227,19 @@ function scorePath(
 }
 
 /**
- * `path` in lower case, character for character: a character whose lower
- * case is longer ("İ" is "i" and a combining dot) stays as it is, so a
- * position in the copy is the same position in the path.
+ * `text` in lower case, character for character, so a position in the copy
+ * is the same position in the text. A character whose lower case is longer
+ * keeps only its first letter ("İ" is "i" and a combining dot, so "i"), the
+ * same for a path and a query.
  */
-function lowerInPlace(path: string) {
-  const lower = path.toLowerCase();
-  if (lower.length === path.length) return lower;
-  return path.replace(/[^]/gu, (c) => {
+function lowerInPlace(text: string) {
+  const lower = text.toLowerCase();
+  if (lower.length === text.length) return lower;
+  return text.replace(/[^]/gu, (c) => {
     const low = c.toLowerCase();
-    return low.length === c.length ? low : c;
+    if (low.length === c.length) return low;
+    const first = String.fromCodePoint(low.codePointAt(0)!);
+    return first.length === c.length ? first : c;
   });
 }
 
@@ -252,7 +255,7 @@ export class PathIndex {
   rank(text: string, limit = 100): FuzzyMatch[] {
     const query = text.replace(/\\/g, "/").replace(/\s+/g, "");
     if (!query) return [];
-    const lowerQuery = query.toLowerCase();
+    const lowerQuery = lowerInPlace(query);
     const found: FuzzyMatch[] = [];
     for (let i = 0; i < this.paths.length; i++) {
       const hit = scorePath(lowerQuery, query, this.paths[i], this.lower[i]);

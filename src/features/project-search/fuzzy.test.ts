@@ -95,6 +95,15 @@ describe("PathIndex.rank", () => {
     const [hit] = new PathIndex(["İİ/notes.md"]).rank("notes");
     expect(hit.indices.map((i) => hit.path[i]).join("")).toBe("notes");
   });
+
+  it("finds a name with İ typed either way", () => {
+    const index = new PathIndex(["src/İstanbul.ts", "src/other.ts"]);
+    for (const query of ["İstan", "istan"]) {
+      const [hit] = index.rank(query);
+      expect(hit?.path, query).toBe("src/İstanbul.ts");
+      expect(hit.indices.map((i) => hit.path[i]).join("")).toBe("İstan");
+    }
+  });
 });
 
 describe("parseFileQuery", () => {
