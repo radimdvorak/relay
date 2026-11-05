@@ -103,3 +103,20 @@ it("leaves no unit behind where this user has no systemd to load it", async () =
   // Else every `relay start` after goes to systemctl too, and fails the same way.
   expect(installedService()).toBeNull();
 });
+
+it("keeps the unit set up before when this session can't reach systemd", async () => {
+  const spec = await fixture();
+  const file = serviceFile("systemd");
+  const working = systemdService({
+    ...spec,
+    home: join(mock.home, "old-home"),
+  });
+  await mkdir(dirname(file), { recursive: true });
+  await writeFile(file, working);
+  mock.noUserManager = true;
+  await expect(installService(spec)).rejects.toThrow(
+    "Failed to connect to bus",
+  );
+  // It still starts Relay at boot, where systemd runs for this user.
+  expect(await readFile(file, "utf8")).toBe(working);
+});

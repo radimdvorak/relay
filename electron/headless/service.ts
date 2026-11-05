@@ -295,13 +295,16 @@ export async function installService(spec: ServiceSpec) {
       }
     throw new Error(`launchd wouldn't load Relay: ${message(last)}`);
   }
+  const before = await readFile(file, "utf8").catch(() => undefined);
   await writeFile(file, systemdService(spec));
   await systemctl(["daemon-reload"]).catch(async (e) => {
-    // No systemd for this user to load it; a unit left behind would send
-    // every `relay start` to systemctl too.
-    await rm(file, { force: true });
+    // No systemd for this user here, `sudo -u` say. A new unit left behind
+    // would send every `relay start` to systemctl too; one set up before,
+    // from a login session, still starts Relay at boot.
+    if (before === undefined) await rm(file, { force: true });
+    else await writeFile(file, before);
     throw new Error(
-      `systemd wouldn't load Relay for this user (${message(e)}). Set it up with relay setup --no-service, then run relay start after each restart.`,
+      `systemd wouldn't load Relay for this user (${message(e)}). Run this from a login session, or set Relay up with relay setup --no-service and run relay start after each restart.`,
     );
   });
   // Enabling an active unit does not apply a changed home or executable.
