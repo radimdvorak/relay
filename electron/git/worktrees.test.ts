@@ -829,6 +829,23 @@ it("moves a new worktree to the title's folder and branch", async () => {
   expect(await retitleWorktree(root, named, "Other")).toBeUndefined();
 });
 
+it("names a worktree past a branch under its relay/… name", async () => {
+  git(root, "branch", "relay/split-the-store/v2");
+  git(root, "branch", "relay/wait-for-the-title/v2");
+
+  const worktree = await made();
+  expect(worktree.branch).toBe("relay/split-the-store-2");
+  expect(await retitleWorktree(root, worktree, "Wait for the title")).toEqual({
+    path: join(dirname(worktree.path), "wait-for-the-title-2"),
+    branch: "relay/wait-for-the-title-2",
+  });
+});
+
+it("leaves it to Git to refuse when a branch named relay takes every name", async () => {
+  git(root, "branch", "relay");
+  await expect(made()).rejects.toThrow("cannot lock ref");
+});
+
 it("checks out a kept user-named branch again, and remakes a removed one on its name", async () => {
   const worktree: ChatWorktree = await createWorktree(root, dir, "Store", {
     named: "feature/store",
