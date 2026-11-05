@@ -16,6 +16,31 @@ export async function giteaDefaultBranch(client: Gitea, repo: CiRepo) {
   return branch;
 }
 
+/** Statuses a page; Gitea serves 30 by default and at most 50 unless its admin raised it. */
+const STATUS_PAGE = 50;
+/** A workflow matrix rarely reaches this many jobs on one commit. */
+const STATUS_PAGES = 10;
+
+/**
+ * The latest status of every context on a commit. Gitea pages the combined
+ * status, newest first, so a job that failed early sits past the first page.
+ */
+async function commitStatuses(client: Gitea, repo: CiRepo, sha: string) {
+  const all: CommitStatus[] = [];
+  for (let page = 1; page <= STATUS_PAGES; page++) {
+    const { data, headers } = await client.request<{
+      statuses: CommitStatus[] | null;
+    }>(
+      `${client.repo(repo)}/commits/${sha}/status?limit=${STATUS_PAGE}&page=${page}`,
+    );
+    const found = data.statuses ?? [];
+    all.push(...found);
+    const total = Number(headers.get("x-total-count") ?? all.length);
+    if (!found.length || all.length >= total) break;
+  }
+  return all;
+}
+
 export async function readGitea(
   client: Gitea,
   repo: CiRepo,
@@ -37,12 +62,8 @@ export async function readGitea(
     if (e instanceof ApiError && e.status === 404) return null;
     throw e;
   }
-  const { statuses } = (
-    await client.request<{ statuses: CommitStatus[] | null }>(
-      `${client.repo(repo)}/commits/${head.id}/status`,
-    )
-  ).data;
-  if (!statuses?.length) return null;
+  const statuses = await commitStatuses(client, repo, head.id);
+  if (!statuses.length) return null;
   return {
     commit: {
       sha: head.id,
