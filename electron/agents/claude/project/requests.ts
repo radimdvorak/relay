@@ -7,6 +7,7 @@ import {
 } from "../../../../shared/agent-modes";
 import type { ClaudeRunOptions } from "./config";
 import { RELAY_SERVER } from "../../../relay-mcp";
+import { readOnlyRefusal } from "../../../agent-host/read-only-tools";
 import { ANSWER_LIMIT } from "../../turn-kit";
 import { sideInstructions } from "../../instructions";
 import { claudeCommand } from "../../activity";
@@ -69,6 +70,10 @@ export function sessionCallbacks(holder: Asker) {
           message:
             "This thread only reads the code. Run only commands that read, and report what should change instead of changing files.",
         };
+      // The read-only hook turns these down first; this holds should a
+      // session ever run without it.
+      const refusal = readOnlyRefusal(tool, input);
+      if (refusal) return { behavior: "deny", message: refusal };
       return { behavior: "allow", updatedInput: input };
     }
     // Relay's own tools ask the user themselves where it matters (starting threads).
