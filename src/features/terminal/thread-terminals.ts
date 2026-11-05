@@ -6,6 +6,7 @@ import {
   draftTerminalKey,
   terminalBaseKey,
   terminalSlotKey,
+  terminalWrites,
   type TerminalEvent,
 } from "../../../shared/terminals";
 import type { AgentProvider } from "../../../shared/agents";
@@ -87,8 +88,7 @@ export class ThreadTerminal {
         ),
     );
     this.term.onData((data) => {
-      if (this.status === "running")
-        void api.writeTerminal(this.key, data).catch(() => {});
+      if (this.status === "running") this.send(data);
       else if (this.status === "starting") this.typed += data;
       else if (this.status === "exited" && data.includes("\r")) {
         this.term.write("\r\n");
@@ -131,6 +131,12 @@ export class ThreadTerminal {
     });
   }
 
+  /** Types `data` into the shell; a long paste goes in several writes. */
+  private send(data: string) {
+    for (const write of terminalWrites(data))
+      void api.writeTerminal(this.key, write).catch(() => {});
+  }
+
   async start(fresh = false) {
     if (this.status === "starting") return;
     this.status = "starting";
@@ -159,8 +165,7 @@ export class ThreadTerminal {
           .resizeTerminal(this.key, this.term.cols, this.term.rows)
           .catch(() => {});
       for (const data of this.early.splice(0)) this.output(data);
-      if (this.typed && opened.exitCode === undefined)
-        void api.writeTerminal(this.key, this.typed).catch(() => {});
+      if (this.typed && opened.exitCode === undefined) this.send(this.typed);
       this.typed = "";
       if (opened.exitCode !== undefined) this.exited(opened.exitCode);
     } catch (e) {

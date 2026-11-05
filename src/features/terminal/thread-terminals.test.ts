@@ -49,3 +49,21 @@ it("leaves the shell to a tab that took its place meanwhile", async () => {
 
   expect(api.closeTerminal).toHaveBeenCalledTimes(1);
 });
+
+it("sends a paste too big for one write in pieces, none of it lost", async () => {
+  vi.mocked(api.openTerminal).mockResolvedValue({ cwd: "/repo", backlog: "" });
+  const terminal = terminalFor("project", "paste");
+  await terminal.start();
+  const pasted = `${"a".repeat((1 << 20) - 1)}😀${"b".repeat(300_000)}`;
+
+  (terminal as unknown as { term: { input(data: string): void } }).term.input(
+    pasted,
+  );
+
+  const writes = vi
+    .mocked(api.writeTerminal)
+    .mock.calls.map(([, data]) => data);
+  expect(writes.every((data) => data.length <= 1 << 20)).toBe(true);
+  expect(writes.join("")).toBe(pasted);
+  expect(writes[0].endsWith("a")).toBe(true);
+});
