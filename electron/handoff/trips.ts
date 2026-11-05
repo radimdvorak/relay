@@ -2,7 +2,11 @@ import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { errorMessage } from "../../shared/error-message";
 import type { ProjectChat } from "../../shared/projects";
-import { needsFullBundle, type HandoffThread } from "../../shared/handoff";
+import {
+  needsFullBundle,
+  type ComputerInfo,
+  type HandoffThread,
+} from "../../shared/handoff";
 import {
   folderHandoffBridge,
   remoteProjectsBridge,
@@ -71,10 +75,7 @@ export class HandoffTrips {
       const { name } = this.computers.get(computerId);
       const client = await this.computers.connected(computerId);
       const info = await this.infos.get(computerId, client, true);
-      if (outdated(info))
-        throw new Error(
-          `${name} runs an older Relay. Update it from Settings → Computers, then try again.`,
-        );
+      refuseUnfitComputer(name, info);
       const repositories = await repositoryNames(
         await this.projects.root(summaryOf(this.store, chatId).projectId),
       );
@@ -292,6 +293,17 @@ export class HandoffTrips {
       });
     }
   }
+}
+
+/** Refuses a computer that can't take a thread from here, before anything here stops. */
+function refuseUnfitComputer(
+  name: string,
+  info: ComputerInfo | null | undefined,
+) {
+  if (outdated(info))
+    throw new Error(
+      `${name} runs an older Relay. Update it from Settings → Computers, then try again.`,
+    );
 }
 
 /**
