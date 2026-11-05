@@ -126,8 +126,11 @@ final class ChangesModel {
             writing = false
             setMessage("")
             show(next)
-            succeeded += 1
-            guard push else { return }
+            // One success for one tap: Commit & Push has it once the push lands.
+            guard push else {
+                succeeded += 1
+                return
+            }
             busy = .push
             do {
                 show(try await client.gitAction(self.where, .push(revision: next.revision)))
