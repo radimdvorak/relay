@@ -8,7 +8,7 @@ import {
   Text,
   type Extension,
 } from "@codemirror/state";
-import type { EditorView } from "@codemirror/view";
+import { EditorView } from "@codemirror/view";
 import type { ChangeBaseline } from "../../../shared/editor-windows";
 import type { LocalFile, Pull } from "../../../shared/types";
 import { api } from "../../lib/api";
@@ -19,6 +19,14 @@ const mirrored = Annotation.define<boolean>();
 
 /** The line break the text is split at, which follows the file's when it is written with others. */
 const lineBreaks = new Compartment();
+
+/**
+ * Pasted or dropped text takes the file's line breaks. The text is split at
+ * the file's alone, so an LF line pasted into a CRLF file would join the next.
+ */
+const pastedLineBreaks = EditorView.clipboardInputFilter.of((text, state) =>
+  text.replace(/\r\n?|\n/g, state.lineBreak),
+);
 
 /**
  * Where a file is read from and saved to: a project's folder (the checkout,
@@ -264,7 +272,11 @@ export class FileDocument {
   }
 
   private get config() {
-    return [lineBreaks.of(EditorState.lineSeparator.of(this.lineBreak)), this.textExtensions];
+    return [
+      lineBreaks.of(EditorState.lineSeparator.of(this.lineBreak)),
+      pastedLineBreaks,
+      this.textExtensions,
+    ];
   }
 
   /**

@@ -133,3 +133,27 @@ it("shows a file rewritten with other line breaks line by line", async () => {
   doc.detach(view);
   documents.close(source, "d.txt", true);
 });
+
+it("gives pasted text the file's line breaks", async () => {
+  const source = { kind: "project" as const, where: "w" };
+  vi.mocked(api.projectFile).mockImplementationOnce(async (_where, path) => ({
+    path,
+    branch: "main",
+    head: "abc",
+    version: "crlf",
+    contents: "one\r\n",
+    original: "one\r\n",
+  }));
+  const doc = documents.get(source, "e.txt", () => history());
+  await vi.waitFor(() => expect(doc.state).toBeDefined());
+  const view = viewOf(doc);
+
+  const clipboardData = new DataTransfer();
+  clipboardData.setData("text/plain", "two\nthree\n");
+  view.contentDOM.dispatchEvent(
+    new ClipboardEvent("paste", { clipboardData, bubbles: true, cancelable: true }),
+  );
+  expect(doc.text()).toBe("two\r\nthree\r\none\r\n");
+  doc.detach(view);
+  documents.close(source, "e.txt", true);
+});
