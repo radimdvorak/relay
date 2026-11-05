@@ -1,6 +1,6 @@
 import { readFile, rm } from "node:fs/promises";
 import { basename, dirname, join } from "node:path";
-import { commitTree, snapshotTree } from "../turn-changes";
+import { commitTree, snapshotTree } from "../turn-snapshots";
 import type { ChatWorktree } from "../../../shared/projects";
 import { errorMessage } from "../../../shared/error-message";
 import { bootstrap } from "./bootstrap";

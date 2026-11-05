@@ -8,7 +8,7 @@ export const bigFiles: Record<string, number> = {
   "electron/agents/opencode/observer.ts": 899,
   "electron/agents/provider-usage.ts": 544,
   "electron/bug-report/service.ts": 724,
-  "electron/git/turn-changes.ts": 675,
+  "electron/git/turn-changes.ts": 571,
   "electron/handoff/receiver.ts": 700,
   "electron/main.ts": 672,
   "electron/preview/thread-previews.ts": 652,

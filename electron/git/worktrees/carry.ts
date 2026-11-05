@@ -1,5 +1,6 @@
 import { rm } from "node:fs/promises";
-import { apply, commitTree, plan } from "../turn-changes";
+import { apply, plan } from "../turn-changes";
+import { commitTree } from "../turn-snapshots";
 import { adoptWorktree } from "./adopt";
 import { uncommitted } from "./changes";
 import { git, type MadeWorktree, movedRef, copiedRef } from "./common";

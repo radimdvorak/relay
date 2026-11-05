@@ -2,7 +2,8 @@ import { lstat, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { git as gitIn } from "../git";
-import { parseNumstat, revisionDiff, snapshotTree } from "../turn-changes";
+import { parseNumstat, revisionDiff } from "../turn-changes";
+import { snapshotTree } from "../turn-snapshots";
 import type { ChatWorktree, TurnFileChange } from "../../../shared/projects";
 import { git, exists } from "./common";
 
