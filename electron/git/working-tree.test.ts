@@ -877,3 +877,20 @@ it("sees a fetch run in a linked worktree, which writes its own FETCH_HEAD", asy
     await rm(worktree, { recursive: true, force: true });
   }
 });
+
+it("shows a submodule moved to another commit as its commit ids", async () => {
+  const sub = join(root, "sub");
+  git("init", "-q", "-b", "main", "sub");
+  gitIn(sub, "config", "user.name", "Test");
+  gitIn(sub, "config", "user.email", "test@example.invalid");
+  gitIn(sub, "commit", "-q", "--allow-empty", "-m", "One");
+  const first = gitIn(sub, "rev-parse", "HEAD");
+  git("add", "sub");
+  git("commit", "-qm", "Add sub");
+  gitIn(sub, "commit", "-q", "--allow-empty", "-m", "Two");
+  const second = gitIn(sub, "rev-parse", "HEAD");
+
+  const pair = await workingDiff(root, "sub", "unstaged");
+  expect(pair.old?.contents).toBe(`Subproject commit ${first}\n`);
+  expect(pair.next?.contents).toBe(`Subproject commit ${second}\n`);
+});
