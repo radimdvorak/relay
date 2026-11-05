@@ -68,6 +68,8 @@ interface Connection {
   deviceId?: string;
   alive: boolean;
   authenticating?: boolean;
+  /** Its sign-in was turned away, so it's closing. */
+  refused?: boolean;
   /** Binary frames and patches, once both ends speak `compactBridge`. */
   link?: LinkSender;
   /** The bridge the device said it speaks; 0 for ones from before it said. */
@@ -316,7 +318,7 @@ export class RemoteServer {
   private async signIn(c: Connection, frame: ClientFrame) {
     const { devices } = this.options;
     // One sign-in per socket, including while persistence is pending.
-    if (c.authenticating) return c.socket.terminate();
+    if (c.authenticating || c.refused) return c.socket.terminate();
     c.authenticating = true;
     try {
       if (frame.t === "pair") {
@@ -355,6 +357,9 @@ export class RemoteServer {
         c.link = new LinkSender((f) => this.send(c, f));
       this.options.onPresence?.();
     } catch (e) {
+      // Its close may never finish; till then makeRoom may push it out.
+      c.authenticating = false;
+      c.refused = true;
       // Only persistence after a valid token is retryable. Invalid tokens
       // never reach it, and cryptographic failures terminate in accept().
       if (e instanceof SignInUnavailable) {
