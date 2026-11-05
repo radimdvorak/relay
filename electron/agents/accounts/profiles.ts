@@ -105,6 +105,9 @@ export async function prepareProfile(provider: AccountProvider, id: string) {
   return dir;
 }
 
+/** A SQLite database or the journal beside it. */
+const SQLITE_FILE = /\.(sqlite3?|db)(-wal|-shm|-journal)?$/i;
+
 /**
  * Links `target` in at `path`. A symlink on Windows needs Developer Mode or
  * an elevated Relay; a junction or a hard link needs neither.
@@ -114,6 +117,9 @@ async function linkIn(target: string, path: string) {
   const info = await stat(target).catch(() => undefined);
   if (!info) return; // a dangling link in the usual home
   if (info.isDirectory()) return symlink(target, path, "junction");
+  // SQLite keeps a database's journal beside the name it was opened by, so a
+  // hard-linked database gets a second journal and two writers corrupt it.
+  if (SQLITE_FILE.test(target)) return;
   return link(target, path);
 }
 
