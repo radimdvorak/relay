@@ -387,7 +387,7 @@ it("keeps the process a restart cut a turn off in when the thread's mode now dif
   running.busy = false;
   const picked = await acquireAcpAgent(acp, "adopt", root, {
     readOnly: true,
-    adopting: true,
+    keepMode: true,
   });
   expect(picked).toBe(running);
   picked.busy = false;

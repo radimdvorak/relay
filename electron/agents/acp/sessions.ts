@@ -229,11 +229,12 @@ export async function acquireAcpAgent(
   {
     env,
     readOnly = false,
-    adopting = false,
+    keepMode = false,
   }: {
     env?: Record<string, string>;
     readOnly?: boolean;
-    adopting?: boolean;
+    /** The turn finds the process as it is: `readOnly` only starts a missing one. */
+    keepMode?: boolean;
   } = {},
 ): Promise<AcpAgent> {
   const sessions = sessionsOf(profile);
@@ -242,8 +243,7 @@ export async function acquireAcpAgent(
     !!previous &&
     (previous.profile.accountKey !== profile.accountKey ||
       previous.profile.credentialsRevision !== profile.credentialsRevision);
-  // Picking up a turn the agent runs gives it nothing new, so it stays where it runs.
-  const otherMode = !!previous && !adopting && previous.readOnly !== readOnly;
+  const otherMode = !!previous && !keepMode && previous.readOnly !== readOnly;
   if (key && previous && (otherAccount || otherMode)) {
     if (previous.busy)
       throw new Error(
@@ -348,6 +348,14 @@ export function disposeAcp(profile: AcpProfile) {
 }
 
 /**
+ * Picking up a turn the agent runs gives it nothing new, and a compaction only
+ * summarizes the conversation the process holds, refused any tool at the turn.
+ * Neither should restart the thread's process for its mode.
+ */
+const turnKeepsMode = (options: AgentOptions) =>
+  options.job.kind === "adopt" || options.job.kind === "compact";
+
+/**
  * The agent process a turn runs in. A Read only thread's starts with the
  * profile's read-only environment; switching mode starts another.
  */
@@ -364,7 +372,7 @@ export async function acquireTurnAgent(
   return acquireAcpAgent(profile, key, options.cwd, {
     env: { ...options.env, ...readOnly?.env },
     readOnly: !!options.readOnly,
-    adopting: options.job.kind === "adopt",
+    keepMode: turnKeepsMode(options),
   });
 }
 
