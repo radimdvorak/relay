@@ -273,6 +273,101 @@ it("walks back past commits CI never saw to the last one it reported on", async 
   ]);
 });
 
+it("reads every page of a commit's checks, so a failure past the first 100 still shows", async () => {
+  const check = (name: string, conclusion: string): RollupContext => ({
+    __typename: "CheckRun",
+    name,
+    status: "COMPLETED",
+    conclusion,
+    detailsUrl: `https://github.com/o/r/runs/${name}`,
+    startedAt: "2026-10-09T22:00:00Z",
+    completedAt: "2026-10-09T22:05:00Z",
+    checkSuite: null,
+  });
+  const passes = Array.from({ length: 100 }, (_, i) =>
+    check(`ok${i}`, "SUCCESS"),
+  );
+  const commit = (contexts: RollupContext[], next: string | null) => ({
+    oid: "c1",
+    messageHeadline: "Commit c1",
+    author: { name: "Ada" },
+    statusCheckRollup: {
+      contexts: {
+        pageInfo: { hasNextPage: !!next, endCursor: next },
+        nodes: contexts,
+      },
+    },
+  });
+  const asked: { oid?: string; after: string | null }[] = [];
+  const github = new GitHub(
+    async (_url, init) => {
+      const { query, variables } = JSON.parse(init.body as string);
+      if (query.includes("history(")) {
+        asked.push({ after: variables.after });
+        return Response.json({
+          data: {
+            repository: {
+              ref: {
+                target: {
+                  history: {
+                    pageInfo: { hasNextPage: false, endCursor: null },
+                    nodes: [commit(passes, "p2")],
+                  },
+                },
+              },
+            },
+          },
+        });
+      }
+      asked.push({ oid: variables.oid, after: variables.after });
+      const object =
+        variables.after === "p2"
+          ? commit(passes, "p3")
+          : commit([check("e2e", "FAILURE")], null);
+      return Response.json({ data: { repository: { object } } });
+    },
+    new GithubCredentials(async () => "token"),
+  );
+
+  const reading = await github.read({ owner: "o", name: "r" }, "main");
+  expect(asked).toEqual([
+    { after: null },
+    { oid: "c1", after: "p2" },
+    { oid: "c1", after: "p3" },
+  ]);
+  // Page two repeats page one's names, which group into the same runs.
+  expect(reading?.runs).toHaveLength(101);
+  expect(ciSummary(reading!.runs)?.state).toBe("failure");
+
+  // A rollup that never ends stops at ten pages.
+  let pages = 0;
+  const endless = new GitHub(
+    async (_url, init) => {
+      const { query } = JSON.parse(init.body as string);
+      const next = commit(passes, `p${++pages + 1}`);
+      return Response.json({
+        data: {
+          repository: query.includes("history(")
+            ? {
+                ref: {
+                  target: {
+                    history: {
+                      pageInfo: { hasNextPage: false, endCursor: null },
+                      nodes: [next],
+                    },
+                  },
+                },
+              }
+            : { object: next },
+        },
+      });
+    },
+    new GithubCredentials(async () => "token"),
+  );
+  await endless.read({ owner: "o", name: "r" }, "main");
+  expect(pages).toBe(10);
+});
+
 it("groups Gitea Actions job statuses under their workflow", () => {
   const at = "2026-09-24T10:00:00Z";
   const runs = statusRuns([

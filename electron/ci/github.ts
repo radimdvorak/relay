@@ -75,6 +75,15 @@ const STATUS_PAGES = 5;
 
 /** How far back a branch is walked for a commit CI reported on, 100 commits a page. */
 const HISTORY_PAGES = 5;
+/** How many pages of one commit's checks and statuses are read, 100 a page. */
+const CONTEXT_PAGES = 10;
+
+const CONTEXTS = `pageInfo { hasNextPage endCursor }
+  nodes {
+    __typename
+    ... on CheckRun { name status conclusion detailsUrl startedAt completedAt checkSuite { workflowRun { url workflow { name } } } }
+    ... on StatusContext { context state targetUrl createdAt }
+  }`;
 
 const HISTORY_QUERY = `query($owner: String!, $name: String!, $ref: String!, $after: String) {
   repository(owner: $owner, name: $name) {
@@ -87,18 +96,23 @@ const HISTORY_QUERY = `query($owner: String!, $name: String!, $ref: String!, $af
               oid
               messageHeadline
               author { name }
-              statusCheckRollup {
-                contexts(first: 100) {
-                  nodes {
-                    __typename
-                    ... on CheckRun { name status conclusion detailsUrl startedAt completedAt checkSuite { workflowRun { url workflow { name } } } }
-                    ... on StatusContext { context state targetUrl createdAt }
-                  }
-                }
-              }
+              statusCheckRollup { contexts(first: 100) { ${CONTEXTS} } }
             }
           }
         }
+      }
+    }
+  }
+}`;
+
+const COMMIT_QUERY = `query($owner: String!, $name: String!, $oid: GitObjectID!, $after: String) {
+  repository(owner: $owner, name: $name) {
+    object(oid: $oid) {
+      ... on Commit {
+        oid
+        messageHeadline
+        author { name }
+        statusCheckRollup { contexts(first: 100, after: $after) { ${CONTEXTS} } }
       }
     }
   }
@@ -125,24 +139,33 @@ export type RollupContext =
       createdAt: string;
     };
 
-interface HistoryCommit {
+interface PageInfo {
+  hasNextPage: boolean;
+  endCursor: string | null;
+}
+
+interface RollupContexts {
+  pageInfo?: PageInfo;
+  nodes: (RollupContext | null)[];
+}
+
+interface RollupCommit {
   oid: string;
   messageHeadline: string;
   author: { name: string | null } | null;
-  statusCheckRollup: { contexts: { nodes: (RollupContext | null)[] } } | null;
+  statusCheckRollup: { contexts: RollupContexts } | null;
 }
 
 interface HistoryAnswer {
   repository: {
     ref: {
-      target: {
-        history?: {
-          pageInfo: { hasNextPage: boolean; endCursor: string | null };
-          nodes: HistoryCommit[];
-        };
-      };
+      target: { history?: { pageInfo: PageInfo; nodes: RollupCommit[] } };
     } | null;
   } | null;
+}
+
+interface CommitAnswer {
+  repository: { object: RollupCommit | null } | null;
 }
 
 /** A commit's checks and statuses as workflows: an Actions job under its workflow, any other check or status on its own. */
@@ -307,43 +330,40 @@ export class GitHub {
       : this.readTip(repo, branch);
   }
 
+  private async graphql<T>(
+    query: string,
+    variables: Record<string, unknown>,
+  ): Promise<T> {
+    const answer: {
+      data?: T;
+      errors?: { type?: string; message: string }[];
+    } = await this.get("/graphql", { query, variables });
+    if (answer.errors?.length || !answer.data)
+      throw new Error(
+        answer.errors?.[0]?.type === "NOT_FOUND"
+          ? "GitHub can't find this repository, or your gh login can't see it."
+          : `GitHub refused the CI query: ${answer.errors?.[0]?.message ?? "no answer"}`,
+      );
+    return answer.data;
+  }
+
   private async readHistory(
     repo: CiRepo,
     branch: string,
   ): Promise<CiReading | null> {
     let after: string | null = null;
     for (let page = 0; page < HISTORY_PAGES; page++) {
-      const answer: {
-        data?: HistoryAnswer;
-        errors?: { type?: string; message: string }[];
-      } = await this.get("/graphql", {
-        query: HISTORY_QUERY,
-        variables: {
-          owner: repo.owner,
-          name: repo.name,
-          ref: `refs/heads/${branch}`,
-          after,
-        },
+      const answer: HistoryAnswer = await this.graphql(HISTORY_QUERY, {
+        owner: repo.owner,
+        name: repo.name,
+        ref: `refs/heads/${branch}`,
+        after,
       });
-      if (answer.errors?.length || !answer.data)
-        throw new Error(
-          answer.errors?.[0]?.type === "NOT_FOUND"
-            ? "GitHub can't find this repository, or your gh login can't see it."
-            : `GitHub refused the CI query: ${answer.errors?.[0]?.message ?? "no answer"}`,
-        );
-      const history = answer.data.repository?.ref?.target.history;
+      const history = answer.repository?.ref?.target.history;
       if (!history) return null;
       for (const commit of history.nodes) {
-        const runs = rollupRuns(commit.statusCheckRollup?.contexts.nodes ?? []);
-        if (runs.length)
-          return {
-            commit: {
-              sha: commit.oid,
-              message: commit.messageHeadline || undefined,
-              author: commit.author?.name ?? undefined,
-            },
-            runs,
-          };
+        const reading = await this.rollupReading(repo, commit);
+        if (reading) return reading;
       }
       if (!history.pageInfo.hasNextPage) return null;
       after = history.pageInfo.endCursor;
@@ -370,6 +390,44 @@ export class GitHub {
       statuses.push(...last);
     }
     return { sha: tip.sha, statuses };
+  }
+
+  /** A commit's checks and statuses, or null when CI reported nothing on it. */
+  private async rollupReading(
+    repo: CiRepo,
+    commit: RollupCommit,
+  ): Promise<CiReading | null> {
+    const contexts = commit.statusCheckRollup?.contexts;
+    if (!contexts?.nodes.length) return null;
+    const runs = rollupRuns(await this.allContexts(repo, commit.oid, contexts));
+    if (!runs.length) return null;
+    return {
+      commit: {
+        sha: commit.oid,
+        message: commit.messageHeadline || undefined,
+        author: commit.author?.name ?? undefined,
+      },
+      runs,
+    };
+  }
+
+  /** The pages after `first`, so a failure past the first 100 checks still shows. */
+  private async allContexts(repo: CiRepo, oid: string, first: RollupContexts) {
+    const nodes = [...first.nodes];
+    let pageInfo = first.pageInfo;
+    for (let page = 1; page < CONTEXT_PAGES && pageInfo?.hasNextPage; page++) {
+      const answer: CommitAnswer = await this.graphql(COMMIT_QUERY, {
+        owner: repo.owner,
+        name: repo.name,
+        oid,
+        after: pageInfo.endCursor,
+      });
+      const next = answer.repository?.object?.statusCheckRollup?.contexts;
+      if (!next) break;
+      nodes.push(...next.nodes);
+      pageInfo = next.pageInfo;
+    }
+    return nodes;
   }
 
   private async readTip(
