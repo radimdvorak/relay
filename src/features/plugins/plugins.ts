@@ -30,12 +30,15 @@ export function useSetPluginEnabled() {
       qc.setQueryData(["plugins"], before);
       throw error;
     } finally {
-      // A running day pauses when its plugin is turned off.
-      await qc.invalidateQueries({ queryKey: clockifyKey });
-      // Azure DevOps keeps its switch in its own settings.
-      await qc.invalidateQueries({ queryKey: devopsKey });
-      // Its organization is one the Pull requests page asks.
-      await qc.invalidateQueries({ queryKey: ["pull-servers"] });
+      // Asked again meanwhile, so the switch settles without waiting on them.
+      void Promise.all([
+        // A running day pauses when its plugin is turned off.
+        qc.invalidateQueries({ queryKey: clockifyKey }),
+        // Azure DevOps keeps its switch in its own settings.
+        qc.invalidateQueries({ queryKey: devopsKey }),
+        // Its organization is one the Pull requests page asks.
+        qc.invalidateQueries({ queryKey: ["pull-servers"] }),
+      ]);
     }
   };
 }

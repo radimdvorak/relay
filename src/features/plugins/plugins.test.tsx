@@ -1,7 +1,11 @@
 // @vitest-environment happy-dom
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import {
+  QueryClient,
+  QueryClientProvider,
+  useQuery,
+} from "@tanstack/react-query";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import type { ClockifyStatus } from "../../../shared/clockify";
 import type { DevOpsStatus } from "../../../shared/devops";
@@ -150,4 +154,30 @@ it("puts the switch back and says why when turning a plugin on fails", async () 
     clockify: false,
     devops: false,
   });
+});
+
+it("says a switch failed without waiting on the lists it asks again", async () => {
+  let setEnabled: ReturnType<typeof useSetPluginEnabled> | undefined;
+  function Toggle() {
+    setEnabled = useSetPluginEnabled();
+    // The Pull requests page's servers, asked again and slow to answer.
+    useQuery({ queryKey: ["pull-servers"], queryFn: () => slow.promise });
+    return null;
+  }
+  const slow = Promise.withResolvers<string[]>();
+  mocks.setEnabled.mockRejectedValue(new Error("Couldn't save settings.json"));
+  client.setQueryData(["plugins"], { clockify: false, devops: false });
+  client.setQueryData(["pull-servers"], []);
+  await act(async () =>
+    root.render(
+      <QueryClientProvider client={client}>
+        <Toggle />
+      </QueryClientProvider>,
+    ),
+  );
+
+  const failed = vi.fn();
+  void setEnabled!("clockify", true).catch(failed);
+  await vi.waitFor(() => expect(failed).toHaveBeenCalled());
+  slow.resolve([]);
 });

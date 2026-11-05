@@ -67,10 +67,12 @@ export function PluginRow({ id }: { id: PluginId }) {
         toggle={{
           checked: enabled,
           onChange: (on) => {
+            const wasOpen = open;
             setOpen(on);
             setToggleError(undefined);
             setEnabled(id, on).catch((error: unknown) => {
-              if (on) setOpen(false);
+              // The switch goes back, and the panel with it.
+              setOpen(wasOpen);
               setToggleError(
                 `Couldn't turn it ${on ? "on" : "off"}: ${errorMessage(error)}`,
               );
