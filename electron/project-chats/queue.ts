@@ -65,6 +65,11 @@ const sameChoice = (a: ModelChoice, b: ModelChoice) =>
 
 type Queued = NonNullable<ProjectChat["queue"]>[number];
 
+/** A stopped or failed answer holds back what's queued behind it. */
+export function holdQueueBack(chat: ProjectChat) {
+  chat.queuePaused = true;
+}
+
 /**
  * The queue with `next` at its front, behind only the message a cold cache
  * held back: that one went out as far as its sender knows, and only waits
