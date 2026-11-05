@@ -71,6 +71,8 @@ const writes = [
   "git stash",
   "git -c core.pager=sh log",
   "git diff --output=patch.diff",
+  "git cat-file --filters HEAD:a.ts",
+  "git show --textconv HEAD:a.ts",
   "git status && rm -rf src",
   "rg --pre ./run.sh foo",
   "rg --hostname-bin=./evil.sh --hyperlink-format='file://{host}{path}' TODO .",

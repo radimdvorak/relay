@@ -64,7 +64,8 @@ const command = [
     ([name, flags]) => `${name}${ends}${flagged(flags)}`,
   ),
   `sed${ends}${noHiddenFlag}(?:${blank}+-n)+${blank}+(?:'${sedLines}'|"${sedLines}"|${sedLines})(?:${blank}+(?!-)${word})*`,
-  `${gitPrefix}${oneOf(gitReads)}${ends}${without("--(?:ou|op|ext)|-[^-\\s]*O")}${rest}`,
+  // As gitReadsOnly: `--textconv` undoes `--no-textconv`, `--filters` runs smudge filters.
+  `${gitPrefix}${oneOf(gitReads)}${ends}${without("--(?:ou|op|ext|textc|filters)|-[^-\\s]*O")}${rest}`,
   ...Object.entries(gitListings).map(
     ([sub, flags]) =>
       `${gitPrefix}${escape(sub)}(?:${blank}+${oneOf(flags)}${ends})${gitBareWrites.has(sub) ? "+" : "*"}`,
