@@ -116,7 +116,7 @@ private fun convertInline(text: String): String {
  * looking at the next; otherwise a long line of them takes quadratic time.
  * A scan rather than shared/'s regex: Android's regex engine isn't the JVM's.
  */
-private fun replaceInline(text: String, opener: String, closer: String, convert: (all: String, tex: String) -> String): String {
+internal fun replaceInline(text: String, opener: String, closer: String, convert: (all: String, tex: String) -> String): String {
     val out = StringBuilder()
     var copied = 0
     var from = 0
