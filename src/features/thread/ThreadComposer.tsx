@@ -11,7 +11,7 @@ import { threadContextAgent } from "../../../shared/recipient";
 import { api } from "../../lib/api";
 import { threadDraftKey } from "../../lib/thread-storage";
 import { useStableCallback } from "../../lib/useStableCallback";
-import { useSteadyValue } from "../../lib/useSteadyValue";
+import { useSteadyValue } from "./useSteadyValue";
 import type { TurnDiffTarget } from "../changes/turn-diff";
 import type { BackgroundWork } from "./useBackgroundWork";
 import type { ChatThread } from "./useChatThread";
