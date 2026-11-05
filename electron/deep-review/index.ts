@@ -16,7 +16,6 @@ import {
   reviewerRound,
   roundOf,
   reviewRunning,
-  reviewThreadTitle,
   type DeepReviewStart,
   type DeepReviewState,
   type ResumeReview,
@@ -29,6 +28,7 @@ import { resolveScope, reviewPasses, type PullInfo } from "./scope";
 import type { PullRef } from "../../shared/types";
 import { branchFolder, placeRound } from "./checkout";
 import { createReviewers, sendReviewers } from "./reviewers";
+import { holdRound } from "./rounds";
 import { followFixes } from "./fixes";
 import type { DeepReviewHost } from "./host";
 export {
@@ -147,48 +147,13 @@ export class DeepReviews {
         throw error;
       },
     );
-    await this.holdRound(chat, request, state, { own, first }, () =>
+    await holdRound(this.host, chat, request, state, { own, first }, () =>
       Promise.allSettled([
         ...created.map((c) => this.host.discard(c)),
         discardCheckout(),
       ]),
     );
     await this.ask(chat, state, passSlots(state, 0));
-  }
-
-  /**
-   * Puts the round in its thread and saves it. When saving fails, the
-   * thread goes back to how it was and `undo` throws away what the round made.
-   */
-  private async holdRound(
-    chat: ProjectChat,
-    request: ChatMessage,
-    state: DeepReviewState,
-    { own, first }: { own: boolean; first: boolean },
-    undo: () => Promise<unknown>,
-  ) {
-    const before = {
-      title: chat.title,
-      updated: chat.updated,
-      branch: chat.branch,
-    };
-    chat.messages.push(request);
-    // A review's own thread is named after what its first round covers.
-    if (own && first) chat.title = reviewThreadTitle(state.scope);
-    chat.updated = Date.now();
-    if (own) chat.branch = state.scope.branch ?? chat.branch;
-    (chat.reviews ??= []).push(state);
-    try {
-      await this.host.touch(chat, request.id);
-    } catch (error) {
-      // The loaded thread is the cached one, so put it back as it was.
-      chat.messages.splice(chat.messages.indexOf(request), 1);
-      Object.assign(chat, before);
-      chat.reviews.pop();
-      if (!chat.reviews.length) delete chat.reviews;
-      await undo();
-      throw error;
-    }
   }
 
   /**
