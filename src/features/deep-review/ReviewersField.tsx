@@ -5,6 +5,8 @@ import {
   type ReviewAgent,
 } from "../../../shared/deep-review";
 import { agentInfo, reviewerProviders } from "../../../shared/agents";
+import { offeredAgents } from "../../../shared/agent-prefs";
+import { useAISettings } from "../agents/useAISettings";
 import { nextReviewer, swapReviewer } from "./deep-review-setup";
 import { ModelField } from "../agents/ModelField";
 import { ReviewPromptLine } from "./ReviewPromptLine";
@@ -20,6 +22,13 @@ export function ReviewersField({
   onChange: (reviewers: ReviewAgent[]) => void;
 }) {
   const count = reviewers.length;
+  // Agents switched off in Settings aren't offered, but a reviewer on one keeps it.
+  const ai = useAISettings().data;
+  const providers = offeredAgents(
+    reviewerProviders,
+    ai,
+    reviewers.map((r) => r.provider),
+  );
   const warnings = [
     ...new Set(reviewers.map((r) => agentInfo(r.provider).reviewWarning)),
   ].filter(Boolean);
@@ -34,7 +43,7 @@ export function ReviewersField({
               <ModelField
                 label={`Reviewer ${i + 1}`}
                 provider={reviewer.provider}
-                providers={reviewerProviders}
+                providers={providers}
                 value={reviewer.choice}
                 onChange={(choice, provider) =>
                   onChange(swapReviewer(reviewers, i, choice, provider))
