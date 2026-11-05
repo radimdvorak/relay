@@ -50,6 +50,19 @@ it("keeps a worktree with changes it couldn't save a copy of", async () => {
   expect(gitIn(root, "branch", "--list", worktree.branch)).not.toBe("");
 });
 
+it("keeps a worktree Git can't read any more and says what to do", async () => {
+  const worktree = await createWorktree(root, `${root}-wt`, "Split it");
+  await writeFile(join(worktree.path, "c.ts"), "sea\n");
+  // The repository lost track of it, as when the project folder moves.
+  await rm(join(root, ".git", "worktrees"), { recursive: true, force: true });
+  snapshots.fail = true;
+
+  await expect(removeWorktree(root, "chat", worktree)).rejects.toThrow(
+    "Git can't read this worktree any more",
+  );
+  expect(existsSync(join(worktree.path, "c.ts"))).toBe(true);
+});
+
 it("removes a clean worktree even when it couldn't save a copy", async () => {
   const worktree = await createWorktree(root, `${root}-wt`, "Split it");
   snapshots.fail = true;
