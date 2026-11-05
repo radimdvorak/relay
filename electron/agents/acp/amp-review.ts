@@ -40,7 +40,7 @@ const redirect = "[12]?>(?:&[12]|[ \\t]*\\/dev\\/null)(?=[\\s;&|]|$)";
 const word = `(?:${redirect}|(?:${singleQuoted}|${doubleQuoted}|${escaped}|${variable}|\\$(?=[\\s;&|]|$)|${literal})+)`;
 
 /** The rest of one command, up to the next `;`, `&&`, `||`, `|` or newline. */
-const rest = `(?:${blank}+${word})*${blank}*`;
+const rest = `(?:${blank}+${word})*`;
 const ends = "(?=[\\s;&|]|$)";
 
 /** One piece of a command for a look ahead, which reads past a quoted `;` too. */
@@ -54,7 +54,7 @@ const noHiddenFlag = `(?!${piece}*?(?:${disguisedFlag}|${globbedWord}|${quotedDo
 const without = (flags: string) => `(?!${piece}*?\\s(?:${flags}))`;
 /** Each word a flag `flags` allows, its value quoted or not, or an argument. */
 const flagged = (flags: string) =>
-  `${noHiddenFlag}(?:${blank}+(?:(?=(?:${flags})${ends})${word}|(?!-)${word}))*${blank}*`;
+  `${noHiddenFlag}(?:${blank}+(?:(?=(?:${flags})${ends})${word}|(?!-)${word}))*`;
 const gitPrefix = `git${ends}${noHiddenFlag}(?:${blank}+(?:--no-pager|-C${blank}+${word}))*${blank}+`;
 const sedLines = "(?:\\d+|\\$)(?:,(?:\\d+|\\$))?p";
 
@@ -63,11 +63,11 @@ const command = [
   ...Object.entries(allowedFlags).map(
     ([name, flags]) => `${name}${ends}${flagged(flags)}`,
   ),
-  `sed${ends}${noHiddenFlag}(?:${blank}+-n)+${blank}+(?:'${sedLines}'|"${sedLines}"|${sedLines})(?:${blank}+(?!-)${word})*${blank}*`,
+  `sed${ends}${noHiddenFlag}(?:${blank}+-n)+${blank}+(?:'${sedLines}'|"${sedLines}"|${sedLines})(?:${blank}+(?!-)${word})*`,
   `${gitPrefix}${oneOf(gitReads)}${ends}${without("--(?:ou|op|ext)|-[^-\\s]*O")}${rest}`,
   ...Object.entries(gitListings).map(
     ([sub, flags]) =>
-      `${gitPrefix}${escape(sub)}(?:${blank}+${oneOf(flags)}${ends})${gitBareWrites.has(sub) ? "+" : "*"}${blank}*`,
+      `${gitPrefix}${escape(sub)}(?:${blank}+${oneOf(flags)}${ends})${gitBareWrites.has(sub) ? "+" : "*"}`,
   ),
 ].join("|");
 
