@@ -2,9 +2,9 @@ import { afterEach, expect, it, vi } from "vitest";
 import type { AgentOptions } from "../types";
 import type { AcpProfile } from "./profiles";
 import { runAcp } from "./run";
-import { acquireAcpAgent, type AcpAgent } from "./sessions";
+import { acquireTurnAgent, type AcpAgent } from "./sessions";
 
-vi.mock("./sessions", () => ({ acquireAcpAgent: vi.fn() }));
+vi.mock("./sessions", () => ({ acquireTurnAgent: vi.fn() }));
 
 afterEach(() => vi.useRealTimers());
 
@@ -30,7 +30,7 @@ function keptAgent() {
 it("stops waiting on a picked-up turn stopped while its native events were caught up", async () => {
   vi.useFakeTimers();
   const agent = keptAgent();
-  vi.mocked(acquireAcpAgent).mockResolvedValue(agent);
+  vi.mocked(acquireTurnAgent).mockResolvedValue(agent);
   const stop = new AbortController();
   const profile = { provider: "opencode", name: "OpenCode" } as AcpProfile;
   const options = {
