@@ -336,7 +336,7 @@ export const bigFunctions: Record<string, number> = {
   "src/lib/useDragSort.ts › useDragSort": 103,
   "src/lib/vscode-theme.ts › paletteFromVsCode": 97,
   "src/lib/workspace-panes.ts › useWorkspacePanes": 110,
-  "src/ui/CodeBlock.tsx › CodeBlock": 136,
+  "src/ui/CodeBlock.tsx › CodeBlock": 85,
   "src/ui/ComposerSelect.tsx › ComposerSelectImpl": 82,
   "src/ui/MarkdownTable.tsx › MarkdownTable": 91,
   "src/ui/NameInput.tsx › NameInput": 83,
