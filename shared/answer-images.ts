@@ -1,3 +1,5 @@
+import { markdownImages } from "./markdown-images";
+
 /** An image Relay can show, by its name. */
 export const isImagePath = (path: string) =>
   /\.(?:png|jpe?g|gif|webp)$/i.test(path);
@@ -9,12 +11,6 @@ export const isVideoPath = (path: string) =>
 /** Tells an agent its answers can show pictures; they rarely think to on their own. */
 export const ANSWER_IMAGE_PROMPT =
   "To show the user a PNG, JPEG, GIF or WebP file on this computer, like a screenshot you took or an image they asked to see, embed it in your reply as ![short description](/absolute/path.png); it renders inline. Wrap a path with spaces in angle brackets: ![shot](</path/with spaces/shot.png>). An MP4, WebM or MOV video embeds the same way and plays inline. A screenshot tool that returned only the picture left no file: have it save one (some take save_to_disk) or write the image to a file yourself first. Save screenshots in the system temp folder, never inside the project, so they don't show up in the user's changes. Web image URLs show only as links.";
-
-// A destination in <angle brackets> may hold spaces, like a macOS app data
-// path. Agents often leave the brackets out, so a bare one with spaces counts
-// too when it ends in a file Relay shows.
-const markdownImage =
-  /!\[[^\]\n]*\]\(\s*(?:<([^<>\n]+)>|([^\s<>()]+)|([^\s<>()][^<>()\n]*?\.(?:png|jpe?g|gif|webp|mp4|m4v|webm|mov)))(?:\s+["'][^"'\n]*["'])?\s*\)/gi;
 
 /**
  * The file on this computer `src` of an answer's `![alt](src)` points at, or
@@ -62,8 +58,7 @@ export function localVideoPath(src: string, root: string): string | null {
 }
 
 /** Whether an answer embeds any `![alt](src)` at all. */
-export const embedsImages = (body: string) =>
-  new RegExp(markdownImage.source, "i").test(body);
+export const embedsImages = (body: string) => markdownImages(body).length > 0;
 
 /**
  * Puts angle brackets around an image path with spaces, so the Markdown parser
@@ -94,15 +89,17 @@ export function bracketSpacedImagePaths(text: string): string {
 }
 
 function bracketSpaced(text: string): string {
-  return text.replace(
-    markdownImage,
-    (image: string, _bracketed, _bare, spaced?: string) => {
-      if (!spaced) return image;
-      // The alt can't hold a "]", so the path is what follows the first "](".
-      const at = image.indexOf(spaced, image.indexOf("]("));
-      return `${image.slice(0, at)}<${spaced}>${image.slice(at + spaced.length)}`;
-    },
-  );
+  let out = "",
+    from = 0;
+  for (const { index, text: image, spaced } of markdownImages(text)) {
+    if (!spaced) continue;
+    // The alt can't hold a "]", so the path is what follows the first "](".
+    const at = index + image.indexOf(spaced, image.indexOf("]("));
+    out += `${text.slice(from, at)}<${spaced}>`;
+    out += text.slice(at + spaced.length, index + image.length);
+    from = index + image.length;
+  }
+  return out + text.slice(from);
 }
 
 const embedded = (
@@ -111,7 +108,7 @@ const embedded = (
   local: (src: string, root: string) => string | null,
 ) => {
   const paths = new Set<string>();
-  for (const [, bracketed, bare, spaced] of body.matchAll(markdownImage)) {
+  for (const { bracketed, bare, spaced } of markdownImages(body)) {
     const path = local((bracketed ?? bare ?? spaced)!, root);
     if (path) paths.add(path);
   }
