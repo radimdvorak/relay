@@ -4,13 +4,13 @@ import { mkdtemp, realpath, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ciSummary, type CiRun } from "../../shared/ci";
+import { GitHub } from "./github";
 import {
-  GitHub,
   latestGithubRuns,
   githubRunState,
   type GithubRun,
   type RollupContext,
-} from "./github";
+} from "./github-runs";
 import { statusRuns } from "./statuses";
 import { remoteRepo } from "./index";
 import { gitIn } from "../../tests/fixtures/git-repo";
