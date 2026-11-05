@@ -121,7 +121,7 @@ it.each(["change", "delete"])(
   },
 );
 
-it("opens a text file whose committed version isn't text, against no committed text", async () => {
+it("opens a text file whose committed version isn't text, with nothing to compare it to", async () => {
   initRepo(root);
   // Latin-1, as the file was before it was converted to UTF-8.
   await writeFile(
@@ -135,5 +135,5 @@ it("opens a text file whose committed version isn't text, against no committed t
   const file = await projects.file({ root, plain: false }, "file.txt");
 
   expect(file.contents).toBe("café\n");
-  expect(file.original).toBe("");
+  expect(file.original).toBeUndefined();
 });
