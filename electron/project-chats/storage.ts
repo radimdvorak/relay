@@ -276,9 +276,9 @@ export class ChatStorage {
 
   /**
    * Keeps a running turn's progress: what changed since the last full save,
-   * mostly the answer, goes to `<id>.live.json`, and so does a change outside
-   * a turn such as a seen mark. A full save takes over without a file to
-   * build on, or once the turn changed much of the thread. Says its bytes.
+   * mostly the answer, goes to `<id>.live.json`, as does a change outside a
+   * turn such as a seen mark. A full save takes over without a file to build
+   * on, or once the turn changed much of the thread. Returns bytes written.
    */
   async checkpoint(chat: ProjectChat) {
     publishHeldBack(chat);

@@ -78,7 +78,8 @@ type Ask = {
 };
 
 const sessions = new Map<string, HostSession>();
-/** Closed but not ended yet: the host stays for the kill their grace ends in. */
+/** Sessions closed but not ended yet: the host waits for them before it exits,
+ * so a child that ignores its stop is still killed when its grace runs out. */
 const stopping = new Set<HostSession>();
 const asks = new Map<number, Ask>();
 let nextAsk = 1;
