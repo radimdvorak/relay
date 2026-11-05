@@ -28,6 +28,7 @@ import { resolveScope, reviewPasses, type PullInfo } from "./scope";
 import type { PullRef } from "../../shared/types";
 import { branchFolder, placeRound } from "./checkout";
 import { createReviewers, sendReviewers } from "./reviewers";
+import { ReviewerSends } from "./reviewer-sends";
 import { holdRound } from "./rounds";
 import { followFixes } from "./fixes";
 import type { DeepReviewHost } from "./host";
@@ -47,10 +48,7 @@ export class DeepReviews {
   private awaiting = new Set<string>();
   /** Rounds whose next pass is starting, by request: its reviewers aren't at work yet. */
   private advancing = new Set<string>();
-  /** Reviewers the review is sending their tasks to, by thread: settles once sent. */
-  private sending = new Map<string, Promise<void>>();
-  /** Of those, the ones whose review stopped meanwhile. */
-  private stoppedSending = new Set<string>();
+  private sends = new ReviewerSends();
   constructor(private host: DeepReviewHost) {}
 
   /**
@@ -234,7 +232,7 @@ export class DeepReviews {
   async memberStarting(member: ProjectChat) {
     const task = member.reviewer;
     if (!task) return;
-    if (this.stoppedSending.has(member.id)) return this.host.stop(member.id);
+    if (this.sends.caught(member.id)) return this.host.stop(member.id);
     const chat = await this.host.load(task.parent).catch(() => undefined);
     const state = chat && reviewerRound(chat.reviews, task);
     if (
@@ -258,7 +256,7 @@ export class DeepReviews {
     const abandoning: Promise<void>[] = [];
     for (const r of state.reviewers) {
       // A task still on its way has no turn yet to stop; it's stopped as it starts.
-      if (this.sending.has(r.chatId)) this.stoppedSending.add(r.chatId);
+      this.sends.stop(r.chatId);
       this.host.stop(r.chatId);
       // Between turns, only closing its session ends the subagents it waits for.
       if (!this.host.active(r.chatId) && this.host.waiting(r.chatId))
@@ -407,21 +405,22 @@ export class DeepReviews {
     const asked = slots.map((slot) => state.reviewers[slot]!.chatId);
     // A send a Stop caught on its way is stopped as its turn starts; once it
     // has, this one's turn isn't taken for it.
-    await Promise.all(asked.map((id) => this.sending.get(id)));
+    await this.sends.settled(asked);
     if (state.status !== "reviewing") return;
-    let sent = () => {};
-    const sending = new Promise<void>((resolve) => (sent = resolve));
-    for (const id of asked) this.sending.set(id, sending);
+    // Each reviewer is sent to until its own task is: a slow one doesn't hold
+    // up a reviewer the user goes on with after a Stop.
+    const sent = this.sends.begin(asked);
     try {
-      await sendReviewers(this.host, chat, state, slots, () =>
-        this.reviewerDone(chat.id, state.request),
+      await sendReviewers(
+        this.host,
+        chat,
+        state,
+        slots,
+        () => this.reviewerDone(chat.id, state.request),
+        (slot) => sent(state.reviewers[slot]!.chatId),
       );
     } finally {
-      for (const id of asked) {
-        this.sending.delete(id);
-        this.stoppedSending.delete(id);
-      }
-      sent();
+      for (const id of asked) sent(id);
     }
   }
 

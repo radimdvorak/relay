@@ -158,6 +158,7 @@ function harness() {
   return {
     reviews,
     review,
+    threads,
     state,
     answer,
     askedSlots,
@@ -235,4 +236,28 @@ it("runs the reviewers Resume asked for while a stopped send was still on its wa
   const first = state().reviewers[0]!.chatId;
   expect(working.has(first)).toBe(true);
   expect(state().status).toBe("reviewing");
+});
+
+it("lets the user go on with a reviewer whose task went out before Stop, while another's is still on its way", async () => {
+  const { reviews, review, threads, state, answer, holdSend, working } =
+    harness();
+  await reviews.start("review", config());
+  await answer(0, "cancelled");
+  await answer(1, "cancelled");
+
+  // Resume sends both again; the second one's agent is slow to take it.
+  const release = holdSend(1);
+  const resuming = reviews.resume("review");
+  await new Promise((r) => setTimeout(r, 0));
+  const first = state().reviewers[0]!.chatId;
+  expect(working.has(first)).toBe(true);
+  await reviews.stop(review);
+
+  // The user writes in the first reviewer's thread themselves.
+  working.add(first);
+  await reviews.memberStarting(threads.get(first)!);
+  expect(working.has(first)).toBe(true);
+
+  release();
+  await resuming;
 });
