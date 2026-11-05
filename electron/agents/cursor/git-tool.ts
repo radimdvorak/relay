@@ -4,7 +4,13 @@
 // the Cursor worker, so it only uses Node.
 import { execFile } from "node:child_process";
 import type { SDKCustomTool, SDKCustomToolResult } from "@cursor/sdk";
-import { gitReads, gitReadsOnly } from "../../agent-host/read-only-bash";
+import {
+  diffDriversOff,
+  diffShowing,
+  gitReads,
+  gitReadsOnly,
+  subcommandAt,
+} from "../../agent-host/read-only-bash";
 import {
   filtersEmptied,
   foreignFilterKeys,
@@ -70,32 +76,15 @@ const readOnlyEnv = () => ({
   GIT_PAGER: "cat",
 });
 
-/** Subcommands that run a checkout's textconv or external diff command unless told not to. */
-const diffShowing = new Set([
-  "diff",
-  "log",
-  "show",
-  "diff-tree",
-  "range-diff",
-  "blame",
-]);
-
 /**
  * A checkout's own `.git/config` can name a command that turns a file into
  * text for a diff, or that shows the diff itself. A read-only turn runs
  * neither: the flags go right after the subcommand.
  */
 function withoutDiffDrivers(args: string[]) {
-  let i = 0;
-  while (args[i] === "--no-pager" || args[i] === "-C")
-    i += args[i] === "-C" ? 2 : 1;
-  if (!diffShowing.has(args[i])) return args;
-  return [
-    ...args.slice(0, i + 1),
-    "--no-textconv",
-    "--no-ext-diff",
-    ...args.slice(i + 1),
-  ];
+  const at = subcommandAt(args);
+  if (!diffShowing.has(args[at]!)) return args;
+  return [...args.slice(0, at + 1), ...diffDriversOff, ...args.slice(at + 1)];
 }
 
 function run(cwd: string, args: string[], signal: AbortSignal) {

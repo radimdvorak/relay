@@ -1,3 +1,8 @@
+import { execFileSync, execSync } from "node:child_process";
+import { existsSync } from "node:fs";
+import { mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { expect, it } from "vitest";
 import { readOnlyBashHook, readsOnly } from "./read-only-bash";
 
@@ -217,3 +222,60 @@ it("leaves other tools to the usual checks", async () => {
     }),
   ).toMatchObject({ hookSpecificOutput: { permissionDecision: "deny" } });
 });
+
+/** The command the hook lets run: the rewritten one, or the one asked for. */
+async function commandRun(command: string) {
+  const answer = (await readOnlyBashHook({
+    tool_name: "Bash",
+    tool_input: { command, description: "read" },
+  })) as {
+    hookSpecificOutput?: {
+      permissionDecision?: string;
+      updatedInput?: { command: string; description: string };
+    };
+  };
+  const output = answer.hookSpecificOutput;
+  if (output?.permissionDecision === "deny") return undefined;
+  if (output?.updatedInput) {
+    expect(output.updatedInput.description).toBe("read");
+    return output.updatedInput.command;
+  }
+  return command;
+}
+
+it.skipIf(process.platform === "win32")(
+  "runs git's diffs without the checkout's own diff commands",
+  async () => {
+    const repo = await realpath(
+      await mkdtemp(join(tmpdir(), "relay-read-only-diff-")),
+    );
+    const marker = join(repo, "ran");
+    const git = (...args: string[]) =>
+      execFileSync("git", args, { cwd: repo, stdio: "ignore" });
+    git("init", "-q");
+    await writeFile(join(repo, ".gitattributes"), "*.ts diff=evil\n");
+    await writeFile(join(repo, "a.ts"), "one\n");
+    git("add", ".");
+    git("-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "init");
+    git("config", "diff.evil.textconv", `touch '${marker}'; cat`);
+    git("config", "diff.external", `touch '${marker}'; true`);
+    await writeFile(join(repo, "a.ts"), "one\ntwo\n");
+    try {
+      for (const command of [
+        "git diff",
+        "git --no-pager -C . diff HEAD -- a.ts",
+        "git log -p -1 | head -40",
+        "cd . && git show HEAD",
+        "git status; git blame a.ts",
+      ]) {
+        const run = await commandRun(command);
+        expect(run, command).toBeDefined();
+        execSync(run!, { cwd: repo, stdio: "ignore" });
+        expect(existsSync(marker), command).toBe(false);
+      }
+      expect(await commandRun("git status --short")).toBe("git status --short");
+    } finally {
+      await rm(repo, { recursive: true, force: true });
+    }
+  },
+);

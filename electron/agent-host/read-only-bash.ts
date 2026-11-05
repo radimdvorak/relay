@@ -360,12 +360,55 @@ function segmentReads({ text: segment, expands, globbed }: ShellCommand) {
   }
 }
 
-/** `git` with these arguments, as words after `git`, only reads. */
-export function gitReadsOnly(args: string[]) {
+/** Where the subcommand is in `git`'s words, past `--no-pager` and `-C <dir>`. */
+export function subcommandAt(args: string[]) {
   let i = 0;
   while (args[i] === "--no-pager" || args[i] === "-C")
     i += args[i] === "-C" ? 2 : 1;
-  const [sub, ...rest] = args.slice(i);
+  return i;
+}
+
+/** Git subcommands that run a checkout's textconv or external diff command unless told not to. */
+export const diffShowing = new Set([
+  "diff",
+  "log",
+  "show",
+  "diff-tree",
+  "range-diff",
+  "blame",
+]);
+
+export const diffDriversOff = ["--no-textconv", "--no-ext-diff"];
+
+const diffCommand = new RegExp(
+  `(^|[\\s;&|])(git(?:\\s+(?:--no-pager|-C\\s+[^\\s;&|]+))*\\s+(?:${[...diffShowing].join("|")}))(?=[\\s;&|]|$)`,
+  "g",
+);
+
+/**
+ * `command` with `--no-textconv --no-ext-diff` after each git subcommand
+ * that shows a diff: a checkout's own `.git/config` can name a command that
+ * turns a file into text for one, or that shows the diff itself.
+ */
+function withoutDiffDrivers(command: string) {
+  return command.replace(diffCommand, `$1$2 ${diffDriversOff.join(" ")}`);
+}
+
+/** Whether every git in `command` that shows a diff has its drivers off. */
+function diffDriversOffThroughout(command: string) {
+  return (commandsIn(command) ?? []).every(({ text }) => {
+    const [name, ...args] = text.split(/\s+/);
+    const at = subcommandAt(args);
+    if (name !== "git" || !diffShowing.has(args[at]!)) return true;
+    const end = args.indexOf("--");
+    const options = end < 0 ? args : args.slice(0, end);
+    return diffDriversOff.every((flag) => options.includes(flag));
+  });
+}
+
+/** `git` with these arguments, as words after `git`, only reads. */
+export function gitReadsOnly(args: string[]) {
+  const [sub, ...rest] = args.slice(subcommandAt(args));
   if (
     // git takes a long flag cut short (`--open-fi`) and clustered short ones (`-lO`);
     // `--textconv` would undo a caller's `--no-textconv`, and `--filters` runs smudge filters.
@@ -397,7 +440,20 @@ export async function readOnlyBashHook(input: unknown) {
   };
   if (tool_name !== "Bash") return {};
   const command = tool_input?.command;
-  if (typeof command === "string" && readsOnly(command)) return {};
+  if (typeof command === "string" && readsOnly(command)) {
+    const rewritten = withoutDiffDrivers(command);
+    // A git diff the rewrite missed is turned down below.
+    if (diffDriversOffThroughout(rewritten))
+      return rewritten === command
+        ? {}
+        : {
+            hookSpecificOutput: {
+              hookEventName: "PreToolUse" as const,
+              permissionDecision: "allow" as const,
+              updatedInput: { ...tool_input, command: rewritten },
+            },
+          };
+  }
   return {
     hookSpecificOutput: {
       hookEventName: "PreToolUse" as const,
