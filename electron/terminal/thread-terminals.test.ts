@@ -83,3 +83,15 @@ it("doesn't send output of a shell whose tab was closed", async () => {
   await new Promise((r) => setTimeout(r, 10));
   expect(sent).toEqual([]);
 });
+
+it("keeps sending a draft's shell output once its thread has adopted it", async () => {
+  const terminals = new ThreadTerminals();
+  const sent: TerminalEvent[] = [];
+  terminals.connect((e) => sent.push(e));
+  terminals.open("draft:p", "/p", 80, 24);
+  const shell = FakePty.made.at(-1)!;
+  terminals.adopt("draft:p", "thread-c");
+  shell.print("still here\r\n");
+  await new Promise((r) => setTimeout(r, 10));
+  expect(sent).toEqual([{ key: "thread-c", data: "still here\r\n" }]);
+});
