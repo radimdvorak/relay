@@ -51,6 +51,9 @@ export function useSaveDevOps(
       saved();
       void qc.invalidateQueries({ queryKey: ["devops-items"] });
       void qc.invalidateQueries({ queryKey: devopsConnectionKey });
+      // Fields asked for before the save landed are the old organization's.
+      if ("organization" in patch || "project" in patch)
+        void qc.invalidateQueries({ queryKey: ["devops-fields"] });
       // The organization is one the Pull requests page asks.
       void qc.invalidateQueries({ queryKey: ["pull-servers"] });
       return true;
