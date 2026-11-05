@@ -1,5 +1,6 @@
 import { Fragment, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import type { DirListing } from "../../../shared/project-files";
 import { api } from "../../lib/api";
 import {
   joinPath,
@@ -240,25 +241,13 @@ export function FileTree({
                   }
                 />
               )}
-              {row.loading && (
-                <div
-                  className="file-tree-hint"
-                  style={{ "--depth": row.depth + 1 } as never}
-                >
-                  Loading…
-                </div>
-              )}
-              {row.open &&
-                !row.loading &&
-                directories.listings[row.path]?.entries.length === 0 &&
-                !(editing?.mode === "create" && editing.dir === row.path) && (
-                  <div
-                    className="file-tree-hint"
-                    style={{ "--depth": row.depth + 1 } as never}
-                  >
-                    Empty
-                  </div>
-                )}
+              <FolderHint
+                row={row}
+                listing={directories.listings[row.path]}
+                creatingHere={
+                  editing?.mode === "create" && editing.dir === row.path
+                }
+              />
               {editing?.mode === "create" &&
                 editing.dir === row.path &&
                 createRow(editing.kind, row.depth + 1)}
@@ -302,6 +291,31 @@ export function FileTree({
       )}
     </div>
   );
+}
+
+/** What an open folder shows under its name while it has no entries to show. */
+function FolderHint({
+  row,
+  listing,
+  creatingHere,
+}: {
+  row: TreeRow;
+  listing: DirListing | undefined;
+  /** A new entry's name is being typed in it. */
+  creatingHere: boolean;
+}) {
+  const hint = (text: string) => (
+    <div
+      className="file-tree-hint"
+      style={{ "--depth": row.depth + 1 } as never}
+    >
+      {text}
+    </div>
+  );
+  if (row.loading) return hint("Loading…");
+  if (row.open && listing?.entries.length === 0 && !creatingHere)
+    return hint("Empty");
+  return null;
 }
 
 /** Where a new file lands: in the selected folder, beside the selected file, else the root. */
