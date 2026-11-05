@@ -18,6 +18,7 @@ import {
   turnDiff,
 } from "../git/turn-changes";
 import { worktreeExists } from "../git/worktrees";
+import { linkedFileOnDisk } from "../platform/msys-path";
 import type { ChatCore } from "./core";
 import { imageFileData } from "./images";
 import type { ThreadWorktrees } from "./worktrees";
@@ -81,13 +82,14 @@ export class TurnFiles {
       !answerVideoPaths(message.body, root).includes(path)
     )
       throw new Error("This answer doesn't play that video.");
-    return path;
+    return linkedFileOnDisk(path);
   }
 
   async readImage(chatId: string, messageId: string, path: string) {
     await this.turnImagePath(chatId, messageId, path);
     const kept = this.core.storage.shown.path(chatId, messageId, path);
-    return imageFileData((await exists(kept)) ? kept : path);
+    if (await exists(kept)) return imageFileData(kept);
+    return imageFileData(await linkedFileOnDisk(path));
   }
 
   /** The preview's last frame the turn `messageId` kept. */
@@ -104,7 +106,8 @@ export class TurnFiles {
   async revealImagePath(chatId: string, messageId: string, path: string) {
     await this.turnImagePath(chatId, messageId, path);
     const kept = this.core.storage.shown.path(chatId, messageId, path);
-    return !(await exists(path)) && (await exists(kept)) ? kept : path;
+    const file = await linkedFileOnDisk(path);
+    return !(await exists(file)) && (await exists(kept)) ? kept : file;
   }
 
   /**
@@ -120,7 +123,7 @@ export class TurnFiles {
     if (!root) return;
     for (const path of answerImagePaths(message.body, root))
       await this.core.storage.shown
-        .keep(chat.id, message.id, path)
+        .keep(chat.id, message.id, path, await linkedFileOnDisk(path))
         .catch((e: NodeJS.ErrnoException) => {
           if (e.code !== "ENOENT")
             console.warn("Could not keep an image the answer shows:", e);

@@ -45,16 +45,16 @@ export class ShownImages {
     );
   }
 
-  /** Copies the image at `path` as it is now. */
-  async keep(chatId: string, messageId: string, path: string) {
-    const { size } = await stat(path);
+  /** Copies the image the answer names `path`, from `file` where it is on disk, as it is now. */
+  async keep(chatId: string, messageId: string, path: string, file = path) {
+    const { size } = await stat(file);
     if (size > IMAGE_MAX_BYTES) return;
     await mkdir(this.folder(chatId, messageId), {
       recursive: true,
       mode: 0o700,
     });
     const copy = this.path(chatId, messageId, path);
-    await copyFile(path, copy);
+    await copyFile(file, copy);
     // The copy's age is when it was kept, whatever the file says.
     const now = new Date();
     await utimes(copy, now, now);
