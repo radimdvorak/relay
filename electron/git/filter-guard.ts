@@ -3,27 +3,9 @@ import {
   foreignFilterKeys,
 } from "../git-config/repository-filters";
 import { refreshesIndex } from "./fsmonitor-guard";
+import { recheckedPerRoot } from "./rechecked-per-root";
 
-const RECHECK_MS = 60_000;
-
-type FilterCheck = {
-  at: number;
-  keys: string[] | undefined;
-  done: Promise<string[]>;
-};
-
-const checks = new Map<string, FilterCheck>();
-
-/** The last answer for `root`, asking again once it's a minute old. */
-function checkFilters(file: string, root: string, env: NodeJS.ProcessEnv) {
-  const last = checks.get(root);
-  if (last && Date.now() - last.at < RECHECK_MS) return last;
-  const done = foreignFilterKeys(file, root, env);
-  const check: FilterCheck = { at: Date.now(), keys: last?.keys, done };
-  checks.set(root, check);
-  void done.then((keys) => (check.keys = keys));
-  return check;
-}
+const checkFilters = recheckedPerRoot(foreignFilterKeys);
 
 /**
  * The `-c` settings that keep a polled read from running the clean, smudge
@@ -40,7 +22,7 @@ export function filterOverride(
 ): string[] | Promise<string[]> {
   if (!refreshesIndex(args)) return [];
   const check = checkFilters(file, root, env);
-  return check.keys
-    ? filtersEmptied(check.keys)
+  return check.value
+    ? filtersEmptied(check.value)
     : check.done.then(filtersEmptied);
 }

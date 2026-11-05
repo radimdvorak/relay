@@ -1,5 +1,6 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
+import { recheckedPerRoot } from "./rechecked-per-root";
 
 const exec = promisify(execFile);
 
@@ -20,15 +21,6 @@ const indexReads = new Set([
 ]);
 
 const monitorOff = ["-c", "core.fsmonitor=false"];
-const RECHECK_MS = 60_000;
-
-type MonitorCheck = {
-  at: number;
-  hook: boolean | undefined;
-  done: Promise<boolean>;
-};
-
-const checks = new Map<string, MonitorCheck>();
 
 /** The Git subcommand in `args`, past any `-c key=value` settings. */
 function subcommandOf(args: string[]) {
@@ -48,26 +40,22 @@ export const refreshesIndex = (args: string[]) =>
  * status fast in big repositories. Unset exits 1; a value that isn't a
  * boolean fails, so it is a command.
  */
-export function checkMonitor(
+const monitorChecks = recheckedPerRoot((file, root, env) =>
+  exec(file, ["-C", root, "config", "--type=bool", "--get", "core.fsmonitor"], {
+    env,
+    timeout: 15000,
+  }).then(
+    () => false,
+    (error: { code?: unknown }) => error.code !== 1,
+  ),
+);
+
+/** Whether `root`'s fsmonitor is a hook, asked again once the last answer is a minute old. */
+export const checkMonitor = (
   file: string,
   root: string,
   env: NodeJS.ProcessEnv,
-) {
-  const last = checks.get(root);
-  if (last && Date.now() - last.at < RECHECK_MS) return last.done;
-  const done = exec(
-    file,
-    ["-C", root, "config", "--type=bool", "--get", "core.fsmonitor"],
-    { env, timeout: 15000 },
-  ).then(
-    () => false,
-    (error: { code?: unknown }) => error.code !== 1,
-  );
-  const check: MonitorCheck = { at: Date.now(), hook: last?.hook, done };
-  checks.set(root, check);
-  void done.then((hook) => (check.hook = hook));
-  return done;
-}
+) => monitorChecks(file, root, env).done;
 
 /**
  * The `-c` settings that keep a read from running the repository's fsmonitor
@@ -82,7 +70,6 @@ export function monitorOverride(
   env: NodeJS.ProcessEnv,
 ): string[] {
   if (!refreshesIndex(args)) return [];
-  void checkMonitor(file, root, env);
-  const hook = checks.get(root)?.hook ?? true;
+  const hook = monitorChecks(file, root, env).value ?? true;
   return hook ? monitorOff : [];
 }
