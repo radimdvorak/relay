@@ -118,6 +118,8 @@ export class AnswerRecorder {
   private offer?: ImportOffer;
   /** Stopped by the user; see `stop`. */
   stopped = false;
+  /** The turn ended: nothing streams any more for a change to wait on. */
+  private ended = false;
 
   constructor(
     private chat: ProjectChat,
@@ -134,7 +136,11 @@ export class AnswerRecorder {
   }
 
   changed() {
-    this.flush ??= setTimeout(() => this.publish(), 40);
+    // A late change, such as the model resolving after a quick Stop, would
+    // otherwise sit unpublished while the next turn's send checkpoints the
+    // thread by version.
+    if (this.ended) this.publish();
+    else this.flush ??= setTimeout(() => this.publish(), 40);
     this.checkpoint ??= setTimeout(() => {
       this.checkpoint = null;
       // The version only moves on publish; a checkpoint reads changes by it.
@@ -387,6 +393,7 @@ export class AnswerRecorder {
     if (this.flush) clearTimeout(this.flush);
     if (this.checkpoint) clearTimeout(this.checkpoint);
     this.flush = this.checkpoint = null;
+    this.ended = true;
     this.publish();
   }
 }
