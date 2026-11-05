@@ -91,8 +91,6 @@ const braceList = `\\{[^\\s{}]*(?:,|\\.\\.)`;
 export const disguisedFlag = [...respellings, braceList].join("|");
 const respelled = new RegExp(respellings.join("|"));
 const braces = new RegExp(braceList);
-/** A `$` mid-word: bash's `${x@P}` and `$[x]`, or zsh's `${(e)x}`, run what `x` holds. */
-const expansion = new RegExp(respellings[3]!);
 
 // Quotes keep the shell from expanding braces, so `rg -g '*.{ts,tsx}'` reads;
 // with a backslash about, a quote may not be one, so any brace counts.
@@ -234,12 +232,37 @@ export function readsOnly(command: string): boolean {
 /** One command of a line, as the shell reads it. */
 type ShellCommand = {
   text: string;
+  /** A `$` that does more than read a variable: bash's `${x@P}` and `$[x]`, zsh's `${(e)x}`. */
+  expands: boolean;
   /** A word starts with an unquoted wildcard, which may expand to a file named like a flag. */
   globbed: boolean;
 };
 
 /** Wildcards bash and zsh expand at the start of a word; `{` for zsh's brace_ccl, `^` for extended_glob. */
 const wildcards = "*?[{^";
+
+/**
+ * `$NAME` or `${NAME}`, which only read a variable. Not a subscript: it's
+ * arithmetic, which runs code a value holds, and `$_` holds the last word.
+ */
+const variable = /\$(?:[A-Za-z]\w*(?![\w[])|\{[A-Za-z]\w*\})/y;
+
+/** Whether the `$` at `at` expands more than a variable; one before a blank or the end is a `$`. */
+function expandsAt(line: string, at: number, ends: string) {
+  variable.lastIndex = at;
+  if (variable.test(line)) return false;
+  const next = line[at + 1];
+  return next !== undefined && !ends.includes(next);
+}
+
+/** Whether a `$` in the double-quoted `"…"` at `open` to `close` expands more than a variable. */
+function expandsQuoted(line: string, open: number, close: number) {
+  for (let i = open + 1; i < close; i++) {
+    if (line[i] === "\\") i++;
+    else if (line[i] === "$" && expandsAt(line, i, ' \t\n"')) return true;
+  }
+  return false;
+}
 
 /**
  * The commands of `line`, split where bash and zsh split them: a `;`, `|` or
@@ -250,14 +273,14 @@ const wildcards = "*?[{^";
  */
 function commandsIn(line: string): ShellCommand[] | undefined {
   const commands: ShellCommand[] = [];
-  let command: ShellCommand = { text: "", globbed: false };
+  let command: ShellCommand = { text: "", expands: false, globbed: false };
   /** Nothing of the word being read so far; empty quotes don't count. */
   let newWord = true;
   /** How far a comment has been checked for quotes, so each line is read once. */
   let commentChecked = -1;
   const endCommand = () => {
     commands.push({ ...command, text: command.text.trim() });
-    command = { text: "", globbed: false };
+    command = { text: "", expands: false, globbed: false };
   };
   for (let i = 0; i < line.length; i++) {
     const c = line[i]!;
@@ -286,6 +309,7 @@ function commandsIn(line: string): ShellCommand[] | undefined {
       const open = c === "$" ? i + 1 : i;
       const close = quoteEnd(line, open, open > i || c === '"');
       if (close < 0) return undefined;
+      if (c === '"' && expandsQuoted(line, open, close)) command.expands = true;
       command.text += line.slice(i, close + 1);
       newWord = startsWord && close === open + 1;
       i = close;
@@ -298,6 +322,7 @@ function commandsIn(line: string): ShellCommand[] | undefined {
         if (/['"\\]/.test(line.slice(i, commentChecked))) return undefined;
       }
       if (startsWord && wildcards.includes(c)) command.globbed = true;
+      if (c === "$" && expandsAt(line, i, " \t\n;|&")) command.expands = true;
       command.text += c;
     }
   }
@@ -315,9 +340,9 @@ function quoteEnd(line: string, open: number, escapes: boolean) {
   return -1;
 }
 
-function segmentReads({ text: segment, globbed }: ShellCommand) {
+function segmentReads({ text: segment, expands, globbed }: ShellCommand) {
   const [name, ...args] = segment.split(/\s+/);
-  if (expansion.test(segment)) return false;
+  if (expands) return false;
   // Their flags decide whether they write, so a flag has to be spelled plainly.
   // GNU sed reads a flag anywhere, so a quoted `'-i'` after the script still edits.
   const flagged = ["git", "sed", ...Object.keys(allowedFlags)];

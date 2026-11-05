@@ -82,8 +82,26 @@ it("turns down a plain command whose expansion runs another command", () => {
     `echo \${x:=$'\\x24(touch m)'}\${x@P}`,
     `echo \${x:=$'\\x24(touch m)'}\${(e)x}`,
     `echo \${x:=$'a[\\x24(touch m)]'}$[x]`,
+    // A subscript is arithmetic, which runs what $_ holds: the last word.
+    `echo $'x[\\x24(touch m)]'; echo \${PATH[_]}`,
+    `echo $'x[\\x24(touch m)]'; echo "$path[_]"`,
+    "echo $_",
+    "echo ${HOME@P}",
+    "echo $~HOME",
+    "echo \"${(e)HOME}\"",
+    // Flags stay spelled plainly.
+    "rg $HOME/x src",
   ])
     expect(readsOnly(command), command).toBe(false);
+  for (const command of [
+    "echo $HOME",
+    'ls "$HOME/.config"',
+    "cat ${HOME}/notes.txt",
+    "echo '${x@P}'",
+    'echo "cost: $"',
+    "echo $",
+  ])
+    expect(readsOnly(command), command).toBe(true);
 });
 
 it("reads the commands of a line where the shell splits them", () => {
