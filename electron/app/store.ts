@@ -132,6 +132,8 @@ export class Store {
   private state: State = { version: 1, folders: {}, progress: {} };
   private queue: Promise<void> = Promise.resolve();
   private writeError: unknown;
+  /** The launch's copy of state.json, written while Relay starts rather than before. */
+  private backup: Promise<void> = Promise.resolve();
 
   /** Changes `updateSoon` made that no write has carried to the file yet. */
   private unwritten = false;
@@ -139,7 +141,7 @@ export class Store {
 
   async flush() {
     if (this.unwritten) void this.writeUnwritten().catch(() => {});
-    await this.queue;
+    await Promise.all([this.queue, this.backup]);
     if (this.writeError) throw this.writeError;
   }
 
@@ -162,7 +164,7 @@ export class Store {
     if (saved) {
       this.state = saved;
       this.savedAtLoad = (await stat(path)).mtimeMs;
-      await this.keepBackup(text);
+      this.backup = this.keepBackup(text);
       return;
     }
 

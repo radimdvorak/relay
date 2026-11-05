@@ -3,6 +3,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Store } from "./store";
+import { writeFileAtomic } from "../util/atomic-write";
+
+vi.mock("../util/atomic-write", async (real) => {
+  const actual = await real<typeof import("../util/atomic-write")>();
+  return { ...actual, writeFileAtomic: vi.fn(actual.writeFileAtomic) };
+});
 
 let dir: string;
 
@@ -107,11 +113,33 @@ describe("Store", () => {
   });
 
   describe("after a power cut empties state.json", () => {
+    /** A launch that quit, flushing what it wrote. */
     const launch = async () => {
       const store = new Store(dir);
       await store.load();
+      await store.flush();
       return store;
     };
+
+    it("keeps the copy without making the launch wait for the disk", async () => {
+      await (await launch()).update((s) => {
+        s.gitPath = "/usr/bin/git";
+      });
+      let written = () => {};
+      vi.mocked(writeFileAtomic).mockImplementationOnce(
+        () => new Promise<void>((resolve) => (written = resolve)),
+      );
+
+      const store = new Store(dir);
+      // Resolves while the copy is still being written.
+      await store.load();
+      let flushed = false;
+      const flush = store.flush().then(() => (flushed = true));
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      expect(flushed).toBe(false);
+      written();
+      await flush;
+    });
 
     it("starts from the copy kept at the last good launch", async () => {
       const first = await launch();
