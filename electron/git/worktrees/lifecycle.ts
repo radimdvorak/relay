@@ -144,6 +144,10 @@ export async function removeWorktree(
         "Relay: the worktree as it was removed",
       );
       await git(root, ["update-ref", keptRef(chatId), kept]);
+    } else if (!(await isClean(worktree.path))) {
+      throw new Error(
+        "Couldn't save a copy of this worktree's changes, so it wasn't removed",
+      );
     }
     await unlinkModules(worktree.path);
     await git(root, ["worktree", "remove", "--force", worktree.path]).catch(
@@ -155,4 +159,12 @@ export async function removeWorktree(
   }
   if (worktree.branch && !keepBranch && !worktree.existing)
     await git(root, ["branch", "-D", worktree.branch]).catch(() => {});
+}
+
+/** Whether Git sees nothing uncommitted in the folder; false when it can't tell. */
+async function isClean(path: string) {
+  return git(path, ["status", "--porcelain", "--untracked-files=all"]).then(
+    (status) => !status.trim(),
+    () => false,
+  );
 }
