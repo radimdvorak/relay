@@ -70,6 +70,15 @@ it("reads Markdown as the sentence it says", () => {
   expect(plainText("x".repeat(400), 10)).toBe("xxxxxxxxxx…");
 });
 
+it.each([
+  ["Keep `a < b` and `x > y`", "Keep a < b and x > y"],
+  ["Is `i<n` or `n>0`?", "Is i<n or n>0?"],
+  ["Use a <details> fold<br/>here", "Use a fold here"],
+  ['A <span class="x">tag</span>', "A tag"],
+])("keeps comparisons but drops tags: %s", (markdown, text) => {
+  expect(plainText(markdown)).toBe(text);
+});
+
 it("shows a prompt's opening @mention as the agent, not as text", () => {
   const [turn] = timelineTurns([
     message("p1", "user", "@codex why is the build red?"),

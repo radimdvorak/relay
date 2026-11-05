@@ -28,7 +28,8 @@ export function plainText(markdown: string, limit = 280) {
   const text = markdown
     .slice(0, limit * 6)
     .replace(/```[\s\S]*?(```|$)/g, " ")
-    .replace(/<[^>\n]+>/g, " ")
+    // A tag, not a comparison like `a < b and c > d`.
+    .replace(/<\/?[A-Za-z][\w-]*(?:\s[^<>\n]*)?\/?>/g, " ")
     .replace(/!\[([^\]]*)\]\([^)]*\)/g, "$1")
     .replace(/\[([^\]]+)\]\([^)]*\)/g, "$1")
     .replace(/^\s{0,3}(#{1,6}|>|[-*+]|\d+[.)])\s+/gm, "")
