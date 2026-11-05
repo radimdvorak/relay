@@ -1,5 +1,5 @@
 import Module from "node:module";
-import { afterAll, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeEach, expect, it, vi } from "vitest";
 import type { TerminalEvent } from "../../shared/terminals";
 import { ThreadTerminals } from "./thread-terminals";
 
@@ -50,14 +50,19 @@ afterAll(() => {
   (Module as any)._load = load;
 });
 
-it("doesn't draw the old shell's last output in the new one a restart started", async () => {
+// Output goes out a few milliseconds after the shell prints it.
+beforeEach(() => vi.useFakeTimers());
+
+afterEach(() => vi.useRealTimers());
+
+it("doesn't draw the old shell's last output in the new one a restart started", () => {
   const terminals = new ThreadTerminals();
   const sent: TerminalEvent[] = [];
   terminals.connect((e) => sent.push(e));
   terminals.open("thread-a", "/p", 80, 24);
   const old = FakePty.made.at(-1)!;
   old.print("before\r\n");
-  await new Promise((r) => setTimeout(r, 10));
+  vi.advanceTimersByTime(10);
   sent.length = 0;
 
   // Restart: the old shell is killed, a new one starts under the same key.
@@ -65,14 +70,14 @@ it("doesn't draw the old shell's last output in the new one a restart started", 
   expect(old.killed).toBe(true);
   // The killed shell's job still prints on its way out.
   old.print("old server shutting down\r\n");
-  await new Promise((r) => setTimeout(r, 10));
+  vi.advanceTimersByTime(10);
 
   expect(sent.map((e) => e.data ?? "").join("")).not.toContain(
     "old server shutting down",
   );
 });
 
-it("doesn't send output of a shell whose tab was closed", async () => {
+it("doesn't send output of a shell whose tab was closed", () => {
   const terminals = new ThreadTerminals();
   const sent: TerminalEvent[] = [];
   terminals.connect((e) => sent.push(e));
@@ -80,11 +85,11 @@ it("doesn't send output of a shell whose tab was closed", async () => {
   const old = FakePty.made.at(-1)!;
   terminals.close("thread-b");
   old.print("late\r\n");
-  await new Promise((r) => setTimeout(r, 10));
+  vi.advanceTimersByTime(10);
   expect(sent).toEqual([]);
 });
 
-it("keeps sending a draft's shell output once its thread has adopted it", async () => {
+it("keeps sending a draft's shell output once its thread has adopted it", () => {
   const terminals = new ThreadTerminals();
   const sent: TerminalEvent[] = [];
   terminals.connect((e) => sent.push(e));
@@ -92,6 +97,6 @@ it("keeps sending a draft's shell output once its thread has adopted it", async 
   const shell = FakePty.made.at(-1)!;
   terminals.adopt("draft:p", "thread-c");
   shell.print("still here\r\n");
-  await new Promise((r) => setTimeout(r, 10));
+  vi.advanceTimersByTime(10);
   expect(sent).toEqual([{ key: "thread-c", data: "still here\r\n" }]);
 });
