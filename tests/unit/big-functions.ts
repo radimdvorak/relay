@@ -183,7 +183,7 @@ export const bigFunctions: Record<string, number> = {
   "src/features/composer/useComposerDraft.ts › useComposerDraft": 98,
   "src/features/composer/useComposerSend.ts › useComposerSend": 179,
   "src/features/composer/useComposerSettings.ts › useComposerSettings": 120,
-  "src/features/composer/useDraftImages.ts › useDraftImages": 184,
+  "src/features/composer/useDraftImages.ts › useDraftImages": 160,
   "src/features/composer/useSettingCommands.ts › useSettingCommands": 131,
   "src/features/continue-session/useResumeCommand.ts › useResumeCommand": 112,
   "src/features/deep-review/Council.tsx › DeepReviewCouncil": 105,
