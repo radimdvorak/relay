@@ -1,11 +1,15 @@
 // @vitest-environment happy-dom
 import { afterEach, expect, it, vi } from "vitest";
 import { mount } from "../../../../tests/unit/hook-harness";
-import type { DictationRequest } from "../../../../shared/dictation";
+import type {
+  DictationEvent,
+  DictationRequest,
+} from "../../../../shared/dictation";
 import {
   cancelDictation,
   dictationSnapshot,
   startDictation,
+  stopDictation,
   useDictationModel,
 } from "./session";
 
@@ -84,4 +88,64 @@ it("gives a dictation started right after a cancelled one its own port", async (
   expect(live).toHaveLength(1);
   expect(live[0].sent[0]).toMatchObject({ type: "start" });
   expect(live[0].sent[0].id).toBeGreaterThan(cancelledPort.sent[0].id);
+});
+
+function answerStop(port: FakePort, text: string) {
+  const stop = port.sent.find((request) => request.type === "stop");
+  if (!stop) throw new Error("no stop was sent");
+  (port.onmessage as (event: { data: DictationEvent }) => void)({
+    data: { type: "final", id: stop.id, text },
+  });
+}
+
+it("finishes a dictation stopped while it was starting, and says the words stayed", async () => {
+  mount(() => useDictationModel());
+  await settle();
+  const ended = vi.fn();
+  const target = { begin() {}, update() {}, end: ended };
+
+  const started = startDictation(target, "composer");
+  await settle();
+  const stopped = stopDictation();
+  const port = new FakePort();
+  deliver(port);
+  await started;
+  await settle();
+  answerStop(port, "hello");
+
+  await expect(stopped).resolves.toBe(true);
+  expect(ended).toHaveBeenCalledExactlyOnceWith("hello");
+  expect(dictationSnapshot().phase).toBe("idle");
+});
+
+it("tells a second stop while finishing that the words stayed", async () => {
+  mount(() => useDictationModel());
+  await settle();
+
+  const started = startDictation(target(), "composer");
+  await settle();
+  const port = new FakePort();
+  deliver(port);
+  await started;
+  const first = stopDictation();
+  await settle();
+  const second = stopDictation();
+  answerStop(port, "hello");
+
+  await expect(first).resolves.toBe(true);
+  await expect(second).resolves.toBe(true);
+});
+
+it("tells a stop while starting that nothing stayed when the start is cancelled", async () => {
+  mount(() => useDictationModel());
+  await settle();
+
+  const started = startDictation(target(), "composer");
+  await settle();
+  const stopped = stopDictation();
+  cancelDictation();
+  deliver(new FakePort());
+  await started;
+
+  await expect(stopped).resolves.toBe(false);
 });
