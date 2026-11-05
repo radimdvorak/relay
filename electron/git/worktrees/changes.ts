@@ -132,7 +132,10 @@ export async function worktreeChanges(
  * of its own changing.
  */
 async function contentsStamp(root: string) {
-  const status = parseStatusV2(await git(root, statusArgs));
+  // A submodule the config tells status to ignore still moves in the snapshot.
+  const status = parseStatusV2(
+    await git(root, [...statusArgs, "--ignore-submodules=none"]),
+  );
   const nested = status.rows.some(
     (row) => row.endsWith("/") || /^[12u] \S+ S/.test(row),
   );

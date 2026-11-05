@@ -94,6 +94,38 @@ it.skipIf(process.platform === "win32")(
 );
 
 it.skipIf(process.platform === "win32")(
+  "snapshots again when a submodule that status ignores moved",
+  async () => {
+    const worktree = await made();
+    const path = worktree.path!;
+    const inner = join(temp, "inner");
+    initRepo(inner);
+    await writeFile(join(inner, "x.ts"), "x\n");
+    git(inner, "add", ".");
+    git(inner, "commit", "-qm", "Inner");
+    git(
+      path,
+      "-c",
+      "protocol.file.allow=always",
+      "submodule",
+      "add",
+      "-q",
+      inner,
+      "sub",
+    );
+    git(path, "commit", "-qm", "Sub");
+    git(path, "config", "submodule.sub.ignore", "all");
+    const sub = join(path, "sub");
+    initRepo(sub);
+    const before = (await worktreeChanges(worktree)).tree;
+    await writeFile(join(sub, "y.ts"), "y\n");
+    git(sub, "add", ".");
+    git(sub, "commit", "-qm", "Moved");
+    expect((await worktreeChanges(worktree)).tree).not.toBe(before);
+  },
+);
+
+it.skipIf(process.platform === "win32")(
   "snapshots for the card without the clean filter the repository's config names",
   async () => {
     const marker = join(temp, "filter-ran");
