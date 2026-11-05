@@ -39,6 +39,7 @@ import {
   download,
   readReturned,
   receivePastesFrom,
+  refuseReadOnlyOnOlder,
   settingsOf,
   upload,
 } from "./transfer";
@@ -75,7 +76,8 @@ export class HandoffTrips {
       const { name } = this.computers.get(computerId);
       const client = await this.computers.connected(computerId);
       const info = await this.infos.get(computerId, client, true);
-      refuseUnfitComputer(name, info);
+      const { lastInput } = await this.chats.get(chatId);
+      refuseUnfitComputer(name, info, lastInput);
       const repositories = await repositoryNames(
         await this.projects.root(summaryOf(this.store, chatId).projectId),
       );
@@ -115,7 +117,7 @@ export class HandoffTrips {
         repositories,
         title: chat.title,
         scope: chat.scope,
-        settings: settingsOf(input),
+        settings: settingsOf(input, { name, bridge: info!.bridge }),
         messages: await carriedMessages(chat, client, info!.bridge),
         git: {
           branch: worktree.branch!,
@@ -253,7 +255,7 @@ export class HandoffTrips {
         from: computerName(),
         title: chat.title,
         scope: chat.scope,
-        settings: settingsOf(input),
+        settings: settingsOf(input, { name, bridge: info.bridge }),
         messages: await carriedMessages(chat, client, info.bridge),
       };
       asked = true;
@@ -299,10 +301,17 @@ export class HandoffTrips {
 function refuseUnfitComputer(
   name: string,
   info: ComputerInfo | null | undefined,
+  input: ProjectChat["lastInput"],
 ) {
   if (outdated(info))
     throw new Error(
       `${name} runs an older Relay. Update it from Settings → Computers, then try again.`,
+    );
+  if (input)
+    refuseReadOnlyOnOlder(
+      input.runtimeMode,
+      { name, bridge: info!.bridge },
+      "hand off a Read only thread",
     );
 }
 
