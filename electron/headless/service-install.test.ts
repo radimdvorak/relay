@@ -7,6 +7,7 @@ const mock = vi.hoisted(() => ({
   home: "",
   commands: [] as string[][],
   failRestart: false,
+  noUserManager: false,
 }));
 
 vi.mock("node:os", async (original) => ({
@@ -22,6 +23,14 @@ vi.mock("node:child_process", async (original) => ({
     callback: (error: Error | null, stdout: string, stderr: string) => void,
   ) => {
     mock.commands.push([file, ...args]);
+    if (mock.noUserManager && file === "systemctl")
+      return callback(
+        Object.assign(new Error("Command failed"), {
+          stderr: "Failed to connect to bus: No medium found",
+        }),
+        "",
+        "",
+      );
     callback(
       mock.failRestart && args.includes("restart")
         ? new Error("restart failed")
@@ -32,7 +41,12 @@ vi.mock("node:child_process", async (original) => ({
   },
 }));
 
-import { installService, serviceFile, systemdService } from "./service";
+import {
+  installService,
+  installedService,
+  serviceFile,
+  systemdService,
+} from "./service";
 
 const platform = Object.getOwnPropertyDescriptor(process, "platform")!;
 
@@ -42,6 +56,7 @@ afterEach(async () => {
   mock.home = "";
   mock.commands = [];
   mock.failRestart = false;
+  mock.noUserManager = false;
 });
 
 async function fixture() {
@@ -76,4 +91,15 @@ it("does not report a successful installation when the replacement fails to star
   const spec = await fixture();
   mock.failRestart = true;
   await expect(installService(spec)).rejects.toThrow("restart failed");
+});
+
+it("leaves no unit behind where this user has no systemd to load it", async () => {
+  // A container, WSL without systemd, or `sudo -u` into an account with no session.
+  const spec = await fixture();
+  mock.noUserManager = true;
+  await expect(installService(spec)).rejects.toThrow(
+    "Failed to connect to bus",
+  );
+  // Else every `relay start` after goes to systemctl too, and fails the same way.
+  expect(installedService()).toBeNull();
 });
