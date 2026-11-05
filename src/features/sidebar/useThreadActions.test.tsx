@@ -38,7 +38,7 @@ function setup() {
     () =>
       useThreadActions({
         chatId,
-        active: [],
+        families: { top: [], headers: new Set() },
         projects: new Map(),
         scratch: new Set(),
         open,
