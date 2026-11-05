@@ -72,7 +72,9 @@ export async function runClaudeProject(
     }
     turn = { unprompted: false };
   }
-  let reusable = false;
+  // A prompt that fails before it goes out, say on a deleted screenshot,
+  // leaves the session and Claude's background work in it as they were.
+  let reusable = !adopting;
   // Past the last frame this turn read from the host's log.
   let consumed: number | undefined;
   const controller = session?.controller ?? new AbortController();
@@ -121,6 +123,7 @@ export async function runClaudeProject(
         await settled(session.unprompted, options.signal);
       session.turn = turn;
       session.hosted?.mark("start");
+      reusable = false;
       session.input.push({
         type: "user",
         uuid: reader.prompt.uuid,
