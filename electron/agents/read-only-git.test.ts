@@ -48,3 +48,26 @@ it("keeps git status in a committed bare repository from running its config", as
   status({ ...process.env, ...readOnlyGitEnv(process.env) });
   expect(existsSync(marker)).toBe(false);
 });
+
+it("names no variable Codex's default shell environment policy drops", () => {
+  // Codex leaves out names matching *KEY*, *SECRET* and *TOKEN* unless told
+  // not to, and git refuses every command when a counted key goes missing.
+  const names = Object.keys(readOnlyGitEnv(process.env));
+  expect(names.filter((name) => /KEY|SECRET|TOKEN/i.test(name))).toEqual([]);
+});
+
+it("keeps settings the environment already passes to git", () => {
+  const checkout = checkoutWithTrap(join(root, "ran"));
+  const base = {
+    ...process.env,
+    GIT_CONFIG_PARAMETERS: "'user.name'='Some One'",
+  };
+  const read = (key: string) =>
+    execFileSync("git", ["config", key], {
+      cwd: checkout,
+      env: { ...base, ...readOnlyGitEnv(base) },
+      encoding: "utf8",
+    }).trim();
+  expect(read("user.name")).toBe("Some One");
+  expect(read("safe.bareRepository")).toBe("explicit");
+});

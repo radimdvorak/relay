@@ -310,9 +310,7 @@ it("runs a Read only turn in Codex's read-only sandbox, never asking", async () 
 });
 
 it("keeps git in a Read only turn from opening a bare repository it finds", async () => {
-  vi.stubEnv("GIT_CONFIG_COUNT", "1");
-  vi.stubEnv("GIT_CONFIG_KEY_0", "user.name");
-  vi.stubEnv("GIT_CONFIG_VALUE_0", "Someone");
+  vi.stubEnv("GIT_CONFIG_PARAMETERS", "'user.name'='Someone'");
   const chat = await chats.create(projectId, { kind: "project" });
   await chats.send(chat.id, {
     ...input("@codex Explain the cache guard"),
@@ -323,11 +321,8 @@ it("keeps git in a Read only turn from opening a bare repository it finds", asyn
   );
   const started = JSON.parse((await agentCalls()).trim().split("\n")[0]);
   expect(started.gitConfig).toEqual({
-    GIT_CONFIG_COUNT: "2",
-    GIT_CONFIG_KEY_0: "user.name",
-    GIT_CONFIG_VALUE_0: "Someone",
-    GIT_CONFIG_KEY_1: "safe.bareRepository",
-    GIT_CONFIG_VALUE_1: "explicit",
+    GIT_CONFIG_PARAMETERS:
+      "'user.name'='Someone' 'safe.bareRepository'='explicit'",
   });
 });
 
