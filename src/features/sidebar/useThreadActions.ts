@@ -283,13 +283,14 @@ export function useThreadActions({
       void refresh(c);
     }
   };
-  /** Forks from the latest answer and opens the fork on that answer's agent. */
+  /** Forks from the latest answer and opens the fork, unless the user opened another thread meanwhile. */
   const fork = async (c: ChatSummary) => {
     setError(undefined);
+    const from = latest.current.chatId;
     try {
       const forked = await forkThread(qc, c);
       await refresh(c);
-      open(forked);
+      if (latest.current.chatId === from) open(forked);
     } catch (e) {
       failed(e);
     }
