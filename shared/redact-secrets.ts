@@ -45,6 +45,17 @@ const values: RegExp[] = [
     String.raw`(\b[a-z][a-z0-9+.-]*://[^\s:/@]+:)${reference}([^\s@/]+)(?=@)`,
     "gi",
   ),
+  // https://<PAT>@dev.azure.com: a token as the whole user part. Plain
+  // usernames are shorter or have no digits.
+  new RegExp(
+    String.raw`(\b[a-z][a-z0-9+.-]*://)${reference}(?=[^\s:/@]*\d)([A-Za-z0-9_-]{32,})(?=@)`,
+    "gi",
+  ),
+  // X-API-Key: …, PRIVATE-TOKEN: …, Ocp-Apim-Subscription-Key: …
+  new RegExp(
+    String.raw`(\b(?:[A-Za-z]+-)*(?:API-?Key|Auth-Token|Access-Token|Private-Token|Subscription-Key|Functions-Key)["']?\s*:\s*["']?)${reference}([A-Za-z0-9._~+/=-]{12,})`,
+    "gi",
+  ),
   // SECRET=…, export GITHUB_TOKEN=…, API_KEY: …
   new RegExp(
     String.raw`^([ \t]*(?:export[ \t]+)?(?:[A-Z0-9]+_)*(?:SECRET|PASSWORD|PASSWD|TOKEN|API_?KEY|ACCESS_?KEY|PRIVATE_?KEY)[ \t]*[=:][ \t]*["']?)${reference}([^\s"'\x60]{8,})`,

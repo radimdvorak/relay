@@ -97,4 +97,60 @@ describe("redactSecrets", () => {
     ].join("\n");
     expect(redactSecrets(text)).toEqual({ text, found: 0 });
   });
+
+  it("drops a token used as a bare URL username", () => {
+    const pat = fake("x7k2m9q4w8e3r5t6y1u0i2o4p6a8s0d2", "f4g6h8j0k2l4");
+    const { text, found } = redactSecrets(
+      `git clone https://${pat}@dev.azure.com/acme/relay/_git/relay`,
+    );
+    expect(text).toBe(
+      "git clone https://[redacted]@dev.azure.com/acme/relay/_git/relay",
+    );
+    expect(found).toBe(1);
+  });
+
+  it("keeps plain URL usernames", () => {
+    const text = [
+      "ssh://git@github.com/acme/relay.git",
+      "https://jane.doe@dev.azure.com/acme/_git/relay",
+      "https://acme-engineering-platform@dev.azure.com/acme/_git/relay",
+    ].join("\n");
+    expect(redactSecrets(text)).toEqual({ text, found: 0 });
+  });
+
+  it("drops the value of an API key header", () => {
+    const { text } = redactSecrets(
+      [
+        "curl -H 'X-API-Key: 9f8e7d6c5b4a3f2e1d0c' https://api.example.com",
+        "X-Api-Key: 9f8e7d6c5b4a3f2e1d0c",
+        'curl -H "PRIVATE-TOKEN: 9f8e7d6c5b4a3f2e1d0c" https://gitlab.example.com',
+        "Ocp-Apim-Subscription-Key: 9f8e7d6c5b4a3f2e1d0c",
+      ].join("\n"),
+    );
+    expect(text).toBe(
+      [
+        "curl -H 'X-API-Key: [redacted]' https://api.example.com",
+        "X-Api-Key: [redacted]",
+        'curl -H "PRIVATE-TOKEN: [redacted]" https://gitlab.example.com',
+        "Ocp-Apim-Subscription-Key: [redacted]",
+      ].join("\n"),
+    );
+  });
+
+  it("takes linear time on long runs of near-secrets", () => {
+    const inputs = [
+      "https://" + "a".repeat(50_000),
+      "https://a" + ":a".repeat(25_000),
+      "X-API-Key: " + "a".repeat(50_000) + "\n",
+      "Authorization: Bearer " + "a".repeat(50_000),
+      "-----BEGIN PRIVATE KEY-----" + "a\n".repeat(25_000),
+      "A_".repeat(25_000) + "TOKEN",
+      "token".repeat(10_000),
+    ];
+    for (const input of inputs) {
+      const started = performance.now();
+      redactSecrets(input);
+      expect(performance.now() - started).toBeLessThan(500);
+    }
+  });
 });
