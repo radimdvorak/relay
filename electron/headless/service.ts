@@ -283,6 +283,7 @@ export async function installService(spec: ServiceSpec) {
     };
   }
   if (kind === "launchd") {
+    const before = await readFile(file, "utf8").catch(() => undefined);
     await uninstallLaunchd({ keepFile: true });
     await writeFile(file, launchdPlist(spec));
     let last: unknown;
@@ -293,6 +294,10 @@ export async function installService(spec: ServiceSpec) {
       } catch (e) {
         last = e;
       }
+    // A new agent left behind would send every `relay start` to launchd,
+    // which fails the same way; one set up before is put back.
+    if (before === undefined) await rm(file, { force: true });
+    else await writeFile(file, before);
     throw new Error(`launchd wouldn't load Relay: ${message(last)}`);
   }
   const before = await readFile(file, "utf8").catch(() => undefined);
