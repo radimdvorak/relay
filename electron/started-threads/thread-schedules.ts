@@ -16,6 +16,7 @@ import type { ModelChoice } from "../../shared/settings";
 import { sliceWhole } from "../../shared/truncate";
 import { scheduleWeekdays, toolText, type RelayToolArgs } from "../relay-mcp";
 import { json, localTime } from "./tool-output";
+import type { AgentChoices } from "./thread-agents";
 
 /** What the tools need from Relay's schedules. */
 export interface ScheduleTools {
@@ -108,7 +109,10 @@ function listed(s: Schedule, name: (id: string) => string | undefined) {
 export class ThreadSchedules {
   private projectName: (id: string) => string | undefined;
 
-  constructor(private schedules: ScheduleTools) {
+  constructor(
+    private schedules: ScheduleTools,
+    private agentChoices: Pick<AgentChoices, "refusal">,
+  ) {
     this.projectName = (id) => schedules.projectName(id);
   }
 
@@ -122,7 +126,15 @@ export class ThreadSchedules {
     return json(this.schedules.list().map((s) => listed(s, this.projectName)));
   }
 
+  /** Why the agent named can't run it, in start_threads' words; undefined when it can or none is named. */
+  private async refusalFor(agent: AgentProvider | undefined, defaults: ScheduleDefaults) {
+    if (!agent) return undefined;
+    return this.agentChoices.refusal([{ agent }], defaults.agent);
+  }
+
   async add(lead: ProjectChat, fields: RelayToolArgs<"add_schedule">, defaults: ScheduleDefaults, ask: Ask) {
+    const refusal = await this.refusalFor(fields.agent, defaults);
+    if (refusal) return toolText(refusal, true);
     const input = applied(
       {
         name: fields.name,
@@ -151,6 +163,8 @@ export class ThreadSchedules {
   async update(fields: RelayToolArgs<"update_schedule">, defaults: ScheduleDefaults, ask: Ask) {
     const { id, ...changes } = fields;
     const old = this.find(id);
+    const refusal = await this.refusalFor(changes.agent, defaults);
+    if (refusal) return toolText(refusal, true);
     const input = applied(scheduleInputOf(old), changes, defaults);
     if (!(await ask(`Change “${old.name}”?`, described(input, this.projectName))))
       return toolText("The user kept the schedule as it was. Ask them what they want instead.", true);
