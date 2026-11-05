@@ -80,13 +80,22 @@ export class TurnEndings {
   /**
    * A turn stopped or failed before its agent ran, so no run ends to move a
    * review on: a reviewer's review takes its step here, or would wait for good.
+   * Nor would the queue go on after a Stop that kept it going, to send a
+   * waiting steer.
    */
   unstarted(chat: ProjectChat, input: ProjectChatSend, answer?: string) {
-    if (chat.reviewer)
-      void this.councils.step(chat.id, {
+    const stepped =
+      chat.reviewer &&
+      this.councils.step(chat.id, {
         request: input.id,
         ...(answer ? { answer } : {}),
       });
+    void this.core
+      .control(chat.id, async () => {
+        await stepped;
+        await this.queue.drain(chat.id);
+      })
+      .catch((e) => console.warn("Could not send the queued messages:", e));
   }
 
   /**
