@@ -2,8 +2,7 @@
 // They may shrink, never grow: lower a ceiling as its file shrinks, and drop
 // the entry once the file is under the limit. See "Readable code" in AGENTS.md.
 export const bigFiles: Record<string, number> = {
-  "electron/agent-host/client.ts": 775,
-  "electron/agent-host/host.ts": 494,
+  "electron/agent-host/client.ts": 705,
   "electron/agents/agent-updates.ts": 947,
   "electron/agents/opencode/observer.ts": 899,
   "electron/agents/provider-usage.ts": 516,
