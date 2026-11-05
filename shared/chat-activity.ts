@@ -16,6 +16,21 @@ type Triaged = Pick<
   | "updated"
 >;
 
+/**
+ * Something runs in the thread, or would go out by itself later: archiving,
+ * deleting or removing its project leaves nothing in view to stop it.
+ */
+export function chatStillGoing(
+  chat: Pick<ChatSummary, "running" | "reviewing" | "pending" | "nextSend">,
+) {
+  return (
+    !!chat.running ||
+    !!chat.reviewing ||
+    !!chat.pending?.length ||
+    !!chat.nextSend
+  );
+}
+
 export function chatSettled(chat: Triaged): boolean {
   if (chat.waiting || chat.settledAt == null) return false;
   // Settled mid-answer: the answer it waits for moves `updated` past it.
