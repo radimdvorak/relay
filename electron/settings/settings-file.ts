@@ -92,6 +92,13 @@ function indentAt(text: string, offset: number) {
   return /^[ \t]*/.exec(text.slice(start))![0];
 }
 
+/** Where the line `offset` is on ends, before its line break. */
+function endOfLine(text: string, offset: number) {
+  const end = text.indexOf("\n", offset);
+  if (end === -1) return text.length;
+  return text[end - 1] === "\r" ? end - 1 : end;
+}
+
 /**
  * `value` as JSON laid out like its section: spread over lines indented
  * from `indent` where the section is, on one line where the section is.
@@ -152,6 +159,16 @@ function editAt(text: string, path: string[], value: unknown): Edit[] {
     .slice(depth + 1)
     .reduceRight<unknown>((inner, key) => ({ [key]: inner }), value);
   const property = `${JSON.stringify(path[depth])}: ${render(wrapped, childIndent, unit)}`;
+  const lineEnd = endOfLine(text, raw.offset);
+  const commentAfter = /^[ \t]*(\/\/.*|\/\*.*\*\/[ \t]*)$/.test(
+    text.slice(raw.offset, lineEnd),
+  );
+  if (raw.content.startsWith(",") && unit !== null && commentAfter)
+    // The comment stays on the line of the key it was written beside.
+    return [
+      { offset: raw.offset, length: 0, content: "," },
+      { offset: lineEnd, length: 0, content: `\n${childIndent}${property}` },
+    ];
   const content = raw.content.startsWith(",")
     ? unit === null
       ? `, ${property}`

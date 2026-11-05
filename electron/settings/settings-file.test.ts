@@ -182,6 +182,18 @@ it("keeps the file's layout around what a save changes", async () => {
   );
 });
 
+it("keeps a comment at the end of the last key's line with that key", async () => {
+  await writeFile(
+    join(dir, "settings.json"),
+    '{\n  "keepAwake": false // the laptop dies otherwise\n}\n',
+  );
+  await open();
+  await file.update([{ path: ["usagePing"], value: false }]);
+  expect(await readFile(join(dir, "settings.json"), "utf8")).toBe(
+    '{\n  "keepAwake": false, // the laptop dies otherwise\n  "usagePing": false\n}\n',
+  );
+});
+
 it("removes a key that isn't there as nothing to do, and says which section isn't one", async () => {
   await writeFile(join(dir, "settings.json"), '{ "chat": 1 }');
   await open();
