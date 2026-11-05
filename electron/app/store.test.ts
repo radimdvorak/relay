@@ -52,6 +52,60 @@ describe("Store", () => {
     },
   );
 
+  describe("changes written soon", () => {
+    const writes = () => readFile(join(dir, "state.json"), "utf8");
+
+    it("gathers a burst into one write, a moment later", async () => {
+      const store = new Store(dir);
+      await store.load();
+      vi.useFakeTimers();
+      try {
+        for (const title of ["one", "two", "three"])
+          await store.updateSoon((s) => {
+            s.projectsFolder = title;
+          });
+        expect(store.get().projectsFolder).toBe("three");
+        await expect(writes()).rejects.toThrow();
+
+        await vi.advanceTimersByTimeAsync(1000);
+        await store.flush();
+      } finally {
+        vi.useRealTimers();
+      }
+      expect(JSON.parse(await writes()).projectsFolder).toBe("three");
+    });
+
+    it("writes them at once on flush, as Relay quits", async () => {
+      const store = new Store(dir);
+      await store.load();
+      await store.updateSoon((s) => {
+        s.projectsFolder = "/code";
+      });
+
+      await store.flush();
+
+      expect(JSON.parse(await writes()).projectsFolder).toBe("/code");
+    });
+
+    it("lets a change written now carry them along", async () => {
+      const store = new Store(dir);
+      await store.load();
+      await store.updateSoon((s) => {
+        s.projectsFolder = "/code";
+      });
+
+      await store.update((s) => {
+        s.gitPath = "/usr/bin/git";
+      });
+
+      const saved = JSON.parse(await writes());
+      expect(saved).toMatchObject({
+        projectsFolder: "/code",
+        gitPath: "/usr/bin/git",
+      });
+    });
+  });
+
   describe("after a power cut empties state.json", () => {
     const launch = async () => {
       const store = new Store(dir);

@@ -325,13 +325,13 @@ export class ChatStorage {
     if (!holdSummary) await this.syncSummary(chat);
   }
 
-  /** Brings the listed summary up to the thread, writing the store only if they differ. */
+  /** Brings the listed summary up to the thread, writing the store soon if they differ (`reconcile` covers a crash before). */
   async syncSummary(chat: ProjectChat) {
     this.readLinks(chat);
     const listed = this.store.get().chats?.find((c) => c.id === chat.id);
     // A thread that isn't listed yet is `add`ed, or was taken back.
     if (!listed || same(listed, chatSummary(chat))) return;
-    await this.store.update((s) => {
+    await this.store.updateSoon((s) => {
       const index = s.chats!.findIndex((c) => c.id === chat.id);
       if (index >= 0) {
         // A queued metadata write must not undo a link transaction that ran first.

@@ -9,6 +9,7 @@ import {
   input,
   restart,
   root,
+  store,
   useProjectChats,
 } from "../../tests/fixtures/project-chats-harness";
 
@@ -57,12 +58,16 @@ it("rewrites a long thread's file whole only at the end of a turn and the sessio
     expect(thread.messages.at(-1)?.status).toBe("complete");
     expect(chats.hasActiveProject(projectId)).toBe(false);
   });
+  await store.flush();
 
   const threadFile = written.filter((w) => w.file === `${made.id}.json`);
   const liveFile = written.filter((w) => w.file === `${made.id}.live.json`);
+  const stateFile = written.filter((w) => w.file === "state.json");
   // Was 4: the sent message and the answer's start each rewrote it too.
   expect(threadFile).toHaveLength(2);
   expect(liveFile).toHaveLength(2);
   for (const { bytes } of liveFile)
     expect(bytes).toBeLessThan(threadFile[0].bytes / 20);
+  // Was 3; the summary's changes as the turn starts and ends are written together.
+  expect(stateFile.length).toBeLessThanOrEqual(2);
 });

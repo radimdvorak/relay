@@ -104,6 +104,8 @@ interface State {
 
 const STATE_FILE = "state.json";
 export const BACKUP_FILE = "state.json.bak";
+/** How long `updateSoon` gathers changes before it writes them. */
+const WRITE_SOON_MS = 1000;
 
 /** The saved state, or undefined when the text isn't a saved state at all (empty, cut off). */
 function parseState(text: string): State | undefined {
@@ -129,7 +131,12 @@ export class Store {
   private queue: Promise<void> = Promise.resolve();
   private writeError: unknown;
 
+  /** Changes `updateSoon` made that no write has carried to the file yet. */
+  private unwritten = false;
+  private writeTimer?: ReturnType<typeof setTimeout>;
+
   async flush() {
+    if (this.unwritten) void this.writeUnwritten().catch(() => {});
     await this.queue;
     if (this.writeError) throw this.writeError;
   }
@@ -194,17 +201,57 @@ export class Store {
     const task = this.queue.then(async () => {
       const next = structuredClone(this.state);
       fn(next);
-      try {
-        await writeFileAtomic(join(this.dir, STATE_FILE), JSON.stringify(next));
-      } catch (error) {
-        this.writeError = error;
-        throw error;
-      }
+      await this.write(next);
       this.state = next;
-      this.writeError = undefined;
     });
     // A change its caller refused never reached the file, so nothing waits to be saved.
     this.queue = task.catch(() => {});
     await task;
+  }
+
+  /**
+   * Changes the state now and writes the file a moment later, with whatever
+   * else changed meanwhile: a turn starting changes a thread's summary a few
+   * times at once. Only for what a crash may lose, like thread summaries,
+   * which launch reads back from the threads' own files.
+   */
+  async updateSoon(fn: (s: State) => void) {
+    const task = this.queue.then(() => {
+      const next = structuredClone(this.state);
+      fn(next);
+      this.state = next;
+      this.unwritten = true;
+      this.writeTimer ??= setTimeout(
+        () => void this.writeUnwritten().catch(() => {}),
+        WRITE_SOON_MS,
+      );
+      this.writeTimer.unref?.();
+    });
+    this.queue = task.catch(() => {});
+    await task;
+  }
+
+  private writeUnwritten() {
+    clearTimeout(this.writeTimer);
+    this.writeTimer = undefined;
+    const task = this.queue.then(async () => {
+      if (this.unwritten) await this.write(this.state);
+    });
+    this.queue = task.catch(() => {});
+    return task;
+  }
+
+  /** Writes `state` whole; it holds every change `updateSoon` made before it. */
+  private async write(state: State) {
+    try {
+      await writeFileAtomic(join(this.dir, STATE_FILE), JSON.stringify(state));
+    } catch (error) {
+      this.writeError = error;
+      throw error;
+    }
+    this.writeError = undefined;
+    this.unwritten = false;
+    clearTimeout(this.writeTimer);
+    this.writeTimer = undefined;
   }
 }

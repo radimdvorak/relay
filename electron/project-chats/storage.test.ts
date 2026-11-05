@@ -115,7 +115,7 @@ it("writes the summary when a save changes what the sidebar lists, and only then
   await storage.save(chat);
   expect(listed(chat)).toMatchObject({ provider: "codex", empty: false });
 
-  const write = vi.spyOn(store, "update");
+  const write = vi.spyOn(store, "updateSoon");
   changed.length = 0;
   for (const body of ["Hello", "Hello wor", "Hello world"]) {
     chat.messages[0]!.body = body;
@@ -164,7 +164,7 @@ it("changes the queue mark for pause, errors and schedules, but stays quiet duri
   await storage.add(chat);
   const initial = queueMark(chat);
   changed.length = 0;
-  const update = vi.spyOn(store, "update");
+  const update = vi.spyOn(store, "updateSoon");
   chat.messages[0].body += " token";
   chat.messages[0].version++;
   await storage.save(chat);
