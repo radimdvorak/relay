@@ -68,11 +68,13 @@ export class CodexAnswerStream {
 
   /**
    * A finished note never changes or becomes the answer: a commentary one, or
-   * an unphased one a later message took the answer from. Forget it once
-   * shown: a long turn writes hundreds, and they don't count to the limit.
+   * an unphased one a later, finished message took the answer from. Forget it
+   * once shown: a long turn writes hundreds, and they don't count to the limit.
    */
   private forgetNotes(final: string | undefined) {
-    let beforeFinal = final !== undefined;
+    // Until it has finished, the message holding the answer may still turn
+    // out to be commentary, and the answer goes back to the one before.
+    let beforeFinal = final !== undefined && this.completed.has(final);
     for (const [id, message] of this.messages) {
       if (id === final) beforeFinal = false;
       const note = message.phase === "commentary" || beforeFinal;

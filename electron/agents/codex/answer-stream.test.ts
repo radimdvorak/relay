@@ -146,6 +146,26 @@ it("lets a long turn write any number of unphased notes", () => {
   expect(commentary.has("final")).toBe(false);
 });
 
+it("gives the answer back to an earlier message when the next one finishes as commentary", () => {
+  const stream = new CodexAnswerStream(
+    () => {},
+    () => {},
+  );
+  const item = (id: string) => ({ id, type: "agentMessage" });
+  stream.update("item/started", { item: item("answer") });
+  stream.update("item/completed", {
+    item: { ...item("answer"), text: "Checks passed." },
+  });
+  // Its phase is only known once it finishes.
+  stream.update("item/started", { item: item("note") });
+  stream.update("item/agentMessage/delta", { itemId: "note", delta: "Also" });
+  expect(stream.answer).toBe("Also");
+  stream.update("item/completed", {
+    item: { ...item("note"), phase: "commentary", text: "Also, a note." },
+  });
+  expect(stream.answer).toBe("Checks passed.");
+});
+
 it("keeps each goal turn's answer above as a note once Codex goes on", () => {
   const bodies: string[] = [];
   const commentary = new Map<string, string>();
