@@ -66,25 +66,24 @@ function makeCredential(input: {
         : await readKeychain(input.source.service, input.source.account);
     return text ? codexCredential(text, input.source) : null;
   };
+  const take = (next: Credential) => {
+    cred.accessToken = next.accessToken;
+    cred.refreshToken = next.refreshToken;
+    cred.lastRefresh = next.lastRefresh;
+    cred.accountId = next.accountId;
+    cred.root = next.root;
+  };
   const cred: Credential = {
     ...input,
     reload: async () => {
       const next = await saved();
-      if (!next) return;
-      cred.accessToken = next.accessToken;
-      cred.refreshToken = next.refreshToken;
-      cred.lastRefresh = next.lastRefresh;
-      cred.accountId = next.accountId;
-      cred.root = next.root;
+      if (next) take(next);
     },
     save: async (next) => {
       const now = await saved();
-      // Signed in again while the refresh ran: that login stays.
+      // Signed in again while the refresh ran: that login stays, and is the one read.
       const loginChanged = !!now && now.refreshToken !== cred.refreshToken;
-      if (loginChanged) {
-        cred.accessToken = next.accessToken;
-        return;
-      }
+      if (loginChanged) return take(now);
       const tokens = asRecord(cred.root.tokens) ?? cred.root;
       setToken(tokens, "accessToken", "access_token", next.accessToken);
       if (next.refreshToken) {
