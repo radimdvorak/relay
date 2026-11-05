@@ -6,6 +6,7 @@ import type { AgentOptions } from "../types";
 import type { AcpProfile } from "./profiles";
 import { runAcp } from "./run";
 import { disposeAcp, acquireAcpAgent } from "./sessions";
+import { readOnlyGitEnv } from "../read-only-git";
 import { antigravityBatches } from "../antigravity";
 import { signInAcp } from "./sign-in";
 
@@ -392,6 +393,40 @@ it("keeps the process a restart cut a turn off in when the thread's mode now dif
   picked.busy = false;
   const next = await acquireAcpAgent(acp, "adopt", root, { readOnly: true });
   expect(next).not.toBe(running);
+});
+
+it("resumes a thread switched to Read only and back in a process with that mode's git settings", async () => {
+  const readOnlyEnv = readOnlyGitEnv(process.env);
+  const { acp, root, sent } = await agent({
+    resume: true,
+    sessions: ["s1"],
+    captureEnvKeys: Object.keys(readOnlyEnv),
+  });
+  const session = { key: "switch-git", id: "s1", onId: async () => {} };
+  const turn = (readOnly: boolean) =>
+    runAcp(
+      acp,
+      options(root, {
+        runtimeMode: "approval-required",
+        // What turnOptions adds for a Read only turn.
+        ...(readOnly ? { readOnly, env: readOnlyEnv } : {}),
+        session,
+      }),
+    );
+  await turn(false);
+  await turn(true);
+  await turn(false);
+  const said = await sent();
+  const set = (environment: Record<string, string | null>) =>
+    Object.values(environment).every((value) => value !== null);
+  expect(
+    said.flatMap((m: any) => (m.environment ? [set(m.environment)] : [])),
+  ).toEqual([false, true, false]);
+  expect(
+    said
+      .filter((m: any) => m.method === "session/resume")
+      .map((m: any) => m.params.sessionId),
+  ).toEqual(["s1", "s1", "s1"]);
 });
 
 it("does not merge a cleared ambient credential back into an account's process environment", async () => {
