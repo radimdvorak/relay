@@ -81,9 +81,15 @@ export class TurnEndings {
    * A turn stopped or failed before its agent ran, so no run ends to move a
    * review on: a reviewer's review takes its step here, or would wait for good.
    * Nor would the queue go on after a Stop that kept it going, to send a
-   * waiting steer.
+   * waiting steer. Any other stop holds the queue back, as a stopped run's.
    */
-  unstarted(chat: ProjectChat, input: ProjectChatSend, answer?: string) {
+  unstarted(
+    chat: ProjectChat,
+    input: ProjectChatSend,
+    { answer, stopped }: { answer?: string; stopped?: ActiveChat },
+  ) {
+    const holdsQueue = !!stopped && !stopped.keepsQueue && !!chat.queue?.length;
+    if (holdsQueue) chat.queuePaused = true;
     const stepped =
       chat.reviewer &&
       this.councils.step(chat.id, {
@@ -92,6 +98,7 @@ export class TurnEndings {
       });
     void this.core
       .control(chat.id, async () => {
+        if (holdsQueue) await this.core.storage.save(chat);
         await stepped;
         await this.queue.drain(chat.id);
       })

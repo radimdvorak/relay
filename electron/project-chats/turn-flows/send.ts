@@ -331,7 +331,7 @@ export class TurnSends {
         );
       if (active.abort.signal.aborted) {
         this.core.active.release(id, active);
-        this.ends.unstarted(chat, input);
+        this.ends.unstarted(chat, input, { stopped: active });
         return;
       }
       // A side conversation continues the main one as it stood at its message.
@@ -391,7 +391,7 @@ export class TurnSends {
       // Stopped while the outgoing agent wrote its note: no note from Relay, no answer.
       if (active.abort.signal.aborted) {
         this.core.active.release(id, active);
-        this.ends.unstarted(chat, input);
+        this.ends.unstarted(chat, input, { stopped: active });
         return;
       }
       if (switchedFrom && !(note?.status === "complete" && note.body.trim()))
@@ -476,7 +476,7 @@ export class TurnSends {
         .save(chat)
         .catch((e) => console.warn("Could not save the failed send:", e));
       this.core.emit({ chatId: id, message: structuredClone(failed) });
-      this.ends.unstarted(chat, input, failed.id);
+      this.ends.unstarted(chat, input, { answer: failed.id });
     }
   }
 

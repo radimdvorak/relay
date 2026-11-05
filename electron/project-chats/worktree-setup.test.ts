@@ -389,3 +389,28 @@ it("stopping during setup to send a waiting steer sends it as the next turn", as
     { timeout: 10_000 },
   );
 });
+
+it("a stop during setup that isn't for a steer holds the queue back", async () => {
+  await settle({
+    worktreeSetup: "test -f .ran || { touch .ran; echo installing; sleep 30; }",
+  });
+  const chat = await chats.create(projectId, { kind: "project" }, "worktree");
+  await chats.send(chat.id, input("@codex Build it"));
+  await vi.waitFor(async () =>
+    expect(
+      (await chats.get(chat.id)).messages[1]?.worktreeCommand?.output,
+    ).toBe("installing\n"),
+  );
+  const next = input("@codex Then write the docs");
+  await chats.send(chat.id, next);
+  expect((await chats.get(chat.id)).queue?.[0]?.input.id).toBe(next.id);
+
+  // A handoff stops the turn as a stopped run would: the queue waits.
+  await chats.handoffs.halt(chat.id);
+  await vi.waitFor(async () =>
+    expect((await chats.get(chat.id)).queuePaused).toBe(true),
+  );
+  const { messages, queue } = await chats.get(chat.id);
+  expect(queue?.[0]?.input.id).toBe(next.id);
+  expect(messages.some((m) => m.id === next.id)).toBe(false);
+});
