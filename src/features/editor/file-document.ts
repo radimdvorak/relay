@@ -1,5 +1,6 @@
 import {
   Annotation,
+  Compartment,
   EditorState,
   Transaction,
   type ChangeSet,
@@ -15,6 +16,9 @@ import { lineBreakOf, minimalChange } from "./text-changes";
 
 /** Marks a change copied from another view of the same document, so it is not copied back. */
 const mirrored = Annotation.define<boolean>();
+
+/** The line break the text is split at, which follows the file's when it is written with others. */
+const lineBreaks = new Compartment();
 
 /**
  * Where a file is read from and saved to: a project's folder (the checkout,
@@ -90,7 +94,8 @@ export class FileDocument {
   private disposers = new Set<() => void>();
   /** The views showing it. The first one owns the document's state. */
   private views: EditorView[] = [];
-  private config: Extension = [];
+  private textExtensions: Extension = [];
+  private lineBreak = "\n";
   private savers = new Set<() => void>();
   private live = true;
   /** Applies an edit through the first view, which owns the state while it is attached. */
@@ -172,19 +177,15 @@ export class FileDocument {
       this.file && (this.file.original !== file.original || this.file.head !== file.head);
     this.file = file;
     this.version = file.version;
-    if (!this.state) {
-      this.config = [
-        EditorState.lineSeparator.of(lineBreakOf(file.contents)),
-        this.extensions(file.contents),
-      ];
-      this.state = EditorState.create({ doc: file.contents, extensions: this.config });
-    } else if (this.state.sliceDoc() !== file.contents) {
+    if (!this.state) this.create(file.contents);
+    else if (this.state.sliceDoc() !== file.contents) {
       // Record text written by something else (an agent, another editor) in
       // local history before the buffer replaces it.
       if (this.source.kind === "project")
         void api
           .localHistoryRecord(this.source.where, this.path, file.contents, "external")
           .catch(() => {});
+      this.takeLineBreak(lineBreakOf(file.contents));
       const changes = minimalChange(this.state, file.contents);
       if (this.dispatchToView) this.dispatchToView({ changes, userEvent: "reload" });
       else {
@@ -252,9 +253,30 @@ export class FileDocument {
    */
   keepUnread(text: string) {
     if (this.state) return;
-    this.config = [EditorState.lineSeparator.of(lineBreakOf(text)), this.extensions(text)];
-    this.state = EditorState.create({ doc: text, extensions: this.config });
+    this.create(text);
     this.set({ dirty: true });
+  }
+
+  private create(text: string) {
+    this.lineBreak = lineBreakOf(text);
+    this.textExtensions = this.extensions(text);
+    this.state = EditorState.create({ doc: text, extensions: this.config });
+  }
+
+  private get config() {
+    return [lineBreaks.of(EditorState.lineSeparator.of(this.lineBreak)), this.textExtensions];
+  }
+
+  /**
+   * Splits the text at `lineBreak` from now on, as the file on disk now does.
+   * Otherwise a CRLF file rewritten with LF shows as one long line.
+   */
+  private takeLineBreak(lineBreak: string) {
+    if (!this.state || lineBreak === this.lineBreak) return;
+    this.lineBreak = lineBreak;
+    const effects = lineBreaks.reconfigure(EditorState.lineSeparator.of(lineBreak));
+    if (!this.views.length) this.state = this.state.update({ effects }).state;
+    for (const view of this.views) view.dispatch({ effects });
   }
 
   /** Looks at the disk. A change is taken without asking when there are no edits to lose. */
