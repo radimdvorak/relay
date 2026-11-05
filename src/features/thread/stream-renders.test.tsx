@@ -301,11 +301,18 @@ it("leaves the draft and the composer's controls alone", async () => {
   expect(composer.current?.focus).toBeTypeOf("function");
 });
 
+it("leaves the context row's chips and the notice alone", async () => {
+  await streamThreePieces();
+  expect(rendered.get("ScopeButtons") ?? 0).toBe(0);
+  expect(rendered.get("StartedChip") ?? 0).toBe(0);
+  expect(rendered.get("ThreadNotice") ?? 0).toBe(0);
+});
+
 // The composer's slots, the controls around it, still render on every
 // piece: ProjectChat reads the whole thread and hands them fresh objects.
 // This may shrink, never grow; lower it when you cut renders.
-it("renders at most 71 components a streamed piece", async () => {
+it("renders at most 67 components a streamed piece", async () => {
   await streamThreePieces();
   const total = [...rendered.values()].reduce((sum, n) => sum + n, 0);
-  expect(total / 3).toBeLessThanOrEqual(71);
+  expect(total / 3).toBeLessThanOrEqual(67);
 });
