@@ -74,8 +74,8 @@ import { WorkItemCards } from "../plugins/WorkItemCards";
 import { WorktreeDialogs } from "./WorktreeControls";
 import { useThreadLinks } from "../linked-folders/useThreadLinks";
 import { NotesChip } from "../notes/NotesChip";
-import { useThreadNotes } from "../notes/useThreadNotes";
-import { KeepBlock, type Keeper } from "../../ui/KeepBlock";
+import { useNoteKeeper, useThreadNotes } from "../notes/useThreadNotes";
+import { KeepBlock } from "../../ui/KeepBlock";
 import { useThreadFind } from "./find/useThreadFind";
 import "./thread.css";
 
@@ -331,23 +331,7 @@ export function ProjectChat({
     () => ({ runs: background.agents, onOpen: setAgentView }),
     [background.agents],
   );
-  const keeper = useMemo<Keeper | null>(
-    () =>
-      chatId
-        ? {
-            keep: (markdown, at) =>
-              void notes.keep(
-                markdown,
-                at.closest<HTMLElement>("[data-message-id]")?.dataset.messageId,
-              ),
-            kept: notes.kept,
-            unkeep: notes.unkeep,
-            togglePin: notes.togglePin,
-            pinned: notes.pinned,
-          }
-        : null,
-    [chatId, notes],
-  );
+  const keeper = useNoteKeeper(chatId, notes);
   const councils = useCouncils({
     handle,
     data: history.data,
