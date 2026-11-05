@@ -62,14 +62,41 @@ export async function readGitea(
     if (e instanceof ApiError && e.status === 404) return null;
     throw e;
   }
-  const statuses = await commitStatuses(client, repo, head.id);
-  if (!statuses.length) return null;
+  const runs = await commitRuns(client, repo, head.id);
+  if (!runs.length) return null;
   return {
     commit: {
       sha: head.id,
       message: head.message?.split("\n")[0],
       author: head.author?.name,
     },
-    runs: statusRuns(statuses),
+    runs,
   };
+}
+
+/** CI on one commit: a pull request's head, which may live on a fork. */
+export async function readGiteaCommit(
+  client: Gitea,
+  repo: CiRepo,
+  sha: string,
+): Promise<CiReading | null> {
+  const runs = await commitRuns(client, repo, sha);
+  if (!runs.length) return null;
+  const found = await client
+    .request<{
+      commit: { message?: string; author?: { name?: string } };
+    }>(`${client.repo(repo)}/git/commits/${encodeURIComponent(sha)}`)
+    .catch(() => null);
+  return {
+    commit: {
+      sha,
+      message: found?.data.commit.message?.split("\n")[0],
+      author: found?.data.commit.author?.name,
+    },
+    runs,
+  };
+}
+
+async function commitRuns(client: Gitea, repo: CiRepo, sha: string) {
+  return statusRuns(await commitStatuses(client, repo, sha));
 }

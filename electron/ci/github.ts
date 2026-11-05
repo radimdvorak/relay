@@ -96,6 +96,18 @@ interface CommitAnswer {
   repository: { object: RollupCommit | null } | null;
 }
 
+/** Where a reading without a login looks: which Actions runs, and whose commit statuses. */
+function restTarget(at: { branch: string } | { sha: string }) {
+  if ("sha" in at) {
+    const sha = encodeURIComponent(at.sha);
+    return { runs: `head_sha=${sha}`, ref: sha };
+  }
+  return {
+    runs: `branch=${encodeURIComponent(at.branch)}`,
+    ref: `heads/${at.branch.split("/").map(encodeURIComponent).join("/")}`,
+  };
+}
+
 export class GitHub {
   /** Unchanged answers come back as 304s, which don't count against the rate limit. */
   private cache = new Map<string, { etag: string; data: unknown }>();
@@ -222,7 +234,24 @@ export class GitHub {
   async read(repo: CiRepo, branch: string): Promise<CiReading | null> {
     return (await this.credentials.read()).token
       ? this.readHistory(repo, branch)
-      : this.readTip(repo, branch);
+      : this.readTip(repo, { branch });
+  }
+
+  /**
+   * CI on one commit: a pull request's head, which a fork's branch of any
+   * name may hold, so its branch name says nothing in this repository.
+   */
+  async readCommit(repo: CiRepo, sha: string): Promise<CiReading | null> {
+    if (!(await this.credentials.read()).token)
+      return this.readTip(repo, { sha });
+    const answer = await this.graphql<CommitAnswer>(COMMIT_QUERY, {
+      owner: repo.owner,
+      name: repo.name,
+      oid: sha,
+      after: null,
+    });
+    const commit = answer.repository?.object;
+    return commit ? this.rollupReading(repo, commit) : null;
   }
 
   private async graphql<T>(
@@ -325,17 +354,18 @@ export class GitHub {
     return nodes;
   }
 
+  /** Without a login: the Actions runs and commit statuses on a branch's tip, or on one commit. */
   private async readTip(
     repo: CiRepo,
-    branch: string,
+    at: { branch: string } | { sha: string },
   ): Promise<CiReading | null> {
-    const ref = `heads/${branch.split("/").map(encodeURIComponent).join("/")}`;
+    const target = restTarget(at);
     const [{ workflow_runs }, tip] = await Promise.all([
       this.get<{ workflow_runs: GithubRun[] }>(
-        `${this.repoPath(repo)}/actions/runs?branch=${encodeURIComponent(branch)}&per_page=30&exclude_pull_requests=true`,
+        `${this.repoPath(repo)}/actions/runs?${target.runs}&per_page=30&exclude_pull_requests=true`,
       ),
       // CI outside Actions, like a build machine of your own, posts commit statuses.
-      this.tipStatuses(repo, ref).catch(() => null),
+      this.tipStatuses(repo, target.ref).catch(() => null),
     ]);
     const latest = latestGithubRuns(workflow_runs);
     const statuses = tip ? statusRuns(tip.statuses) : [];

@@ -7,7 +7,7 @@ import type { CiRun, CiStatus } from "../../shared/ci";
 import type { SourceControlKind } from "../../shared/source-control";
 import { GitHub } from "./github";
 import { GithubCredentials } from "../github";
-import { giteaDefaultBranch, readGitea } from "./gitea";
+import { giteaDefaultBranch, readGitea, readGiteaCommit } from "./gitea";
 import { azureDefaultBranch, readAzure } from "./azure-devops";
 
 export interface CiRepo {
@@ -54,6 +54,8 @@ interface CiSource {
   /** As users know it, e.g. "GitHub". */
   name: string;
   read(repo: CiRepo, branch: string): Promise<CiReading | null>;
+  /** Unset where CI doesn't report on the head itself: Azure Pipelines builds a PR's merge commit. */
+  readCommit?(repo: CiRepo, sha: string): Promise<CiReading | null>;
   defaultBranch(repo: CiRepo): Promise<string>;
 }
 
@@ -104,6 +106,7 @@ export class Ci {
         host: "github.com",
         name: "GitHub",
         read: (repo, branch) => this.github.read(repo, branch),
+        readCommit: (repo, sha) => this.github.readCommit(repo, sha),
         defaultBranch: (repo) => this.github.defaultBranch(repo),
       },
       ...(gitea
@@ -114,6 +117,8 @@ export class Ci {
               name: "Gitea",
               read: (repo: CiRepo, branch: string) =>
                 readGitea(gitea, repo, branch),
+              readCommit: (repo: CiRepo, sha: string) =>
+                readGiteaCommit(gitea, repo, sha),
               defaultBranch: (repo: CiRepo) => giteaDefaultBranch(gitea, repo),
             },
           ]
@@ -121,19 +126,27 @@ export class Ci {
     ];
   }
 
-  /** CI on a branch of a repository on its host, with no checkout: a pull request's head. */
-  async branchStatus(
+  /**
+   * CI on a pull request's head, with no checkout. Read by its commit when
+   * that's known, since a fork's branch names nothing in the base repository;
+   * phones from before they sent the commit still ask by branch.
+   */
+  async pullHeadStatus(
     remote: CiRepo & { host: string },
-    branch: string,
+    head: { branch: string; sha?: string },
     hosts: CiHosts,
     isOn: (kind: SourceControlKind) => boolean = () => true,
   ): Promise<CiStatus | null> {
     const source = this.sources(hosts).find(
       (s) => s.host === remote.host && isOn(s.kind),
     );
-    const reading = source && (await source.read(remote, branch));
+    if (!source) return null;
+    const reading =
+      head.sha && source.readCommit
+        ? await source.readCommit(remote, head.sha)
+        : await source.read(remote, head.branch);
     return reading
-      ? { source: source.name, branch, ...reading, ahead: 0 }
+      ? { source: source.name, branch: head.branch, ...reading, ahead: 0 }
       : null;
   }
 
