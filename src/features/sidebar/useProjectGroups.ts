@@ -81,6 +81,38 @@ async function placeProject(
 }
 
 /**
+ * Renaming and taking apart groups. What's open inside one follows once the
+ * desktop has changed it: a refused change leaves the groups where they were.
+ */
+function groupEdits(
+  change: (work: () => Promise<void>) => Promise<void>,
+  { setOpen, regroup }: Pick<SidebarFolds, "setOpen" | "regroup">,
+  planned: PlannedGroups | undefined,
+) {
+  const follow = (from: string, to: string) => {
+    regroup(from, to);
+    planned?.regroup(from, to);
+  };
+  return {
+    /** Renames group `path` to `name`, open or folded as it was. */
+    renameGroup(path: string, name: string, open: boolean) {
+      const to = joinGroup(parentGroup(path), name);
+      void change(async () => {
+        await api.renameProjectGroup(path, to);
+        setOpen(groupKey(to), open);
+        follow(path, to);
+      });
+    },
+    removeGroup(path: string) {
+      void change(async () => {
+        await api.removeProjectGroup(path);
+        follow(path, parentGroup(path));
+      });
+    },
+  };
+}
+
+/**
  * The Projects tree: its groups, the names being typed into it, and naming,
  * moving and removing groups and projects. Each change shows before the
  * desktop has it; a failure goes to `setError`.
@@ -138,19 +170,7 @@ export function useProjectGroups(
         (list) => [...list, path],
       );
     },
-    /** Renames group `path` to `name`, open or folded as it was. */
-    renameGroup(path: string, name: string, open: boolean) {
-      const to = joinGroup(parentGroup(path), name);
-      setOpen(groupKey(to), open);
-      regroup(path, to);
-      planned?.regroup(path, to);
-      void change(() => api.renameProjectGroup(path, to));
-    },
-    removeGroup(path: string) {
-      regroup(path, parentGroup(path));
-      planned?.regroup(path, parentGroup(path));
-      void change(() => api.removeProjectGroup(path));
-    },
+    ...groupEdits(change, { setOpen, regroup }, planned),
     moveGroup(
       path: string,
       target: { path: string; where: "before" | "after" },
