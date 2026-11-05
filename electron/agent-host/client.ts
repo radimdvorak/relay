@@ -223,7 +223,9 @@ export class AgentHosts {
       })(),
     ]);
     child.removeAllListeners();
-    const connection = await HostConnection.open(
+    // A host hanging up before its welcome calls back before this is set.
+    let connection: HostConnection;
+    connection = await HostConnection.open(
       record,
       () => this.forget(connection),
       () => this.tools,
