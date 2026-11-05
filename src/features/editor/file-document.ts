@@ -185,7 +185,7 @@ export class FileDocument {
       this.file && (this.file.original !== file.original || this.file.head !== file.head);
     this.file = file;
     this.version = file.version;
-    if (!this.state) this.create(file.contents);
+    if (!this.state) this.state = this.create(file.contents);
     else if (this.state.sliceDoc() !== file.contents) {
       // Record text written by something else (an agent, another editor) in
       // local history before the buffer replaces it.
@@ -261,14 +261,15 @@ export class FileDocument {
    */
   keepUnread(text: string) {
     if (this.state) return;
-    this.create(text);
+    this.state = this.create(text);
     this.set({ dirty: true });
   }
 
+  /** A first state for the file's text, split at its line breaks. */
   private create(text: string) {
     this.lineBreak = lineBreakOf(text);
     this.textExtensions = this.extensions(text);
-    this.state = EditorState.create({ doc: text, extensions: this.config });
+    return EditorState.create({ doc: text, extensions: this.config });
   }
 
   private get config() {
