@@ -5,6 +5,7 @@ import { adoptWorktree } from "./adopt";
 import { uncommitted } from "./changes";
 import { git, type MadeWorktree, movedRef, copiedRef } from "./common";
 import { createWorktree } from "./create";
+import { unlinkModules } from "./bootstrap";
 
 // Carrying the checkout's uncommitted work into a thread's new worktree.
 
@@ -51,6 +52,7 @@ export async function moveIntoWorktree(
       steps = planned.steps;
     }
   } catch (e) {
+    await unlinkModules(made.path);
     await git(root, ["worktree", "remove", "--force", made.path])
       .catch(() => rm(made.path, { recursive: true, force: true }))
       .then(() => git(root, ["branch", "-D", made.branch]))
@@ -105,6 +107,7 @@ export async function copyIntoWorktree(
         ),
       ]);
     } catch (e) {
+      await unlinkModules(worktree.path);
       await git(root, ["worktree", "remove", "--force", worktree.path])
         .catch(() => rm(worktree.path, { recursive: true, force: true }))
         .then(() => git(root, ["branch", "-D", worktree.branch]))

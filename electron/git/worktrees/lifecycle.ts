@@ -3,7 +3,7 @@ import { basename, dirname, join } from "node:path";
 import { commitTree, snapshotTree } from "../turn-snapshots";
 import type { ChatWorktree } from "../../../shared/projects";
 import { errorMessage } from "../../../shared/error-message";
-import { bootstrap } from "./bootstrap";
+import { bootstrap, unlinkModules } from "./bootstrap";
 import {
   git,
   keptRef,
@@ -145,6 +145,7 @@ export async function removeWorktree(
       );
       await git(root, ["update-ref", keptRef(chatId), kept]);
     }
+    await unlinkModules(worktree.path);
     await git(root, ["worktree", "remove", "--force", worktree.path]).catch(
       async () => {
         await rm(worktree.path!, { recursive: true, force: true });
