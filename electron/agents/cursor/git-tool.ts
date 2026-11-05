@@ -5,6 +5,10 @@
 import { execFile } from "node:child_process";
 import type { SDKCustomTool, SDKCustomToolResult } from "@cursor/sdk";
 import { gitReads, gitReadsOnly } from "../../agent-host/read-only-bash";
+import {
+  filtersEmptied,
+  foreignFilterKeys,
+} from "../../git-config/repository-filters";
 import { readOnlyGitEnv } from "../read-only-git";
 
 /** About 25k tokens; past it the model is asked to narrow what it asks for. */
@@ -40,10 +44,31 @@ export function gitTool(cwd: string, signal: AbortSignal): SDKCustomTool {
           `git ${words.join(" ")} isn't allowed: this turn only reads. Use ${[...gitReads].slice(0, 6).join(", ")} and the like.`,
           true,
         );
-      return run(cwd, withoutDiffDrivers(words), signal);
+      let filtersOff: string[];
+      try {
+        filtersOff = filtersEmptied(
+          await foreignFilterKeys("git", cwd, readOnlyEnv()),
+        );
+      } catch (error) {
+        return text((error as Error).message, true);
+      }
+      return run(cwd, [...filtersOff, ...withoutDiffDrivers(words)], signal);
     },
   };
 }
+
+/**
+ * Not even `git status` refreshing the index: this turn changes nothing.
+ * The worker may predate the switch to Read only, so the read-only git
+ * settings go on every call rather than coming from its env.
+ */
+const readOnlyEnv = () => ({
+  ...process.env,
+  ...readOnlyGitEnv(process.env),
+  GIT_OPTIONAL_LOCKS: "0",
+  GIT_TERMINAL_PROMPT: "0",
+  GIT_PAGER: "cat",
+});
 
 /** Subcommands that run a checkout's textconv or external diff command unless told not to. */
 const diffShowing = new Set([
@@ -83,16 +108,7 @@ function run(cwd: string, args: string[], signal: AbortSignal) {
         signal,
         timeout: 60_000,
         maxBuffer: 64 * 1024 * 1024,
-        // Not even `git status` refreshing the index: this turn changes nothing.
-        // The worker may predate the switch to Read only, so the read-only
-        // git settings go on every call rather than coming from its env.
-        env: {
-          ...process.env,
-          ...readOnlyGitEnv(process.env),
-          GIT_OPTIONAL_LOCKS: "0",
-          GIT_TERMINAL_PROMPT: "0",
-          GIT_PAGER: "cat",
-        },
+        env: readOnlyEnv(),
       },
       (error, stdout, stderr) => {
         // `git grep` finding nothing exits 1 and says nothing.

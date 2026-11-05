@@ -90,6 +90,19 @@ describe("Cursor's read-only git", () => {
     expect((await said(["diff"])).text).toContain("+two");
   });
 
+  it("doesn't run the clean filter the checkout's own config names", async () => {
+    const marker = join(repo, "ran");
+    await writeFile(join(repo, ".gitattributes"), "*.ts filter=evil\n");
+    git("config", "filter.evil.clean", `touch '${marker}'; cat`);
+    git("config", "filter.evil.required", "true");
+    await writeFile(join(repo, "a.ts"), "one\ntwo\n");
+    for (const args of [["status"], ["diff"], ["blame", "a.ts"]]) {
+      expect((await said(args)).isError, args.join(" ")).toBe(false);
+      expect(existsSync(marker), args.join(" ")).toBe(false);
+    }
+    expect((await said(["diff"])).text).toContain("+two");
+  });
+
   it("refuses flags that switch a checkout's drivers back on", async () => {
     const marker = join(repo, "ran");
     await writeFile(
