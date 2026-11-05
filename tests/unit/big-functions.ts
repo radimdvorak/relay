@@ -47,7 +47,7 @@ export const bigFunctions: Record<string, number> = {
   "electron/git/blame.ts › lookup": 84,
   "electron/git/branch-merge.ts › mergeBranch": 119,
   "electron/git/branches.ts › branchCounts": 102,
-  "electron/git/commit-split.ts › readUnits": 101,
+  "electron/git/commit-split.ts › readUnits": 99,
   "electron/git/working-tree.ts › workingTree": 96,
   "electron/git/worktrees/create.ts › createWorktree": 96,
   "electron/handoff/receiver.ts › handle": 190,

@@ -17,7 +17,7 @@ import {
   type WorkingChange,
   type WorkingTree,
 } from "../../shared/working-tree";
-import { chunks } from "../util/chunks";
+import { commandLineRuns } from "../util/chunks";
 import { git, gitBytes, nulSeparated, pathsFromStdin } from "./git";
 import {
   fetchUpstream,
@@ -165,8 +165,8 @@ async function addOrReset(
     paths,
     (c) => kind === "unstage" || /[RC]/.test(c.worktree),
   );
-  // Bounded chunks avoid argv limits; use literal paths even for names containing Git magic.
-  for (const part of chunks(allPaths, 100))
+  // Runs that fit a command line; literal paths even for names containing Git magic.
+  for (const part of commandLineRuns(allPaths))
     await git(
       root,
       kind === "stage"
@@ -195,7 +195,7 @@ async function discard({ root, action, state, trash }: Act<"discard">) {
     (c) => staged || /[RC]/.test(c.worktree),
   );
   await keepCopies(root, state.changes, action.paths, trash, staged);
-  for (const part of chunks(paths, 100))
+  for (const part of commandLineRuns(paths))
     await git(
       root,
       staged
