@@ -75,6 +75,8 @@ it.each([
   ["Is `i<n` or `n>0`?", "Is i<n or n>0?"],
   ["Use a <details> fold<br/>here", "Use a fold here"],
   ['A <span class="x">tag</span>', "A tag"],
+  ['<?xml version="1.0"?><xs:element name="a"/>B', "B"],
+  ["A <!-- note --> B <!DOCTYPE html>", "A B"],
 ])("keeps comparisons but drops tags: %s", (markdown, text) => {
   expect(plainText(markdown)).toBe(text);
 });
