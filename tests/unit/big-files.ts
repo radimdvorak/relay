@@ -18,7 +18,7 @@ export const bigFiles: Record<string, number> = {
   "electron/project-chats/turn-flows/send.ts": 545,
   "electron/project-chats/worktrees.ts": 735,
   "electron/projects/project-icon.ts": 562,
-  "electron/projects/projects.ts": 658,
+  "electron/projects/projects.ts": 654,
   "electron/pull-requests/azure-devops/client.ts": 907,
   "electron/pull-requests/github.ts": 685,
   "electron/relay-mcp/tools.ts": 748,

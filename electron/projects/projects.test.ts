@@ -497,3 +497,22 @@ it("moves a group against the groups saved by changes still queued", async () =>
     await rm(dir, { recursive: true, force: true });
   }
 });
+
+it("adding the same folder twice at once makes one project", async () => {
+  const dir = await realpath(await mkdtemp(join(tmpdir(), "relay-project-")));
+  try {
+    const root = join(dir, "app");
+    await mkdir(root);
+    const store = new Store(join(dir, "state"));
+    await store.load();
+    const projects = new Projects(store);
+    const [a, b] = await Promise.all([
+      projects.add(root, null),
+      projects.add(root + "/", null),
+    ]);
+    expect(b.id).toBe(a.id);
+    expect(store.get().projects).toHaveLength(1);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});

@@ -389,15 +389,6 @@ export class Projects {
     const repository = await repositoryRoot(root);
     if (repository && repository !== root)
       throw new Error("Choose the root of its Git repository.");
-    const existing = this.store
-      .get()
-      .projects?.find((p) => p.path === root && !p.computer);
-    if (existing?.removed)
-      await this.store.update((s) => {
-        const p = s.projects?.find((p) => p.id === existing.id);
-        if (p) delete p.removed;
-      });
-    if (existing) return withKind(this.get(existing.id));
     const project: Project = {
       id: randomUUID(),
       path: root,
@@ -406,9 +397,15 @@ export class Projects {
       repository: null,
       added: Date.now(),
     };
+    // Looked for inside the update: an add of the same folder may be queued ahead.
+    let existingId: string | undefined;
     await this.store.update((s) => {
-      (s.projects ??= []).push(project);
+      const existing = s.projects?.find((p) => p.path === root && !p.computer);
+      if (!existing) (s.projects ??= []).push(project);
+      else delete existing.removed;
+      existingId = existing?.id;
     });
+    if (existingId) return withKind(this.get(existingId));
     if (repository) {
       const linked = await this.linkBySite(project.id).catch(() => null);
       if (linked) return withKind(linked);
