@@ -40,3 +40,17 @@ it("matches a file a command names from the folder it changed into", () => {
     ).map((f) => f.path),
   ).toEqual(["app/src/x.ts", "web/z.ts"]);
 });
+
+it("doesn't claim a file whose name ends a longer non-ASCII one", () => {
+  const files = [
+    { path: "plan.md", additions: 1, deletions: 0 },
+    { path: "úplan.md", additions: 1, deletions: 0 },
+  ];
+  expect(
+    ownFiles(
+      files,
+      { edited: [], commands: ["echo done >> úplan.md"] },
+      "/repo",
+    ).map((f) => f.path),
+  ).toEqual(["úplan.md"]);
+});

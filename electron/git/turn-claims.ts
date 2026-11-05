@@ -10,7 +10,8 @@ export interface TurnClaim {
   commands: string[];
 }
 
-const pathChar = /[\w.@+~\/-]/;
+// Letters and digits of any script: `plan.md` is no file of its own inside `úplan.md`.
+const pathChar = /[\p{L}\p{M}\p{N}_.@+~\/-]/u;
 
 /** `text` names `path` as a whole path, not as part of a longer one. */
 function names(text: string, path: string) {
