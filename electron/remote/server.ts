@@ -117,6 +117,12 @@ export function makeRoom<T extends Place>(connections: Set<T>, from: string) {
   return connections.size < maxConnections;
 }
 
+/** An object naming its kind; each kind's fields are checked where they're read. */
+const looksLikeFrame = (opened: unknown): opened is ClientFrame =>
+  typeof opened === "object" &&
+  opened !== null &&
+  typeof (opened as { t?: unknown }).t === "string";
+
 export const nodeCodec: Codec = {
   deflate: (bytes) => deflateRawSync(bytes, { level: 6 }),
   // Inflated past this is no frame we'd send.
@@ -301,7 +307,8 @@ export class RemoteServer {
         return socket.terminate();
       }
       if (isTunnel(frame)) return this.tunnel(c, frame.frame);
-      void this.receive(c, frame as ClientFrame);
+      if (!looksLikeFrame(frame)) return socket.terminate();
+      void this.receive(c, frame);
     });
   }
 
