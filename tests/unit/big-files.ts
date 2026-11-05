@@ -13,7 +13,7 @@ export const bigFiles: Record<string, number> = {
   "electron/git/turn-changes.ts": 743,
   "electron/handoff/receiver.ts": 700,
   "electron/main.ts": 672,
-  "electron/preview/thread-previews.ts": 811,
+  "electron/preview/thread-previews.ts": 644,
   "electron/project-chats/handoff.ts": 729,
   "electron/project-chats/index.ts": 1020,
   "electron/project-chats/storage.ts": 561,

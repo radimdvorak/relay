@@ -1,7 +1,8 @@
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import type { AppWindow } from "../app/window";
 import type { DevServerState } from "../../shared/preview";
-import { ThreadPreviews, type PreviewTarget } from "./thread-previews";
+import type { PreviewTarget } from "./preview-state";
+import { ThreadPreviews } from "./thread-previews";
 import { SavedPreviews } from "./saved-previews";
 import type { Store } from "../app/store";
 import { answerPreviewTool } from "./agent-tools";
