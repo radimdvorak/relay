@@ -1,8 +1,4 @@
-import {
-  helperOn,
-  type AISettings,
-  type SwitchableHelper,
-} from "../../../../shared/settings";
+import { helperOn, type AISettings } from "../../../../shared/settings";
 import type { SettingEntry } from "../settings-search";
 import { useSaveAISettings } from "../../agents/useAISettings";
 import { AgentsPanel } from "../../agent-settings/AgentsPanel";
@@ -11,9 +7,8 @@ import { useRecent } from "../../updates/useRecent";
 import { agentUpdateChecksQuery } from "../../updates/agent-updates";
 import { AccountRows } from "../../accounts/AccountRows";
 import { ModelField } from "../../agents/ModelField";
-import { useOfferedAgents } from "../../agents/registry-agents";
-import { helperProviders } from "../../../../shared/agents";
-import { offeredAgents } from "../../../../shared/agent-prefs";
+import { useRunnableAgents } from "../../agents/registry-agents";
+import { reviewRowAgents, type ReviewRow } from "./review-row-agents";
 import { QuickSwitchSettings } from "../../quick-switch/QuickSwitchSettings";
 import { SettingsCard, Switch } from "../../../ui/SettingsCard";
 import { ErrorBox } from "../../../ui/ui";
@@ -95,16 +90,13 @@ export function useModelEntries(
   ];
 }
 
-const reviewRows: {
-  kind: SwitchableHelper;
+const reviewRows: (ReviewRow & {
   label: string;
   hint: string;
   /** What Relay does instead while it's off. */
   off: string;
   allowDefault?: boolean;
-  /** Runs on any agent, not only Codex and Claude. */
-  anyAgent?: boolean;
-}[] = [
+})[] = [
   {
     kind: "grouping",
     label: "Pull request steps",
@@ -139,10 +131,7 @@ const reviewRows: {
 function ReviewModelsCard({ ai }: { ai: AISave }) {
   const saved = useRecent(ai.savedAt, 2000);
   const { values } = ai;
-  const keep = reviewRows.map((row) => values?.[`${row.kind}Provider`]);
-  const runnable = useOfferedAgents(...keep);
-  // Pull request steps and line questions run only on a helper agent.
-  const helpers = offeredAgents(helperProviders, values, keep);
+  const runnable = useRunnableAgents();
   if (!values)
     return ai.settings.error ? (
       <ErrorBox
@@ -173,7 +162,7 @@ function ReviewModelsCard({ ai }: { ai: AISave }) {
                   label={row.label}
                   value={values[row.kind]}
                   provider={values[`${row.kind}Provider`]}
-                  providers={row.anyAgent ? runnable : helpers}
+                  providers={reviewRowAgents(row, values, runnable)}
                   allowDefault={row.allowDefault}
                   onChange={(value, provider) =>
                     void ai.save({
