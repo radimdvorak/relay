@@ -123,11 +123,15 @@ export async function apply(target: UpdateTarget, staged: string) {
       return;
     }
     case "win-x64":
-      // electron-builder's NSIS installer waits for Relay to exit and relaunches it.
-      spawn(staged, ["--updated", "/S", "--force-run"], {
-        detached: true,
-        stdio: "ignore",
-      }).unref();
+      // electron-builder's NSIS installer kills a Relay still running a few
+      // seconds after it starts, then relaunches it. Started any earlier, it
+      // would cut short the save on quit, or a quit the user cancelled.
+      app.once("will-quit", () =>
+        spawn(staged, ["--updated", "/S", "--force-run"], {
+          detached: true,
+          stdio: "ignore",
+        }).unref(),
+      );
       return;
     case "linux-x64-appimage": {
       const current = process.env.APPIMAGE!;
