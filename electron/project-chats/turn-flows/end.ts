@@ -2,7 +2,7 @@ import type { ProjectChat, ProjectChatSend } from "../../../shared/projects";
 import type { ActiveChat } from "../active";
 import type { ChatCore } from "../core";
 import type { Councils } from "../councils";
-import type { ChatQueue } from "../queue";
+import { holdQueueBack, type ChatQueue } from "../queue";
 
 /**
  * A steer the agent took but gave back unread when its finished turn ended
@@ -89,7 +89,7 @@ export class TurnEndings {
     { answer, stopped }: { answer?: string; stopped?: ActiveChat },
   ) {
     const holdsQueue = !!stopped && !stopped.keepsQueue && !!chat.queue?.length;
-    if (holdsQueue) chat.queuePaused = true;
+    if (holdsQueue) holdQueueBack(chat);
     const stepped =
       chat.reviewer &&
       this.councils.step(chat.id, {

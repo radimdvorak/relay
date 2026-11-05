@@ -414,3 +414,43 @@ it("a stop during setup that isn't for a steer holds the queue back", async () =
   expect(queue?.[0]?.input.id).toBe(next.id);
   expect(messages.some((m) => m.id === next.id)).toBe(false);
 });
+
+it("a plain stop during setup with nothing queued leaves the queue unpaused", async () => {
+  await settle({
+    worktreeSetup: "test -f .ran || { touch .ran; echo installing; sleep 30; }",
+  });
+  const chat = await chats.create(projectId, { kind: "project" }, "worktree");
+  await chats.send(chat.id, input("@codex Build it"));
+  await vi.waitFor(async () =>
+    expect(
+      (await chats.get(chat.id)).messages[1]?.worktreeCommand?.output,
+    ).toBe("installing\n"),
+  );
+
+  await chats.cancel(chat.id);
+  await vi.waitFor(() => expect(chats.hasActiveProject(projectId)).toBe(false));
+  // A pause on an empty queue would hold back what a resume or Relay queues later.
+  expect((await chats.get(chat.id)).queuePaused).toBeFalsy();
+});
+
+it("a plain stop during setup holds back a queue that holds messages", async () => {
+  await settle({
+    worktreeSetup: "test -f .ran || { touch .ran; echo installing; sleep 30; }",
+  });
+  const chat = await chats.create(projectId, { kind: "project" }, "worktree");
+  await chats.send(chat.id, input("@codex Build it"));
+  await vi.waitFor(async () =>
+    expect(
+      (await chats.get(chat.id)).messages[1]?.worktreeCommand?.output,
+    ).toBe("installing\n"),
+  );
+  const next = input("@codex Then write the docs");
+  await chats.send(chat.id, next);
+
+  await chats.cancel(chat.id);
+  await vi.waitFor(() => expect(chats.hasActiveProject(projectId)).toBe(false));
+  const { messages, queue, queuePaused } = await chats.get(chat.id);
+  expect(queuePaused).toBe(true);
+  expect(queue?.[0]?.input.id).toBe(next.id);
+  expect(messages.some((m) => m.id === next.id)).toBe(false);
+});
