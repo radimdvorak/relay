@@ -428,9 +428,6 @@ function restoreSession(
         onUnprompted: show,
       },
     },
-    // Signed again: an older Relay left Read only out, so a read-only
-    // session would pass for a Supervised one.
-    signature: sessionSignature(meta.options as ClaudeRunOptions),
     relayPrompt: meta.relayPrompt,
     skipsPermissions: meta.skipsPermissions,
     account: meta.options.account,
@@ -444,6 +441,9 @@ function restoreSession(
     threadId: info.threadId,
     ready: { promise, resolve },
   } as unknown as ClaudeSession;
+  // Signed again: an older Relay left Read only out, so a read-only session
+  // would pass for a Supervised one.
+  holder.signature = sessionSignature(holder.options);
   if (info.open) holdOpen(holder, info.split);
   useHosted(holder, found.attach(hostedHandlers(holder)));
   watchWindow(holder);

@@ -70,7 +70,7 @@ it("turns down writes and other MCP tools in a read-only session, even one that 
     plan: "",
   });
   const use = async (tool: string, input: Record<string, unknown> = {}) =>
-    (await canUseTool(tool, input, { signal } as never)).behavior;
+    (await canUseTool(tool, input, { signal } as never))?.behavior;
   expect(await use("Edit", { file_path: "/a.ts" })).toBe("deny");
   expect(await use("Write", { file_path: "/a.ts" })).toBe("deny");
   expect(await use("NotebookEdit")).toBe("deny");
