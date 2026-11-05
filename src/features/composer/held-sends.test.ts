@@ -43,7 +43,8 @@ beforeEach(() => {
 const send = (id: string): ProjectChatSend =>
   ({ id, body: "hello", provider: "claude" }) as ProjectChatSend;
 
-it("sends a new thread's retry to the thread its failed first try made", async () => {
+/** Follows held sends whose first send fails and second goes; what each answered. */
+function failingOnce() {
   let take!: (request: HeldSend) => void;
   api.onDraftSend.mockImplementation((listener) => {
     take = listener;
@@ -61,6 +62,11 @@ it("sends a new thread's retry to the thread its failed first try made", async (
     results.push(result),
   );
   followHeldSends();
+  return { take, results };
+}
+
+it("sends a new thread's retry to the thread its failed first try made", async () => {
+  const { take, results } = failingOnce();
   take({ id: "r1", key: "new:p1", send: send("m1") });
   await vi.waitFor(() => expect(results).toHaveLength(1));
   // Phones retry a message under its own id.
@@ -71,23 +77,7 @@ it("sends a new thread's retry to the thread its failed first try made", async (
 });
 
 it("starts a new thread for the slot's next message after a failed one was given up", async () => {
-  let take!: (request: HeldSend) => void;
-  api.onDraftSend.mockImplementation((listener) => {
-    take = listener;
-    return () => {};
-  });
-  let made = 0;
-  api.createProjectChat.mockImplementation(async () => ({
-    id: `chat-${++made}`,
-  }));
-  api.sendProjectChat
-    .mockRejectedValueOnce(new Error("Claude isn't signed in"))
-    .mockResolvedValueOnce(undefined);
-  const results: HeldSendResult[] = [];
-  api.finishDraftSend.mockImplementation((_id, result: HeldSendResult) =>
-    results.push(result),
-  );
-  followHeldSends();
+  const { take, results } = failingOnce();
   take({ id: "r1", key: "new:p1", send: send("m1") });
   await vi.waitFor(() => expect(results).toHaveLength(1));
   take({ id: "r2", key: "new:p1", send: send("m2") });
