@@ -139,6 +139,28 @@ it("snapshots around a nested repository with no commits yet", async () => {
   ]);
 });
 
+it("shows a nested repository the turn committed in as its commit ids", async () => {
+  const sub = join(root, "sub");
+  git("init", "-q", "-b", "main", "sub");
+  gitIn(sub, "config", "user.name", "Test");
+  gitIn(sub, "config", "user.email", "test@example.invalid");
+  gitIn(sub, "commit", "-q", "--allow-empty", "-m", "One");
+  const first = gitIn(sub, "rev-parse", "HEAD");
+  git("add", "sub");
+  git("commit", "-qm", "Add sub");
+  const id = randomUUID();
+  const before = await startTurn(root, id);
+  gitIn(sub, "commit", "-q", "--allow-empty", "-m", "Two");
+  const second = gitIn(sub, "rev-parse", "HEAD");
+  expect((await finishTurn(root, id, before!)).map((f) => f.path)).toEqual([
+    "sub",
+  ]);
+
+  const pair = await turnDiff(root, id, "sub");
+  expect(pair.old?.contents).toBe(`Subproject commit ${first}\n`);
+  expect(pair.next?.contents).toBe(`Subproject commit ${second}\n`);
+});
+
 it("returns both sides of a changed image so the diff can show it", async () => {
   const png = (tag: number) => Buffer.from([0x89, 0x50, 0x4e, 0x47, 0, tag]);
   await writeFile(join(root, "logo.png"), png(1));

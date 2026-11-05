@@ -20,7 +20,7 @@ export async function revisionDiff(
       (s) => Number(s.trim()),
       () => null,
     );
-    if (size === null) return null;
+    if (size === null) return submoduleSide(root, rev, path);
     if (size > textLimit) {
       binary = true;
       return null;
@@ -46,4 +46,19 @@ export async function revisionDiff(
     videoSides(root, ...sides),
   ]);
   return { old: null, next: null, binary: true, images, videos };
+}
+
+/**
+ * A submodule or nested repository as `git diff` writes it: the commit it
+ * points at, whose contents aren't in this repository. Null when `rev` has
+ * no such entry at `path`.
+ */
+async function submoduleSide(root: string, rev: string, path: string) {
+  const entry = await run(root, ["ls-tree", "-z", rev, "--", path], {
+    GIT_LITERAL_PATHSPECS: "1",
+  }).catch(() => "");
+  const [mode, , commit] = entry.slice(0, entry.indexOf("\t")).split(" ");
+  if (mode !== "160000") return null;
+  const contents = `Subproject commit ${commit}\n`;
+  return { name: path, contents, cacheKey: digest(contents) };
 }
