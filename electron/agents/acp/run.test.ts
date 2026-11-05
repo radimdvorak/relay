@@ -352,6 +352,34 @@ it("restarts the process when a session changes accounts, retaining the account 
   );
 });
 
+it("restarts a thread's process when it switches to Read only and back, so it runs with the read-only settings", async () => {
+  const { acp, root, sent } = await agent(
+    { resume: true, sessions: ["s1"], captureEnvKeys: ["READ_ONLY_RULES"] },
+    {
+      provider: "amp",
+      readOnlyEnv: async () => ({ env: { READ_ONLY_RULES: "on" } }),
+    },
+  );
+  const session = { key: "switch", id: "s1", onId: async () => {} };
+  const turn = (readOnly: boolean) =>
+    runAcp(
+      acp,
+      options(root, {
+        runtimeMode: "approval-required",
+        ...(readOnly ? { readOnly } : {}),
+        session,
+      }),
+    );
+  await turn(false);
+  await turn(true);
+  await turn(false);
+  expect(
+    (await sent()).flatMap((m: any) =>
+      m.environment ? [m.environment.READ_ONLY_RULES] : [],
+    ),
+  ).toEqual([null, "on", null]);
+});
+
 it("does not merge a cleared ambient credential back into an account's process environment", async () => {
   vi.stubEnv("GEMINI_API_KEY", "inherited-fixture-key");
   const clean = { ...process.env } as Record<string, string>;

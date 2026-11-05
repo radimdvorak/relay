@@ -172,15 +172,15 @@ async function runAcpTurn(
 
   // A helper job is one bare question in a process of its own, never the thread's.
   const key = job.kind === "helper" ? undefined : options.session?.key;
-  // A thread is read-only from its start, so its process can be started that way.
+  // A Read only thread's process starts that way; switching mode starts another.
   const readOnly = options.readOnly
     ? await profile.readOnlyEnv?.(options.cwd)
     : undefined;
   if (readOnly?.warning)
     options.onCommentary?.(`${profile.provider}-read-only`, readOnly.warning);
   const agent = await acquireAcpAgent(profile, key, options.cwd, {
-    ...options.env,
-    ...readOnly?.env,
+    env: { ...options.env, ...readOnly?.env },
+    readOnly: !!options.readOnly,
   });
   const { connection } = agent;
   const adopted = job.kind === "adopt" ? agent.inflight : undefined;

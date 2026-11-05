@@ -45,6 +45,7 @@ const metaSchema = z
     accountKey: z.string().optional(),
     credentialsRevision: z.string().optional(),
     home: z.string().optional(),
+    readOnly: z.boolean().optional(),
     caps: capsSchema.optional(),
     session: z
       .object({
@@ -68,6 +69,8 @@ export class AcpAgent extends HostedAgent<
   { id: number; compaction?: boolean }
 > {
   caps?: AcpCaps;
+  /** Started for a Read only thread: with the profile's `readOnlyEnv`, without Relay's tools. */
+  readOnly = false;
   /**
    * `base`: the settings it opened with, which Default goes back to. `cost`:
    * what the session had cost at the agent's last report, which the next one
@@ -94,6 +97,7 @@ export class AcpAgent extends HostedAgent<
       accountKey: this.profile.accountKey,
       credentialsRevision: this.profile.credentialsRevision,
       home: this.profile.home,
+      readOnly: this.readOnly,
       caps: this.caps,
       session: this.session,
       run,
@@ -214,31 +218,39 @@ async function initialize(agent: AcpAgent) {
 /**
  * The process for a thread's session, started and initialized if it isn't
  * running. A thread's runs in the agent host; without a key it's a private
- * one that ends with its turn.
+ * one that ends with its turn. A thread switched to or from Read only gets
+ * a new one: its environment and MCP servers are fixed when it starts.
  */
 export async function acquireAcpAgent(
   profile: AcpProfile,
   key: string | undefined,
   cwd: string,
-  env?: Record<string, string>,
+  {
+    env,
+    readOnly = false,
+  }: { env?: Record<string, string>; readOnly?: boolean } = {},
 ): Promise<AcpAgent> {
   const sessions = sessionsOf(profile);
   const previous = key ? sessions.get(key) : undefined;
-  if (
-    key &&
-    previous &&
+  const otherAccount =
+    !!previous &&
     (previous.profile.accountKey !== profile.accountKey ||
-      previous.profile.credentialsRevision !== profile.credentialsRevision)
-  ) {
+      previous.profile.credentialsRevision !== profile.credentialsRevision);
+  const otherMode = !!previous && previous.readOnly !== readOnly;
+  if (key && previous && (otherAccount || otherMode)) {
     if (previous.busy)
-      throw new Error("Stop the running answer before changing its account.");
+      throw new Error(
+        otherAccount
+          ? "Stop the running answer before changing its account."
+          : "Stop the running answer before changing its mode.",
+      );
     await sessions.close(key);
   }
-  return sessions.acquire(key, async () =>
-    new AcpAgent(profile, await launch(profile, key, cwd, env)).start(
-      initialize,
-    ),
-  );
+  return sessions.acquire(key, async () => {
+    const agent = new AcpAgent(profile, await launch(profile, key, cwd, env));
+    agent.readOnly = readOnly;
+    return agent.start(initialize);
+  });
 }
 
 /**
@@ -362,6 +374,7 @@ export function reattachAcp(
       connection,
     );
     agent.caps = meta.caps;
+    agent.readOnly = !!meta.readOnly;
     if (meta.session)
       agent.session = {
         id: meta.session.id,
