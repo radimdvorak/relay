@@ -127,6 +127,15 @@ export class DevServers {
     this.set(server, { state: "starting", port });
     const up = await listening(port);
     if (this.servers.get(folder) !== server) return server.state;
+    const owner = up && this.folderServing(port, folder);
+    if (owner) {
+      this.set(server, {
+        state: "failed",
+        port,
+        output: `Port ${port} is taken by the dev server Relay started in ${owner}.\n`,
+      });
+      return server.state;
+    }
     if (up) {
       this.set(server, { state: "running", port, ours: false });
       return server.state;
@@ -141,6 +150,13 @@ export class DevServers {
     }
     this.follow(server, child);
     return this.waitFor(server);
+  }
+
+  /** Another folder whose server Relay started listens on `port`. */
+  private folderServing(port: number, except: string) {
+    for (const server of this.servers.values())
+      if (server.folder !== except && server.port === port && server.child)
+        return server.folder;
   }
 
   /** Runs the command in the agent host, or in Relay without one. */

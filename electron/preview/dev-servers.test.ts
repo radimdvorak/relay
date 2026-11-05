@@ -214,6 +214,18 @@ describe("DevServers", () => {
     expect(state).toEqual({ state: "running", port, ours: false });
   });
 
+  it("doesn't take another folder's server on the same port for its own", async () => {
+    const servers = new DevServers(() => {});
+    cleanup.push(() => servers.dispose());
+    const first = await mkdtemp(join(tmpdir(), "relay-dev-first-"));
+    const second = await mkdtemp(join(tmpdir(), "relay-dev-second-"));
+    const port = await freePort();
+    await servers.ensure(first, serve, port, {});
+    const state = await servers.ensure(second, serve, port, {});
+    expect(state.state).toBe("failed");
+    expect(state.state === "failed" && state.output).toContain(first);
+  });
+
   it("fails with what the command printed when it exits", async () => {
     const servers = new DevServers(() => {});
     cleanup.push(() => servers.dispose());
