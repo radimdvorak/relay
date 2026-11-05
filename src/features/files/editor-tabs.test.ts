@@ -81,6 +81,12 @@ describe("editor tabs", () => {
     expect(state.recent).toEqual(["c.ts", "b.ts"]);
   });
 
+  it("leaves a tab where it was when its new path's tab holds edits", () => {
+    let state = open("b.ts", "a.ts");
+    state = renameTabs(state, "a.ts", "b.ts", false, new Set(["b.ts"]));
+    expect(names(state)).toEqual(["b.ts", "a.ts"]);
+  });
+
   it("moves a linked folder's tabs apart from the project's", () => {
     const linked = { path: "/work/api/a.ts", outside: true };
     let state = openTab(open("api/a.ts"), linked);
