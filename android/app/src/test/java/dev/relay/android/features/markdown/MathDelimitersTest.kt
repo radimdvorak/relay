@@ -1,6 +1,7 @@
 package dev.relay.android.features.markdown
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /** The cases of shared/math-delimiters.test.ts. */
@@ -57,5 +58,20 @@ class MathDelimitersTest {
             "> $$ x $$\n\n- \\[ a^2 \\]",
             "$$\nunfinished",
         ).forEach { assertEquals(normalizeMath(it), normalizeMath(normalizeMath(it))) }
+    }
+
+    @Test fun readsALongLineOfUnclosedOpenersInLinearTime() {
+        for (text in listOf("x " + "\\( a".repeat(20_000), "x " + "\\(".repeat(25_000), "x " + "\\[a".repeat(20_000))) {
+            val started = System.nanoTime()
+            assertEquals(text, normalizeMath(text))
+            val ms = (System.nanoTime() - started) / 1_000_000
+            assertTrue("took ${ms}ms", ms < 500)
+        }
+    }
+
+    @Test fun pairsAnOpenerWithTheCloserAfterTheLastOpener() {
+        assertEquals("a \\( b $\$x^2$$ c", normalizeMath("a \\( b \\(x^2\\) c"))
+        assertEquals("a \\[ b $\$x_1$$ c", normalizeMath("a \\[ b \\[x_1\\] c"))
+        assertEquals("a $\$\\)x$$ b", normalizeMath("a \\(\\)x\\) b"))
     }
 }
