@@ -367,8 +367,9 @@ export function gitReadsOnly(args: string[]) {
     i += args[i] === "-C" ? 2 : 1;
   const [sub, ...rest] = args.slice(i);
   if (
-    // git takes a long flag cut short (`--open-fi`) and clustered short ones (`-lO`).
-    rest.some((a) => /^(--(ou|op|ext)|-[^-]*O)/.test(a))
+    // git takes a long flag cut short (`--open-fi`) and clustered short ones (`-lO`);
+    // `--textconv` would undo a caller's `--no-textconv`, and `--filters` runs smudge filters.
+    rest.some((a) => /^(--(ou|op|ext|textc|filters)|-[^-]*O)/.test(a))
   )
     return false;
   if (gitReads.has(sub)) return true;
