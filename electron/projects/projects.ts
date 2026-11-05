@@ -34,7 +34,7 @@ import {
 } from "../git/repository";
 import {
   readWorkingFile,
-  decodeText,
+  committedText,
   writeWorkingFile,
 } from "../git/working-files";
 
@@ -603,7 +603,7 @@ export class Projects {
       ? await git(root, ["ls-tree", "-z", head, "--", path])
       : "";
     const original = entry
-      ? decodeText(await gitBytes(root, ["show", `${head}:${path}`]))
+      ? committedText(await gitBytes(root, ["show", `${head}:${path}`]))
       : "";
     return {
       path,
