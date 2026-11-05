@@ -30,11 +30,46 @@ const patchable = (event: ProjectChatEvent) =>
   event.message.status === "streaming" && !event.setup;
 
 /**
+ * An answer that settled ends its turn. Both ends then forget every copy
+ * they hold of the thread's answers, so one that stopped streaming without
+ * a word, like an empty answer dropped for a steer, isn't kept for good.
+ */
+const endsTurn = (event: ProjectChatEvent) =>
+  !event.setup &&
+  event.message.role === "assistant" &&
+  event.message.status !== "streaming";
+
+/** The copies of streaming answers one end holds, by thread and message. */
+class HeldAnswers {
+  private threads = new Map<string, Map<string, ChatMessage>>();
+
+  get(chatId: string, id: string) {
+    return this.threads.get(chatId)?.get(id);
+  }
+
+  set(chatId: string, message: ChatMessage) {
+    let thread = this.threads.get(chatId);
+    if (!thread) this.threads.set(chatId, (thread = new Map()));
+    thread.set(message.id, message);
+  }
+
+  delete(chatId: string, id: string) {
+    this.threads.get(chatId)?.delete(id);
+  }
+
+  /** What `event`, which goes whole, leaves held. */
+  settle(event: ProjectChatEvent) {
+    if (endsTurn(event)) this.threads.delete(event.chatId);
+    else this.delete(event.chatId, event.message.id);
+  }
+}
+
+/**
  * The desktop's side: remembers what each window last got of every streaming
  * answer. A window that starts listening, or lost track, asks for `resync`.
  */
 export class ChatPushSender<Target extends object> {
-  private sent = new WeakMap<Target, Map<string, ChatMessage>>();
+  private sent = new WeakMap<Target, HeldAnswers>();
 
   constructor(
     /** A deep copy: the event may hold the live answer its recorder keeps writing into. */
@@ -46,40 +81,40 @@ export class ChatPushSender<Target extends object> {
     event: ProjectChatEvent,
     targets: Target[],
   ): [Target, ProjectChatPush][] {
-    const { message } = event;
     if (!patchable(event)) {
-      for (const target of targets) this.sent.get(target)?.delete(message.id);
+      for (const target of targets) this.sent.get(target)?.settle(event);
       return targets.map((target) => [target, event]);
     }
+    const { chatId, message } = event;
     let whole: ChatMessage | undefined;
     // Windows that got the same copy last time get the same patch now.
     const patches = new Map<
       ChatMessage,
-      { push: ProjectChatPatchEvent; held: ChatMessage }
+      [ProjectChatPatchEvent, ChatMessage]
     >();
     return targets.map((target) => {
       const sent = this.sentTo(target);
-      const prev = sent.get(message.id);
+      const prev = sent.get(chatId, message.id);
       if (!prev) {
-        sent.set(message.id, (whole ??= this.copy(message)));
+        sent.set(chatId, (whole ??= this.copy(message)));
         return [target, event];
       }
       let patched = patches.get(prev);
       if (!patched) {
         const patch = diffMessage(prev, message);
+        // The copy a window holds next is the one before with the patch on
+        // it, which copies only what changed instead of the whole answer.
+        const next = applyMessagePatch(prev, this.copy(patch));
         const push: ProjectChatPatchEvent = {
-          chatId: event.chatId,
+          chatId,
           patch,
           base: prev.version,
           ...(event.title ? { title: event.title } : {}),
         };
-        // What the window holds next is its copy with the patch on, as it
-        // builds it too: a copy of what changed, not of the whole answer.
-        const held = applyMessagePatch(prev, this.copy(patch));
-        patches.set(prev, (patched = { push, held }));
+        patches.set(prev, (patched = [push, next]));
       }
-      sent.set(message.id, patched.held);
-      return [target, patched.push];
+      sent.set(chatId, patched[1]);
+      return [target, patched[0]];
     });
   }
 
@@ -90,7 +125,7 @@ export class ChatPushSender<Target extends object> {
 
   private sentTo(target: Target) {
     let sent = this.sent.get(target);
-    if (!sent) this.sent.set(target, (sent = new Map()));
+    if (!sent) this.sent.set(target, (sent = new HeldAnswers()));
     return sent;
   }
 }
@@ -101,7 +136,7 @@ export class ChatPushSender<Target extends object> {
  * `resync`; the answer's next update then comes whole.
  */
 export class ChatPushReceiver {
-  private held = new Map<string, ChatMessage>();
+  private held = new HeldAnswers();
   /** Answers whose patches couldn't be placed, waiting for a whole copy. */
   private missing = new Set<string>();
 
@@ -110,32 +145,28 @@ export class ChatPushReceiver {
   /** The event `push` stands for; nothing for a patch on a copy this window doesn't hold. */
   take(push: ProjectChatPush): ProjectChatEvent | undefined {
     if ("message" in push) {
-      this.hold(push.message, patchable(push));
+      this.missing.delete(push.message.id);
+      if (patchable(push)) this.held.set(push.chatId, push.message);
+      else this.held.settle(push);
       return push;
     }
-    const { id } = push.patch;
-    const prev = this.held.get(id);
+    const { chatId, patch } = push;
+    const prev = this.held.get(chatId, patch.id);
     if (prev?.version !== push.base) {
-      this.lost(id);
+      this.held.delete(chatId, patch.id);
+      this.lost(patch.id);
       return undefined;
     }
-    const message = applyMessagePatch(prev, push.patch);
-    this.hold(message, message.status === "streaming");
+    const message = applyMessagePatch(prev, patch);
+    this.held.set(chatId, message);
     return {
-      chatId: push.chatId,
+      chatId,
       message,
       ...(push.title ? { title: push.title } : {}),
     };
   }
 
-  private hold(message: ChatMessage, streaming: boolean) {
-    this.missing.delete(message.id);
-    if (streaming) this.held.set(message.id, message);
-    else this.held.delete(message.id);
-  }
-
   private lost(id: string) {
-    this.held.delete(id);
     if (this.missing.has(id)) return; // asked already
     this.missing.add(id);
     this.resync();

@@ -181,3 +181,37 @@ it("copies only what changed of a streaming answer, and serializes nothing to co
   // Copied whole each tick, the answer took 21.6MB; patch by patch 170KB.
   expect(copied).toBeLessThan(whole / 50);
 });
+
+it("forgets an answer that stopped streaming unannounced once the turn's answer settles", () => {
+  const resync = vi.fn();
+  const window = new ChatPushReceiver(resync);
+  const placed = new Map<string, ChatMessage>();
+  const send = (message: ChatMessage) => {
+    const before = pages[0].got.length;
+    push(event(message));
+    for (const p of pages[0].got.slice(before)) {
+      const e = window.take(p);
+      if (e) placed.set(e.message.id, e.message);
+    }
+    return pages[0].got.at(-1)!;
+  };
+  const streaming = (id: string, body: string, version: number) => ({
+    id,
+    role: "assistant" as const,
+    body,
+    status: "streaming" as const,
+    provider: "claude" as const,
+    created: 1,
+    version,
+  });
+  // An empty answer a steer dropped, and the answer below it.
+  send(streaming("dropped", "", 1));
+  send(streaming("below", "One", 1));
+  expect("patch" in send(streaming("below", "One two", 2))).toBe(true);
+  send({ ...streaming("below", "One two.", 3), status: "complete" });
+  // Neither end holds the dropped answer now: were it to stream again, it comes whole.
+  const again = streaming("dropped", "Back", 2);
+  expect("patch" in send(again)).toBe(false);
+  expect(placed.get("dropped")).toEqual(again);
+  expect(resync).not.toHaveBeenCalled();
+});
