@@ -56,8 +56,7 @@ export class SavedPreviews {
     const ofThread = (key: string) => threadKeyOf(key) === chatId;
     for (const key of [...this.latest.keys()])
       if (ofThread(key)) this.latest.delete(key);
-    const saved = Object.keys(this.store.get().previews ?? {});
-    if (!saved.some(ofThread)) return;
+    // Queued behind any save still being written, so none outlives the thread.
     await this.store.update((s) => {
       for (const key of Object.keys(s.previews ?? {}))
         if (ofThread(key)) delete s.previews![key];
