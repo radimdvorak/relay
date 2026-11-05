@@ -221,11 +221,82 @@ export function readsOnly(command: string): boolean {
     /(^|\s)(?:[12]?>\s*\/dev\/null|2>&1)(?=\s|$)/g,
     "$1",
   );
-  // Writes, substitutions and here-documents; quoting isn't parsed, so a
-  // quoted one counts too and the command is turned down.
+  // Writes, substitutions and here-documents; a quoted one counts too and
+  // the command is turned down.
   if (/[<>`]|\$\(/.test(bare)) return false;
-  const segments = bare.split(/&&|\|\||[;|\n]/).map((s) => s.trim());
-  return segments.every((s) => !!s && !s.includes("&") && segmentReads(s));
+  const commands = commandsIn(bare);
+  return !!commands && commands.every((c) => !!c && segmentReads(c));
+}
+
+/**
+ * The commands of `line`, split where bash and zsh split them: a `;`, `|` or
+ * newline inside quotes doesn't end one, and a backslash-newline joins two
+ * lines. Undefined for what no read needs and this doesn't follow: a
+ * subshell or zsh's `*(e:…:)` and `=(…)`, which run code, a command sent to
+ * the background, or an unclosed quote.
+ */
+function commandsIn(line: string): string[] | undefined {
+  const commands: string[] = [];
+  let text = "";
+  let wordStart = true;
+  /** How far a comment has been checked for quotes, so each line is read once. */
+  let commentChecked = -1;
+  const endCommand = () => {
+    commands.push(text.trim());
+    text = "";
+  };
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i]!;
+    const next = line[i + 1];
+    const atWordStart = wordStart;
+    wordStart = c === " " || c === "\t";
+    if (c === "\n" || c === ";") {
+      endCommand();
+      wordStart = true;
+    } else if (c === "|" || c === "&") {
+      const doubled = next === c;
+      if (!doubled && (c === "&" || next === "&")) return undefined;
+      if (doubled) i++;
+      endCommand();
+      wordStart = true;
+    } else if (c === "(" || c === ")") {
+      return undefined;
+    } else if (c === "\\" && next === "\n") {
+      // Removed, as if the two lines were one.
+      i++;
+      wordStart = atWordStart;
+    } else if (c === "\\") {
+      text += c + (next ?? "");
+      i++;
+    } else if (c === "'" || c === '"' || (c === "$" && next === "'")) {
+      const ansi = c === "$";
+      const close = quoteEnd(line, ansi ? i + 1 : i, ansi || c === '"');
+      if (close < 0) return undefined;
+      text += line.slice(i, close + 1);
+      i = close;
+    } else {
+      // A comment where the shell has them on, words where it hasn't: a quote
+      // in it would split the line differently between the two.
+      if (c === "#" && atWordStart && i > commentChecked) {
+        const eol = line.indexOf("\n", i);
+        commentChecked = eol < 0 ? line.length : eol;
+        if (/['"\\]/.test(line.slice(i, commentChecked))) return undefined;
+      }
+      text += c;
+    }
+  }
+  endCommand();
+  return commands;
+}
+
+/** Where the quote opening at `open` closes, or -1. */
+function quoteEnd(line: string, open: number, escapes: boolean) {
+  const quote = line[open]!;
+  for (let i = open + 1; i < line.length; i++) {
+    if (escapes && line[i] === "\\") i++;
+    else if (line[i] === quote) return i;
+  }
+  return -1;
 }
 
 function segmentReads(segment: string) {

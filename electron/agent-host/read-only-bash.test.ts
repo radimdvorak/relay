@@ -81,6 +81,39 @@ it("turns down a plain command whose expansion runs another command", () => {
     expect(readsOnly(command), command).toBe(false);
 });
 
+it("reads the commands of a line where the shell splits them", () => {
+  for (const command of [
+    // A separator in quotes is part of rg's argument, so --pre is rg's too.
+    "rg foo ';echo x' --pre=./evil.sh .",
+    "rg foo '|echo x' --pre=./evil.sh .",
+    "find src ';echo x' -delete",
+    "rg foo '\necho x' --pre=./evil.sh .",
+    // A backslash-newline joins the lines into one command.
+    "rg foo \\\necho --pre=./evil.sh .",
+    "find src \\\necho -delete",
+    "git log --o\\\nutput=pwned",
+    // zsh runs the glob qualifier's code, and =(…) like <(…).
+    "ls *(e:'touch pwned':)",
+    "cat =(touch pwned)",
+    // With comments off, the quote would open and swallow the newline.
+    "echo #'\ntouch pwned\n'",
+    "echo \\\n#'\ntouch pwned\n'",
+    // An escaped $ doesn't start $'…', so \' doesn't escape the quote.
+    "echo \\$'\\' ;touch pwned\n'",
+    "rg foo 'unclosed",
+    "ls |& cat",
+  ])
+    expect(readsOnly(command), command).toBe(false);
+  for (const command of [
+    "rg -n 'a;b|c' src",
+    "rg -n 'a && b' src",
+    "rg -n useEffect \\\n  src",
+    "find src \\( -name '*.ts' -o -name '*.tsx' \\)",
+    "ls # just looking",
+  ])
+    expect(readsOnly(command), command).toBe(true);
+});
+
 it("turns down sed flags hidden in quotes, which GNU sed still reads", () => {
   // GNU sed reads '-e' after the script as a flag, and its `e` command runs
   // a shell command; '-i' edits the file in place.
