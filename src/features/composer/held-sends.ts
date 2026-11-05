@@ -115,7 +115,7 @@ async function sendHeld({
   const sent = new Set(
     outgoing.images.flatMap((image) => ("id" in image ? [image.id] : [])),
   );
-  await quietly(async () => {
+  await quietly(thread, async () => {
     if (attachments) clearDraftAttachments(thread, attachments);
     await saveDraftImages(
       composer,
