@@ -177,6 +177,12 @@ it("turns down sed flags hidden in quotes, which GNU sed still reads", () => {
   expect(readsOnly("sed -n '1,$p' src/app.ts")).toBe(true);
 });
 
+it("reads a long command in linear time", { timeout: 1000 }, () => {
+  // Relay's process runs the check, so a slow one stalls it.
+  expect(readsOnly(`rg a${"{".repeat(100_000)}`)).toBe(true);
+  expect(readsOnly(`ls ${"# ".repeat(50_000)}`)).toBe(true);
+});
+
 it("leaves other tools to the usual checks", async () => {
   expect(await readOnlyBashHook({ tool_name: "Read", tool_input: {} })).toEqual(
     {},

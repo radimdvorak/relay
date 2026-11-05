@@ -86,7 +86,8 @@ const respellings = [
   `\\$(?!['"]?(?:[\\s;&|]|$)|p['"])`,
 ];
 
-const braceList = `\\{[^\\s}]*(?:,|\\.\\.)`;
+// Not past another `{`: from each one to the end, a long run took minutes.
+const braceList = `\\{[^\\s{}]*(?:,|\\.\\.)`;
 export const disguisedFlag = [...respellings, braceList].join("|");
 const respelled = new RegExp(respellings.join("|"));
 const braces = new RegExp(braceList);
