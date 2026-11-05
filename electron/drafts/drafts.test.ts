@@ -359,6 +359,30 @@ it("gives up on a held send the page never answers once the phone has long stopp
   }
 });
 
+it("keeps offering a held send to a new page while a retry still waits on it", async () => {
+  vi.useFakeTimers();
+  try {
+    const { drafts } = await setup(() => true);
+    const key = "new:p1:abc";
+    const message = send("Fix this");
+    const first = drafts.sendHeld(key, undefined, message);
+    const firstTimedOut = expect(first).rejects.toThrow("in time");
+    await vi.advanceTimersByTimeAsync(30_000);
+    const retried = drafts.sendHeld(key, undefined, message);
+    const retryTimedOut = expect(retried).rejects.toThrow("in time");
+
+    await vi.advanceTimersByTimeAsync(80_000);
+    await firstTimedOut;
+    expect(drafts.waitingSends()).toHaveLength(1);
+
+    await vi.advanceTimersByTimeAsync(30_000);
+    await retryTimedOut;
+    expect(drafts.waitingSends()).toEqual([]);
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
 it("forgets the thread a late send went to when the phone never retries", async () => {
   vi.useFakeTimers();
   try {

@@ -37,6 +37,8 @@ interface Held {
   /** The page's answer, however long it takes. */
   sent: Promise<{ chatId: string }>;
   done(result: HeldSendResult): void;
+  /** The phone's tries still waiting on it: a retry waits beside the first. */
+  waiting: number;
   /** Nobody waits on it any more: a page that comes next doesn't pick it up. */
   overdue?: true;
   /** Gives up on the page once no retry is coming. */
@@ -151,6 +153,7 @@ export class Drafts {
     const held: Held = {
       request,
       sent,
+      waiting: 0,
       done: (result) => {
         clearTimeout(held.forget);
         this.held.delete(request.id);
@@ -170,21 +173,39 @@ export class Drafts {
     return held;
   }
 
-  /** Gives up waiting in time; the page may still send it, which a retry then hears. */
+  /**
+   * Gives up waiting in time; the page may still send it, which a retry then
+   * hears. It goes overdue only once no try waits on it any more.
+   */
   private waitFor(held: Held) {
+    held.waiting++;
+    let waiting = true;
+    const stopWaiting = () => {
+      if (waiting) held.waiting--;
+      waiting = false;
+    };
     return new Promise<{ chatId: string }>((resolve, reject) => {
       const timer = setTimeout(() => {
-        held.overdue = true;
-        held.forget = setTimeout(
-          () => held.done({ error: "The page never sent it." }),
-          lateSendMs,
-        );
+        stopWaiting();
+        if (!held.waiting) this.giveUpOn(held);
         reject(
           new Error("Relay on the computer didn't get to send it in time."),
         );
       }, heldSendMs);
-      held.sent.then(resolve, reject).finally(() => clearTimeout(timer));
+      held.sent.then(resolve, reject).finally(() => {
+        clearTimeout(timer);
+        stopWaiting();
+      });
     });
+  }
+
+  /** Nobody waits on it any more: a page loading next doesn't pick it up, and this one gets a while longer. */
+  private giveUpOn(held: Held) {
+    held.overdue = true;
+    held.forget = setTimeout(
+      () => held.done({ error: "The page never sent it." }),
+      lateSendMs,
+    );
   }
 
   private keepLate(sent: string, result: { chatId: string }) {
