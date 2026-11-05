@@ -194,6 +194,16 @@ it("keeps a comment at the end of the last key's line with that key", async () =
   );
 });
 
+it("reads a file with everything commented out as no settings, and saves below the comments", async () => {
+  await writeFile(join(dir, "settings.json"), '// { "keepAwake": false }\n');
+  await open();
+  expect(file.state().error).toBeUndefined();
+  await file.update([{ path: ["usagePing"], value: false }]);
+  expect(await readFile(join(dir, "settings.json"), "utf8")).toBe(
+    '// { "keepAwake": false }\n{\n  "usagePing": false\n}\n',
+  );
+});
+
 it("removes a key that isn't there as nothing to do, and says which section isn't one", async () => {
   await writeFile(join(dir, "settings.json"), '{ "chat": 1 }');
   await open();

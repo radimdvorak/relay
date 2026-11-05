@@ -19,6 +19,7 @@ import {
   parse,
   parseTree,
   printParseErrorCode,
+  stripComments,
   type Edit,
   type ParseError,
 } from "jsonc-parser";
@@ -50,12 +51,17 @@ const SETTLE_MS = 40;
 /** Times a save starts over because a script replaced the file meanwhile. */
 const RETRIES = 3;
 
+/** Empty, or only comments, as a file with every setting commented out is. */
+function holdsNothing(text: string) {
+  return !stripComments(text).trim();
+}
+
 function parseSettings(
   text: string,
 ):
   | { values: Record<string, unknown>; error?: undefined }
   | { error: SettingsFileError } {
-  if (!text.trim()) return { values: {} };
+  if (holdsNothing(text)) return { values: {} };
   const errors: ParseError[] = [];
   const value: unknown = parse(text, errors, { allowTrailingComma: true });
   const at = (offset: number) => {
@@ -183,7 +189,10 @@ function editAt(text: string, path: string[], value: unknown): Edit[] {
 
 /** The file's text with each edit's value put at its path, or the key removed. */
 function withEdits(text: string, edits: SettingsEdit[]) {
-  let next = text.trim() ? text : "{}\n";
+  let next = text;
+  // Commented-out settings stay, above the ones saved.
+  if (holdsNothing(text))
+    next = text.trim() ? `${text.trimEnd()}\n{}\n` : "{}\n";
   const node = (path: string[]) => findNodeAtLocation(parseTree(next)!, path);
   const edit = (path: string[], value: unknown) => {
     next = applyEdits(next, editAt(next, path, value));
