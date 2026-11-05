@@ -49,6 +49,8 @@ export function moveTabDocuments(
     const moved = { ...tab, path: to + tab.path.slice(from.length) };
     const before = tabDocument(tab, home);
     const after = tabDocument(moved, home);
+    // A deleted file's tab still open there lets its document go, edits aside.
+    documents.close(after.source, after.path);
     documents.rename(before.source, before.path, after.path, after.source);
   }
 }

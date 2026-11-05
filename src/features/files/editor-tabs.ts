@@ -136,10 +136,17 @@ export function renameTabs(
       : tab;
   const movedIds = new Map(state.tabs.map((t) => [tabId(t), tabId(moved(t))]));
   const movedId = (id: string) => movedIds.get(id) ?? id;
+  // A tab still open where something moved to (its file deleted here) gives way.
+  const arrived = new Set(
+    state.tabs.filter((t) => moved(t) !== t).map((t) => tabId(moved(t))),
+  );
+  const tabs = state.tabs
+    .filter((t) => moved(t) !== t || !arrived.has(tabId(t)))
+    .map(moved);
   return {
-    tabs: state.tabs.map(moved),
+    tabs,
     active: state.active && movedId(state.active),
-    recent: state.recent.map(movedId),
+    recent: [...new Set(state.recent.map(movedId))],
   };
 }
 

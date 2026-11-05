@@ -72,6 +72,15 @@ describe("editor tabs", () => {
     expect(names(dropTabs(state, "lib"))).toEqual(["readme.md"]);
   });
 
+  it("keeps one tab when a file moves onto a path a tab still shows", () => {
+    // b.ts was deleted outside, its tab still open on the last version.
+    let state = open("b.ts", "a.ts", "c.ts");
+    state = renameTabs(state, "a.ts", "b.ts");
+    expect(names(state)).toEqual(["b.ts", "c.ts"]);
+    expect(state.active).toBe("c.ts");
+    expect(state.recent).toEqual(["c.ts", "b.ts"]);
+  });
+
   it("moves a linked folder's tabs apart from the project's", () => {
     const linked = { path: "/work/api/a.ts", outside: true };
     let state = openTab(open("api/a.ts"), linked);
