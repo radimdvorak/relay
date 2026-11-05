@@ -136,7 +136,8 @@ export function renameTabs(
       : tab;
   const movedIds = new Map(state.tabs.map((t) => [tabId(t), tabId(moved(t))]));
   const movedId = (id: string) => movedIds.get(id) ?? id;
-  // A tab still open where something moved to (its file deleted here) gives way.
+  // A tab can still be open on a deleted file at the path something moved
+  // to; the moved tab replaces it.
   const arrived = new Set(
     state.tabs.filter((t) => moved(t) !== t).map((t) => tabId(moved(t))),
   );
