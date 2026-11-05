@@ -97,10 +97,10 @@ export function ClockifySettings() {
     try {
       const result = await api.saveClockifySettings(next, secrets);
       if (seq === latest.current) qc.setQueryData(clockifyKey, result);
-      if (secrets.token !== undefined) {
+      if (secrets.token !== undefined)
         await qc.invalidateQueries({ queryKey: ["clockify-workspaces"] });
+      if (secrets.token !== undefined || "workspaceId" in patch)
         await qc.invalidateQueries({ queryKey: ["clockify-projects"] });
-      }
       saved();
       return result;
     } catch (e) {
