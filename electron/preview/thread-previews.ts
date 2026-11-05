@@ -529,6 +529,14 @@ export class ThreadPreviews {
       .catch((error) => console.warn("Could not forget the page:", error));
   }
 
+  /** The thread was deleted: its pages close, and none is kept for next time. */
+  async closeThread(chatId: string) {
+    const keys = [...this.previews.keys(), ...this.opening.keys()];
+    for (const key of new Set(keys))
+      if (threadKeyOf(key) === chatId) this.close(key);
+    await this.saved?.forgetThread(chatId);
+  }
+
   close(key: string) {
     this.opening.get(key)?.controller.abort();
     this.opening.delete(key);
