@@ -312,6 +312,19 @@ describe("sessions", () => {
     expect((await calls("turn/start")).at(-1)!.params.input[0].text).not.toMatch(/^Help the requesting user/);
   });
 
+  it("opens the session in a new process when the thread switches to Read only and back, with the tools that mode gets", async () => {
+    await scenario({});
+    const relayTools = { url: "http://127.0.0.1:1/mcp", token: "t" };
+    const session = { key: "thread-1", id: "session-1", onId: async () => {} };
+    await turn({ relayTools }).answer();
+    // Read only reaches the agent as Supervised with `readOnly`, and no Relay tools.
+    await turn({ readOnly: true, session }).answer();
+    await turn({ relayTools, session }).answer();
+    expect(await calls("initialize")).toHaveLength(3);
+    const opened = [...(await calls("session/start")), ...(await calls("session/resume"))];
+    expect(opened.map((m) => !!m.params.config?.mcpServers?.relay)).toEqual([true, false, true]);
+  });
+
   it("forks for a side question, read-only", async () => {
     await scenario({});
     await turn({ job: { kind: "side" }, session: { key: "side-1", fork: { thread: "session-1", at: "" }, onId: async () => {} } }).answer();

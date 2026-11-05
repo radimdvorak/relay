@@ -121,7 +121,12 @@ export async function runMuse(options: AgentOptions): Promise<string> {
   const helper = job.kind === "helper";
   // A helper job is one bare question in a process of its own, never the thread's.
   const key = helper ? undefined : options.session?.key;
-  const agent = await acquireMuse(key, options.cwd, options.env, helper);
+  const agent = await acquireMuse(key, options.cwd, {
+    env: options.env,
+    ephemeral: helper,
+    readOnly: !!options.readOnly,
+    adopting: job.kind === "adopt",
+  });
   const { connection } = agent;
   const adopted = job.kind === "adopt" ? agent.inflight : undefined;
   if (job.kind === "adopt" && (!adopted || !agent.session)) {
