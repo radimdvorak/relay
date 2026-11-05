@@ -411,3 +411,26 @@ it("doesn't share what a phone's held send clears, though a phone's edit lands m
   await pause();
   expect(writes.slice(sent)).toEqual([]);
 });
+
+it("keeps a thread quiet until both of two overlapping held sends have cleared", async () => {
+  await start();
+  drafts.writeDraft(key, "Look at [Image #1]");
+  await pause();
+  const sent = writes.length;
+  let firstDone!: () => void;
+  let secondDone!: () => void;
+  const first = sync.quietly(
+    chat,
+    () => new Promise<void>((resolve) => (firstDone = resolve)),
+  );
+  const second = sync.quietly(chat, async () => {
+    await new Promise<void>((resolve) => (secondDone = resolve));
+    drafts.writeDraft(key, "");
+  });
+  firstDone();
+  await first;
+  secondDone();
+  await second;
+  await pause();
+  expect(writes.slice(sent)).toEqual([]);
+});
