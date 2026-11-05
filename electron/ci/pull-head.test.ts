@@ -129,8 +129,9 @@ it("reads a Gitea fork PR's statuses off its head commit", async () => {
     repo: (r: { owner: string; name: string }) => `/repos/${r.owner}/${r.name}`,
     request: async (path: string) => {
       paths.push(path);
-      if (path.endsWith("/status"))
+      if (path.includes("/status?"))
         return {
+          headers: new Headers({ "X-Total-Count": "1" }),
           data: {
             statuses: [
               {
@@ -143,6 +144,7 @@ it("reads a Gitea fork PR's statuses off its head commit", async () => {
           },
         };
       return {
+        headers: new Headers(),
         data: { commit: { message: "Fix\n\nBody", author: { name: "Ada" } } },
       };
     },
@@ -156,7 +158,7 @@ it("reads a Gitea fork PR's statuses off its head commit", async () => {
     { gitea, azure: async () => null },
   );
   expect(paths).toEqual([
-    `/repos/base/app/commits/${head}/status`,
+    `/repos/base/app/commits/${head}/status?limit=50&page=1`,
     `/repos/base/app/git/commits/${head}`,
   ]);
   expect(status).toMatchObject({
