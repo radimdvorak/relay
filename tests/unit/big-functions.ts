@@ -293,7 +293,7 @@ export const bigFunctions: Record<string, number> = {
   "src/features/sidebar/SidebarThread.tsx › ThreadRow": 86,
   "src/features/sidebar/SnoozeMenu.tsx › SnoozeMenu": 85,
   "src/features/sidebar/ThreadMenu.tsx › ThreadMenuItems": 219,
-  "src/features/sidebar/useActivityKeys.ts › useActivityKeys": 110,
+  "src/features/sidebar/useActivityKeys.ts › useActivityKeys": 95,
   "src/features/sidebar/useProjectGroups.ts › useProjectGroups": 127,
   "src/features/sidebar/useThreadActions.ts › useThreadActions": 281,
   "src/features/sign-in/OpenCodeSignIn.tsx › OpenCodeSignIn": 269,

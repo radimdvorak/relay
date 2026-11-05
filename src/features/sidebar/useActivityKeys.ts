@@ -24,8 +24,8 @@ export function askJump(index: number) {
 
 /**
  * The `settle` shortcut on the open thread, `next-thread` and `prev-thread`
- * through Activity's cards, and `jump-thread`'s digits onto its first nine
- * cards while `jumping`. Returns whether their hints
+ * through Activity's cards (see useThreadSteps), and `jump-thread`'s digits
+ * onto its first nine cards while `jumping`. Returns whether their hints
  * show: holding ⌘ on its own for a beat on the activity view shows ⌘1–⌘9 on
  * the first nine cards (or whichever modifiers open them). ⌘ used as part of
  * another shortcut or a ⌘-click never shows them.
@@ -54,22 +54,7 @@ export function useActivityKeys({
 }) {
   const [held, setHeld] = useState(false);
   const jumpTo = useRef<(index: number) => boolean>(() => false);
-  useShortcut("settle", true, () => {
-    const c = active.find((a) => a.id === chatId);
-    if (c && !c.waiting) settle(c);
-  });
-  const step = (by: 1 | -1) => {
-    // A started thread steps on from its lead's card.
-    const lead = active.find((c) => c.id === chatId)?.startedBy?.chatId;
-    const at = threads.findIndex((t) => t.id === chatId || t.id === lead);
-    threads.at(at < 0 ? (by > 0 ? 0 : -1) : (at + by) % threads.length)?.open();
-  };
-  useShortcut("next-thread", threads.length > 0, () => step(1), {
-    repeat: true,
-  });
-  useShortcut("prev-thread", threads.length > 0, () => step(-1), {
-    repeat: true,
-  });
+  useThreadSteps(active, threads, chatId, settle);
   useEffect(() => {
     let reveal: number | undefined;
     const cancel = () => {
@@ -139,4 +124,29 @@ export function useActivityKeys({
   }, []);
   useEffect(() => takeAsked.current(), [cards.length, loaded]);
   return held;
+}
+
+/** `settle` on the open thread, and `next-thread` and `prev-thread` through Activity's cards. */
+function useThreadSteps(
+  active: ChatSummary[],
+  threads: { id: string; open: () => void }[],
+  chatId: string | undefined,
+  settle: ThreadActions["settle"],
+) {
+  useShortcut("settle", true, () => {
+    const c = active.find((a) => a.id === chatId);
+    if (c && !c.waiting) settle(c);
+  });
+  const step = (by: 1 | -1) => {
+    // A started thread steps on from its lead's card.
+    const lead = active.find((c) => c.id === chatId)?.startedBy?.chatId;
+    const at = threads.findIndex((t) => t.id === chatId || t.id === lead);
+    threads.at(at < 0 ? (by > 0 ? 0 : -1) : (at + by) % threads.length)?.open();
+  };
+  useShortcut("next-thread", threads.length > 0, () => step(1), {
+    repeat: true,
+  });
+  useShortcut("prev-thread", threads.length > 0, () => step(-1), {
+    repeat: true,
+  });
 }
