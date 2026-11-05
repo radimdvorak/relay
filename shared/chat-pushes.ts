@@ -32,7 +32,7 @@ const patchable = (event: ProjectChatEvent) =>
 /**
  * An answer that settled ends its turn. Both ends then forget every copy
  * they hold of the thread's answers, so one that stopped streaming without
- * a word, like an empty answer dropped for a steer, isn't kept for good.
+ * a word, like the line of a reload that failed, isn't kept for good.
  */
 const endsTurn = (event: ProjectChatEvent) =>
   !event.setup &&

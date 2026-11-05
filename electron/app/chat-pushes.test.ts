@@ -204,7 +204,7 @@ it("forgets an answer that stopped streaming unannounced once the turn's answer 
     created: 1,
     version,
   });
-  // An empty answer a steer dropped, and the answer below it.
+  // The line of a reload that failed, then the next answer.
   send(streaming("dropped", "", 1));
   send(streaming("below", "One", 1));
   expect("patch" in send(streaming("below", "One two", 2))).toBe(true);
