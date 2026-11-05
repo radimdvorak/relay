@@ -245,7 +245,8 @@ class ProjectTasks {
 
   /** Stops everything running in a folder about to go away, and waits for it. */
   async stopWithin(path: string) {
-    const tasks = await this.list(path).catch(() => []);
+    // A server started a moment ago would keep its port in the deleted folder.
+    const tasks = await this.runningIn(path).catch(() => []);
     await Promise.all(
       tasks.map(
         async (t) =>
@@ -304,11 +305,26 @@ class ProjectTasks {
   }
 
   private async findTask(root: string, id: string, worktrees: Worktree[]) {
-    const tasks = await this.list(root, worktrees, { fresh: true });
-    const task = this.tracked.get(id);
-    if (!task || !tasks.some((t) => t.id === id))
-      throw new Error("This process is no longer running.");
+    const tasks = await this.runningIn(root, worktrees);
+    const task = tasks.find((t) => t.id === id);
+    if (!task) throw new Error("This process is no longer running.");
     return task;
+  }
+
+  /**
+   * Every task a fresh scan finds in `root` and the `worktrees`, without the
+   * ones `list` leaves out for being too young or a terminal's passing job.
+   */
+  private async runningIn(root: string, worktrees: Worktree[] = []) {
+    this.watch(root);
+    for (const w of worktrees) this.watch(w.path);
+    this.scanned = 0;
+    await this.scan();
+    const folders = [root, ...worktrees.map((w) => w.path)];
+    return [...this.tracked.values()].filter((t) => {
+      const cwd = t.cwd;
+      return !!cwd && folders.some((folder) => within(cwd, folder));
+    });
   }
 
   private async terminate(

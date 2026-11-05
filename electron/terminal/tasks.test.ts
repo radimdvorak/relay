@@ -493,3 +493,34 @@ it.each(["leader", "child"])(
     }
   },
 );
+
+it("stops a server an agent started a moment ago in a worktree about to go away", async () => {
+  const worktree = "/projects/app/.worktrees/thread-1";
+  fake.cwd = worktree;
+  const [host, agent, shell] = [4_000_001, 4_000_002, 4_000_003];
+  const longAgo = Date.now() - 60_000;
+  fake.rows = [
+    { pid: process.pid, ppid: 4_000_000, pgid: 0, started: 1, line: "relay" },
+    { pid: host, ppid: process.pid, pgid: 0, started: longAgo, line: "agent-host" },
+    { pid: agent, ppid: host, pgid: 0, started: longAgo, line: "/usr/local/bin/claude" },
+    // `npm run dev` started a second ago and isn't listening yet.
+    {
+      pid: shell,
+      ppid: agent,
+      pgid: 0,
+      started: Date.now() - 1000,
+      line: "/bin/zsh -lc npm run dev",
+    },
+  ];
+  projectTasks.hosts = () => [host];
+  const kill = vi.spyOn(process, "kill").mockImplementation((pid) => {
+    fake.rows = fake.rows.filter((r) => r.pid !== Math.abs(pid));
+    return true;
+  });
+  try {
+    await projectTasks.stopWithin(worktree);
+    expect(kill).toHaveBeenCalledWith(shell, "SIGTERM");
+  } finally {
+    kill.mockRestore();
+  }
+});
