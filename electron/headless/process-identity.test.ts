@@ -5,6 +5,8 @@ import { recordedAlive, recordProcess } from "./process-identity";
 const windows = vi.hoisted(() => ({
   created: undefined as Map<number, string> | undefined,
   asked: [] as number[],
+  /** PowerShell times out instead of answering. */
+  stuck: false,
 }));
 
 vi.mock("node:child_process", async (original) => {
@@ -15,9 +17,11 @@ vi.mock("node:child_process", async (original) => {
       if (!windows.created) return real.execFileSync(file, args, options);
       const pid = Number(/ProcessId=(\d+)/.exec(args.join(" "))?.[1]);
       windows.asked.push(pid);
-      const created = windows.created.get(pid);
-      if (created === undefined) throw new Error("exited with 1");
-      return `${created}\r\n`;
+      if (windows.stuck)
+        throw Object.assign(new Error("spawnSync powershell.exe ETIMEDOUT"), {
+          status: null,
+        });
+      return `${windows.created.get(pid) ?? ""}\r\n`;
     }) as typeof real.execFileSync,
   };
 });
@@ -28,6 +32,7 @@ afterEach(() => {
   Object.defineProperty(process, "platform", platform);
   windows.created = undefined;
   windows.asked = [];
+  windows.stuck = false;
 });
 
 const alive = (pid: number) => pid === process.pid;
@@ -74,4 +79,14 @@ it("asks Windows when a process started only while its pid is alive", () => {
   windows.created = new Map();
   expect(recordedAlive("4242 134383540023455520", () => false)).toBe(false);
   expect(windows.asked).toEqual([]);
+});
+
+it("keeps a live pid its owner's when Windows doesn't say when it started", () => {
+  Object.defineProperty(process, "platform", { value: "win32" });
+  windows.created = new Map([[process.pid, "134383540023455520"]]);
+  const record = recordProcess();
+  windows.stuck = true;
+  expect(recordedAlive(record, alive)).toBe(true);
+  // Recorded while stuck: the pid alone decides later.
+  expect(recordProcess()).toBe(`${process.pid}`);
 });
