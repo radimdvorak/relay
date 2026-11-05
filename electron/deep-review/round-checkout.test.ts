@@ -88,3 +88,36 @@ it("keeps an earlier round's worktree beside the review's own when the next roun
     "export const fixed = 1;\n",
   );
 });
+
+it("keeps the review's own worktree with a fix in it when no round names it any more", async () => {
+  // A round read panel, and the lead fixed it, in the review's own worktree;
+  // checking out an earlier round's code for its fix then took that round's
+  // checkout away, so nothing in the thread names the folder.
+  const own = join(reviewCheckoutsIn(worktrees), "c1");
+  git(repo, "worktree", "add", "-q", own, "panel");
+  await writeFile(join(own, "panel.ts"), "export const fixed = 1;\n");
+  const gaveItUp = {
+    request: "r2",
+    scope: scope(),
+    reviewers: [],
+    status: "done",
+  } as unknown as DeepReviewState;
+  const chat = {
+    id: "c1",
+    scope: { kind: "review" },
+    reviews: [gaveItUp],
+    messages: [],
+  } as unknown as ProjectChat;
+
+  const next = scope();
+  const discard = await placeRound(repo, next, chat, {
+    worktrees,
+    duringTurn: false,
+  });
+  expect(await realpath(next.checkout!.path)).toBe(await realpath(own));
+  await discard();
+
+  expect(await readFile(join(own, "panel.ts"), "utf8")).toBe(
+    "export const fixed = 1;\n",
+  );
+});

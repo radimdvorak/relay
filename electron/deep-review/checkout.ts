@@ -391,10 +391,13 @@ export async function sweepReviewCheckouts(
 /**
  * Removes a worktree Relay made for a review that never started. Only what
  * Git no longer counts as a worktree, a half-made folder, is deleted
- * outright: one it does may hold work by now.
+ * outright: one it does may hold work by now. One with edits in it is an
+ * earlier round's, whatever the thread's rounds still say: an earlier round
+ * checked out for its fix takes later rounds' checkouts away.
  */
 export async function discardReviewCheckout(checkout: ReviewCheckout) {
   if (!checkout.made) return;
+  if (await dirty(checkout.path).catch(() => false)) return;
   await removeReviewCheckout(checkout.path).catch(async (e: unknown) => {
     if (await exists(join(checkout.path, ".git")))
       return console.warn(
