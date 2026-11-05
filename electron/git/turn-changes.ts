@@ -17,6 +17,7 @@ import { NotText, decodeText, textLimit } from "./working-files";
 import { ownFiles, type TurnClaim } from "./turn-claims";
 import { checkOut, durable, noMonitor, run, snapshot } from "./turn-snapshots";
 import { digest } from "../util/hash";
+import { eachLimited } from "../util/each-limited";
 import { imageSides, type FileSource } from "./image-pair";
 import { videoSides } from "./video-pair";
 import { gitBytes } from "./git";
@@ -340,51 +341,48 @@ export async function plan(
     (value) => value.trim() !== "false",
     () => true,
   );
-  await Promise.all(
-    paths.map(async (path) => {
-      const [had, want, entry] = await Promise.all([
-        blobEntry(root, from, path),
-        blobEntry(root, to, path),
-        worktreeEntry(root, path),
-      ]);
-      const directory = entry?.mode === "040000";
-      const now = directory ? null : (entry ?? null);
-      if (sameEntry(now, want, trustMode))
-        return steps.push({ path, kind: "keep" });
-      if (entry?.file && want?.mode.startsWith("100") && entry.id === want.id) {
-        const mode = force || entry.mode === had?.mode ? want.mode : entry.mode;
-        return steps.push(
-          mode === entry.mode
-            ? { path, kind: "keep" }
-            : { path, kind: "mode", mode },
-        );
-      }
-      const replace: Step = { path, kind: want ? "restore" : "delete" };
-      if (force || sameEntry(now, had, trustMode)) {
-        if (directory && want) directories.push(path);
-        return steps.push(replace);
-      }
-      // Text and executable mode merge separately, so a later chmod survives
-      // a content rollback and later text survives an executable-bit rollback.
-      const contents =
-        had?.mode.startsWith("100") &&
-        want?.mode.startsWith("100") &&
-        entry?.file
-          ? had.id === want.id
-            ? await readFile(join(root, path))
-            : await mergeBack(root, path, from, to)
-          : null;
-      if (contents) {
-        const mode = entry!.mode === had!.mode ? want!.mode : entry!.mode;
-        steps.push({
-          path,
-          kind: "merge",
-          contents,
-          ...(trustMode && mode !== entry!.mode ? { mode } : {}),
-        });
-      } else conflicts.push(path);
-    }),
-  );
+  // Each file starts up to three Git processes; thousands at once fail to spawn.
+  await eachLimited(paths, 8, async (path) => {
+    const [had, want, entry] = await Promise.all([
+      blobEntry(root, from, path),
+      blobEntry(root, to, path),
+      worktreeEntry(root, path),
+    ]);
+    const directory = entry?.mode === "040000";
+    const now = directory ? null : (entry ?? null);
+    if (sameEntry(now, want, trustMode))
+      return steps.push({ path, kind: "keep" });
+    if (entry?.file && want?.mode.startsWith("100") && entry.id === want.id) {
+      const mode = force || entry.mode === had?.mode ? want.mode : entry.mode;
+      return steps.push(
+        mode === entry.mode
+          ? { path, kind: "keep" }
+          : { path, kind: "mode", mode },
+      );
+    }
+    const replace: Step = { path, kind: want ? "restore" : "delete" };
+    if (force || sameEntry(now, had, trustMode)) {
+      if (directory && want) directories.push(path);
+      return steps.push(replace);
+    }
+    // Text and executable mode merge separately, so a later chmod survives
+    // a content rollback and later text survives an executable-bit rollback.
+    const contents =
+      had?.mode.startsWith("100") && want?.mode.startsWith("100") && entry?.file
+        ? had.id === want.id
+          ? await readFile(join(root, path))
+          : await mergeBack(root, path, from, to)
+        : null;
+    if (contents) {
+      const mode = entry!.mode === had!.mode ? want!.mode : entry!.mode;
+      steps.push({
+        path,
+        kind: "merge",
+        contents,
+        ...(trustMode && mode !== entry!.mode ? { mode } : {}),
+      });
+    } else conflicts.push(path);
+  });
   const deleted = new Set(
     steps.filter((step) => step.kind === "delete").map((step) => step.path),
   );

@@ -507,6 +507,24 @@ it("rolls back a turn that deleted more files than fit on a command line", async
   expect(git("status", "--porcelain")).toBe("");
 }, 60000);
 
+it("rolls back a turn that edited 1,500 files", async () => {
+  const paths = Array.from({ length: 1500 }, (_, i) => `many/file-${i}.ts`);
+  await mkdir(join(root, "many"));
+  await Promise.all(paths.map((p) => writeFile(join(root, p), "before\n")));
+  git("add", ".");
+  git("commit", "-qm", "Many files");
+  const id = randomUUID();
+  const before = await startTurn(root, id);
+  await Promise.all(paths.map((p) => writeFile(join(root, p), "after\n")));
+  await finishTurn(root, id, before!);
+
+  const result = await revertTurn(root, id, paths);
+
+  expect(result.conflicts).toEqual([]);
+  expect(await read(paths[1499]!)).toBe("before\n");
+  expect(git("status", "--porcelain")).toBe("");
+}, 60000);
+
 it("rolls back one file and leaves the rest of the turn", async () => {
   const id = await agentTurn();
   await revertTurn(root, id, ["a.ts"]);
