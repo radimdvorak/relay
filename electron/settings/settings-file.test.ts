@@ -204,6 +204,17 @@ it("reads a file with everything commented out as no settings, and saves below t
   );
 });
 
+it("reads a comment left open as a broken file and won't save into it", async () => {
+  const text = '/* { "keepAwake": false }\n';
+  await writeFile(join(dir, "settings.json"), text);
+  await open();
+  expect(file.state().error).toMatchObject({ line: 1 });
+  await expect(
+    file.update([{ path: ["usagePing"], value: false }]),
+  ).rejects.toThrow(/fix it there first/);
+  expect(await readFile(join(dir, "settings.json"), "utf8")).toBe(text);
+});
+
 it("removes a key that isn't there as nothing to do, and says which section isn't one", async () => {
   await writeFile(join(dir, "settings.json"), '{ "chat": 1 }');
   await open();

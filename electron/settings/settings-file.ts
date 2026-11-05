@@ -13,6 +13,7 @@ import { randomUUID } from "node:crypto";
 import { basename, dirname, isAbsolute, join } from "node:path";
 import {
   applyEdits,
+  createScanner,
   getNodeValue,
   findNodeAtLocation,
   modify,
@@ -20,6 +21,8 @@ import {
   parseTree,
   printParseErrorCode,
   stripComments,
+  ScanError,
+  SyntaxKind,
   type Edit,
   type ParseError,
 } from "jsonc-parser";
@@ -51,9 +54,20 @@ const SETTLE_MS = 40;
 /** Times a save starts over because a script replaced the file meanwhile. */
 const RETRIES = 3;
 
-/** Empty, or only comments, as a file with every setting commented out is. */
+/**
+ * Empty, or only comments, as a file with every setting commented out is.
+ * A `/*` never closed isn't that: what's saved after it would be inside it.
+ */
 function holdsNothing(text: string) {
-  return !stripComments(text).trim();
+  return !stripComments(text).trim() && !commentLeftOpen(text);
+}
+
+function commentLeftOpen(text: string) {
+  const scanner = createScanner(text);
+  while (scanner.scan() !== SyntaxKind.EOF)
+    if (scanner.getTokenError() === ScanError.UnexpectedEndOfComment)
+      return true;
+  return false;
 }
 
 function parseSettings(
