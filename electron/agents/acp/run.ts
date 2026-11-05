@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { agentName } from "../../../shared/agents";
 import { signedOutError } from "../errors";
-import { CANCEL_GRACE_MS, cancelledByYou, TurnText } from "../turn-kit";
+import { cancelGrace, TurnText } from "../turn-kit";
 import type { AgentOptions } from "../types";
 import { AcpRequestError } from "./connection";
 import { answerElicitation } from "./elicitation";
@@ -235,7 +235,7 @@ async function runAcpTurn(
   };
 
   let observer: AcpRunObserver | undefined;
-  let cancelTimer: NodeJS.Timeout | undefined;
+  let grace: ReturnType<typeof cancelGrace> | undefined;
   try {
     connection.mark("start");
     let reply: Promise<unknown>;
@@ -295,25 +295,12 @@ async function runAcpTurn(
     }
     void reply.catch(() => {});
     // The agent reports the cancel; if it doesn't, stop waiting anyway.
-    const cancelled = new Promise<never>((_, reject) => {
-      const giveUpLater = () => {
-        cancelTimer = setTimeout(
-          () => reject(cancelledByYou()),
-          CANCEL_GRACE_MS,
-        );
-        cancelTimer.unref();
-      };
-      // Stopped while a picked-up turn's native events were caught up.
-      if (turnAbort.signal.aborted) giveUpLater();
-      else
-        turnAbort.signal.addEventListener("abort", giveUpLater, { once: true });
-    });
-    void cancelled.catch(() => {});
+    grace = cancelGrace(turnAbort.signal);
     if (signal.aborted) stop();
     const result: AcpPromptResult = promptResultSchema.parse(
       await Promise.race([
         reply,
-        cancelled,
+        grace.cancelled,
         overflowed,
         ...(observer?.failure ? [observer.failure] : []),
       ]),
@@ -347,7 +334,7 @@ async function runAcpTurn(
     throw error;
   } finally {
     batches?.settle(signal.aborted || turnAbort.signal.aborted);
-    clearTimeout(cancelTimer);
+    grace?.clear();
     signal.removeEventListener("abort", stop);
     // Answers whatever the agent still asks of a turn that's over, without cancelling it.
     turnAbort.signal.removeEventListener("abort", cancel);
