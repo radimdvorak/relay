@@ -201,9 +201,13 @@ function takeImages(images: DraftImage[], from: TakenFrom) {
   return {
     dispatch() {
       taken = images;
-      // A screenshot pasted while this goes out starts a draft of its own.
-      from.queue.current = Promise.resolve([]);
-      from.setImages([]);
+      // One pasted while the message was readied, or while it goes out,
+      // stays for the next one.
+      const ids = takenIds();
+      const left = (now: DraftImage[]) =>
+        now.filter((image) => !ids.has(image.id));
+      from.queue.current = from.queue.current.then(left, () => []);
+      from.setImages(left);
     },
     restore() {
       if (!taken?.length) return;
