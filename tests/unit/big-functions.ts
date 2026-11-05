@@ -89,7 +89,6 @@ export const bigFunctions: Record<string, number> = {
   "electron/read-aloud/engines/pocket/model.ts › loadPocket": 210,
   "electron/read-aloud/engines/supertonic.ts › loadSupertonic": 159,
   "electron/remote/phone-remote.ts › constructor": 86,
-  "electron/remote/server.ts › receive": 117,
   "electron/started-threads/index.ts › answer": 118,
   "electron/started-threads/project-folder.ts › folderVerdict": 93,
   "electron/startup/index.ts › remoteServices": 81,
