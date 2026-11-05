@@ -246,7 +246,7 @@ export const bigFunctions: Record<string, number> = {
   "src/features/plugins/ClockifyTimer.tsx › ClockifyTimer": 236,
   "src/features/plugins/DevOpsOrder.tsx › SortSection": 121,
   "src/features/plugins/DevOpsOrder.tsx › useFilterRows": 95,
-  "src/features/plugins/DevOpsSettings.tsx › DevOpsSettings": 322,
+  "src/features/plugins/DevOpsSettings.tsx › DevOpsSettings": 287,
   "src/features/plugins/WorkItemCards.tsx › WorkItemCards": 350,
   "src/features/projects/ProjectSearch.tsx › ProjectSearch": 129,
   "src/features/pulls/ProjectPullPicker.tsx › ProjectPullPicker": 233,
