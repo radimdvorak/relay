@@ -46,7 +46,7 @@ import dev.relay.android.ui.theme.RelayTheme
  */
 fun EntryProviderScope<NavKey>.appEntries(container: AppContainer, wide: () -> Boolean) {
     entry<Route.Home> { if (wide()) PaneEmpty() else Animated { AppHome(container, pane = false, selected = null) } }
-    entry<Route.Settings> { SettingsScreen(container.remote, container.updates, container.notifications, container.lock, container.prefs.themeMode, container.prefs::setTheme, container.scope, container.relayStop::stop) }
+    entry<Route.Settings> { SettingsScreen(container.remote, container.updates, container.notifications, container.lock, container.prefs, container.scope, container.relayStop::stop) }
     entry<Route.Gallery> { GalleryScreen() }
     entry<Route.Licences> { LicencesScreen() }
 

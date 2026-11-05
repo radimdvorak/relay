@@ -21,6 +21,14 @@ import androidx.compose.ui.unit.Dp
  */
 enum class ThemeMode { Computer, Phone, Light, Dark }
 
+/** What the phone itself picks about its colours, for Settings to change. */
+interface ThemeSettings {
+    val themeMode: ThemeMode
+    fun setTheme(mode: ThemeMode)
+    /** 0–100 on top of the theme; [DEFAULT_CONTRAST] leaves it as it comes. */
+    var contrast: Int
+}
+
 /** The desktop's PhoneAppearance: its mode ("system", "light", "dark") and a palette per kind. */
 data class DesktopAppearance(
     val mode: String,

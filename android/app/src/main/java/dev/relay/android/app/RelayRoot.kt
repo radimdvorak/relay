@@ -67,6 +67,7 @@ import dev.relay.android.ui.rememberIsWide
 import dev.relay.android.ui.theme.Motion
 import dev.relay.android.ui.theme.RelayTheme
 import dev.relay.android.ui.theme.resolveColors
+import dev.relay.android.ui.theme.withContrast
 import androidx.compose.foundation.isSystemInDarkTheme
 import kotlinx.coroutines.channels.ReceiveChannel
 import kotlinx.serialization.json.jsonObject
@@ -97,7 +98,9 @@ fun RelayRoot(container: AppContainer, links: ReceiveChannel<Route>, crash: Cras
     val paired = client != null
     // The desktop's palette, kept in the offline overview so it's there before it connects.
     val appearance = overview?.appearance
-    val colors = remember(prefs.themeMode, systemDark, appearance) { resolveColors(prefs.themeMode, appearance?.toDesktop(), systemDark) }
+    val colors = remember(prefs.themeMode, prefs.contrast, systemDark, appearance) {
+        resolveColors(prefs.themeMode, appearance?.toDesktop(), systemDark).withContrast(prefs.contrast)
+    }
     RelayTheme(colors) {
         val backStack = rememberNavBackStack(Route.Home)
         // A window over the rest, so it's here whatever else is: a crash's page, open sheets.

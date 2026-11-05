@@ -26,6 +26,7 @@ import dev.relay.android.ui.Screen
 import dev.relay.android.ui.SectionHeader
 import dev.relay.android.ui.theme.RelayTheme
 import dev.relay.android.ui.theme.ThemeMode
+import dev.relay.android.ui.theme.ThemeSettings
 import io.github.lyxnx.compose.ui.tablericons.TablerIcons
 import io.github.lyxnx.compose.ui.tablericons.outline.Check
 import io.github.lyxnx.compose.ui.tablericons.outline.Components
@@ -40,7 +41,7 @@ import dev.relay.android.features.dictation.DictationEngines
 import dev.relay.android.features.diagnostics.ScrollDiagnosticsRows
 
 /**
- * mobile/src/app/settings.tsx: theme, notifications, this app's version and
+ * mobile/src/app/settings.tsx: theme and contrast, notifications, this app's version and
  * updates, the paired computers, and how to reach the one in use.
  */
 @Composable
@@ -49,15 +50,14 @@ fun SettingsScreen(
     updates: Updates,
     notifications: ThreadNotifications,
     lock: AppLock,
-    themeMode: ThemeMode,
-    setTheme: (ThemeMode) -> Unit,
+    theme: ThemeSettings,
     /** Outlives this screen, for a switch or unpair that navigates away. */
     scope: CoroutineScope,
     stopRelay: () -> Unit,
 ) {
     val nav = LocalNavigator.current
     Screen("Settings", onBack = nav.backAction) {
-        SettingsList(remote, updates, notifications, lock, themeMode, setTheme, scope, stopRelay)
+        SettingsList(remote, updates, notifications, lock, theme, scope, stopRelay)
     }
 }
 
@@ -68,8 +68,7 @@ fun SettingsList(
     updates: Updates,
     notifications: ThreadNotifications,
     lock: AppLock,
-    themeMode: ThemeMode,
-    setTheme: (ThemeMode) -> Unit,
+    theme: ThemeSettings,
     scope: CoroutineScope,
     stopRelay: () -> Unit,
     bottom: Dp = 24.dp,
@@ -85,8 +84,9 @@ fun SettingsList(
             ListGroup {
                 val known = overview?.appearance != null
                 themeChoices(name, known).forEach { (mode, label, hint) ->
-                    ChoiceRow(label, hint, themeMode == mode) { setTheme(mode) }
+                    ChoiceRow(label, hint, theme.themeMode == mode) { theme.setTheme(mode) }
                 }
+                ContrastRow(theme)
             }
         }
 
