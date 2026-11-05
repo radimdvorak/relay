@@ -131,8 +131,12 @@ export class Schedules {
     if (this.closed) return;
     for (const schedule of this.list()) {
       this.arm(schedule);
-      for (const run of schedule.runs)
-        if (run.outcome === "running" && run.chatId) void this.follow(run.chatId);
+      for (const run of schedule.runs) {
+        if (run.outcome !== "running" || !run.chatId) continue;
+        void this.follow(run.chatId);
+        // Its agent may have kept going while Relay was closed; its limit still holds.
+        this.watch();
+      }
     }
   }
 

@@ -63,11 +63,12 @@ function setup({ busy = false } = {}) {
       return () => {};
     },
   };
-  const schedules = new Schedules(store, {
+  const host = {
     chats,
     projects: { has: () => true, name: () => "Acme Web", scratch: async () => ({ id: "scratch" }) },
     changed: () => {},
-  });
+  };
+  let schedules = new Schedules(store, host);
   /** The run's answer in `chatId` as it stands now; saved as its turn ends unless it's still going. */
   const answer = (chatId: string, message: Partial<ChatMessage>) => {
     const chat = threads.get(chatId)!;
@@ -76,7 +77,13 @@ function setup({ busy = false } = {}) {
     if (message.status !== "streaming") saved?.(chat);
   };
   const runs = () => schedules.list()[0].runs;
-  return { schedules, chats, answer, runs };
+  /** Quits Relay and opens it again on the same state and threads. */
+  const relaunch = () => {
+    schedules.stop();
+    schedules = new Schedules(store, host);
+    schedules.armAll();
+  };
+  return { schedules, chats, answer, runs, relaunch };
 }
 
 beforeEach(() => {
@@ -170,6 +177,17 @@ it("gives a test run its own thread when the runs share one", async () => {
   await vi.advanceTimersByTimeAsync(7 * DAY);
   expect(chats.create).toHaveBeenCalledTimes(2);
   expect(chats.send.mock.calls.at(-1)![0]).toBe("chat-1");
+});
+
+it("keeps a run that outlived a relaunch to its token limit", async () => {
+  const { schedules, chats, answer, relaunch } = setup();
+  await schedules.save(null, input({ tokenLimit: 50_000 }));
+  await vi.advanceTimersByTimeAsync(23 * 60 * MINUTE);
+  relaunch();
+
+  answer("chat-1", { status: "streaming", context: { usedTokens: 61_000 } });
+  await vi.advanceTimersByTimeAsync(20_000);
+  expect(chats.cancel).toHaveBeenCalledWith("chat-1");
 });
 
 it("won't turn on a schedule that has nothing to send", async () => {
