@@ -38,7 +38,9 @@ function Names() {
 }
 
 beforeEach(() => {
-  (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+  (
+    globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
+  ).IS_REACT_ACT_ENVIRONMENT = true;
   client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   host = document.createElement("div");
   document.body.append(host);

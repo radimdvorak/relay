@@ -11,7 +11,9 @@ let host: HTMLDivElement;
 let root: Root;
 
 beforeEach(() => {
-  (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+  (
+    globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
+  ).IS_REACT_ACT_ENVIRONMENT = true;
   vi.useFakeTimers({ toFake: ["Date"] });
   vi.setSystemTime(NOW);
   host = document.createElement("div");
