@@ -16,7 +16,7 @@ import { configureCursor } from "../agents/cursor/sdk";
 import { keepUsageHistory } from "../agents/usage-history";
 import type { KeepAwake } from "../app/keep-awake";
 import { GiteaLogin, seal, unseal } from "../app/login";
-import type { Store } from "../app/store";
+import { BACKUP_FILE, type Store } from "../app/store";
 import { rearmOnWake } from "../app/wake";
 import { setPastesRoot, sweepPastes, writeUploadChunk } from "../drafts";
 import { gitExecutable, setGitPath } from "../git/git";
@@ -96,6 +96,7 @@ export async function prepareData(
     join(dir, "project-chats"),
     join(dir, "drafts.json"),
     join(dir, "state.json"),
+    join(dir, BACKUP_FILE),
   ]).catch((e) => console.warn("Could not sweep old pastes:", e));
   const accounts = new AgentAccounts(store, accountsChanged);
   watchSavedSignIns();

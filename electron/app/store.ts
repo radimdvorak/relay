@@ -102,6 +102,28 @@ interface State {
   workspaces?: Record<string, WorkspaceState>;
 }
 
+const STATE_FILE = "state.json";
+export const BACKUP_FILE = "state.json.bak";
+
+/** The saved state, or undefined when the text isn't a saved state at all (empty, cut off). */
+function parseState(text: string): State | undefined {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    return undefined;
+  }
+  const version = (parsed as { version?: unknown } | null)?.version;
+  if (typeof version === "number" && version > 1)
+    throw new Error(
+      "Relay's saved data was written by a newer version of Relay. Update Relay to open it.",
+    );
+  return version === 1 ? (parsed as State) : undefined;
+}
+
+const damaged = (path: string) =>
+  `Relay's saved data (${path}) is damaged, and there is no readable earlier copy to fall back on. It was left as it is; moving it elsewhere starts Relay without your projects and settings.`;
+
 export class Store {
   private state: State = { version: 1, folders: {}, progress: {} };
   private queue: Promise<void> = Promise.resolve();
@@ -117,20 +139,43 @@ export class Store {
 
   async load() {
     await mkdir(this.dir, { recursive: true, mode: 0o700 });
-    try {
-      const parsed = JSON.parse(
-        await readFile(join(this.dir, "state.json"), "utf8"),
+    const path = join(this.dir, STATE_FILE);
+    const text = await readFile(path, "utf8").catch((e) => {
+      const code = (e as NodeJS.ErrnoException).code;
+      if (code === "ENOENT") return undefined;
+      throw new Error(
+        `Relay's saved data (${path}) could not be read (${code}).`,
       );
-      if (parsed.version !== 1)
-        throw new Error("Unsupported saved data version.");
-      this.state = parsed;
-      this.savedAtLoad = (await stat(join(this.dir, "state.json"))).mtimeMs;
-    } catch (e) {
-      if ((e as NodeJS.ErrnoException).code !== "ENOENT")
-        throw new Error(
-          "Saved review data could not be read. It has been preserved; restore state.json from backup before continuing.",
-        );
+    });
+    if (text === undefined) return; // first run
+
+    const saved = parseState(text);
+    if (saved) {
+      this.state = saved;
+      this.savedAtLoad = (await stat(path)).mtimeMs;
+      await this.keepBackup(text);
+      return;
     }
+
+    const backup = await readFile(join(this.dir, BACKUP_FILE), "utf8")
+      .then(parseState)
+      .catch(() => undefined);
+    if (!backup) throw new Error(damaged(path));
+    console.warn(
+      `[store] ${STATE_FILE} could not be read; starting from ${BACKUP_FILE}, the copy kept at the last good launch`,
+    );
+    this.state = backup;
+    // Threads that changed after the copy was made get their summaries back from their own files.
+    this.savedAtLoad = 0;
+  }
+
+  /** The copy load falls back to when a power cut leaves state.json empty; made once a launch. */
+  private async keepBackup(text: string) {
+    await writeFileAtomic(join(this.dir, BACKUP_FILE), text, {
+      sync: true,
+    }).catch((e) =>
+      console.warn(`[store] Could not keep a copy of ${STATE_FILE}:`, e),
+    );
   }
 
   get() {
@@ -150,10 +195,7 @@ export class Store {
       const next = structuredClone(this.state);
       fn(next);
       try {
-        await writeFileAtomic(
-          join(this.dir, "state.json"),
-          JSON.stringify(next),
-        );
+        await writeFileAtomic(join(this.dir, STATE_FILE), JSON.stringify(next));
       } catch (error) {
         this.writeError = error;
         throw error;
