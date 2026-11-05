@@ -35,7 +35,7 @@ export function usePullThreads(
   onError: (error: unknown) => void,
 ) {
   const qc = useQueryClient();
-  const { project, chats, chat, draftId, pull, panes } = nav;
+  const { project, chats, panes } = nav;
   /**
    * A PR from the Pull requests page opens on its project's thread with the
    * Review beside it; opening it the first time makes that thread.
@@ -81,11 +81,33 @@ export function usePullThreads(
     else await newChat({ kind: "pr", ref });
     panes.show("chat");
   }
-  /**
-   * Reviewing a PR from the new thread makes it that PR's thread, taking the
-   * unsent message and composer settings along, so a review started without
-   * messages has a thread to come back to.
-   */
+  useReviewThreadStart(nav, lock, onError);
+  return {
+    open,
+    /** The open project's thread about `ref`, beside its Review. */
+    async review(ref: PullRef) {
+      if (!project || lock.blocked()) return;
+      await open(ref);
+      panes.show("changes");
+    },
+    openInProject,
+  };
+}
+
+/**
+ * Reviewing a PR from the new thread makes it that PR's thread, taking the
+ * unsent message and composer settings along, so a review started without
+ * messages has a thread to come back to.
+ */
+function useReviewThreadStart(
+  nav: Pick<
+    ShellNavigation,
+    "project" | "chats" | "chat" | "draftId" | "pull" | "panes" | "setChatId"
+  >,
+  lock: NavigationLock,
+  onError: (error: unknown) => void,
+) {
+  const { project, chats, chat, draftId, pull, panes } = nav;
   const startingReview = useRef(false);
   async function startReviewThread(ref: PullRef) {
     if (!project || startingReview.current) return;
@@ -109,19 +131,10 @@ export function usePullThreads(
       startingReview.current = false;
     }
   }
+
   const reviewOpen = panes.layout.open.changes;
   useEffect(() => {
     if (reviewOpen && pull && !chat && chats.data && !lock.locked)
       void startReviewThread(pull);
   }, [reviewOpen, pull?.number, chat?.id, !!chats.data]);
-  return {
-    open,
-    /** The open project's thread about `ref`, beside its Review. */
-    async review(ref: PullRef) {
-      if (!project || lock.blocked()) return;
-      await open(ref);
-      panes.show("changes");
-    },
-    openInProject,
-  };
 }
