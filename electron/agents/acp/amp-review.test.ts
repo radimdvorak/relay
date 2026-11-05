@@ -1,6 +1,6 @@
-import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { expect, it } from "vitest";
 import { readsOnly } from "../../agent-host/read-only-bash";
 import { readOnlyEnv, readOnlyShellPattern, readOnlySettings } from "./amp-review";
@@ -143,4 +143,12 @@ it("writes the settings for reviewers starting together", async () => {
   await expect(
     Promise.all([readOnlyEnv(cwd), readOnlyEnv(cwd), readOnlyEnv(cwd)]),
   ).resolves.toHaveLength(3);
+});
+
+it("keeps the settings where no other user of a shared /tmp can swap them", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "amp-review-"));
+  const { env } = await readOnlyEnv(cwd);
+  const dir = dirname(env.AMP_SETTINGS_FILE);
+  expect(dir).not.toBe(join(tmpdir(), "relay-amp-read-only"));
+  expect((await stat(dir)).mode & 0o077).toBe(0);
 });

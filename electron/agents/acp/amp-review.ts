@@ -1,4 +1,4 @@
-import { mkdir, readFile } from "node:fs/promises";
+import { mkdtemp, readFile } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import {
@@ -156,8 +156,9 @@ async function overridingWorkspace(cwd: string) {
  * for each process, and a warning when the project's own rules win over them.
  */
 export async function readOnlyEnv(cwd: string) {
-  const dir = join(tmpdir(), "relay-amp-read-only");
-  await mkdir(dir, { recursive: true });
+  // A folder of its own: in a /tmp other users share, a fixed name is theirs
+  // to make first and swap the settings in.
+  const dir = await mkdtemp(join(tmpdir(), "relay-amp-read-only-"));
   const path = join(dir, "settings.json");
   await writeFileAtomic(
     path,
