@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { ChatSummary } from "../../../shared/projects";
 import { modifierCode } from "../../../shared/shortcuts";
 import { mac } from "../../lib/mod-key";
+import { keyboardPopups } from "../../lib/popup-keyboard";
 import { digitOf, holdsModifiersOf, useShortcut } from "../../lib/shortcuts";
 import type { ThreadActions } from "./useThreadActions";
 import { noteUsed } from "../../lib/used";
@@ -9,6 +10,9 @@ import { noteUsed } from "../../lib/used";
 const CMD_HINT_DELAY_MS = 500;
 /** How long a jump asked for from a thread's window waits for the cards. */
 const ASKED_JUMP_TTL_MS = 10_000;
+
+/** A dialog keeps its keys; Settings doesn't count, a jump leaves it. */
+const dialogOpen = () => keyboardPopups(false).length > 0;
 
 let askedJump: { index: number; at: number } | undefined;
 const askedListeners = new Set<() => void>();
@@ -78,7 +82,7 @@ export function useActivityKeys({
       else if (reveal === undefined)
         reveal = window.setTimeout(() => setHeld(true), CMD_HINT_DELAY_MS);
       const digit = digitOf("jump-thread", e);
-      if (digit && jumpTo.current(digit - 1)) {
+      if (digit && !dialogOpen() && jumpTo.current(digit - 1)) {
         e.preventDefault();
         noteUsed("shortcut:jump-thread");
       }
