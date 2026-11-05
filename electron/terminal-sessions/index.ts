@@ -64,11 +64,19 @@ async function files(
   return names.filter(keep).map((name) => join(dir, name));
 }
 
-/** Codex's day folders from today back `CODEX_DAYS`, by local date as it names them. */
+/**
+ * Codex's day folders from today back `CODEX_DAYS`, by local date as it names
+ * them. Stepped by calendar day: a day the clocks change on isn't 24 hours.
+ */
 function codexDays(sessions: string, now: number) {
   const pad = (n: number) => String(n).padStart(2, "0");
+  const today = new Date(now);
   return Array.from({ length: CODEX_DAYS + 1 }, (_, i) => {
-    const day = new Date(now - i * 86_400_000);
+    const day = new Date(
+      today.getFullYear(),
+      today.getMonth(),
+      today.getDate() - i,
+    );
     return join(
       sessions,
       String(day.getFullYear()),
