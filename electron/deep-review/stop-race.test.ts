@@ -57,6 +57,7 @@ function harness() {
   const asked: string[] = [];
   let hold: Promise<void> | undefined;
   let saving: (() => void) | undefined;
+  const heldSends = new Map<string, Promise<void>>();
   const host: DeepReviewHost = {
     load: async (id) => {
       const thread = threads.get(id);
@@ -78,9 +79,12 @@ function harness() {
       threads.set(thread.id, thread);
       return thread;
     },
+    // Like the real host, a turn tells the review it's starting.
     send: async (chatId) => {
       asked.push(chatId);
+      await heldSends.get(chatId);
       working.add(chatId);
+      await reviews.memberStarting(threads.get(chatId)!);
     },
     lead: async () => {},
     active: (id) => working.has(id),
@@ -139,7 +143,28 @@ function harness() {
   };
   const askedSlots = () =>
     asked.map((id) => state().reviewers.findIndex((r) => r.chatId === id));
-  return { reviews, review, state, answer, askedSlots, holdNextSave, working };
+  /** Holds the next send to `slot` until `release`. */
+  const holdSend = (slot: number) => {
+    let release!: () => void;
+    const chatId = state().reviewers[slot]!.chatId;
+    heldSends.set(
+      chatId,
+      new Promise<void>((r) => (release = r)).then(() => {
+        heldSends.delete(chatId);
+      }),
+    );
+    return () => release();
+  };
+  return {
+    reviews,
+    review,
+    state,
+    answer,
+    askedSlots,
+    holdNextSave,
+    holdSend,
+    working,
+  };
 }
 
 it("doesn't start the next pass's reviewers when Stop lands while the pass hands over", async () => {
@@ -185,4 +210,29 @@ it("doesn't send the reviewers Resume asked for when Stop lands while Resume sav
   expect(askedSlots()).toEqual([0, 1]);
   expect(state().reviewers.some((r) => working.has(r.chatId))).toBe(false);
   expect(state().status).toBe("stopped");
+});
+
+it("runs the reviewers Resume asked for while a stopped send was still on its way", async () => {
+  const { reviews, review, state, answer, holdSend, working } = harness();
+  await reviews.start("review", config());
+  await answer(0, "cancelled");
+  await answer(1, "cancelled");
+  expect(state().status).toBe("stopped");
+
+  // Resume sends both again; the second one's agent is slow to take it.
+  const release = holdSend(1);
+  const resuming = reviews.resume("review");
+  await new Promise((r) => setTimeout(r, 0));
+  await reviews.stop(review);
+  expect(state().status).toBe("stopped");
+
+  // A quick Resume while that send is still on its way.
+  const again = reviews.resume("review");
+  await new Promise((r) => setTimeout(r, 0));
+  release();
+  await Promise.all([resuming, again]);
+
+  const first = state().reviewers[0]!.chatId;
+  expect(working.has(first)).toBe(true);
+  expect(state().status).toBe("reviewing");
 });

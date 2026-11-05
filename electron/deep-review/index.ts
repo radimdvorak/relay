@@ -47,8 +47,8 @@ export class DeepReviews {
   private awaiting = new Set<string>();
   /** Rounds whose next pass is starting, by request: its reviewers aren't at work yet. */
   private advancing = new Set<string>();
-  /** Reviewers the review is sending their tasks to, by thread. */
-  private sending = new Set<string>();
+  /** Reviewers the review is sending their tasks to, by thread: settles once sent. */
+  private sending = new Map<string, Promise<void>>();
   /** Of those, the ones whose review stopped meanwhile. */
   private stoppedSending = new Set<string>();
   constructor(private host: DeepReviewHost) {}
@@ -405,7 +405,13 @@ export class DeepReviews {
     // Stopped while the round was being saved: Resume asks them later.
     if (state.status !== "reviewing") return;
     const asked = slots.map((slot) => state.reviewers[slot]!.chatId);
-    for (const id of asked) this.sending.add(id);
+    // A send a Stop caught on its way is stopped as its turn starts; once it
+    // has, this one's turn isn't taken for it.
+    await Promise.all(asked.map((id) => this.sending.get(id)));
+    if (state.status !== "reviewing") return;
+    let sent = () => {};
+    const sending = new Promise<void>((resolve) => (sent = resolve));
+    for (const id of asked) this.sending.set(id, sending);
     try {
       await sendReviewers(this.host, chat, state, slots, () =>
         this.reviewerDone(chat.id, state.request),
@@ -415,6 +421,7 @@ export class DeepReviews {
         this.sending.delete(id);
         this.stoppedSending.delete(id);
       }
+      sent();
     }
   }
 
