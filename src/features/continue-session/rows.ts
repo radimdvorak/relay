@@ -1,5 +1,6 @@
 import { agentName } from "../../../shared/agents";
 import type { CommandOption } from "../../../shared/commands";
+import { errorMessage } from "../../../shared/error-message";
 import {
   continuesAsCopy,
   terminalAgents,
@@ -62,8 +63,33 @@ export function matchingSessions(sessions: TerminalSession[], search: string) {
 export const sessionKey = (session: Pick<TerminalSession, "provider" | "id">) =>
   `${session.provider}:${session.id}`;
 
-/** The option shown when no session was found. */
+/** Options that only say why there's nothing to pick. */
 export const NONE = ":none";
+export const LOOKING = ":looking";
+export const FAILED = ":failed";
+export const ELSEWHERE = ":elsewhere";
+
+export const notice = (
+  value: string,
+  label: string,
+  description?: string,
+): CommandOption => ({ value, label, description, source: "" });
+
+/** The `/resume` menu for the last lookup: its sessions, why it failed, or that it's still going. */
+export function listingOptions(
+  lookup: { sessions?: TerminalSession[]; error?: unknown },
+  query: string,
+  where: string,
+  projectName: string,
+): CommandOption[] {
+  if (lookup.sessions)
+    return sessionOptions(lookup.sessions, query, where, projectName);
+  if (lookup.error)
+    return [
+      notice(FAILED, "Couldn't look for sessions", errorMessage(lookup.error)),
+    ];
+  return [notice(LOOKING, "Looking for sessions…")];
+}
 
 /** The `/resume` menu's rows for the sessions matching `query`; `where` leads each one's detail. */
 export function sessionOptions(
@@ -81,11 +107,10 @@ export function sessionOptions(
   }));
   if (found.length || query) return found;
   return [
-    {
-      value: NONE,
-      label: "No sessions to resume",
-      description: `No saved sessions found in ${projectName}`,
-      source: "",
-    },
+    notice(
+      NONE,
+      "No sessions to resume",
+      `No saved sessions found in ${projectName}`,
+    ),
   ];
 }

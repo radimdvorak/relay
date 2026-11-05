@@ -7,15 +7,37 @@ import type {
 } from "../../../shared/projects";
 import type { TerminalSession } from "../../../shared/terminal-sessions";
 import { api } from "../../lib/api";
-import { useSessionListing } from "./useSessionListing";
 import { noteUsed } from "../../lib/used";
 import { forkThreadSettings } from "../agents/composer-settings";
-import { matchingSessions, NONE, sessionKey, sessionOptions } from "./rows";
+import {
+  ELSEWHERE,
+  FAILED,
+  listingOptions,
+  LOOKING,
+  matchingSessions,
+  NONE,
+  notice,
+  sessionKey,
+} from "./rows";
+import { useSessionListing } from "./useSessionListing";
 
-/** An option that only says why there's nothing to pick yet. */
-const LOOKING = ":looking";
+/** Why a project on another computer has nothing to resume here: its sessions are in that computer's home folder. */
+const sessionsElsewhere = (project: Project) =>
+  project.computer &&
+  `Open ${project.name} on ${project.computer.name} to resume its sessions`;
+
 const OFF_BRANCH =
   "A session from a terminal or an agent's app goes on from the project folder, not another branch: pick New worktree or Current checkout first";
+
+/** What the menu says about where a picked session goes on. */
+function whereItContinues(
+  workspace: "checkout" | "worktree",
+  offBranch: boolean,
+) {
+  if (offBranch) return `${OFF_BRANCH} · `;
+  if (workspace === "worktree") return "Continues in a new worktree · ";
+  return "";
+}
 
 /**
  * `/resume`: carries on a Claude Code or Codex session run in a terminal, or
@@ -46,7 +68,8 @@ export function useResumeCommand({
   onOpenThread: (chat: ChatSummary) => Promise<void>;
   onError: (error: unknown) => void;
 }) {
-  const listing = useSessionListing(project.id, onError);
+  const listing = useSessionListing(project.id);
+  const elsewhere = sessionsElsewhere(project);
   // The session's files are the project folder's, so its worktree copies those.
   const offBranch = workspace === "worktree" && !!start;
 
@@ -67,20 +90,15 @@ export function useResumeCommand({
     await (created ? onContinued(chat) : onOpenThread(chat));
   }
 
-  /** What the menu says about where a picked session goes on. */
-  function whereItContinues() {
-    if (offBranch) return `${OFF_BRANCH} · `;
-    if (workspace === "worktree") return "Continues in a new worktree · ";
-    return "";
-  }
-
   return {
     command(command: RelayCommand, args: string): boolean | string | undefined {
       if (command !== "resume") return undefined;
       if (project.scratch) return "Scratchpad has no sessions to resume.";
+      if (elsewhere) return `${elsewhere}.`;
       if (offBranch) return `${OFF_BRANCH}.`;
       const typed = args.trim();
       if (typed === LOOKING) return "Still looking for sessions.";
+      if (typed === FAILED) return "Couldn't look for sessions.";
       if (!typed || typed === NONE) return "Pick a session after /resume.";
       const list = listing.listed();
       const session =
@@ -93,10 +111,9 @@ export function useResumeCommand({
     },
     options(command: RelayCommand, query: string): CommandOption[] | undefined {
       if (command !== "resume" || project.scratch) return undefined;
-      const list = listing.current();
-      if (!list)
-        return [{ value: LOOKING, label: "Looking for sessions…", source: "" }];
-      return sessionOptions(list, query, whereItContinues(), project.name);
+      if (elsewhere) return [notice(ELSEWHERE, elsewhere)];
+      const where = whereItContinues(workspace, offBranch);
+      return listingOptions(listing.current(), query, where, project.name);
     },
   };
 }
