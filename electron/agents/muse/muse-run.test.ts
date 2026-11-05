@@ -260,6 +260,14 @@ describe("control", () => {
       "Compacted the conversation from 120,000 to 9,000 tokens.",
     );
   });
+
+  it("fails a compaction Muse couldn't finish instead of calling it done", async () => {
+    await scenario({ compact: "fail" });
+    await turn().answer();
+    await expect(turn({ job: { kind: "compact" }, session: { key: "thread-1", id: "session-1", onId: async () => {} } }).answer()).rejects.toThrow(
+      "Muse Code couldn't compact the conversation: summary_model_error",
+    );
+  });
 });
 
 describe("failures", () => {
