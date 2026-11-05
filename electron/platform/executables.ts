@@ -268,14 +268,18 @@ export function executableCommand(file: string, args: readonly string[]) {
     : { command: file, args: [...args] };
 }
 
-/** Runs a path from `findExecutable`, starting JavaScript entries with Node. */
+/**
+ * Runs a path from `findExecutable`, starting JavaScript entries with Node.
+ * On Windows a console program started from the app opens a console window
+ * of its own unless hidden, so it is hidden unless `options` say otherwise.
+ */
 export const spawnExecutable = ((
   file: string,
   args: readonly string[],
   options: object,
 ) => {
   const line = executableCommand(file, args);
-  return spawn(line.command, line.args, options);
+  return spawn(line.command, line.args, { windowsHide: true, ...options });
 }) as typeof spawn;
 
 export interface Exec {
