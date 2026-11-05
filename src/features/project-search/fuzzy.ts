@@ -226,12 +226,26 @@ function scorePath(
   return { path, score: score - n * 0.05, indices };
 }
 
+/**
+ * `path` in lower case, character for character: a character whose lower
+ * case is longer ("İ" is "i" and a combining dot) stays as it is, so a
+ * position in the copy is the same position in the path.
+ */
+function lowerInPlace(path: string) {
+  const lower = path.toLowerCase();
+  if (lower.length === path.length) return lower;
+  return path.replace(/[^]/gu, (c) => {
+    const low = c.toLowerCase();
+    return low.length === c.length ? low : c;
+  });
+}
+
 /** The paths with their lower-case copies, made once for a list and searched many times. */
 export class PathIndex {
   private lower: string[];
 
   constructor(readonly paths: readonly string[]) {
-    this.lower = paths.map((p) => p.toLowerCase());
+    this.lower = paths.map(lowerInPlace);
   }
 
   /** The best `limit` paths for `text`, best first; equal scores keep shorter and earlier paths first. */
