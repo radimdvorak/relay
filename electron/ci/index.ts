@@ -1,5 +1,6 @@
 import { currentBranch, git } from "../git/git";
 import { azureRepoOf, remoteUrl, repoOf } from "../git/repository";
+import { configStamp, memo } from "../git/repo-facts";
 import type { AzureDevOps } from "../pull-requests/azure-devops/client";
 import type { Gitea } from "../pull-requests/gitea";
 import type { FetchRequest } from "../pull-requests/host";
@@ -22,8 +23,17 @@ export interface CiReading {
   runs: CiRun[];
 }
 
+type RemoteRepo = CiRepo & { host: string };
+
+// CI is polled every 90s; the remote only changes with the config files.
+const remotes = memo<RemoteRepo | null>();
+
 /** `origin`, or the only remote there is, as host and owner/name. */
 export async function remoteRepo(root: string) {
+  return remotes(root, await configStamp(root), () => readRemoteRepo(root));
+}
+
+async function readRemoteRepo(root: string): Promise<RemoteRepo | null> {
   const names = (await git(root, ["remote"])).split("\n").filter(Boolean);
   const name = names.includes("origin") ? "origin" : names[0];
   if (!name) return null;

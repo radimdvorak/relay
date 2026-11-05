@@ -14,6 +14,7 @@ import {
 import { statusRuns } from "./statuses";
 import { remoteRepo } from "./index";
 import { gitIn } from "../../tests/fixtures/git-repo";
+import { gitRuns } from "../../tests/fixtures/git-runs";
 
 const run = (workflow: string, state: CiRun["state"], at: number): CiRun => ({
   workflow,
@@ -440,3 +441,22 @@ it("reads host and repository off origin, scp-style and under a subpath", async 
     await rm(root, { recursive: true, force: true });
   }
 });
+
+// CI polls every 90s; the remote it reads off only changes with the config.
+it.skipIf(process.platform === "win32")(
+  "reads the remote again only once the config changed",
+  async () => {
+    const root = await realpath(await mkdtemp(join(tmpdir(), "relay-ci-")));
+    const git = (...args: string[]) => gitIn(root, ...args);
+    try {
+      git("init", "-q");
+      git("remote", "add", "origin", "https://github.com/else/where.git");
+      await remoteRepo(root);
+      expect(await gitRuns(() => remoteRepo(root))).toEqual([]);
+      git("remote", "set-url", "origin", "https://github.com/team/app.git");
+      expect(await remoteRepo(root)).toMatchObject({ owner: "team" });
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  },
+);
