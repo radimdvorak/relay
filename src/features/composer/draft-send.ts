@@ -141,9 +141,7 @@ export async function sendDraft(
       })),
     },
   );
-  const target =
-    chat ?? started.get(id) ?? (await createDraftThread(id, project, scope));
-  started.set(id, target);
+  const target = chat ?? (await startedThread(id, project, scope));
   const attachments = loadDraftAttachments(id);
   const messageId = crypto.randomUUID();
   // A new thread starts on the account picked in its composer.
@@ -188,6 +186,18 @@ export async function sendDraft(
 }
 
 export { unsent };
+
+/** The thread a new draft's message goes to: one its failed send made, else a new one. */
+async function startedThread(
+  id: string,
+  project: ActivityDraft["project"],
+  scope: ChatScope,
+) {
+  const thread =
+    started.get(id) ?? (await createDraftThread(id, project, scope));
+  started.set(id, thread);
+  return thread;
+}
 
 /** The thread an unsent draft's first message starts, with what the draft set up. */
 function createDraftThread(
