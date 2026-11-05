@@ -262,7 +262,7 @@ export const bigFunctions: Record<string, number> = {
   "src/features/review/AskAboutLines.tsx › AskAboutLines": 150,
   "src/features/review/ChangedFilesPane.tsx › ChangedFilesPane": 135,
   "src/features/review/FileToolbar.tsx › FileToolbar": 111,
-  "src/features/review/GroupedFileList.tsx › GroupedFileList": 433,
+  "src/features/review/GroupedFileList.tsx › GroupedFileList": 216,
   "src/features/review/PullConversation.tsx › PullConversation": 141,
   "src/features/review/ReviewPanes.tsx › ReviewPanes": 93,
   "src/features/review/ReviewSheet.tsx › ReviewSheet": 114,
