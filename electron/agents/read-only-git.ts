@@ -3,19 +3,20 @@
  * commit a bare repository whose config sets `core.worktree` and a
  * `core.fsmonitor` command, which `git -C that.git status` runs. With
  * `safe.bareRepository=explicit` git opens a bare repository only when told
- * to with `--git-dir`. The setting goes after any the environment already
- * passes. It rides in `GIT_CONFIG_PARAMETERS` rather than
+ * to with `--git-dir`. `core.fsmonitor=false` keeps a checkout's own
+ * `.git/config` from naming a command for `git status` to run. The settings
+ * go after any the environment already passes. They ride in `GIT_CONFIG_PARAMETERS` rather than
  * `GIT_CONFIG_KEY_<n>`: Codex drops names containing KEY from a shell's
  * environment but keeps the count, and git then refuses every command.
- * It's spelled `'key=value'`, not `'key'='value'`: git before 2.31 reads
- * only the first and refuses every command on the second.
+ * Each is spelled `'key=value'`, not `'key'='value'`: git before 2.31
+ * reads only the first and refuses every command on the second.
  */
 export function readOnlyGitEnv(
   base: Record<string, string | undefined>,
 ): Record<string, string> {
-  const setting = "'safe.bareRepository=explicit'";
+  const settings = "'safe.bareRepository=explicit' 'core.fsmonitor=false'";
   const inherited = base.GIT_CONFIG_PARAMETERS?.trim();
   return {
-    GIT_CONFIG_PARAMETERS: inherited ? `${inherited} ${setting}` : setting,
+    GIT_CONFIG_PARAMETERS: inherited ? `${inherited} ${settings}` : settings,
   };
 }
