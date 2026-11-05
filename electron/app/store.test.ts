@@ -93,6 +93,22 @@ describe("Store", () => {
       expect(JSON.parse(await writes()).projectsFolder).toBe("/code");
     });
 
+    it("writes on flush one still queued behind a write under way", async () => {
+      const store = new Store(dir);
+      await store.load();
+      const writing = store.update((s) => {
+        s.gitPath = "/usr/bin/git";
+      });
+      void store.updateSoon((s) => {
+        s.projectsFolder = "/code";
+      });
+
+      await store.flush();
+
+      expect(JSON.parse(await writes()).projectsFolder).toBe("/code");
+      await writing;
+    });
+
     it("lets a change written now carry them along", async () => {
       const store = new Store(dir);
       await store.load();

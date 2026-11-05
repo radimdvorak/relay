@@ -140,8 +140,10 @@ export class Store {
   private writeTimer?: ReturnType<typeof setTimeout>;
 
   async flush() {
-    if (this.unwritten) void this.writeUnwritten().catch(() => {});
+    // An updateSoon queued behind a write under way changes nothing until
+    // its turn comes, so what it leaves unwritten is only known after.
     await Promise.all([this.queue, this.backup]);
+    if (this.unwritten) await this.writeUnwritten().catch(() => {});
     if (this.writeError) throw this.writeError;
   }
 
