@@ -37,7 +37,7 @@ import {
   type SketchHistory,
   type Stroke,
 } from "./sketch";
-import { committed, redone, undone } from "./sketch-history";
+import { closedWith, committed, redone, undone } from "./sketch-history";
 import "./image-sketch.css";
 import { mac } from "../../lib/mod-key";
 import { readJson, writeJson } from "../../lib/persisted-store";
@@ -160,7 +160,7 @@ export function SketchEditor({
   const undo = () => setHistory(undone);
   const redo = () => setHistory(redone);
   function close() {
-    if (size) onClose(history, { width: size.width, height: size.height });
+    onClose(...closedWith(history, initial, size));
   }
 
   /** Image pixels per on-screen pixel, and the pointer in image pixels. */
