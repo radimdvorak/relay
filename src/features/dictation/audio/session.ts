@@ -193,6 +193,9 @@ function openPort() {
         !event.ports[0]
       )
         return;
+      // Ports arrive in the order they were asked for, so each is the first
+      // waiting listener's; a cancelled start mustn't take the next one's.
+      event.stopImmediatePropagation();
       done();
       resolve(event.ports[0]);
     };
