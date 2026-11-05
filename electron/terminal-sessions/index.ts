@@ -55,6 +55,18 @@ type SessionFilter = { provider: TerminalAgent; session?: string };
 
 const real = (path: string) => realpath(path).catch(() => undefined);
 
+/**
+ * The ways a session can name the project's folder: as given, resolved, and
+ * composed, as Claude Code names it even when the folder's name on disk is
+ * decomposed ("i" and an accent for "í", as Finder may write it).
+ */
+async function projectRoots(root: string) {
+  const resolved = (await real(root)) ?? root;
+  return new Set(
+    [root, resolved].flatMap((path) => [path, path.normalize("NFC")]),
+  );
+}
+
 async function files(
   dir: string,
   keep: (name: string) => boolean,
@@ -105,7 +117,7 @@ export class TerminalSessions {
     most = MOST_ROWS,
     provider?: TerminalAgent,
   ): Promise<FoundSession[]> {
-    const roots = new Set([root, (await real(root)) ?? root]);
+    const roots = await projectRoots(root);
     const only = provider ? { provider } : undefined;
     const [found, stored] = await Promise.all([
       this.candidates(roots, most, only),
@@ -154,7 +166,7 @@ export class TerminalSessions {
 
   /** A listed session found again by its id, as it stands now; never by a path from the page. */
   async find(root: string, pick: TerminalSessionPick) {
-    const roots = new Set([root, (await real(root)) ?? root]);
+    const roots = await projectRoots(root);
     const [stored] = await this.stored(roots, 1, pick);
     if (stored) return stored;
     const found = (await this.candidates(roots, Infinity, pick)).find(

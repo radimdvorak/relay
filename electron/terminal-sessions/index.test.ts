@@ -405,3 +405,26 @@ it("finds yesterday's Codex sessions in the hour after a short day", async () =>
     else process.env.TZ = zone;
   }
 });
+
+it("finds Claude sessions of a folder whose name is decomposed on disk", async () => {
+  // Finder can write "í" as "i" and a combining accent; Claude Code names
+  // the folder, and records where it ran, composed.
+  const folder = join(dir, "Míla".normalize("NFD"));
+  await mkdir(folder);
+  await writeClaudeSession(
+    claude,
+    folder.normalize("NFC"),
+    "c-terminal-1",
+    claudeTurns(turns),
+  );
+  const sessions = new TerminalSessions(homes());
+  expect((await sessions.list(folder)).map((r) => r.id)).toEqual([
+    "c-terminal-1",
+  ]);
+  expect(
+    await sessions.find(folder, {
+      provider: "claude",
+      session: "c-terminal-1",
+    }),
+  ).toMatchObject({ id: "c-terminal-1" });
+});
