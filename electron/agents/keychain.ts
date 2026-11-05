@@ -1,5 +1,7 @@
 // The macOS Keychain through `security`, for the sign-ins usage reads refresh.
 import { execFile } from "node:child_process";
+import { createHash } from "node:crypto";
+import { realpath } from "node:fs/promises";
 import { promisify } from "node:util";
 
 const exec = promisify(execFile);
@@ -11,16 +13,20 @@ export function allowKeychainWrites(service: string) {
   allowedServices.add(service);
 }
 
-/** The account of the item `security` finds first for `service`. */
-export async function keychainAccount(service: string) {
-  const result = await security(["find-generic-password", "-s", service]);
-  if (result.status !== 0) return null;
-  return /"acct"<blob>="([^"]+)"/.exec(result.stdout)?.[1] ?? null;
+/**
+ * The account the Codex CLI files its keyring sign-in under for `codexHome`:
+ * "cli|" and the first 16 hex digits of the SHA-256 of the folder's real path
+ * (`compute_store_key` in codex-rs/login/src/auth/storage.rs). Derived, not
+ * looked up: the first "Codex Auth" item may belong to another home.
+ */
+export async function codexKeychainAccount(codexHome: string) {
+  const path = await realpath(codexHome).catch(() => codexHome);
+  const digest = createHash("sha256").update(path).digest("hex");
+  return `cli|${digest.slice(0, 16)}`;
 }
 
-export async function readKeychain(service: string, account: string | null) {
-  const args = ["find-generic-password", "-s", service, "-w"];
-  if (account) args.splice(1, 0, "-a", account);
+export async function readKeychain(service: string, account: string) {
+  const args = ["find-generic-password", "-s", service, "-a", account, "-w"];
   const result = await security(args);
   if (result.status !== 0) return null;
   return result.stdout.trim() || null;
@@ -28,12 +34,12 @@ export async function readKeychain(service: string, account: string | null) {
 
 export async function writeKeychain(
   service: string,
-  account: string | null,
+  account: string,
   value: string,
 ) {
   if (!allowedServices.has(service)) throw new Error("refusing keychain write");
-  const args = ["add-generic-password", "-U", "-s", service, "-w", value];
-  if (account) args.splice(2, 0, "-a", account);
+  const args = ["add-generic-password", "-U", "-s", service, "-a", account];
+  args.push("-w", value);
   const result = await security(args);
   if (result.status !== 0) throw new Error("keychain update failed");
 }

@@ -28,7 +28,7 @@ import { asRecord } from "../../shared/records";
 import { writeFileAtomic } from "../util/atomic-write";
 import {
   allowKeychainWrites,
-  keychainAccount,
+  codexKeychainAccount,
   readKeychain,
   writeKeychain,
 } from "./keychain";
@@ -44,7 +44,7 @@ const LOAD_TIMEOUT = 60_000;
 
 type Source =
   | { kind: "file"; path: string }
-  | { kind: "keychain"; service: string; account: string | null };
+  | { kind: "keychain"; service: string; account: string };
 
 type Credential = {
   accessToken: string;
@@ -300,9 +300,9 @@ async function readCodexKeychain() {
   if (process.platform !== "darwin") return null;
   const service = "Codex Auth";
   allowKeychainWrites(service);
-  // Codex names the item's account after its home folder. A refresh must go
-  // back to that item: one beside it leaves the CLI a spent refresh token.
-  const account = await keychainAccount(service);
+  // The CLI's own item only: a refresh saved beside it signs the CLI out.
+  const home = process.env.CODEX_HOME?.trim() || join(homedir(), ".codex");
+  const account = await codexKeychainAccount(expandHome(home));
   const text = await readKeychain(service, account);
   return text
     ? codexCredential(text, { kind: "keychain", service, account })

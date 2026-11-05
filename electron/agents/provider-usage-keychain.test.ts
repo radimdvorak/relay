@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { afterEach, expect, it, vi } from "vitest";
 import { readProviderUsage } from "./provider-usage";
 
@@ -7,6 +8,9 @@ vi.mock("node:fs/promises", () => ({
     throw new Error("ENOENT");
   },
   readFile: async () => {
+    throw new Error("ENOENT");
+  },
+  realpath: async () => {
     throw new Error("ENOENT");
   },
 }));
@@ -65,39 +69,69 @@ const jwt = (exp: number) =>
     "sig",
   ].join(".");
 
+/** Codex's `compute_store_key`: the home folder's path, hashed. */
+const cliAccount = (home: string) =>
+  `cli|${createHash("sha256").update(home).digest("hex").slice(0, 16)}`;
+
 it("keeps the tokens a refresh rotated in the Codex CLI's own Keychain item", async () => {
   Object.defineProperty(process, "platform", { value: "darwin" });
   vi.stubEnv("CODEX_HOME", "/nowhere/.codex");
   const expired = jwt(Math.floor(Date.now() / 1000) - 60);
   const fresh = jwt(Math.floor(Date.now() / 1000) + 3600);
-  // Codex names the item's account after its home folder.
-  keychain.push({
+  // Another Codex home's sign-in, the item `security` finds first.
+  const otherHome = {
     service: "Codex Auth",
-    account: "cli|0123456789abcdef",
+    account: cliAccount("/elsewhere/.codex"),
     value: JSON.stringify({
-      tokens: { access_token: expired, refresh_token: "spent-after-use" },
+      tokens: { access_token: expired, refresh_token: "not-ours" },
+    }),
+  };
+  keychain.push(otherHome, {
+    service: "Codex Auth",
+    account: cliAccount("/nowhere/.codex"),
+    value: JSON.stringify({
+      auth_mode: "chatgpt",
+      OPENAI_API_KEY: null,
+      tokens: {
+        id_token: "old-id",
+        access_token: expired,
+        refresh_token: "spent-after-use",
+        account_id: "acct-1",
+      },
+      last_refresh: "2026-11-01T00:00:00Z",
     }),
   });
-  vi.stubGlobal(
-    "fetch",
-    vi.fn(async (url: URL) => {
-      if (url.href === "https://auth.openai.com/oauth/token")
-        return Response.json({ access_token: fresh, refresh_token: "next" });
-      return Response.json({
-        rate_limit: {
-          primary_window: { used_percent: 12, limit_window_seconds: 18_000 },
-        },
-      });
-    }),
-  );
+  const fetch = vi.fn(async (url: URL, _init?: RequestInit) => {
+    if (url.href === "https://auth.openai.com/oauth/token")
+      return Response.json({ access_token: fresh, refresh_token: "next" });
+    return Response.json({
+      rate_limit: {
+        primary_window: { used_percent: 12, limit_window_seconds: 18_000 },
+      },
+    });
+  });
+  vi.stubGlobal("fetch", fetch);
 
   const usage = await readProviderUsage("codex");
 
   // A second item would leave the CLI the spent refresh token, signing it out.
-  expect(keychain).toHaveLength(1);
-  expect(JSON.parse(keychain[0].value).tokens).toEqual({
-    access_token: fresh,
-    refresh_token: "next",
+  expect(keychain).toHaveLength(2);
+  expect(keychain[0]).toEqual(otherHome);
+  const saved = JSON.parse(keychain[1].value);
+  expect(saved).toMatchObject({
+    auth_mode: "chatgpt",
+    OPENAI_API_KEY: null,
+    tokens: {
+      id_token: "old-id",
+      access_token: fresh,
+      refresh_token: "next",
+      account_id: "acct-1",
+    },
   });
+  expect(saved.last_refresh).not.toBe("2026-11-01T00:00:00Z");
+  const refresh = fetch.mock.calls.find(
+    ([url]) => url.href === "https://auth.openai.com/oauth/token",
+  );
+  expect(String(refresh?.[1]?.body)).toContain("spent-after-use");
   expect(usage.windows.map((w) => w.usedPercent)).toEqual([12]);
 });
