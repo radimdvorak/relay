@@ -152,18 +152,40 @@ async function overridingWorkspace(cwd: string) {
 }
 
 /**
+ * A folder of its own, made once per Relay: in a /tmp other users share, a
+ * fixed name is theirs to make first and swap the settings in, and one per
+ * start would leave a folder behind for every read-only turn.
+ */
+let settingsFolder: Promise<string> | undefined;
+
+async function writeReadOnlySettings(settings: string) {
+  settingsFolder ??= mkdtemp(join(tmpdir(), "relay-amp-read-only-"));
+  const folder = settingsFolder;
+  const dir = await folder.catch((error) => {
+    if (settingsFolder === folder) settingsFolder = undefined;
+    throw error;
+  });
+  const path = join(dir, "settings.json");
+  await writeFileAtomic(path, settings);
+  return path;
+}
+
+/**
  * The environment that starts Amp on the read-only settings, written fresh
  * for each process, and a warning when the project's own rules win over them.
  */
 export async function readOnlyEnv(cwd: string) {
-  // A folder of its own: in a /tmp other users share, a fixed name is theirs
-  // to make first and swap the settings in.
-  const dir = await mkdtemp(join(tmpdir(), "relay-amp-read-only-"));
-  const path = join(dir, "settings.json");
-  await writeFileAtomic(
-    path,
-    JSON.stringify(readOnlySettings(await userSettings()), null, 2),
+  const settings = JSON.stringify(
+    readOnlySettings(await userSettings()),
+    null,
+    2,
   );
+  const path = await writeReadOnlySettings(settings).catch((error) => {
+    // Its folder was cleared out of the temp dir: make a new one.
+    if (error?.code !== "ENOENT") throw error;
+    settingsFolder = undefined;
+    return writeReadOnlySettings(settings);
+  });
   const overriding = await overridingWorkspace(cwd);
   return {
     env: { AMP_SETTINGS_FILE: path },

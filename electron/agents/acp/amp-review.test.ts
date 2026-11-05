@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readFile, stat, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { expect, it } from "vitest";
@@ -151,4 +151,14 @@ it("keeps the settings where no other user of a shared /tmp can swap them", asyn
   const dir = dirname(env.AMP_SETTINGS_FILE);
   expect(dir).not.toBe(join(tmpdir(), "relay-amp-read-only"));
   expect((await stat(dir)).mode & 0o077).toBe(0);
+});
+
+it("keeps one settings folder for every start, and makes a new one once it's cleared out", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "amp-review-"));
+  const first = (await readOnlyEnv(cwd)).env.AMP_SETTINGS_FILE;
+  expect((await readOnlyEnv(cwd)).env.AMP_SETTINGS_FILE).toBe(first);
+  await rm(dirname(first), { recursive: true });
+  const next = (await readOnlyEnv(cwd)).env.AMP_SETTINGS_FILE;
+  expect(next).not.toBe(first);
+  expect(JSON.parse(await readFile(next, "utf8"))).toHaveProperty("amp.permissions");
 });
