@@ -1,7 +1,7 @@
 import { spawn } from "node:child_process";
 import { cpus } from "node:os";
 import { sep } from "node:path";
-import { agentProviders, type AgentProvider } from "../../shared/agents";
+import type { AgentProvider } from "../../shared/agents";
 import {
   commandKey,
   describeTask,
@@ -9,7 +9,6 @@ import {
   taskNote,
   lastingTask,
   tidyCommand,
-  windowsArgs,
   type ProjectTask,
 } from "../../shared/tasks";
 import {
@@ -17,6 +16,7 @@ import {
   processTable,
   type ProcessRow,
 } from "../platform/processes";
+import { agentName, ignoredOrphans, runnable } from "./command-lines";
 import { listeningPorts, workingFolders } from "./process-lookups";
 
 type Proc = ProcessRow;
@@ -53,30 +53,9 @@ interface Tracked {
 
 const within = (path: string, root: string) =>
   path === root || path.startsWith(root + sep);
-/** Which agent's CLI a command line runs, if any. */
-export const agentName = (line: string) => {
-  const [bin, arg] = windows ? windowsArgs(line) : line.split(/\s+/);
-  const file = /[^/\\]+$/.exec(bin ?? "")?.[0] ?? "";
-  // Windows names files in any case; elsewhere "Claude" is the desktop app.
-  const name = windows ? file.replace(/\.exe$/i, "").toLowerCase() : file;
-  // Each agent's CLI is named after it; Codex may also run as a Node script.
-  if (agentProviders.some((p) => p === name)) return name as AgentProvider;
-  if (name === "node" && /[/\\]codex(\.js)?$/.test(arg ?? ""))
-    return "codex" as const;
-};
 
-// Processes that are only incidentally in a project folder: installed apps, system daemons,
-// Git's own helpers and other editors' agents.
-const ignoredOrphans =
-  /^(\/System\/|\/Applications\/|\/Users\/[^/]+\/Applications\/|\/usr\/libexec\/|\/usr\/sbin\/|\/sbin\/|\/Library\/)|\bgit fsmonitor--daemon\b|\bwatchman\b|\bgitstatusd\b|\bcursor-agent\b|--relay-agent-host\b|\bchrome_crashpad_handler\b/;
 // Skip the agent's quick commands: the list is for things that keep running.
 const minimumAge = 3000;
-/** A process's command line as something a shell can run: `ps` loses the quoting of an executable path with spaces. */
-const runnable = (line: string) =>
-  shellCommand(line) ??
-  line.replace(/^(\/.*?)(?= -| \/|$)/, (path) =>
-    path.includes(" ") ? `'${path.replaceAll("'", `'\\''`)}'` : path,
-  );
 
 /**
  * Finds the shell commands Claude and Codex leave running, per project.
@@ -522,28 +501,7 @@ class ProjectTasks {
         pids: new Map([[p.pid, p.started]]),
       });
     }
-    // Follow every task's descendants so a detached server stays in its task.
-    const owner = new Map<number, Tracked>();
-    for (const task of this.tracked.values()) {
-      for (const [pid, started] of task.pids)
-        if (byPid.get(pid)?.started !== started) task.pids.delete(pid);
-      const root = byPid.get(task.root);
-      if (root?.started === task.started) task.pids.set(root.pid, root.started);
-      const queue = [...task.pids.keys()];
-      while (queue.length) {
-        const pid = queue.pop()!;
-        owner.set(pid, task);
-        for (const child of children.get(pid) ?? [])
-          if (!task.pids.has(child.pid) && !agentName(child.line)) {
-            task.pids.set(child.pid, child.started);
-            this.seen.set(child.pid, child.started);
-            queue.push(child.pid);
-          }
-      }
-      if (!task.pids.size) this.tracked.delete(task.id);
-      else if (!task.pids.has(task.root) && task.origin !== "external")
-        task.origin = "detached";
-    }
+    const owner = this.followDescendants(byPid, children);
     // `nohup … &` and `(cmd &)` leave launchd as the parent before any scan
     // sees them. Windows doesn't hand orphans on, and can't say where one runs.
     for (const p of windows ? [] : procs) {
@@ -580,6 +538,35 @@ class ProjectTasks {
     for (const key of this.cwds.keys())
       if (!this.seen.has(+key.split(":")[0])) this.cwds.delete(key);
     return procs;
+  }
+
+  /** Follows every task's descendants so a detached server stays in its task; the task each pid belongs to. */
+  private followDescendants(
+    byPid: Map<number, Proc>,
+    children: Map<number, Proc[]>,
+  ) {
+    const owner = new Map<number, Tracked>();
+    for (const task of this.tracked.values()) {
+      for (const [pid, started] of task.pids)
+        if (byPid.get(pid)?.started !== started) task.pids.delete(pid);
+      const root = byPid.get(task.root);
+      if (root?.started === task.started) task.pids.set(root.pid, root.started);
+      const queue = [...task.pids.keys()];
+      while (queue.length) {
+        const pid = queue.pop()!;
+        owner.set(pid, task);
+        for (const child of children.get(pid) ?? [])
+          if (!task.pids.has(child.pid) && !agentName(child.line)) {
+            task.pids.set(child.pid, child.started);
+            this.seen.set(child.pid, child.started);
+            queue.push(child.pid);
+          }
+      }
+      if (!task.pids.size) this.tracked.delete(task.id);
+      else if (!task.pids.has(task.root) && task.origin !== "external")
+        task.origin = "detached";
+    }
+    return owner;
   }
 
   private findChat(key: string, started: number) {

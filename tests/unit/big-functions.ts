@@ -91,7 +91,7 @@ export const bigFunctions: Record<string, number> = {
   "electron/started-threads/project-folder.ts › folderVerdict": 93,
   "electron/startup/index.ts › remoteServices": 81,
   "electron/startup/index.ts › threadServices": 96,
-  "electron/terminal/tasks.ts › read": 154,
+  "electron/terminal/tasks.ts › read": 135,
   "electron/triage/classifier.ts › classifyChanges": 284,
   "electron/triage/classifier.ts › classifyWithClaude": 106,
   "electron/triage/service.ts › result": 82,
