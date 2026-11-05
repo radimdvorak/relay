@@ -114,6 +114,28 @@ it("reads the commands of a line where the shell splits them", () => {
     expect(readsOnly(command), command).toBe(true);
 });
 
+it("keeps the git config a read-only turn's environment sets", () => {
+  // The turn's env sets safe.bareRepository=explicit, so a committed bare
+  // repository's core.fsmonitor doesn't run; each of these would undo it.
+  for (const command of [
+    "GIT_CONFIG_COUNT=0 git -C fixtures/evil.git status",
+    "GIT_CONFIG_PARAMETERS=\"'safe.bareRepository'='all'\" git status",
+    "GIT_DIR=fixtures/evil.git git status",
+    "env -u GIT_CONFIG_COUNT git -C fixtures/evil.git status",
+    "unset GIT_CONFIG_COUNT; git -C fixtures/evil.git status",
+    "export GIT_CONFIG_COUNT=0; git -C fixtures/evil.git status",
+    "typeset GIT_CONFIG_COUNT=0; git status",
+    "declare -x GIT_CONFIG_COUNT=0; git status",
+    "echo ${GIT_CONFIG_COUNT:=0} && git status",
+    "git -c safe.bareRepository=all -C fixtures/evil.git status",
+    "git -C fixtures/evil.git -c safe.bareRepository=all status",
+    "git --config-env=safe.bareRepository=X status",
+    "git --git-dir=fixtures/evil.git status",
+    "git --no-pager --git-dir fixtures/evil.git status",
+  ])
+    expect(readsOnly(command), command).toBe(false);
+});
+
 it("turns down sed flags hidden in quotes, which GNU sed still reads", () => {
   // GNU sed reads '-e' after the script as a flag, and its `e` command runs
   // a shell command; '-i' edits the file in place.
