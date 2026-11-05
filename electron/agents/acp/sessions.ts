@@ -228,7 +228,12 @@ export async function acquireAcpAgent(
   {
     env,
     readOnly = false,
-  }: { env?: Record<string, string>; readOnly?: boolean } = {},
+    adopting = false,
+  }: {
+    env?: Record<string, string>;
+    readOnly?: boolean;
+    adopting?: boolean;
+  } = {},
 ): Promise<AcpAgent> {
   const sessions = sessionsOf(profile);
   const previous = key ? sessions.get(key) : undefined;
@@ -236,7 +241,8 @@ export async function acquireAcpAgent(
     !!previous &&
     (previous.profile.accountKey !== profile.accountKey ||
       previous.profile.credentialsRevision !== profile.credentialsRevision);
-  const otherMode = !!previous && previous.readOnly !== readOnly;
+  // Picking up a turn the agent runs gives it nothing new, so it stays where it runs.
+  const otherMode = !!previous && !adopting && previous.readOnly !== readOnly;
   if (key && previous && (otherAccount || otherMode)) {
     if (previous.busy)
       throw new Error(

@@ -181,6 +181,7 @@ async function runAcpTurn(
   const agent = await acquireAcpAgent(profile, key, options.cwd, {
     env: { ...options.env, ...readOnly?.env },
     readOnly: !!options.readOnly,
+    adopting: job.kind === "adopt",
   });
   const { connection } = agent;
   const adopted = job.kind === "adopt" ? agent.inflight : undefined;

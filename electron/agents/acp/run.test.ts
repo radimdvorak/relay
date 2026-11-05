@@ -380,6 +380,20 @@ it("restarts a thread's process when it switches to Read only and back, so it ru
   ).toEqual([null, "on", null]);
 });
 
+it("keeps the process a restart cut a turn off in when the thread's mode now differs, so the turn can be picked up", async () => {
+  const { acp, root } = await agent({});
+  const running = await acquireAcpAgent(acp, "adopt", root);
+  running.busy = false;
+  const picked = await acquireAcpAgent(acp, "adopt", root, {
+    readOnly: true,
+    adopting: true,
+  });
+  expect(picked).toBe(running);
+  picked.busy = false;
+  const next = await acquireAcpAgent(acp, "adopt", root, { readOnly: true });
+  expect(next).not.toBe(running);
+});
+
 it("does not merge a cleared ambient credential back into an account's process environment", async () => {
   vi.stubEnv("GEMINI_API_KEY", "inherited-fixture-key");
   const clean = { ...process.env } as Record<string, string>;
