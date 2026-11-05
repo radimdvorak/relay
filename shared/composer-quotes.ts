@@ -25,7 +25,8 @@ export function selectionQuote(raw: string) {
     .replace(/\r\n?/g, "\n")
     .replace(/ /g, " ")
     .split("\n")
-    .map((line) => line.replace(/\s+$/, ""))
+    // Not /\s+$/, which retries from every space of a long run inside.
+    .map((line) => line.trimEnd())
     .join("\n")
     .replace(/\n{3,}/g, "\n\n")
     .replace(/^\n+|\n+$/g, "");
