@@ -16,7 +16,6 @@ import {
 } from "../../../shared/projects";
 import { api } from "../../lib/api";
 import {
-  loadDraftWorkspace,
   projectWorkspace,
   saveDraftStart,
   saveDraftWorkspace,
@@ -58,19 +57,16 @@ export function useThreadWorktree({
   const poll = usePoll();
   const qc = useQueryClient();
   const lock = useNavigationLock();
-  // Where a new thread will work; a started one keeps its own.
-  const [workspace, setWorkspace] = useState<ChatWorkspace>(() =>
-    chat ? "checkout" : loadDraftWorkspace(id, project),
-  );
-  // Until one is picked here, it follows the project's setting as that changes.
-  const projectDefault = projectWorkspace(project);
+  // Where a new thread will work, as picked here or for the same draft on a
+  // phone; until then, wherever the project's setting says. A started one
+  // keeps its own.
+  const picked = useDraftRecord(id, (draft) => draft.workspace);
+  const workspace = chat ? "checkout" : (picked ?? projectWorkspace(project));
+  const setWorkspace = (next: ChatWorkspace) => {
+    if (!chat) saveDraftWorkspace(id, next, project);
+  };
   useEffect(() => {
-    if (!chat) setWorkspace(loadDraftWorkspace(id, project));
-  }, [projectDefault]);
-  useEffect(() => {
-    if (chat) return;
-    saveDraftWorkspace(id, workspace, project);
-    onDraftWorkspace?.(workspace);
+    if (!chat) onDraftWorkspace?.(workspace);
   }, [workspace, !chat]);
   // A paired computer the new thread starts on instead, in a worktree there.
   const [startOn, setStartOn] = useState<{ id: string; name: string }>();
