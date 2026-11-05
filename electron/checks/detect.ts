@@ -43,11 +43,19 @@ async function json(
   return value as Record<string, any>;
 }
 
-/** The config a project reference in `from` names, relative to `root`; a folder means its tsconfig.json. */
+/**
+ * The config a project reference in `from` names, relative to `root`; a
+ * folder means its tsconfig.json. Undefined for a project since removed.
+ */
 async function referencedConfig(root: string, from: string, path: string) {
   const full = resolve(root, from, "..", path);
-  const folder = (await stat(full)).isDirectory();
-  return relative(root, folder ? join(full, "tsconfig.json") : full);
+  const found = await stat(full).catch((e: NodeJS.ErrnoException) => {
+    if (e.code === "ENOENT") return undefined;
+    throw e;
+  });
+  if (!found) return undefined;
+  const config = found.isDirectory() ? join(full, "tsconfig.json") : full;
+  return relative(root, config);
 }
 
 /** Detect from declarative project metadata only. Never execute project scripts on discovery. */
@@ -123,9 +131,12 @@ export async function detectProject(root: string): Promise<ProjectCheckInfo> {
       config.references?.length
     ))
       await add(name, name, "typescript");
-    for (const ref of config.references ?? [])
-      if (typeof ref?.path === "string")
-        await visit(await referencedConfig(root, name, ref.path));
+    for (const ref of config.references ?? []) {
+      if (typeof ref?.path !== "string") continue;
+      // The projects still there are checked without the one that's gone.
+      const referenced = await referencedConfig(root, name, ref.path);
+      if (referenced) await visit(referenced);
+    }
   };
   await visit("tsconfig.json");
   if (!targets.length) await visit("jsconfig.json");

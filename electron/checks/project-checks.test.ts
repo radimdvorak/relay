@@ -107,6 +107,20 @@ describe("project language support", () => {
     ]);
   });
 
+  it("checks the projects a solution still has when one of its references is gone", async () => {
+    const root = await mkdtemp(join(tmpdir(), "relay-detect-"));
+    roots.push(root);
+    await mkdir(join(root, "app"));
+    await writeFile(join(root, "app/tsconfig.json"), "{}");
+    await writeFile(
+      join(root, "tsconfig.json"),
+      '{"files":[],"references":[{"path":"./removed"},{"path":"./app"}]}',
+    );
+    expect((await detectProject(root)).targets.map((t) => t.config)).toEqual([
+      "app/tsconfig.json",
+    ]);
+  });
+
   it("rejects config traversal, invalid metadata and symlink escape", async () => {
     const root = await mkdtemp(join(tmpdir(), "relay-detect-"));
     const outside = await mkdtemp(join(tmpdir(), "relay-outside-"));
