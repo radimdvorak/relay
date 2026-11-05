@@ -153,8 +153,15 @@ export function gitError(e: unknown) {
       .join("\n")
       .trim() || error.message,
   ].join("\n");
-  return new Error(redactCredentials(message).slice(0, 3000));
+  const failure = new Error(redactCredentials(message).slice(0, 3000));
+  return typeof error.code === "number"
+    ? Object.assign(failure, { exitCode: error.code })
+    : failure;
 }
+
+/** The code Git exited with, when it ran and failed; some commands tell what they did by it. */
+export const exitCodeOf = (error: unknown) =>
+  (error as { exitCode?: number }).exitCode;
 
 /** Runs Git in `root`; a timeout as a number is the common case. */
 export async function git(

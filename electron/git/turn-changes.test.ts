@@ -124,6 +124,20 @@ it("snapshots a repository without commits", async () => {
   ]);
 });
 
+it("snapshots around a nested repository with no commits yet", async () => {
+  // `git add -A` refuses such a folder outright, and took the whole snapshot with it.
+  await mkdir(join(root, "scratch"));
+  gitIn(join(root, "scratch"), "init", "-q");
+  await writeFile(join(root, "scratch", "notes.md"), "draft\n");
+  const id = randomUUID();
+  const before = await startTurn(root, id);
+  expect(before).toMatch(/^[0-9a-f]{40,64}$/);
+  await writeFile(join(root, "a.ts"), "changed\n");
+  expect((await finishTurn(root, id, before!)).map((f) => f.path)).toEqual([
+    "a.ts",
+  ]);
+});
+
 it("returns both sides of a changed image so the diff can show it", async () => {
   const png = (tag: number) => Buffer.from([0x89, 0x50, 0x4e, 0x47, 0, tag]);
   await writeFile(join(root, "logo.png"), png(1));

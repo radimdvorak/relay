@@ -144,6 +144,19 @@ it("removes the folder and branch but keeps a snapshot of what it held", async (
   );
 });
 
+it("keeps a snapshot of a worktree holding a nested repository with no commits", async () => {
+  const chatId = randomUUID();
+  const worktree = await made();
+  await writeFile(join(worktree.path, "c.ts"), "sea\n");
+  await mkdir(join(worktree.path, "scratch"));
+  git(join(worktree.path, "scratch"), "init", "-q");
+  await removeWorktree(root, chatId, worktree);
+  expect(existsSync(worktree.path)).toBe(false);
+  expect(git(root, "show", `refs/relay/worktrees/${chatId}/kept:c.ts`)).toBe(
+    "sea",
+  );
+});
+
 /** A branch `name` one commit ahead of main, with the checkout back on main. */
 function branchAhead(name: string, file = "feature.ts") {
   git(root, "switch", "-qc", name);

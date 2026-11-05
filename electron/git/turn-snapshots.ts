@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { copyFile, rm, stat, utimes } from "node:fs/promises";
-import { git } from "./git";
+import { exitCodeOf, git } from "./git";
 
 // Snapshots of a whole worktree as commits outside any branch, made without
 // touching the real index.
@@ -65,7 +65,15 @@ export async function snapshotTree(root: string) {
       );
       if (head) await run(root, ["read-tree", "HEAD"], env);
     }
-    await run(root, [...noMonitor, ...durable, "add", "-A", "--", "."], env);
+    // A folder Git can't add, like a nested repository with no commits yet,
+    // is left out (exit code 1) rather than failing the whole snapshot.
+    await run(
+      root,
+      [...noMonitor, ...durable, "add", "-A", "--ignore-errors", "--", "."],
+      env,
+    ).catch((error: unknown) => {
+      if (exitCodeOf(error) !== 1) throw error;
+    });
     return (
       await run(root, [...noMonitor, ...durable, "write-tree"], env)
     ).trim();
