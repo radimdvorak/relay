@@ -24,6 +24,7 @@ import { errorMessage } from "../../shared/error-message";
 import { pidAlive as alive } from "../util/pid";
 import { HostedProcess } from "./hosted-process";
 import { HostedQuery, type HostedHandlers } from "./hosted-query";
+import { ToolHandlerSlot } from "./tool-handler-slot";
 
 export { HostedProcess, type ProcessReader } from "./hosted-process";
 export { HostedQuery, type HostedHandlers } from "./hosted-query";
@@ -52,8 +53,7 @@ export type ToolHandler = (
 ) => Promise<ToolResult>;
 
 export class AgentHosts {
-  private handler?: ToolHandler;
-  private waitingForTools = new Set<(handler: ToolHandler) => void>();
+  private toolSlot = new ToolHandlerSlot();
   private connections: HostConnection[] = [];
   private starting?: Promise<HostConnection>;
   private discovered?: Promise<FoundSession[]>;
@@ -74,31 +74,11 @@ export class AgentHosts {
 
   /** Who answers the agents' calls to Relay's tools, once Relay can. */
   get tools() {
-    return this.handler;
+    return this.toolSlot.handler;
   }
 
   set tools(handler: ToolHandler | undefined) {
-    this.handler = handler;
-    if (!handler) return;
-    for (const answer of this.waitingForTools) answer(handler);
-    this.waitingForTools.clear();
-  }
-
-  /** Relay's tools. A call carried over a restart, before Relay answers any, waits. */
-  private toolsFor(signal: AbortSignal): Promise<ToolHandler> {
-    if (this.handler) return Promise.resolve(this.handler);
-    return new Promise((resolve, reject) => {
-      const answer = (handler: ToolHandler) => {
-        signal.removeEventListener("abort", giveUp);
-        resolve(handler);
-      };
-      const giveUp = () => {
-        this.waitingForTools.delete(answer);
-        reject(signal.reason);
-      };
-      this.waitingForTools.add(answer);
-      signal.addEventListener("abort", giveUp, { once: true });
-    });
+    this.toolSlot.fill(handler);
   }
 
   /** The hosts' process ids: the agents they start are Relay's own. */
@@ -132,7 +112,7 @@ export class AgentHosts {
           connection = await HostConnection.open(
             record,
             () => this.forget(connection),
-            (signal) => this.toolsFor(signal),
+            (signal) => this.toolSlot.waitFor(signal),
           );
         } catch (error) {
           console.warn("Could not reach an agent host:", error);
@@ -233,7 +213,7 @@ export class AgentHosts {
     connection = await HostConnection.open(
       record,
       () => this.forget(connection),
-      (signal) => this.toolsFor(signal),
+      (signal) => this.toolSlot.waitFor(signal),
     );
     this.connections.push(connection);
     return connection;
