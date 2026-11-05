@@ -310,7 +310,7 @@ export function ProjectChat({
   });
   // A note's message may sit in another conversation than the one shown, or
   // under an open subagent: go there first.
-  const jumpToNote = (messageId: string) => {
+  const jumpToNote = useStableCallback((messageId: string) => {
     setAgentView(null);
     if (shown.some((m) => m.id === messageId))
       return view.jumpTo(messageId, { flash: true });
@@ -318,7 +318,17 @@ export function ProjectChat({
     const to = thread.roots.get(messageId) ?? null;
     view.jumpInto(placeOf(to), messageId);
     setRootId(to);
-  };
+  });
+  const quoteNote = useCallback(
+    (text: string) => composer.current?.insertQuote(text),
+    [],
+  );
+  // Changes when a message comes or goes, not with each streamed piece.
+  const messageIds = messages.map((m) => m.id).join("\n");
+  const notePresent = useCallback(
+    (id: string) => messageIds.split("\n").includes(id),
+    [messageIds],
+  );
   // A quote pill takes the reader back up to the passage it quotes, lit.
   const jumpToQuote = useStableCallback((quote: string, pill: HTMLElement) => {
     const quoting = pill.closest("[data-message-id]");
@@ -549,9 +559,9 @@ export function ProjectChat({
             notesChip={
               <NotesChip
                 notes={notes}
-                onQuote={(text) => composer.current?.insertQuote(text)}
+                onQuote={quoteNote}
                 onJump={jumpToNote}
-                present={(id) => messages.some((m) => m.id === id)}
+                present={notePresent}
               />
             }
             links={links}
