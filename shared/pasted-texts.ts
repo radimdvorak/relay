@@ -23,7 +23,8 @@ export const cleanPaste = (raw: string) =>
   raw
     .replace(/\r\n?/g, "\n")
     .replace(/^(?:[ \t]*\n)+/, "")
-    .replace(/\s+$/, "");
+    // Not /\s+$/: that retries from every space of a long run inside.
+    .trimEnd();
 
 export const pastedLines = (text: string) => text.split("\n").length;
 

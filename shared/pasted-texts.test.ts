@@ -127,4 +127,11 @@ describe("pasted texts", () => {
       "    indented\n  next",
     );
   });
+
+  it("cleans a paste with a long run of spaces inside it at once", () => {
+    const text = `start${" ".repeat(40_000)}end`;
+    const started = performance.now();
+    expect(cleanPaste(`${text}\n\n`)).toBe(text);
+    expect(performance.now() - started).toBeLessThan(500);
+  });
 });
