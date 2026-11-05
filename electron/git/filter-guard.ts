@@ -1,22 +1,8 @@
-import { execFile } from "node:child_process";
-import { promisify } from "node:util";
+import {
+  filtersEmptied,
+  foreignFilterKeys,
+} from "../git-config/repository-filters";
 import { refreshesIndex } from "./fsmonitor-guard";
-
-const exec = promisify(execFile);
-
-/**
- * The commands Git LFS installs. They run the `git-lfs` on PATH, not
- * anything the repository brought, and without them a polled status would
- * hash a touched LFS file whole and call it modified.
- */
-const lfsCommands = new Set([
-  "git-lfs clean -- %f",
-  "git-lfs smudge -- %f",
-  "git-lfs filter-process",
-]);
-
-/** Config the person set up themselves; the rest came with the folder. */
-const ownScopes = new Set(["system", "global", "command"]);
 
 const RECHECK_MS = 60_000;
 
@@ -28,64 +14,6 @@ type FilterCheck = {
 
 const checks = new Map<string, FilterCheck>();
 
-type ConfigEntry = { scope: string; key: string; value: string };
-
-/** `git config --show-scope -z --get-regexp` output, one entry per key. */
-function configEntries(listed: string) {
-  const fields = listed.split("\0");
-  const entries: ConfigEntry[] = [];
-  for (let i = 0; i + 1 < fields.length; i += 2) {
-    const [key, value = ""] = fields[i + 1].split(/\n(.*)/s);
-    entries.push({ scope: fields[i], key, value });
-  }
-  return entries;
-}
-
-/**
- * Filter keys that name a command Relay didn't vet. A filter from the
- * repository's own config (`.git/config`, a worktree's config, or a file
- * either includes) is foreign unless it's Git LFS. LFS runs any
- * `lfs.extension.<x>.clean` command in the config, so once the repository
- * names one, every LFS filter is foreign too, the user's global one included.
- */
-async function foreignFilterKeys(
-  file: string,
-  root: string,
-  env: NodeJS.ProcessEnv,
-) {
-  const listed = await exec(
-    file,
-    [
-      "-C",
-      root,
-      "config",
-      "--show-scope",
-      "-z",
-      "--get-regexp",
-      "^(filter\\..*\\.(clean|smudge|process)|lfs\\.extension\\..*)$",
-    ],
-    { env, timeout: 15000 },
-  ).then(
-    ({ stdout }) => stdout,
-    // None set exits 1; config Git can't read fails the read itself too.
-    () => "",
-  );
-  const entries = configEntries(listed);
-  const repositoryExtendsLfs = entries.some(
-    ({ scope, key }) =>
-      key.startsWith("lfs.extension.") && !ownScopes.has(scope),
-  );
-  const keys: string[] = [];
-  for (const { scope, key, value } of entries) {
-    if (!key.startsWith("filter.")) continue;
-    const trusted = lfsCommands.has(value)
-      ? !repositoryExtendsLfs
-      : ownScopes.has(scope);
-    if (!trusted) keys.push(key);
-  }
-  return keys;
-}
-
 /** The last answer for `root`, asking again once it's a minute old. */
 function checkFilters(file: string, root: string, env: NodeJS.ProcessEnv) {
   const last = checks.get(root);
@@ -95,24 +23,6 @@ function checkFilters(file: string, root: string, env: NodeJS.ProcessEnv) {
   checks.set(root, check);
   void done.then((keys) => (check.keys = keys));
   return check;
-}
-
-/**
- * Each key emptied, which passes content through untouched. `-c` can't
- * spell a key with `=` in it, as Git splits at the first one, so a read in
- * a repository with such a filter is refused instead.
- */
-function emptied(keys: string[]) {
-  const settings: string[] = [];
-  for (const key of keys) {
-    if (key.includes("="))
-      throw new Error(
-        `This repository's config names a filter Relay can't switch off for a background read (${key}).`,
-      );
-    const name = key.slice("filter.".length, key.lastIndexOf("."));
-    settings.push("-c", `${key}=`, "-c", `filter.${name}.required=false`);
-  }
-  return settings;
 }
 
 /**
@@ -130,5 +40,7 @@ export function filterOverride(
 ): string[] | Promise<string[]> {
   if (!refreshesIndex(args)) return [];
   const check = checkFilters(file, root, env);
-  return check.keys ? emptied(check.keys) : check.done.then(emptied);
+  return check.keys
+    ? filtersEmptied(check.keys)
+    : check.done.then(filtersEmptied);
 }
