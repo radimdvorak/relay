@@ -17,7 +17,7 @@ import {
 } from "../../shared/shortcuts";
 import { mac } from "./mod-key";
 import { persistedStore, readJson, writeText } from "./persisted-store";
-import { isTypingTarget } from "./typing-target";
+import { isTypingTarget, typesWithAltGr } from "./typing-target";
 import { noteUsed } from "./used";
 
 export { isTypingTarget };
@@ -220,7 +220,7 @@ const handedOver = new WeakSet<Event>();
  * their own handlers hear them first. True when ProseMirror should keep out.
  */
 export function handOver(e: KeyboardEvent) {
-  if (e.isComposing || e.defaultPrevented) return false;
+  if (e.isComposing || e.defaultPrevented || typesWithAltGr(e)) return false;
   const app = shortcutIds.some((id) => {
     const { bare, outsideFields, menu, group, digits } = command(id);
     if (bare || outsideFields || menu) return false;
@@ -274,7 +274,7 @@ export function useShortcut(
     const { bare, outsideFields } = command(id);
     const down = (e: KeyboardEvent) => {
       if (e.defaultPrevented && !handedOver.has(e)) return;
-      if (e.isComposing || (e.repeat && !repeat)) return;
+      if (e.isComposing || (e.repeat && !repeat) || typesWithAltGr(e)) return;
       if (!matches(id, e)) return;
       const field = isTypingTarget(e);
       if (bare && field) return;
