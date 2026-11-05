@@ -479,3 +479,21 @@ it("re-adding a project on another computer takes what that computer says of it 
     await rm(dir, { recursive: true, force: true });
   }
 });
+
+it("moves a group against the groups saved by changes still queued", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "relay-project-groups-"));
+  try {
+    const store = new Store(join(dir, "state"));
+    await store.load();
+    const projects = new Projects(store);
+    await projects.createGroup("Work");
+    await projects.createGroup("Home");
+    await Promise.all([
+      projects.createGroup("Side"),
+      projects.moveGroup("Work", null),
+    ]);
+    expect(projects.groups()).toEqual(["Home", "Side", "Work"]);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});

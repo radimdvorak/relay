@@ -174,17 +174,16 @@ export class Projects {
   }
 
   /** Group paths in sidebar order; alphabetical until one is dragged. */
-  groups() {
-    const s = this.store.get();
+  groups(s = this.store.get()) {
     const groups = s.projectGroups ?? [];
     return s.projectGroupsOrdered ? groups : sortGroupPaths(groups);
   }
 
   async moveGroup(path: string, before: string | null) {
     if (!path) throw new Error("Choose a group.");
-    const groups = this.groups();
     await this.store.update((s) => {
-      s.projectGroups = moveGroupInList(groups, path, before);
+      // The groups as the changes queued before it left them.
+      s.projectGroups = moveGroupInList(this.groups(s), path, before);
       s.projectGroupsOrdered = true;
     });
   }
