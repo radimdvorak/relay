@@ -111,7 +111,8 @@ export async function askCodexSide(
     }
     if (method === "item/completed" && item?.type === "agentMessage")
       reply += item.text ?? "";
-    if (method === "turn/completed" || method === "error") settle();
+    const failed = method === "error" && !params?.willRetry;
+    if (method === "turn/completed" || failed) settle();
   });
   const stop = () =>
     turnId

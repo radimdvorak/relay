@@ -106,6 +106,41 @@ describe("askCodexSide", () => {
     });
   });
 
+  it("waits out an error Codex retries, as the thread's own turn does", async () => {
+    const { wire } = fakeServer([
+      ["turn/started", { turn: { id: "side-turn" } }],
+      [
+        "error",
+        { error: { message: "Reconnecting... 1/5" }, willRetry: true },
+      ],
+    ]);
+    const side = wire.side.bind(wire);
+    // The retry answers a while after the error.
+    wire.side = (threadId, listen) =>
+      side(threadId, (method, params) => {
+        listen(method, params);
+        if (method === "error")
+          setTimeout(() => {
+            listen("item/completed", {
+              threadId,
+              item: { type: "agentMessage", text: "learn: x" },
+            });
+            listen("turn/completed", {
+              threadId,
+              turn: { id: "side-turn", status: "completed" },
+            });
+          }, 10);
+      });
+    const answer = await askCodexSide(
+      wire,
+      "thread",
+      settings,
+      "Is there one thing?",
+      new AbortController().signal,
+    );
+    expect(answer.reply).toBe("learn: x");
+  });
+
   it("stops a fork that starts a tool and drops what it says", async () => {
     const { wire, calls } = fakeServer([
       ["turn/started", { turn: { id: "side-turn" } }],
