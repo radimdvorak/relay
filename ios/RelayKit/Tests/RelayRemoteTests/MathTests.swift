@@ -60,7 +60,11 @@ struct MathDelimitersTests {
     }
 
     @Test func readsALongLineOfUnclosedOpenersInLinearTime() {
-        for text in [String(repeating: "\\( a", count: 20_000), String(repeating: "\\[a", count: 20_000)] {
+        let texts = [
+            String(repeating: "\\( a", count: 20_000), String(repeating: "\\(", count: 25_000),
+            String(repeating: "\\[a", count: 20_000),
+        ]
+        for text in texts {
             let started = ContinuousClock.now
             #expect(normalizeMath(text) == text)
             #expect(ContinuousClock.now - started < .milliseconds(500))
