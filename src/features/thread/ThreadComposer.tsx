@@ -45,7 +45,7 @@ import { DetourNote } from "./NewThreadBranch";
 import { ThreadWhere, type ProjectCheckout } from "./ThreadWhere";
 import "../changes/branch-picker.css";
 import { threadCost } from "../../../shared/thread-cost";
-import { lastComposerSettings } from "../../../shared/projects";
+import { lastComposerSettings, lastSentIn } from "../../../shared/projects";
 
 /** What goes out with the main conversation's next message besides its text. */
 function AttachedContext({
@@ -200,7 +200,7 @@ export function ThreadComposer({
   handle: { chat, id, busy, setError },
   project,
   scope,
-  thread: { history, root, messages, shown, running, mainRunning },
+  thread: { history, root, messages, roots, shown, running, mainRunning },
   councils: { reviewing },
   background: {
     agentBatch,
@@ -335,7 +335,7 @@ export function ThreadComposer({
           messages: setup.messages,
           lastInput: undefined,
         })) ??
-      lastComposerSettings(history.data, root?.id),
+      lastSentIn(messages, roots, history.data?.lastInput, root?.id),
     planner: running ? undefined : openPlan(messages, shown),
     prediction:
       running || root || !predictions.data ? undefined : nextGuess(shown),

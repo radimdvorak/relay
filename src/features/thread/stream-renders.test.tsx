@@ -109,6 +109,21 @@ vi.mock("../../lib/chat-events", async (importOriginal) => ({
     qc.getQueryData(["project-chat", id]),
 }));
 
+/** Times the thread's reply roots were worked out, a walk over every message. */
+const rootsWorkedOut = vi.hoisted(() => ({ count: 0 }));
+
+vi.mock("../../../shared/projects/messages", async (importOriginal) => {
+  const original =
+    await importOriginal<typeof import("../../../shared/projects/messages")>();
+  return {
+    ...original,
+    replyRoots: (...args: Parameters<typeof original.replyRoots>) => {
+      rootsWorkedOut.count++;
+      return original.replyRoots(...args);
+    },
+  };
+});
+
 // Its speech model's state comes from the desktop, which says nothing here.
 vi.mock("../dictation/DictationButton", () => ({
   DictationButton: () => null,
@@ -273,6 +288,7 @@ async function streamThreePieces() {
   rendered.clear();
   rows.clear();
   watched.clear();
+  rootsWorkedOut.count = 0;
   for (let piece = 0; piece < 3; piece++) await streamed();
 }
 
@@ -315,4 +331,9 @@ it("renders at most 67 components a streamed piece", async () => {
   await streamThreePieces();
   const total = [...rendered.values()].reduce((sum, n) => sum + n, 0);
   expect(total / 3).toBeLessThanOrEqual(67);
+});
+
+it("works out the reply roots once a streamed piece", async () => {
+  await streamThreePieces();
+  expect(rootsWorkedOut.count).toBe(3);
 });
