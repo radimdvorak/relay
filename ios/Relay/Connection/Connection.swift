@@ -852,7 +852,7 @@ final class Connection {
     /// The thread's agent works in the project folder from now on, as the desktop's workspace menu can.
     func useProjectFolder(_ chatId: String) async throws {
         guard let client else { throw PairingError("Not connected.") }
-        _ = try await client.desktop("selectAgentWorktree", [.string(chatId), nil])
+        _ = try await client.desktop("selectAgentWorktree", [.string(chatId), .null])
     }
 
     /// Local network or Tailscale first; the client keeps it with the pairing and moves if it's shorter.
