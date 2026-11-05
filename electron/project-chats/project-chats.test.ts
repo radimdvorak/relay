@@ -7,6 +7,7 @@ import { triageState } from "../../shared/chat-activity";
 import { applyChatPatch, type ChatSummary } from "../../shared/projects";
 import { ChatSummaryFeed } from "./chat-summaries";
 import * as titleHelpers from "../agents/thread-titles";
+import { readOnlyGitEnv } from "../agents/read-only-git";
 import {
   root,
   store,
@@ -320,10 +321,9 @@ it("keeps git in a Read only turn from opening a bare repository it finds", asyn
     expect((await chats.get(chat.id)).messages.at(-1)?.status).toBe("complete"),
   );
   const started = JSON.parse((await agentCalls()).trim().split("\n")[0]);
-  expect(started.gitConfig).toEqual({
-    GIT_CONFIG_PARAMETERS:
-      "'user.name'='Someone' 'safe.bareRepository=explicit' 'core.fsmonitor=false'",
-  });
+  expect(started.gitConfig).toEqual(
+    readOnlyGitEnv({ GIT_CONFIG_PARAMETERS: "'user.name'='Someone'" }),
+  );
 });
 
 it("names a thread from its first message while the answer is still running", async () => {

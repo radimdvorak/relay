@@ -1,6 +1,6 @@
 import { execFileSync, spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
-import { mkdtemp, realpath, rm } from "node:fs/promises";
+import { mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, expect, it } from "vitest";
@@ -61,6 +61,45 @@ it("keeps git status from running the checkout's own fsmonitor command", async (
   });
   expect(existsSync(marker)).toBe(false);
 });
+
+it.skipIf(process.platform === "win32")(
+  "keeps git log from running the checkout's own signature program",
+  async () => {
+    const marker = join(root, "ran");
+    const checkout = join(root, "signed");
+    const signer = join(root, "signer.sh");
+    // Enough of gpg for git to store a signature on the commit.
+    await writeFile(
+      signer,
+      `#!/bin/sh\ntouch '${marker}'\necho '[GNUPG:] SIG_CREATED ' >&2\nprintf -- '-----BEGIN PGP SIGNATURE-----\\nx\\n-----END PGP SIGNATURE-----\\n'\n`,
+      { mode: 0o755 },
+    );
+    const git = (...args: string[]) =>
+      execFileSync("git", args, { cwd: checkout, stdio: "ignore" });
+    execFileSync("git", ["init", "--quiet", checkout]);
+    git("config", "gpg.program", signer);
+    git("config", "log.showSignature", "true");
+    git(
+      "-c",
+      "user.email=a@b",
+      "-c",
+      "user.name=a",
+      "commit",
+      "--allow-empty",
+      "-S",
+      "-qm",
+      "signed",
+    );
+    await rm(marker);
+    for (const args of [["log"], ["log", "--format=%G?"]]) {
+      spawnSync("git", args, {
+        cwd: checkout,
+        env: { ...process.env, ...readOnlyGitEnv(process.env) },
+      });
+      expect(existsSync(marker), args.join(" ")).toBe(false);
+    }
+  },
+);
 
 it("names no variable Codex's default shell environment policy drops", () => {
   // Codex leaves out names matching *KEY*, *SECRET* and *TOKEN* unless told
