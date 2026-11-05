@@ -26,7 +26,12 @@ import { profileDir } from "./accounts/profiles";
 import { withTimeout } from "../util/timeout";
 import { asRecord } from "../../shared/records";
 import { writeFileAtomic } from "../util/atomic-write";
-import { allowKeychainWrites, readKeychain, writeKeychain } from "./keychain";
+import {
+  allowKeychainWrites,
+  keychainAccount,
+  readKeychain,
+  writeKeychain,
+} from "./keychain";
 
 const CODEX_CLIENT_ID = "app_EMoamEEZ73f0CkXaXp7hrann";
 const SUCCESS_TTL = 45_000;
@@ -295,9 +300,12 @@ async function readCodexKeychain() {
   if (process.platform !== "darwin") return null;
   const service = "Codex Auth";
   allowKeychainWrites(service);
-  const text = await readKeychain(service, null);
+  // Codex names the item's account after its home folder. A refresh must go
+  // back to that item: one beside it leaves the CLI a spent refresh token.
+  const account = await keychainAccount(service);
+  const text = await readKeychain(service, account);
   return text
-    ? codexCredential(text, { kind: "keychain", service, account: null })
+    ? codexCredential(text, { kind: "keychain", service, account })
     : null;
 }
 

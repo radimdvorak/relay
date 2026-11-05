@@ -11,6 +11,13 @@ export function allowKeychainWrites(service: string) {
   allowedServices.add(service);
 }
 
+/** The account of the item `security` finds first for `service`. */
+export async function keychainAccount(service: string) {
+  const result = await security(["find-generic-password", "-s", service]);
+  if (result.status !== 0) return null;
+  return /"acct"<blob>="([^"]+)"/.exec(result.stdout)?.[1] ?? null;
+}
+
 export async function readKeychain(service: string, account: string | null) {
   const args = ["find-generic-password", "-s", service, "-w"];
   if (account) args.splice(1, 0, "-a", account);
