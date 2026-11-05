@@ -1,8 +1,10 @@
 // A pid outlives its process: after a restart, WSL's above all, the number
-// belongs to whatever started next. Linux and macOS say when each process
-// started, so a pid recorded with its start only counts for that same process.
+// belongs to whatever started next. Every system Relay runs on says when each
+// process started, so a pid recorded with its start only counts for that same
+// process.
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
+import { win32 } from "node:path";
 
 let boot: string | undefined;
 /** This boot of the kernel; process starts count from it, so the two go together. */
@@ -21,27 +23,60 @@ function linuxStart(pid: number) {
   }
 }
 
-/** When the process started, to the second, as macOS's ps says; undefined once it's gone. */
-function macStart(pid: number) {
+/** What `file` prints, trimmed; undefined when it fails or prints nothing. */
+function output(file: string, args: string[], env = process.env) {
   try {
-    const started = execFileSync("/bin/ps", ["-o", "lstart=", "-p", `${pid}`], {
+    const text = execFileSync(file, args, {
       encoding: "utf8",
-      // The same words and clock whoever asks, so two answers compare.
-      env: { ...process.env, LC_ALL: "C", TZ: "UTC" },
+      env,
       stdio: ["ignore", "pipe", "ignore"],
-      timeout: 5000,
+      windowsHide: true,
+      // PowerShell can take seconds while Windows is still signing in.
+      timeout: 15_000,
     });
-    // A record splits on whitespace, so the start can't hold any.
-    return started.trim().replace(/\s+/g, "-") || undefined;
+    return text.trim() || undefined;
   } catch {
     return undefined;
   }
 }
 
-/** When the process started, where this system says; undefined elsewhere or once it's gone. */
+/** When the process started, to the second, as macOS's ps says; undefined once it's gone. */
+function macStart(pid: number) {
+  const started = output(
+    "/bin/ps",
+    ["-o", "lstart=", "-p", `${pid}`],
+    // The same words and clock whoever asks, so two answers compare.
+    { ...process.env, LC_ALL: "C", TZ: "UTC" },
+  );
+  // A record splits on whitespace, so the start can't hold any.
+  return started?.replace(/\s+/g, "-");
+}
+
+/** When the process was created, in UTC file time; undefined once it's gone. */
+function windowsStart(pid: number) {
+  const powershell = win32.join(
+    process.env.SystemRoot ?? "C:\\Windows",
+    "System32",
+    "WindowsPowerShell",
+    "v1.0",
+    "powershell.exe",
+  );
+  // CIM rather than Get-Process: an unelevated `relay run` at sign-in can't
+  // read when an elevated process started, which Relay may be too.
+  const created = output(powershell, [
+    "-NoProfile",
+    "-NonInteractive",
+    "-Command",
+    `(Get-CimInstance Win32_Process -Filter 'ProcessId=${pid}').CreationDate.ToFileTimeUtc()`,
+  ]);
+  return created && /^\d+$/.test(created) ? created : undefined;
+}
+
+/** When the process started, as this system says; undefined once it's gone. */
 export function processStart(pid: number): string | undefined {
   if (process.platform === "linux") return linuxStart(pid);
   if (process.platform === "darwin") return macStart(pid);
+  if (process.platform === "win32") return windowsStart(pid);
   return undefined;
 }
 
