@@ -125,12 +125,11 @@ export async function runCursor(options: AgentOptions): Promise<string> {
     }
   }
   signal.throwIfAborted();
-  const connection = await acquireCursorConnection(
-    key,
-    options.cwd,
-    sdk,
-    options.env,
-  );
+  const connection = await acquireCursorConnection(key, options.cwd, sdk, {
+    env: options.env,
+    readOnly: options.readOnly,
+    adopting: job.kind === "adopt",
+  });
 
   const adopted = job.kind === "adopt" ? connection.inflight : undefined;
   if (job.kind === "adopt" && !adopted) {

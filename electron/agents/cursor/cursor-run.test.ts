@@ -28,6 +28,7 @@ import { configureCursor } from "./sdk";
 import { runtimeModesFor } from "../../../shared/agent-modes";
 import type { AgentOptions } from "../types";
 import { CANCEL_GRACE_MS } from "../turn-kit";
+import { readOnlyGitEnv } from "../read-only-git";
 import type { AgentActivity } from "../../../shared/projects";
 import {
   relayToken,
@@ -358,6 +359,37 @@ describe("a Cursor turn", () => {
       expect(resumed.pid).not.toBe(first.pid);
     } finally {
       await closeCursorConnection("stuck-thread");
+    }
+  }, 30_000);
+
+  it("starts a new worker when a thread switches to or from Read only, and resumes its agent there", async () => {
+    // Read only's git settings go in the worker's environment, read once at launch.
+    const readOnlyEnv = readOnlyGitEnv(process.env);
+    const ids: string[] = [];
+    const session = {
+      key: "switching-thread",
+      onId: async (id: string) => void ids.push(id),
+    };
+    const resumed = () => ({ ...session, id: ids.at(-1) });
+    const promptsSent = async () =>
+      (await asked()).filter((entry) => entry.prompt);
+    try {
+      await runCursor(turn("say hello", { session }).options);
+      const readOnlyTurn = { readOnly: true, env: readOnlyEnv };
+      await runCursor(
+        turn("say hello", { session: resumed(), ...readOnlyTurn }).options,
+      );
+      await runCursor(turn("say hello", { session: resumed() }).options);
+
+      const [supervised, readOnly, again] = await promptsSent();
+      expect(readOnly.gitConfig).toMatchObject(readOnlyEnv);
+      expect(again.gitConfig).not.toMatchObject(readOnlyEnv);
+      expect(readOnly.pid).not.toBe(supervised.pid);
+      expect(again.pid).not.toBe(readOnly.pid);
+      expect(readOnly.agent).toBe(supervised.agent);
+      expect(again.agent).toBe(supervised.agent);
+    } finally {
+      await closeCursorConnection("switching-thread");
     }
   }, 30_000);
 

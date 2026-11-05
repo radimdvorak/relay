@@ -83,6 +83,12 @@ class FakeAgent {
     const customTools = sendOptions.local?.customTools;
     log({
       pid: process.pid,
+      // The git settings its worker was started with, as Read only adds them.
+      gitConfig: Object.fromEntries(
+        Object.entries(process.env).filter(([name]) =>
+          name.startsWith("GIT_CONFIG"),
+        ),
+      ),
       agent: this.agentId,
       options: this.options,
       sendOptions: {
