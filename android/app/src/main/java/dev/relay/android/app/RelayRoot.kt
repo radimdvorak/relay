@@ -59,6 +59,7 @@ import dev.relay.android.remote.model.PhonePalette
 import dev.relay.android.remote.model.RemoteJson
 import dev.relay.android.ui.LocalScreenNotice
 import dev.relay.android.ui.theme.DesktopAppearance
+import dev.relay.android.lib.navigation.DeepLink
 import dev.relay.android.lib.navigation.Route
 import dev.relay.android.ui.LocalToasts
 import dev.relay.android.ui.ToastHost
@@ -88,7 +89,7 @@ private var stackRestored = false
  */
 @OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
-fun RelayRoot(container: AppContainer, links: ReceiveChannel<Route>, crash: Crash?, onCrashSeen: () -> Unit) {
+fun RelayRoot(container: AppContainer, links: ReceiveChannel<DeepLink>, crash: Crash?, onCrashSeen: () -> Unit) {
     val prefs = container.prefs
     val remote = container.remote
     val systemDark = isSystemInDarkTheme()
@@ -141,7 +142,10 @@ fun RelayRoot(container: AppContainer, links: ReceiveChannel<Route>, crash: Cras
         val keyboard = LocalSoftwareKeyboardController.current
         val focus = LocalFocusManager.current
         LaunchedEffect(navigator) {
-            for (route in links) {
+            for (link in links) {
+                val route = link.route
+                // A notification posted before a switch: its thread is on the computer it names.
+                if (link.computer != null && !remote.switchTo(link.computer)) continue
                 if (navigator.stack.lastOrNull() != route) {
                     focus.clearFocus()
                     keyboard?.hide()
