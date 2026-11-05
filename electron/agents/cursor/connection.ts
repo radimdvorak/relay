@@ -103,7 +103,10 @@ export class CursorConnection extends LineConnection {
   override close() {
     if (!this.cleaning) {
       this.cleaning = true;
-      this.child.once("exit", () => void this.cleanup?.());
+      const { exitCode, signalCode } = this.child;
+      // A worker that crashed has no exit left to wait for.
+      if (exitCode !== null || signalCode) void this.cleanup?.();
+      else this.child.once("exit", () => void this.cleanup?.());
     }
     super.close();
   }
