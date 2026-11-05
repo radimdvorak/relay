@@ -5,7 +5,7 @@ import { quotesIn } from "../prompt-pills";
 import type { DraftEditor } from "../useComposerDraft";
 import type { DraftPills } from "../useDraftPills";
 import { copiedPills } from "./pill-clipboard";
-import { beginDictation, endDictation, updateDictation } from "./dictation";
+import { dictationTarget } from "./dictation";
 import {
   caretOffsets,
   inlinePaste,
@@ -108,19 +108,7 @@ export function usePromptHandle(
       },
       replace: (text) =>
         editor ? replaceDraft(editor, pills.content(text)) : undefined,
-      dictation: {
-        begin: () => {
-          if (editor?.isDestroyed !== false) return;
-          beginDictation(editor);
-          // The words land here, so Enter sends them.
-          editor.view.focus();
-        },
-        update: (settled, tentative) =>
-          editor?.isDestroyed === false &&
-          updateDictation(editor, settled, tentative),
-        end: (text) =>
-          editor?.isDestroyed === false && endDictation(editor, text),
-      },
+      dictation: dictationTarget(editor),
     }),
     [editor, draftKey],
   );
