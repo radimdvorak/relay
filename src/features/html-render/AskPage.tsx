@@ -55,6 +55,8 @@ export function AskPage({
     [chatId, page.id],
   );
   useEffect(() => post({ relayRender: "theme", ...theme }), [theme]);
+  const pausedNow = useRef(!focused);
+  pausedNow.current = !focused;
   useEffect(() => post({ relayRender: "pause", paused: !focused }), [focused]);
 
   useEffect(() => {
@@ -97,6 +99,11 @@ export function AskPage({
           sandbox={RENDER_SANDBOX}
           referrerPolicy="no-referrer"
           style={{ height, colorScheme: theme.scheme }}
+          // What was posted before the page loaded went to the blank document.
+          onLoad={() => {
+            post({ relayRender: "theme", ...themeNow.current });
+            post({ relayRender: "pause", paused: pausedNow.current });
+          }}
         />
       </div>
       <footer>
