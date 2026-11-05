@@ -335,6 +335,16 @@ export function reviewCard({
   };
 }
 
+/** Why a fix is refused when the reviewed code isn't where the thread works; the thread offers to check it out. */
+export const reviewedElsewhere = (label: string) =>
+  `Those findings are from the review of ${label}, which isn't checked out where this thread works.`;
+
+/** The reviewed code's label in a `reviewedElsewhere` refusal, as "PR #42"; undefined for any other error. */
+export const reviewedElsewhereLabel = (message: string) =>
+  message.match(
+    /review of (.+), which isn't checked out where this thread works\./,
+  )?.[1];
+
 /**
  * The round a deep review's own thread works in: the latest that checked the
  * reviewed code out. A round that made no checkout reviewed where the thread

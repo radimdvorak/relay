@@ -31,9 +31,11 @@ import {
   reportedFindings,
   answeredFindings,
   type DeepReviewStart,
+  reviewedElsewhere,
   type ReviewScope,
 } from "../../shared/deep-review";
 import { leadPrompt, reviewerTask } from "./prompts";
+import { branchToFix } from "./fix-here";
 import { DeepReviews, type DeepReviewHost } from "./index";
 import { fakeCli } from "../../tests/fixtures/fake-cli";
 import { build } from "esbuild";
@@ -1215,6 +1217,58 @@ it("reviews a branch in the folder it's checked out in, edits and all, and follo
   await chats.cleanUpWorktrees();
   expect(git(there, "status", "--porcelain")).toBe("?? wip.ts");
   expect(git(other, "branch", "--show-current")).toBe("panel");
+});
+
+it("refuses a fix of a branch an ordinary thread reviewed from Git until the thread is checked out on it", async () => {
+  const git = (cwd: string, ...args: string[]) =>
+    execFileSync(
+      "git",
+      ["-C", cwd, "-c", "user.name=R", "-c", "user.email=r@x", ...args],
+      { encoding: "utf8" },
+    ).trim();
+  const main = git(repo, "branch", "--show-current");
+  git(repo, "switch", "-q", "-c", "panel");
+  await writeFile(join(repo, "src", "panel.ts"), "export {};\n");
+  git(repo, "add", ".");
+  git(repo, "commit", "-q", "-m", "Add the panel");
+  git(repo, "switch", "-q", main);
+
+  const chat = await chats.create(projectId, { kind: "project" });
+  await chats.startDeepReview(
+    chat.id,
+    config({ target: { kind: "branch", head: "panel", base: main } }),
+  );
+  await vi.waitFor(async () =>
+    expect((await chats.get(chat.id)).reviews?.at(-1)?.status).toBe("done"),
+  );
+  const reviewed = await chats.get(chat.id);
+  expect(reviewed.reviews!.at(-1)!.scope.checkout).toBeUndefined();
+  const fix = () =>
+    chats.send(chat.id, {
+      id: randomUUID(),
+      body: fixRequest("claude", reviewed.findings!.reports[0]!.findings),
+      provider: "claude",
+      choice: { ...choice, model: "" },
+      runtimeMode: "full-access",
+      interactionMode: "default",
+      fixes: ["F1"],
+    });
+  await expect(fix()).rejects.toThrow(reviewedElsewhere("panel → " + main));
+
+  // What the refusal's "Check out" does.
+  const branch = await branchToFix(repo, reviewed, ["F1"], async () => {
+    throw new Error("A branch review asks no forge.");
+  });
+  expect(branch).toBe("panel");
+  await chats.worktrees.branches.workOn(chat.id, branch);
+  await fix();
+  await vi.waitFor(async () =>
+    expect((await chats.get(chat.id)).findings?.statuses?.F1).toBe("fixed"),
+  );
+  const answer = (await capture()).find((r) =>
+    r.prompt?.includes("Fix this finding"),
+  );
+  expect(git(answer.cwd, "branch", "--show-current")).toBe("panel");
 });
 
 it("answers a question when edits in the review's worktree keep the branch out, and fixes in a worktree beside it", async () => {

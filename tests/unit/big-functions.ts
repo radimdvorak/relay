@@ -325,7 +325,7 @@ export const bigFunctions: Record<string, number> = {
   "src/features/thread/WorktreeControls.tsx › WorktreeMenu": 137,
   "src/features/thread/find/useThreadFind.tsx › useThreadFind": 133,
   "src/features/thread/question-responses.ts › questionResponses": 103,
-  "src/features/thread/useCouncils.ts › useCouncils": 114,
+  "src/features/thread/useCouncils.ts › useCouncils": 109,
   "src/features/thread/useMessageActions.ts › useMessageActions": 126,
   "src/features/thread/useQueuedMessages.ts › useQueuedMessages": 111,
   "src/features/thread/useSessionCommands.ts › useSessionCommands": 98,

@@ -11,11 +11,38 @@ import { nameReviewSetup } from "../deep-review/review-setup-names";
 import { forgePulls } from "../deep-review/pull-info";
 import { targetFiles } from "../deep-review/scope";
 import { branchFolder } from "../deep-review/checkout";
+import { branchToFix } from "../deep-review/fix-here";
+import { workspaceId } from "../../shared/workspaces";
 import { git } from "../git/git";
 import { commitLog } from "../git/history";
 import { optional, takes, type ApiContext, type Handlers } from "./context";
 
 const branchSchema = z.string().trim().min(1).max(250);
+const findingIdSchema = z.string().regex(/^F\d{1,6}$/);
+
+/** Moves a thread onto the branch findings it was refused a fix of were reviewed on. */
+function checkOutReviewed({
+  projects,
+  projectChats,
+  clientFor,
+  treeWatch,
+}: ApiContext) {
+  return takes(
+    [idSchema, z.array(findingIdSchema).min(1).max(500)],
+    async (chatId, ids) => {
+      const chat = await projectChats.get(chatId);
+      const root = await projects.root(chat.projectId);
+      const branch = await branchToFix(root, chat, ids, forgePulls(clientFor));
+      const moved = await projectChats.worktrees.branches.workOn(
+        chatId,
+        branch,
+      );
+      // The thread's workspace id names its new folder now.
+      treeWatch?.moved(workspaceId(moved.projectId, chatId));
+      return moved;
+    },
+  );
+}
 
 /** Deep reviews: starting and resuming them, their setups, and their findings. */
 export function deepReviewHandlers(ctx: ApiContext) {
@@ -59,6 +86,7 @@ export function deepReviewHandlers(ctx: ApiContext) {
         pull: forgePulls(clientFor),
       }),
     ),
+    checkOutReviewed: checkOutReviewed(ctx),
     nameReviewSetup: takes([reviewSetupSchema], (setup) =>
       nameReviewSetup(setup, store.aiSettings(), AbortSignal.timeout(60_000)),
     ),
@@ -90,7 +118,7 @@ export function deepReviewHandlers(ctx: ApiContext) {
       (id, only) => projectChats.resumeDeepReview(id, only),
     ),
     setFinding: takes(
-      [idSchema, z.string().regex(/^F\d{1,6}$/), z.enum(["open", "dismissed"])],
+      [idSchema, findingIdSchema, z.enum(["open", "dismissed"])],
       (id, findingId, status) => projectChats.setFinding(id, findingId, status),
     ),
   } satisfies Handlers;

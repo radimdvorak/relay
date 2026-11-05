@@ -11,6 +11,7 @@ import type { FindingStatus } from "../findings";
 import type { ChangedFile } from "../review-passes";
 import type { CommitSummary } from "../history";
 import type { SecondOpinionAgent } from "../second-opinion";
+import type { ChatSummary } from "./threads";
 
 /** Deep reviews, run inside a thread, and second opinions on one answer. */
 export interface ProjectCouncilApi {
@@ -27,6 +28,12 @@ export interface ProjectCouncilApi {
     id: string,
     branch: string,
   ): Promise<{ changes: number; commits: CommitSummary[] }>;
+  /**
+   * Moves thread `id` onto the branch the findings `ids` were reviewed on,
+   * a local branch made for a pull request when none holds its reviewed
+   * head, so they can be fixed there.
+   */
+  checkOutReviewed(id: string, ids: string[]): Promise<ChatSummary>;
   /** Asks `agent` for a second opinion on answer `answerId`, in a read-only thread of its own. */
   askSecondOpinion(
     id: string,

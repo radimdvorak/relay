@@ -69,7 +69,7 @@ export async function branchFolder(
  * `make`, that's free to make there. A branch of that name that doesn't
  * hold it is someone else's work and stays alone.
  */
-async function pullBranch(
+export async function pullBranch(
   root: string,
   pr: NonNullable<ReviewCheckout["pr"]>,
   head: string,

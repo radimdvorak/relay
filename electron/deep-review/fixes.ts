@@ -1,9 +1,15 @@
 // Where a deep review's fixes land: on the reviewed branch, wherever it's
 // checked out now, and only for findings about the code the thread works on.
 import type { ProjectChat, ProjectChatSend } from "../../shared/projects";
-import { workingReview, type DeepReviewState } from "../../shared/deep-review";
+import {
+  reviewedElsewhere,
+  workingReview,
+  type DeepReviewState,
+} from "../../shared/deep-review";
+import { threadWorktree } from "../../shared/projects";
 import { noteWorkspaceMove } from "../../shared/workspace-moves";
-import { followReviewedBranch, needsCheckout } from "./checkout";
+import { followReviewedBranch } from "./checkout";
+import { holdsReviewed, readFromGit } from "./fix-here";
 import { fixesFit, roundsOfFindings } from "./rounds";
 
 export interface FixesHost {
@@ -20,7 +26,7 @@ export async function followFixes(
 ) {
   const state = workingReview(chat);
   const fixing = !!input.fixes?.length;
-  if (fixing) fixesHere(chat, input.fixes!, state);
+  if (fixing) await fixesHere(host, chat, input.fixes!, state);
   const checkout = state?.scope.checkout;
   // Uncommitted changes read where a branch is checked out have no head;
   // the branch is what the review follows there.
@@ -77,21 +83,28 @@ export async function followFixes(
 /**
  * Refuses fixes that would land on other code than the findings are
  * about: the round's reviewers read it from Git, as it wasn't checked out
- * where the thread works, or a later round moved the thread on to other
- * code, or the thread itself moved to another branch.
+ * where the thread works, and it still isn't, or a later round moved the
+ * thread on to other code, or the thread itself moved to another branch.
  */
-function fixesHere(
+async function fixesHere(
+  host: FixesHost,
   chat: ProjectChat,
   ids: string[],
   working: DeepReviewState | undefined,
 ) {
   const rounds = roundsOfFindings(chat, ids);
-  const away = rounds.find((r) => !r.scope.checkout && needsCheckout(r.scope));
-  if (away)
-    throw new Error(
-      `Those findings are from the review of ${away.scope.label}, which isn't checked out where this thread works. Review it from a deep review thread to fix them there.`,
-    );
-  const elsewhere = rounds.find((r) => !fixesFit(chat, r, working));
+  const folder =
+    threadWorktree(chat)?.path ?? (await host.root(chat.projectId));
+  // Checked out here since, as the refusal below offers to do.
+  const nowHere = new Set<DeepReviewState>();
+  for (const round of rounds.filter(readFromGit)) {
+    if (!(await holdsReviewed(folder, round.scope)))
+      throw new Error(reviewedElsewhere(round.scope.label));
+    nowHere.add(round);
+  }
+  const elsewhere = rounds.find(
+    (r) => !nowHere.has(r) && !fixesFit(chat, r, working),
+  );
   if (elsewhere)
     throw new Error(
       `Those findings are from the review of ${elsewhere.scope.label}, and this thread works on ${working?.scope.label ?? chat.branch ?? "other code"} now. Review ${elsewhere.scope.label} again to fix them there.`,

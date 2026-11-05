@@ -13,6 +13,7 @@ import { X, AlertCircle } from "lucide-react";
 import { useReturnFocus } from "../lib/focus-return";
 import { useBackdropClose } from "../lib/backdrop-close";
 import { errorMessage } from "../../shared/error-message";
+import { actionOf } from "../lib/error-action";
 
 /**
  * Enter or Space opens a card or shelf row. Keys pressed on its own buttons,
@@ -120,12 +121,14 @@ export function ErrorBox({
   error: unknown;
   retry?: () => void;
 }) {
+  const action = actionOf(error);
   return (
     <div className="error-box" role="alert">
       <AlertCircle size={17} />
       <div>
         {errorMessage(error)}
         {retry && <button onClick={retry}>Try again</button>}
+        {action && <button onClick={action.run}>{action.label}</button>}
       </div>
     </div>
   );

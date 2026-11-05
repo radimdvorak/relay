@@ -1,4 +1,8 @@
-import type { DeepReviewStart } from "../../../shared/deep-review";
+import {
+  reviewedElsewhereLabel,
+  type DeepReviewStart,
+} from "../../../shared/deep-review";
+import { errorMessage } from "../../../shared/error-message";
 import { fixRequest, type Finding } from "../../../shared/findings";
 import type { AgentProvider } from "../../../shared/agents";
 import {
@@ -6,8 +10,10 @@ import {
   type ChatSummary,
   type LinkedFolder,
   type ProjectChat as ProjectChatData,
+  type ProjectChatSend,
 } from "../../../shared/projects";
 import { api } from "../../lib/api";
+import { ErrorWithAction } from "../../lib/error-action";
 import {
   loadComposerSettings,
   saveSentSettings,
@@ -72,30 +78,25 @@ export function useCouncils({
   }
   /**
    * Straight to the agent that reported them, a review's lead on the lead's
-   * settings; whatever the composer holds stays there.
+   * settings; whatever the composer holds stays there. Refused because the
+   * reviewed code isn't checked out here, it offers to check it out first.
    */
   async function fixFindings(findings: Finding[], reporter: AgentProvider) {
     if (!chat || !findings.length) return;
-    const saved = review
-      ? undefined
-      : withSent(loadComposerSettings(chat.id), lastComposerSettings(data));
-    const provider = review?.lead.provider ?? reporter;
-    const model = saved && modelOf(saved.models, provider);
-    await run(async () => {
-      await api.sendProjectChat(chat.id, {
-        id: crypto.randomUUID(),
-        body: fixRequest(provider, findings),
-        to: provider,
-        provider,
-        choice: review?.lead.choice ?? model!.choice,
-        ...(model?.contextWindow ? { contextWindow: model.contextWindow } : {}),
-        runtimeMode: review?.runtimeMode ?? saved!.runtimeMode,
-        interactionMode: "default",
-        fixes: findings.map((f) => f.id),
-      });
+    const message = () => fixMessage(chat.id, data, findings, reporter);
+    const send = async (checkOut: boolean) => {
+      const ids = findings.map((f) => f.id);
+      if (checkOut) await api.checkOutReviewed(chat.id, ids);
+      await api.sendProjectChat(chat.id, message());
       onSent();
       await refetch();
-    });
+      if (checkOut) await listChanged();
+    };
+    await run(() =>
+      send(false).catch((e: unknown) => {
+        throw offerCheckout(e, () => void run(() => send(true)));
+      }),
+    );
   }
   function setFindingStatus(id: string, status: "open" | "dismissed") {
     if (!chat) return;
@@ -134,4 +135,41 @@ export function useCouncils({
     leadWithReports: () =>
       resume((chatId) => api.resumeDeepReview(chatId, { lead: true })),
   };
+}
+
+/** A fix of `findings`, to the agent that reported them or the review's lead, on its settings. */
+function fixMessage(
+  chatId: string,
+  data: ProjectChatData | undefined,
+  findings: Finding[],
+  reporter: AgentProvider,
+): ProjectChatSend {
+  const review = data?.reviews?.at(-1);
+  const saved = review
+    ? undefined
+    : withSent(loadComposerSettings(chatId), lastComposerSettings(data));
+  const provider = review?.lead.provider ?? reporter;
+  const model = saved && modelOf(saved.models, provider);
+  return {
+    id: crypto.randomUUID(),
+    body: fixRequest(provider, findings),
+    to: provider,
+    provider,
+    choice: review?.lead.choice ?? model!.choice,
+    ...(model?.contextWindow ? { contextWindow: model.contextWindow } : {}),
+    runtimeMode: review?.runtimeMode ?? saved!.runtimeMode,
+    interactionMode: "default",
+    fixes: findings.map((f) => f.id),
+  };
+}
+
+/** A refusal because the reviewed code isn't checked out here, with a button that checks it out and fixes. */
+function offerCheckout(error: unknown, checkOutAndFix: () => void) {
+  const message = errorMessage(error);
+  const label = reviewedElsewhereLabel(message);
+  if (!label) return error;
+  return new ErrorWithAction(message, {
+    label: `Check out ${label} and fix`,
+    run: checkOutAndFix,
+  });
 }
