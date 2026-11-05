@@ -125,7 +125,7 @@ export class HandoffTrips {
         },
         ...(start ? { start: true as const } : {}),
       };
-      await carry(client, id, folder, root, thread);
+      if (!(await carry(client, id, folder, root, thread, still))) return;
       await this.chats.handoffs.updateSentTo(chatId, id, {
         state: "away",
         error: undefined,
@@ -296,7 +296,9 @@ export class HandoffTrips {
 
 /**
  * Hands the thread and its branch, as a bundle, to the other computer to
- * take in. A full bundle when it lacks what a lean one builds on.
+ * take in. A full bundle when it lacks what a lean one builds on. False when
+ * the thread was taken back on the way: the other computer may have heard
+ * that before the upload began, so it isn't asked to take the thread in.
  */
 async function carry(
   client: RemoteClient,
@@ -304,6 +306,7 @@ async function carry(
   folder: string,
   root: string,
   thread: HandoffThread,
+  still: () => boolean,
 ) {
   await mkdir(folder, { recursive: true, mode: 0o700 });
   const bundle = join(folder, "bundle");
@@ -315,13 +318,15 @@ async function carry(
     await writeFile(json, JSON.stringify(thread), { mode: 0o600 });
     await upload(client, id, "thread", json);
     if (thread.git.bundle) await upload(client, id, "bundle", bundle);
+    if (!still()) return false;
     await client.call("receiveHandoff", id);
+    return true;
   };
   try {
-    await across(false);
+    return await across(false);
   } catch (e) {
     if (errorMessage(e) !== needsFullBundle) throw e;
-    await across(true);
+    return across(true);
   }
 }
 

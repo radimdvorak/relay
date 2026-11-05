@@ -2019,6 +2019,43 @@ it("leaves nothing owed on the other computer when the thread is taken back mid-
   expect(mini.chats.list(mini.projectId).filter((c) => c.cameFrom)).toEqual([]);
 });
 
+it("sends nothing to take over when the thread is taken back before its upload starts", async () => {
+  const { laptop, mini, sender, computers, computerId } =
+    await pairedComputers();
+  const thread = await laptop.chats.create(
+    laptop.projectId,
+    { kind: "project" },
+    "worktree",
+  );
+  await laptop.chats.send(thread.id, input("@codex Add a changelog"));
+  await finished(laptop.chats, thread.id, 2);
+  const client = await computers.connected(computerId);
+  const real = client.call.bind(client) as (
+    ...a: unknown[]
+  ) => Promise<unknown>;
+  let tookBack = false;
+  vi.spyOn(client, "call").mockImplementation((async (
+    method: string,
+    ...args: unknown[]
+  ) => {
+    // Given up on while the bundle was being made: the mini hears it before any upload.
+    if (method === "handoffUpload" && !tookBack) {
+      tookBack = true;
+      await sender.abandon(thread.id);
+      await vi.waitFor(() =>
+        expect(computers.get(computerId).abandoned).toBeUndefined(),
+      );
+    }
+    return real(method, ...args);
+  }) as never);
+
+  await sender.handOff(thread.id, computerId);
+  await sender.finished(thread.id);
+  expect(tookBack).toBe(true);
+  expect((await laptop.chats.get(thread.id)).sentTo).toBeUndefined();
+  expect(mini.chats.list(mini.projectId).filter((c) => c.cameFrom)).toEqual([]);
+});
+
 it("adds a folder on the other computer as a project that lives there, and starts its threads there in that folder", async () => {
   const { laptop, mini, sender, computers, computerId } =
     await pairedComputers();
