@@ -5,10 +5,12 @@
 import { createHash } from "node:crypto";
 import { execFile } from "node:child_process";
 import {
+  link,
   lstat,
   mkdir,
   readdir,
   rm,
+  stat,
   symlink,
   writeFile,
 } from "node:fs/promises";
@@ -94,13 +96,25 @@ export async function prepareProfile(provider: AccountProvider, id: string) {
     theirs
       .filter((name) => !OWN[provider].has(name) && !have.has(name))
       .map((name) =>
-        symlink(join(home, name), join(dir, name)).catch((e) => {
+        linkIn(join(home, name), join(dir, name)).catch((e) => {
           // Another launch linked it first.
           if ((e as NodeJS.ErrnoException).code !== "EEXIST") throw e;
         }),
       ),
   );
   return dir;
+}
+
+/**
+ * Links `target` in at `path`. A symlink on Windows needs Developer Mode or
+ * an elevated Relay; a junction or a hard link needs neither.
+ */
+async function linkIn(target: string, path: string) {
+  if (process.platform !== "win32") return symlink(target, path);
+  const info = await stat(target).catch(() => undefined);
+  if (!info) return; // a dangling link in the usual home
+  if (info.isDirectory()) return symlink(target, path, "junction");
+  return link(target, path);
 }
 
 /** What a process for the account adds to Relay's environment. */
