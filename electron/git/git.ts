@@ -7,6 +7,7 @@ import { promisify } from "node:util";
 import { NotText, textLimit, tooLarge } from "./working-files";
 import { findGit } from "../platform/executables";
 import { gitMissing, type GitInfo } from "../../shared/working-tree";
+import { monitorOverride } from "./fsmonitor-guard";
 const exec = promisify(execFile);
 const missing = `${gitMissing} Install Git, or choose where it is in Settings → Integrations.`;
 /** The Git chosen in Settings; unset, Relay finds its own. */
@@ -166,6 +167,14 @@ export function gitError(e: unknown) {
 export const exitCodeOf = (error: unknown) =>
   (error as { exitCode?: number }).exitCode;
 
+/** `args` run in `root`, without the repository's fsmonitor hook when they only read. */
+const gitArgs = (
+  file: string,
+  root: string,
+  args: string[],
+  env?: NodeJS.ProcessEnv,
+) => ["-C", root, ...monitorOverride(file, root, args, gitEnv(env)), ...args];
+
 /** Runs Git in `root`; a timeout as a number is the common case. */
 export async function git(
   root: string,
@@ -190,7 +199,7 @@ export async function git(
       input,
     });
   try {
-    const running = exec(file, ["-C", root, ...args], {
+    const running = exec(file, gitArgs(file, root, args, env), {
       timeout,
       maxBuffer,
       env: gitEnv(env),
@@ -213,7 +222,7 @@ function cancellableGit(
 ): Promise<string> {
   return new Promise((resolve, reject) => {
     const { signal, timeout, maxBuffer } = options;
-    const child = spawn(file, ["-C", root, ...args], {
+    const child = spawn(file, gitArgs(file, root, args, options.env), {
       env: gitEnv(options.env),
       detached: process.platform !== "win32",
       windowsHide: true,
@@ -376,7 +385,7 @@ export async function gitBytes(
   const file = resolved ?? (await gitExecutable());
   try {
     return (
-      await exec(file, ["-C", root, ...args], {
+      await exec(file, gitArgs(file, root, args), {
         timeout: 15000,
         maxBuffer: limit + 4096,
         encoding: "buffer",
