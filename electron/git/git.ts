@@ -55,6 +55,7 @@ async function lookUpGit() {
     (await findGit().catch(() => {
       throw new Error(missing);
     }));
+  await refuseOldGit(git);
   // Agents and terminals run Git too, and a PATH from before Git was
   // installed (Windows keeps the one the app started with) lacks it.
   const dir = dirname(git),
@@ -62,6 +63,28 @@ async function lookUpGit() {
   if (!paths.includes(dir))
     process.env.PATH = [dir, ...paths].filter(Boolean).join(delimiter);
   return git;
+}
+
+/**
+ * The oldest Git Relay runs: `rev-parse --path-format` came in 2.31, and an
+ * older one prints the flag back as if it were a path. Ubuntu 20.04 ships
+ * 2.25, Debian 11 2.30.
+ */
+const OLDEST_GIT = { major: 2, minor: 31 };
+
+async function refuseOldGit(path: string) {
+  // One that won't say its version is left to fail on what it's asked.
+  const line = await gitVersion(path).catch(() => "");
+  const [, major, minor] = /^git version (\d+)\.(\d+)/.exec(line) ?? [];
+  if (major === undefined || minor === undefined) return;
+  const tooOld =
+    Number(major) < OLDEST_GIT.major ||
+    (Number(major) === OLDEST_GIT.major && Number(minor) < OLDEST_GIT.minor);
+  if (!tooOld) return;
+  const found = line.slice("git version ".length);
+  throw new Error(
+    `Relay needs Git ${OLDEST_GIT.major}.${OLDEST_GIT.minor} or newer; ${path} is ${found}. Update Git, or choose a newer one in Settings → Integrations.`,
+  );
 }
 
 /** Git's version line; fails when `path` isn't Git. */

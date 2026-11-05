@@ -27,7 +27,10 @@ export async function gitRuns(read: () => Promise<unknown>) {
   } finally {
     setGitPath(null);
   }
-  const runs = (await readFile(log, "utf8")).split("\n").filter(Boolean);
+  // Finding the shim asks its version once; that's not the reading counted.
+  const runs = (await readFile(log, "utf8"))
+    .split("\n")
+    .filter((run) => run && run !== "--version");
   await rm(dir, { recursive: true, force: true });
   return runs;
 }
