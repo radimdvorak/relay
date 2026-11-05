@@ -19,6 +19,10 @@ vi.mock("../agents/composer-settings", () => ({
   forkThreadSettings: vi.fn(),
 }));
 
+vi.mock("../terminal/thread-terminals", () => ({
+  forgetThreadTerminals: vi.fn(),
+}));
+
 afterEach(() => vi.clearAllMocks());
 
 function deferred<T>() {
