@@ -23,15 +23,12 @@ const CHOOSE = ":choose";
 
 /**
  * What the query cache holds for a key, fetched once when it holds nothing;
- * the caller renders again once it's in.
+ * `listed` goes up as each arrives.
  */
 function useListing() {
   const qc = useQueryClient();
-  const [, bump] = useReducer((n: number) => n + 1, 0);
-  return function cached<T>(
-    key: unknown[],
-    load: () => Promise<T>,
-  ): T | undefined {
+  const [listed, bump] = useReducer((n: number) => n + 1, 0);
+  function cached<T>(key: unknown[], load: () => Promise<T>): T | undefined {
     const state = qc.getQueryState<T>(key);
     if (!state)
       void qc
@@ -39,7 +36,8 @@ function useListing() {
         .catch(() => undefined)
         .then(bump);
     return state?.data;
-  };
+  }
+  return { cached, listed };
 }
 
 /**
@@ -89,7 +87,7 @@ export function useThreadLinks({
   }
   const links = threadLinks(project.settings?.links, own, project.path);
   // Folder listings for completing a typed path; fetched as the query asks for them.
-  const cached = useListing();
+  const { cached, listed } = useListing();
 
   async function save(next: LinkedFolder[]) {
     next = linkedFoldersSchema.parse(next);
@@ -132,6 +130,8 @@ export function useThreadLinks({
 
   return {
     links,
+    /** Goes up as each listing `/add-dir` asked for arrives. */
+    listed,
     /** What the unsent thread is made with. */
     draftLinks: chat ? undefined : own,
     link: (path: string) => enqueue(() => link(path)),

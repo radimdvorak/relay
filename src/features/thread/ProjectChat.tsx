@@ -572,6 +572,7 @@ export function ProjectChat({
             commandOptions={(command, query) =>
               links.options(command, query) ?? terminalResume.options(command, query)
             }
+            commandListings={links.listed + terminalResume.listed}
             onProjectSettings={onProjectSettings}
             onSend={send}
             onEditQueued={() => queue.editLast(root?.id ?? null)}

@@ -227,6 +227,7 @@ export function ThreadComposer({
   notesChip,
   links,
   commandOptions,
+  commandListings,
   onProjectSettings,
   onSend,
   onEditQueued,
@@ -256,6 +257,8 @@ export function ThreadComposer({
     command: RelayCommand,
     query: string,
   ) => CommandOption[] | undefined;
+  /** Goes up as listings `commandOptions` waited on arrive, so an open menu asks again. */
+  commandListings: number;
   onProjectSettings: () => void;
   onSend: (
     value: ComposedSend,
@@ -345,7 +348,13 @@ export function ThreadComposer({
   });
   const send = useStableCallback(onSend);
   const editQueued = useStableCallback(onEditQueued);
-  const options = useStableCallback(commandOptions);
+  const latestOptions = useStableCallback(commandOptions);
+  // The composer skips renders that hand it the same props: a new function has its menu ask again.
+  const options = useMemo(
+    () => (command: RelayCommand, query: string) =>
+      latestOptions(command, query),
+    [latestOptions, commandListings],
+  );
   const command = useStableCallback(runCommand);
   const nextThread = useStableCallback(() => void runCommand("new", ""));
   const stop = useStableCallback((steers: boolean) => {

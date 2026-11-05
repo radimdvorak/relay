@@ -66,6 +66,9 @@ const countedRow = vi.hoisted(
     },
 );
 
+/** What a test has the desktop answer, by call; anything else finds nothing. */
+const answers = vi.hoisted(() => new Map<string, unknown>());
+
 /** The desktop bridge, saying nothing: listeners never hear, calls find nothing. */
 const bridge = vi.hoisted(
   () =>
@@ -73,7 +76,9 @@ const bridge = vi.hoisted(
       {},
       {
         get: (_, name: string) =>
-          name.startsWith("on") ? () => () => {} : async () => undefined,
+          name.startsWith("on")
+            ? () => () => {}
+            : async () => answers.get(name),
       },
     ),
 );
@@ -155,6 +160,7 @@ import type {
   ProjectChat as ProjectChatData,
 } from "../../../shared/projects";
 import { chatKey } from "../../lib/chat-events";
+import { threadDraftKey, writeDraftText } from "../../lib/thread-storage";
 import type { ComposerControls } from "../composer/ProjectComposer";
 import { ProjectChat } from "./ProjectChat";
 
@@ -215,6 +221,8 @@ afterEach(() => {
   rendered.clear();
   rows.clear();
   watched.clear();
+  answers.clear();
+  writeDraftText(threadDraftKey("c1"), "");
 });
 
 const noop = () => {};
@@ -322,6 +330,29 @@ it("leaves the context row's chips and the notice alone", async () => {
   expect(rendered.get("ScopeButtons") ?? 0).toBe(0);
   expect(rendered.get("StartedChip") ?? 0).toBe(0);
   expect(rendered.get("ThreadNotice") ?? 0).toBe(0);
+});
+
+it("shows a command's listing once it arrives, though the composer skips its parent's renders", async () => {
+  let list = (_: unknown) => {};
+  answers.set("terminalSessions", new Promise((resolve) => (list = resolve)));
+  writeDraftText(threadDraftKey("c1"), "/resume ");
+  await openStreamingThread();
+  expect(document.body.textContent).toContain("Looking for sessions");
+  await act(async () => {
+    list([
+      {
+        provider: "claude",
+        id: "s1",
+        title: "Fix the flaky login test",
+        updated: 1,
+        turns: 3,
+        account: "default",
+        live: false,
+      },
+    ]);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  });
+  expect(document.body.textContent).toContain("Fix the flaky login test");
 });
 
 // The composer's slots, the controls around it, still render on every

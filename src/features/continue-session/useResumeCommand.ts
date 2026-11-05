@@ -23,16 +23,16 @@ const OFF_BRANCH =
   "A session from a terminal or an agent's app goes on from the project folder, not another branch: pick New worktree or Current checkout first";
 
 /**
- * The project's sessions as last listed, listed again when that's stale; the
- * caller renders again once a new listing is in.
+ * The project's sessions as last listed, listed again when that's stale;
+ * `listed` goes up as each new listing arrives.
  */
 function useSessionListing(
   projectId: string,
   onError: (error: unknown) => void,
 ) {
   const qc = useQueryClient();
-  const [, bump] = useReducer((n: number) => n + 1, 0);
-  return function sessions(): TerminalSession[] | undefined {
+  const [listed, bump] = useReducer((n: number) => n + 1, 0);
+  function sessions(): TerminalSession[] | undefined {
     const key = ["terminal-sessions", projectId];
     const state = qc.getQueryState<TerminalSession[]>(key);
     if (
@@ -48,7 +48,8 @@ function useSessionListing(
         .catch(onError)
         .then(bump);
     return state?.data;
-  };
+  }
+  return { sessions, listed };
 }
 
 /**
@@ -82,7 +83,7 @@ export function useResumeCommand({
 }) {
   const qc = useQueryClient();
   const key = ["terminal-sessions", project.id];
-  const sessions = useSessionListing(project.id, onError);
+  const listing = useSessionListing(project.id, onError);
   // The session's files are the project folder's, so its worktree copies those.
   const offBranch = workspace === "worktree" && !!start;
 
@@ -104,6 +105,8 @@ export function useResumeCommand({
   }
 
   return {
+    /** Goes up as each listing the menu asked for arrives. */
+    listed: listing.listed,
     command(command: RelayCommand, args: string): boolean | string | undefined {
       if (command !== "resume") return undefined;
       if (project.scratch) return "Scratchpad has no sessions to resume.";
@@ -122,7 +125,7 @@ export function useResumeCommand({
     },
     options(command: RelayCommand, query: string): CommandOption[] | undefined {
       if (command !== "resume" || project.scratch) return undefined;
-      const list = sessions();
+      const list = listing.sessions();
       if (!list)
         return [{ value: LOOKING, label: "Looking for sessions…", source: "" }];
       const where = offBranch
