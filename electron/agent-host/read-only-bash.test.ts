@@ -71,6 +71,16 @@ it("turns down anything that writes, runs or hides another command", () => {
     expect(readsOnly(command), command).toBe(false);
 });
 
+it("turns down a plain command whose expansion runs another command", () => {
+  for (const command of [
+    // bash: the assignment stores "$(touch m)", @P expands it as a prompt.
+    `echo \${x:=$'\\x24(touch m)'}\${x@P}`,
+    `echo \${x:=$'\\x24(touch m)'}\${(e)x}`,
+    `echo \${x:=$'a[\\x24(touch m)]'}$[x]`,
+  ])
+    expect(readsOnly(command), command).toBe(false);
+});
+
 it("leaves other tools to the usual checks", async () => {
   expect(await readOnlyBashHook({ tool_name: "Read", tool_input: {} })).toEqual(
     {},

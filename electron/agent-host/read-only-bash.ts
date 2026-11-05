@@ -90,6 +90,8 @@ const braceList = `\\{[^\\s}]*(?:,|\\.\\.)`;
 export const disguisedFlag = [...respellings, braceList].join("|");
 const respelled = new RegExp(respellings.join("|"));
 const braces = new RegExp(braceList);
+/** A `$` mid-word: bash's `${x@P}` and `$[x]`, or zsh's `${(e)x}`, run what `x` holds. */
+const expansion = new RegExp(respellings[3]!);
 
 // Quotes keep the shell from expanding braces, so `rg -g '*.{ts,tsx}'` reads;
 // with a backslash about, a quote may not be one, so any brace counts.
@@ -228,9 +230,10 @@ export function readsOnly(command: string): boolean {
 
 function segmentReads(segment: string) {
   const [name, ...args] = segment.split(/\s+/);
+  if (expansion.test(segment)) return false;
   // Their flags decide whether they write, so a flag has to be spelled plainly.
-  if (["git", ...Object.keys(allowedFlags)].includes(name) && disguised.test(segment))
-    return false;
+  const flagged = ["git", ...Object.keys(allowedFlags)];
+  if (flagged.includes(name!) && disguised.test(segment)) return false;
   const flags = flagRules[name];
   if (flags) return args.every((a) => !a.startsWith("-") || flags.test(a));
   switch (name) {
