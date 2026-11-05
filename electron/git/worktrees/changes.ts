@@ -171,7 +171,7 @@ async function readWorktreeChanges(
   worktree: ChatWorktree,
 ): Promise<WorktreeChanges> {
   const [tree, from] = await Promise.all([
-    snapshotTree(worktree.path!),
+    snapshotTree(worktree.path!, { polled: true }),
     forkPoint(worktree),
   ]);
   const diff = await git(worktree.path!, [
@@ -192,7 +192,7 @@ export const worktreeDiff = async (worktree: ChatWorktree, path: string) =>
   revisionDiff(
     worktree.path!,
     await forkPoint(worktree),
-    await snapshotTree(worktree.path!),
+    await snapshotTree(worktree.path!, { polled: true }),
     path,
   );
 

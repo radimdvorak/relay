@@ -23,8 +23,12 @@ export const durable = [
 export const noMonitor = ["-c", "core.fsmonitor=false"];
 
 /** Snapshots walk the whole worktree, so they get twice Git's usual time. */
-export const run = (root: string, args: string[], env?: NodeJS.ProcessEnv) =>
-  git(root, args, { timeout: 30000, env });
+export const run = (
+  root: string,
+  args: string[],
+  env?: NodeJS.ProcessEnv,
+  polled = false,
+) => git(root, args, { timeout: 30000, env, polled });
 
 /**
  * Writes `paths` out of the index `env` points Git at. They go through stdin:
@@ -41,8 +45,12 @@ export const checkOut = (
     input: nulSeparated(paths),
   });
 
-/** Writes the worktree's tree, untracked files included, without touching the real index. */
-export async function snapshotTree(root: string) {
+/**
+ * Writes the worktree's tree, untracked files included, without touching the
+ * real index. A `polled` one is Relay's own look, which the repository's
+ * filters stay out of.
+ */
+export async function snapshotTree(root: string, { polled = false } = {}) {
   const index = (
     await run(root, [
       "rev-parse",
@@ -78,7 +86,7 @@ export async function snapshotTree(root: string) {
         () => true,
         () => false,
       );
-      if (head) await run(root, ["read-tree", "HEAD"], env);
+      if (head) await run(root, ["read-tree", "HEAD"], env, polled);
     }
     // A folder Git can't add, like a nested repository with no commits yet,
     // is left out (exit code 1) rather than failing the whole snapshot.
@@ -86,11 +94,13 @@ export async function snapshotTree(root: string) {
       root,
       [...noMonitor, ...durable, "add", "-A", "--ignore-errors", "--", "."],
       env,
+      polled,
     ).catch((error: unknown) => {
       if (exitCodeOf(error) !== 1) throw error;
     });
+    // write-tree may run the clean filter too.
     return (
-      await run(root, [...noMonitor, ...durable, "write-tree"], env)
+      await run(root, [...noMonitor, ...durable, "write-tree"], env, polled)
     ).trim();
   } finally {
     await rm(temp, { force: true });

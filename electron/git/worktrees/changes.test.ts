@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, expect, it } from "vitest";
 import { execFileSync } from "node:child_process";
+import { existsSync } from "node:fs";
 import { mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -89,5 +90,19 @@ it.skipIf(process.platform === "win32")(
     expect(await gitRuns(() => worktreeChanges(worktree))).toContain(
       "write-tree",
     );
+  },
+);
+
+it.skipIf(process.platform === "win32")(
+  "snapshots for the card without the clean filter the repository's config names",
+  async () => {
+    const marker = join(temp, "filter-ran");
+    // Before anything reads the worktree: Relay asks about filters once a minute.
+    git(root, "config", "filter.x.clean", `touch '${marker}'; cat`);
+    const worktree = await made();
+    await writeFile(join(worktree.path!, ".gitattributes"), "*.ts filter=x\n");
+    await writeFile(join(worktree.path!, "a.ts"), "changed\n");
+    expect(await paths(worktree)).toEqual([".gitattributes", "a.ts"]);
+    expect(existsSync(marker)).toBe(false);
   },
 );

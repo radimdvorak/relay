@@ -61,15 +61,17 @@ export const checkMonitor = (
  * The `-c` settings that keep a read from running the repository's fsmonitor
  * hook. Decided without waiting, so Git still starts before `git()` returns:
  * until the check has answered, a read goes without fsmonitor at all.
- * Commands the person asked for (commit, checkout) keep the repository's own.
+ * Commands the person asked for (commit, checkout) keep the repository's
+ * own, unless Relay runs one as a `polled` look of its own.
  */
 export function monitorOverride(
   file: string,
   root: string,
   args: string[],
   env: NodeJS.ProcessEnv,
+  polled = false,
 ): string[] {
-  if (!refreshesIndex(args)) return [];
+  if (!polled && !refreshesIndex(args)) return [];
   const hook = monitorChecks(file, root, env).value ?? true;
   return hook ? monitorOff : [];
 }

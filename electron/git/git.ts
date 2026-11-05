@@ -141,6 +141,12 @@ export interface GitOptions {
   signal?: AbortSignal;
   /** Written to Git's stdin, e.g. paths for `--pathspec-from-file=-`. */
   input?: string;
+  /**
+   * A look Relay takes on its own, like the snapshot behind a worktree's
+   * card: kept from the repository's fsmonitor hook and filters, as a
+   * polled status is, whatever the subcommand.
+   */
+  polled?: boolean;
 }
 
 /** Git's failure as the user should see it: its own message, no credentials. */
@@ -192,10 +198,10 @@ function gitArgs(
   file: string,
   root: string,
   args: string[],
-  env?: NodeJS.ProcessEnv,
+  { env, polled }: Pick<GitOptions, "env" | "polled">,
 ): string[] | Promise<string[]> {
-  const monitor = monitorOverride(file, root, args, gitEnv(env));
-  const filters = filterOverride(file, root, args, gitEnv(env));
+  const monitor = monitorOverride(file, root, args, gitEnv(env), polled);
+  const filters = filterOverride(file, root, args, gitEnv(env), polled);
   const full = (settings: string[]) => [
     "-C",
     root,
@@ -218,12 +224,13 @@ export async function git(
     env,
     signal,
     input,
+    polled,
   } = typeof options === "number" ? { timeout: options } : options;
   const file = resolved ?? (await gitExecutable());
   let fullArgs: string[];
   try {
     // Awaited only while it's a promise, so Git starts before this returns.
-    const pending = gitArgs(file, root, args, env);
+    const pending = gitArgs(file, root, args, { env, polled });
     fullArgs = Array.isArray(pending) ? pending : await pending;
   } catch (error) {
     throw gitError(error);
@@ -423,7 +430,7 @@ export async function gitBytes(
   const file = resolved ?? (await gitExecutable());
   try {
     return (
-      await exec(file, await gitArgs(file, root, args), {
+      await exec(file, await gitArgs(file, root, args, {}), {
         timeout: 15000,
         maxBuffer: limit + 4096,
         encoding: "buffer",
