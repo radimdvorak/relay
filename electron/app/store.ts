@@ -149,13 +149,20 @@ export class Store {
     const task = this.queue.then(async () => {
       const next = structuredClone(this.state);
       fn(next);
-      await writeFileAtomic(join(this.dir, "state.json"), JSON.stringify(next));
+      try {
+        await writeFileAtomic(
+          join(this.dir, "state.json"),
+          JSON.stringify(next),
+        );
+      } catch (error) {
+        this.writeError = error;
+        throw error;
+      }
       this.state = next;
       this.writeError = undefined;
     });
-    this.queue = task.catch((error) => {
-      this.writeError = error;
-    });
+    // A change its caller refused never reached the file, so nothing waits to be saved.
+    this.queue = task.catch(() => {});
     await task;
   }
 }
