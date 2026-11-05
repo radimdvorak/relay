@@ -425,6 +425,8 @@ export class DeepReviews {
 
   /** Asks `slots` for their reviews; one that can't start counts as done. */
   private ask(chat: ProjectChat, state: DeepReviewState, slots: number[]) {
+    // Stopped while the round was being saved: Resume asks them later.
+    if (state.status !== "reviewing") return Promise.resolve();
     return sendReviewers(this.host, chat, state, slots, () =>
       this.reviewerDone(chat.id, state.request),
     );
