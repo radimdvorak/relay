@@ -123,8 +123,10 @@ function parseState(text: string): State | undefined {
   return version === 1 ? (parsed as State) : undefined;
 }
 
-const damaged = (path: string) =>
-  `Relay's saved data (${path}) is damaged, and there is no readable earlier copy to fall back on. It was left as it is; moving it elsewhere starts Relay without your projects and settings.`;
+const damagedError = (path: string) =>
+  new Error(
+    `Relay's saved data (${path}) is damaged, and there is no readable earlier copy to fall back on. It was left as it is; moving it elsewhere starts Relay without your projects and settings.`,
+  );
 
 export class Store {
   private state: State = { version: 1, folders: {}, progress: {} };
@@ -167,7 +169,7 @@ export class Store {
     const backup = await readFile(join(this.dir, BACKUP_FILE), "utf8")
       .then(parseState)
       .catch(() => undefined);
-    if (!backup) throw new Error(damaged(path));
+    if (!backup) throw damagedError(path);
     console.warn(
       `[store] ${STATE_FILE} could not be read; starting from ${BACKUP_FILE}, the copy kept at the last good launch`,
     );
