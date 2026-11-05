@@ -19,7 +19,7 @@ export {
   writePasteChunk,
   savePaste,
   setPastesRoot,
-  sweepPastes,
+  sweepPastesSoon,
 } from "./pastes";
 export { keptToSend } from "./attached";
 export { receiveFileChunk, writeUploadChunk } from "./uploads";

@@ -18,7 +18,7 @@ import type { KeepAwake } from "../app/keep-awake";
 import { GiteaLogin, seal, unseal } from "../app/login";
 import { BACKUP_FILE, type Store } from "../app/store";
 import { rearmOnWake } from "../app/wake";
-import { setPastesRoot, sweepPastes, writeUploadChunk } from "../drafts";
+import { setPastesRoot, sweepPastesSoon, writeUploadChunk } from "../drafts";
 import { gitExecutable, setGitPath } from "../git/git";
 import type { GithubLogin } from "../github";
 import { Computers } from "../handoff/computers";
@@ -93,12 +93,12 @@ export async function prepareData(
   setOwnAgentsDir(join(dir, "agent-clis"));
   setProfilesRoot(join(dir, "agent-accounts"));
   setPastesRoot(join(dir, "pastes"));
-  void sweepPastes([
+  sweepPastesSoon([
     join(dir, "project-chats"),
     join(dir, "drafts.json"),
     join(dir, "state.json"),
     join(dir, BACKUP_FILE),
-  ]).catch((e) => console.warn("Could not sweep old pastes:", e));
+  ]);
   const accounts = new AgentAccounts(store, accountsChanged);
   watchSavedSignIns();
   applyLinkedTools(store);
