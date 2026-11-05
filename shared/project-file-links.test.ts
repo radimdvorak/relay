@@ -182,3 +182,14 @@ it("takes a Windows path for an absolute one", () => {
     projectFileLink("C:\\work\\app\\src\\a.ts:3", "C:\\work\\app", true),
   ).toEqual({ path: "src/a.ts", line: 3, directory: false });
 });
+
+it("finds a Windows path in the project whatever its case", () => {
+  const root = "C:\\Users\\Bob\\proj";
+  expect(chatFileLink("c:\\users\\bob\\proj\\src\\a.ts:3", root, true)).toEqual(
+    { path: "src/a.ts", line: 3, directory: false },
+  );
+  // Case still counts outside Windows.
+  expect(
+    chatFileLink("/home/bob/proj/a.ts", "/home/Bob/proj", true),
+  ).toMatchObject({ outside: true });
+});
