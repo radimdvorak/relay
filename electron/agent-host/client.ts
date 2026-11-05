@@ -367,9 +367,7 @@ class HostConnection {
 
   attach(info: SessionInfo, handlers: HostedHandlers) {
     const query = new HostedQuery(this, info.id, handlers, info.split);
-    this.endpoints.set(info.id, query);
-    this.send({ t: "attach", session: info.id });
-    return query;
+    return this.takeBack(info, query);
   }
 
   openProcess(request: HostedProcessOpen) {
@@ -390,10 +388,18 @@ class HostConnection {
   }
 
   attachProcess(info: SessionInfo) {
-    const running = new HostedProcess(this, info.id, info);
-    this.endpoints.set(info.id, running);
-    this.send({ t: "attach", session: info.id });
-    return running;
+    return this.takeBack(info, new HostedProcess(this, info.id, info));
+  }
+
+  /** A session found running; a host that died since has nothing to replay, only its end. */
+  private takeBack<T extends HostedQuery | HostedProcess>(
+    info: SessionInfo,
+    endpoint: T,
+  ) {
+    this.endpoints.set(info.id, endpoint);
+    if (this.closed) ended(endpoint);
+    else this.send({ t: "attach", session: info.id });
+    return endpoint;
   }
 
   forget(id: string) {
@@ -480,13 +486,14 @@ class HostConnection {
     for (const call of this.calls.values())
       call.reject(new Error("The agent host has stopped."));
     this.calls.clear();
-    for (const endpoint of this.endpoints.values())
-      endpoint.entry({
-        seq: -1,
-        kind: "end",
-        failure: "The agent host stopped.",
-      });
+    for (const endpoint of this.endpoints.values()) ended(endpoint);
   }
+}
+
+/** The host is gone: the session ends, and a replay under way is over with it. */
+function ended(endpoint: HostedQuery | HostedProcess) {
+  endpoint.entry({ seq: -1, kind: "end", failure: "The agent host stopped." });
+  endpoint.attached();
 }
 
 /**
@@ -737,6 +744,7 @@ export class HostedProcess {
   }
 
   attached() {
+    if (!this.replaying) return;
     this.replaying = false;
     if (this.replay.some((e) => e.kind === "end"))
       this.connection.forget(this.id);

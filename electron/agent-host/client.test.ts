@@ -1,35 +1,58 @@
 import { afterAll, afterEach, beforeAll, expect, it } from "vitest";
+import { build } from "esbuild";
 import { mkdtemp, readdir, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { AgentHosts } from "./client";
+import { HostedChild } from "./child";
 
-let root: string;
+let root: string, script: string;
 const opened: AgentHosts[] = [];
+/** Children a test started that its hosts may have left behind. */
+const strays: number[] = [];
 
 beforeAll(async () => {
   root = await realpath(await mkdtemp(join(tmpdir(), "relay-host-client-")));
+  script = join(root, "agent-host.mjs");
+  await build({
+    entryPoints: ["electron/agent-host/host.ts"],
+    bundle: true,
+    platform: "node",
+    format: "esm",
+    outfile: script,
+    logLevel: "error",
+    banner: {
+      js: 'import { createRequire } from "node:module"; const require = createRequire(import.meta.url);',
+    },
+  });
 });
 
 afterEach(async () => {
   for (const hosts of opened.splice(0)) hosts.detach();
   const dir = join(root, "hosts");
-  for (const name of await readdir(dir).catch(() => [] as string[])) {
-    const pid = /^host-(\d+)\.json$/.exec(name)?.[1];
+  const hostPids = (await readdir(dir).catch(() => [] as string[])).flatMap(
+    (name) => /^host-(\d+)\.json$/.exec(name)?.[1] ?? [],
+  );
+  for (const pid of [...strays.splice(0), ...hostPids.map(Number)])
     try {
-      if (pid) process.kill(Number(pid), "SIGKILL");
+      process.kill(pid, "SIGKILL");
     } catch {}
-  }
   await rm(dir, { recursive: true, force: true });
 });
 
 afterAll(() => rm(root, { recursive: true, force: true }));
 
+const hostsFor = (hostScript = script) => {
+  const hosts = new AgentHosts(join(root, "hosts"), hostScript);
+  opened.push(hosts);
+  return hosts;
+};
+
 /** A host that writes its record, then answers each connection with `serve`'s body. */
 async function fakeHost(name: string, serve: string) {
-  const script = join(root, `${name}.mjs`);
+  const fake = join(root, `${name}.mjs`);
   await writeFile(
-    script,
+    fake,
     `
     import { createServer } from "node:net";
     import { writeFileSync } from "node:fs";
@@ -44,10 +67,16 @@ async function fakeHost(name: string, serve: string) {
     setTimeout(() => process.exit(0), 10000);
   `,
   );
-  const hosts = new AgentHosts(join(root, "hosts"), script);
-  opened.push(hosts);
-  return hosts;
+  return hostsFor(fake);
 }
+
+const server = {
+  command: process.execPath,
+  args: ["-e", 'console.log("up"); setInterval(() => {}, 1000);'],
+  cwd: tmpdir(),
+  env: { ...process.env } as Record<string, string>,
+  group: false,
+};
 
 it("turns down a freshly started host that hangs up, without throwing in Relay", async () => {
   const hosts = await fakeHost("hangup", "s.destroy();");
@@ -61,4 +90,33 @@ it("turns down a freshly started host that hangs up, without throwing in Relay",
     process.off("uncaughtException", onUncaught);
   }
   expect(uncaught.map(String)).toEqual([]);
+});
+
+it("ends a process taken back from a host that has since died", async () => {
+  const first = hostsFor();
+  const running = await first.openProcess({
+    key: "server",
+    meta: { provider: "fixture" },
+    process: server,
+  });
+  await new Promise<void>((resolve) =>
+    running.read({ entry: (e) => e.kind === "line" && resolve() }),
+  );
+  strays.push((await running.pid())!);
+  first.detach();
+
+  const second = hostsFor();
+  const [found] = await second.discover();
+  const [hostPid] = second.pids();
+  // The host crashes after Relay found its sessions, before it takes them back.
+  process.kill(hostPid!, "SIGKILL");
+  await expect.poll(() => second.pids()).toEqual([]);
+
+  const child = new HostedChild(found!.attachProcess());
+  const exited = new Promise<"exited">((resolve) =>
+    child.on("exit", () => resolve("exited")),
+  );
+  child.release();
+  const late = new Promise<"hung">((r) => setTimeout(() => r("hung"), 2000));
+  expect(await Promise.race([exited, late])).toBe("exited");
 });
