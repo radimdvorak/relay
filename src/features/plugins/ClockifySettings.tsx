@@ -10,6 +10,7 @@ import {
 import { api } from "../../lib/api";
 import {
   clockifyKey,
+  clockifyProjectsKey,
   useClockifyStatus,
   useClockifyWorkspaces,
   useTrackableProjects,
@@ -68,7 +69,7 @@ export function ClockifySettings() {
   const connected = !!status.data?.hasToken;
   const workspaces = useClockifyWorkspaces(settings?.host ?? "", connected);
   const clockifyProjects = useQuery({
-    queryKey: ["clockify-projects", settings?.host, settings?.workspaceId],
+    queryKey: clockifyProjectsKey(settings),
     queryFn: () => api.clockifyProjects(),
     enabled: connected && !!settings?.workspaceId,
   });

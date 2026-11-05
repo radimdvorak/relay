@@ -1,5 +1,8 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import type { ClockifyStatus } from "../../../shared/clockify";
+import type {
+  ClockifySettings,
+  ClockifyStatus,
+} from "../../../shared/clockify";
 import type { PluginId, PluginToggles } from "../../../shared/plugins";
 import { api } from "../../lib/api";
 import { useProjectList } from "../../lib/workspace-queries";
@@ -86,14 +89,24 @@ export const useClockifyWorkspaces = (host: string, enabled: boolean) =>
 export const useTrackableProjects = () =>
   useProjectList((projects) => projects.filter((p) => !p.scratch));
 
-/** The workspace's Clockify projects, for names and colours. */
-export const useClockifyProjects = (enabled = true) =>
-  useQuery({
-    queryKey: ["clockify-projects-list"],
+/**
+ * The saved workspace's Clockify projects, for names and colours. Keyed by
+ * that workspace, so choosing another one in Settings asks again.
+ */
+export function useClockifyProjects(enabled = true) {
+  const status = useClockifyStatus(enabled).data;
+  const settings = status?.settings;
+  return useQuery({
+    queryKey: clockifyProjectsKey(settings),
     queryFn: () => api.clockifyProjects(),
-    enabled,
+    enabled: enabled && !!status?.hasToken && !!settings?.workspaceId,
     staleTime: 5 * 60_000,
   });
+}
+
+export const clockifyProjectsKey = (
+  settings: Pick<ClockifySettings, "host" | "workspaceId"> | undefined,
+) => ["clockify-projects", settings?.host, settings?.workspaceId];
 
 /** A Clockify project's colour, or the accent when it has none. */
 export const projectColor = (
