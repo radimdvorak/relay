@@ -1,18 +1,21 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import { connect } from "node:net";
 import { stripVTControlCharacters } from "node:util";
-import { z } from "zod";
 import type { DevServerState } from "../../shared/preview";
 import { HostedChild } from "../agent-host/child";
-import type { Entry } from "../agent-host/protocol";
 import { foundSessions, inAgentHost, savedMeta } from "../agents";
 import { terminate } from "../platform/terminate";
 import { inheritedEnv, userShell } from "../terminal/env";
 import { projectTasks } from "../terminal/tasks";
 import { connectedPorts } from "./connected-ports";
+import {
+  keepChars,
+  lastLines,
+  savedServer,
+  type SavedServer,
+} from "./hosted-server";
 import { errorMessage } from "../../shared/error-message";
 
-const keepChars = 16 * 1024;
 const START_TIMEOUT_MS = 3 * 60_000;
 export const IDLE_MS = 30 * 60_000;
 /** Sweeps in a row that couldn't tell who's connected before only previews count. */
@@ -32,28 +35,6 @@ export function listening(port: number, timeoutMs = 400): Promise<boolean> {
       socket.once("error", () => done(false));
     });
   return Promise.all([one("127.0.0.1"), one("::1")]).then(([a, b]) => a || b);
-}
-
-/** What the agent host keeps with a server it runs, for the next Relay. */
-const savedServer = z.object({
-  provider: z.literal("dev-server"),
-  folder: z.string(),
-  port: z.number().int(),
-  command: z.string(),
-  env: z.record(z.string(), z.string()).optional(),
-});
-
-/** The output a server taken back after a restart printed last, as much as is kept. */
-function lastLines(entries: Entry[]) {
-  const lines: string[] = [];
-  let chars = 0;
-  for (let i = entries.length - 1; i >= 0 && chars < keepChars; i--) {
-    const entry = entries[i]!;
-    if (entry.kind !== "line") continue;
-    lines.push(entry.text);
-    chars += entry.text.length + 1;
-  }
-  return lines.reverse();
 }
 
 interface Server {
@@ -185,7 +166,7 @@ export class DevServers {
           port,
           command,
           env,
-        } satisfies z.infer<typeof savedServer>,
+        } satisfies SavedServer,
         process: {
           command: shell,
           args: ["-lc", command],
