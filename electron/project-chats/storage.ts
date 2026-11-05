@@ -24,6 +24,7 @@ import { imageMimeType } from "./images";
 import { chatSummary } from "./chat-summaries";
 import {
   liveTurn,
+  publishHeldBack,
   savedBase,
   withLiveTurn,
   type LiveTurn,
@@ -274,14 +275,13 @@ export class ChatStorage {
   }
 
   /**
-   * Keeps a running turn's progress: what changed since the thread's last
-   * full save, mostly the turn's answer, goes to `<id>.live.json` rather than
-   * the thread being rewritten whole; so does a change outside a turn that
-   * leaves the messages be, such as a seen mark. A full save takes over
-   * without a file to build on, or once the turn changed a good part of the
-   * thread. Says how many bytes it wrote.
+   * Keeps a running turn's progress: what changed since the last full save,
+   * mostly the answer, goes to `<id>.live.json`, and so does a change outside
+   * a turn such as a seen mark. A full save takes over without a file to
+   * build on, or once the turn changed much of the thread. Says its bytes.
    */
   async checkpoint(chat: ProjectChat) {
+    publishHeldBack(chat);
     const base = this.bases.get(chat);
     const live = base && JSON.stringify(liveTurn(chat, base));
     if (!live || live.length > base.bytes / 4) {
