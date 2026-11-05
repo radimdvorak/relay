@@ -93,6 +93,59 @@ const writes = [
   "",
 ];
 
+/** Each ran a program or wrote in bash or zsh while the pattern took it for a read. */
+const splitByTheShell = [
+  "rg foo ';echo x' --pre=./evil.sh .",
+  "rg foo \"|echo x\" --pre=./evil.sh .",
+  "rg foo 'a\necho x' --pre=./evil.sh .",
+  "find src \\\necho -delete",
+  "rg foo\ntouch pwned",
+  "sed -n 1p a.ts\ntouch pwned",
+  "cat #'\ntouch pwned\n'",
+  "git -C ';x' status\ntouch pwned",
+];
+
+/** The shell turns these into something else before the command sees its words. */
+const expandedByTheShell = [
+  "rg foo *",
+  "rg foo ''*",
+  "rg foo ?-pre=sh",
+  "sort *",
+  "git diff *",
+  "sed -n 1p *",
+  "sed -n 1p '-i' f",
+  "rg foo \"$X\" .",
+  "ls *(e:'touch pwned':)",
+  "cat =(touch pwned)",
+  "echo ${x@P}",
+  "echo ${PATH[_]}",
+  "echo $_",
+];
+
+it("reads quotes, comments and continued lines as the shell does", () => {
+  for (const command of splitByTheShell)
+    expect(readOnlyShellPattern.test(command), command).toBe(false);
+});
+
+it("turns down what the shell expands into flags or code", () => {
+  for (const command of expandedByTheShell) {
+    expect(readsOnly(command), command).toBe(false);
+    expect(readOnlyShellPattern.test(command), command).toBe(false);
+  }
+});
+
+it("keeps quoted separators and quoted dollars that only search", () => {
+  for (const command of [
+    "rg -n 'foo|bar' src",
+    "rg 'a;b' src && git log --format='%h; %s' -3",
+    "grep -n \"$HOME\" a.txt",
+    "ls src/*.ts",
+  ]) {
+    expect(readsOnly(command), command).toBe(true);
+    expect(readOnlyShellPattern.test(command), command).toBe(true);
+  }
+});
+
 it("lets through what readsOnly does", () => {
   for (const command of reads) {
     expect(readsOnly(command), command).toBe(true);

@@ -19,16 +19,43 @@ const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const oneOf = (words: Iterable<string>) =>
   `(?:${[...words].map(escape).join("|")})`;
 
-/** The rest of one command, up to the next `;`, `&&`, `|` or newline; `2>&1` stays in it. */
-const rest = "(?:>&|[^;&|\\n])*";
+// Words are read the way bash and zsh read them, so a `;` or newline inside
+// quotes doesn't end a command here while the shell reads on past it.
+
+/** Between the words of one command; a newline ends the command instead. */
+const blank = "[ \\t]";
+/** `$NAME` or `${NAME}`, which only read a variable; as read-only-bash's `variable`. */
+const variable = "\\$(?:[A-Za-z]\\w*(?![\\w[])|\\{[A-Za-z]\\w*\\})";
+const singleQuoted = "'[^']*'";
+const doubleQuoted = `"(?:[^"\\\\$\`]|\\\\[\\s\\S]|${variable}|\\$(?="))*"`;
+/** Not a backslash-newline, which joins the next line to this command. */
+const escaped = "\\\\[^\\n]";
+/**
+ * What the shell takes as it is. Not parentheses, which open subshells and
+ * zsh's `*(e:…:)` and `=(…)`, nor `#`, a comment the shell skips to the end
+ * of its line.
+ */
+const literal = "[^\\s;&|'\"\\\\$()<>`#]";
+const redirect = "[12]?>(?:&[12]|[ \\t]*\\/dev\\/null)(?=[\\s;&|]|$)";
+const word = `(?:${redirect}|(?:${singleQuoted}|${doubleQuoted}|${escaped}|${variable}|\\$(?=[\\s;&|]|$)|${literal})+)`;
+
+/** The rest of one command, up to the next `;`, `&&`, `||`, `|` or newline. */
+const rest = `(?:${blank}+${word})*${blank}*`;
 const ends = "(?=[\\s;&|]|$)";
-/** No later argument of this command starts with one of `flags`, or hides a flag from that look. */
-const without = (flags: string) =>
-  `(?![^;&|\\n]*(?:\\s(?:${flags})|${disguisedFlag}))`;
-/** Each word a flag `flags` allows or an argument; nothing hides a flag from that look. */
+
+/** One piece of a command for a look ahead, which reads past a quoted `;` too. */
+const piece = `(?:${singleQuoted}|"(?:[^"\\\\]|\\\\[\\s\\S])*"|${escaped}|[^;&|\\n'"\\\\])`;
+/** A word starting with a wildcard, which may expand to a file named like a flag. */
+const globbedWord = `(?:^|\\s)(?:''|"")*[*?[{^]`;
+const quotedDollar = `"(?:[^"\\\\]|\\\\[\\s\\S])*?\\$(?!")`;
+/** No word of this command hides a flag from a look at its words. */
+const noHiddenFlag = `(?!${piece}*?(?:${disguisedFlag}|${globbedWord}|${quotedDollar}))`;
+/** No later word of this command starts with one of `flags`. */
+const without = (flags: string) => `(?!${piece}*?\\s(?:${flags}))`;
+/** Each word a flag `flags` allows, its value quoted or not, or an argument. */
 const flagged = (flags: string) =>
-  `(?![^;&|\\n]*(?:${disguisedFlag}))(?:\\s+(?:(?:${flags})${ends}|(?!-)(?:>&|[^\\s;&|])+))*\\s*`;
-const gitPrefix = "git(?:\\s+(?:--no-pager|-C\\s+[^\\s;&|]+))*\\s+";
+  `${noHiddenFlag}(?:${blank}+(?:(?=(?:${flags})${ends})${word}|(?!-)${word}))*${blank}*`;
+const gitPrefix = `git${ends}${noHiddenFlag}(?:${blank}+(?:--no-pager|-C${blank}+${word}))*${blank}+`;
 const sedLines = "(?:\\d+|\\$)(?:,(?:\\d+|\\$))?p";
 
 const command = [
@@ -36,11 +63,11 @@ const command = [
   ...Object.entries(allowedFlags).map(
     ([name, flags]) => `${name}${ends}${flagged(flags)}`,
   ),
-  `sed(?:\\s+-n)+\\s+(?:'${sedLines}'|"${sedLines}"|${sedLines})(?:\\s+[^\\s;&|<>-][^\\s;&|<>]*)*\\s*`,
+  `sed${ends}${noHiddenFlag}(?:${blank}+-n)+${blank}+(?:'${sedLines}'|"${sedLines}"|${sedLines})(?:${blank}+(?!-)${word})*${blank}*`,
   `${gitPrefix}${oneOf(gitReads)}${ends}${without("--(?:ou|op|ext)|-[^-\\s]*O")}${rest}`,
   ...Object.entries(gitListings).map(
     ([sub, flags]) =>
-      `${gitPrefix}${escape(sub)}(?:\\s+${oneOf(flags)}${ends})${gitBareWrites.has(sub) ? "+" : "*"}\\s*`,
+      `${gitPrefix}${escape(sub)}(?:${blank}+${oneOf(flags)}${ends})${gitBareWrites.has(sub) ? "+" : "*"}${blank}*`,
   ),
 ].join("|");
 
