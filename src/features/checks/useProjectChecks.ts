@@ -34,6 +34,32 @@ function useAsleep(away: boolean) {
   return asleep;
 }
 
+/** Whether checks are on for the folder or PR, and the target picked, as saved here. */
+function useCheckPreference(pull?: Pull, local?: { id: string }) {
+  const preference = local
+    ? `relay-checks:project:${local.id}`
+    : pull
+      ? `relay-checks:${pull.html_url}`
+      : "";
+  const [preferenceVersion, setPreferenceVersion] = useState(0);
+  const { selection, enabled } = useMemo(
+    () => ({
+      selection: readText(preference + ":target") ?? "",
+      enabled: readText(preference) !== "off",
+    }),
+    [preference, preferenceVersion],
+  );
+  const toggle = (value: boolean) => {
+    writeText(preference, value ? "on" : "off");
+    setPreferenceVersion((n) => n + 1);
+  };
+  const choose = (value: string) => {
+    writeText(preference + ":target", value);
+    setPreferenceVersion((n) => n + 1);
+  };
+  return { preference, selection, enabled, toggle, choose };
+}
+
 /**
  * `busy` pauses rechecking (e.g. while an agent is editing the tree); so does a
  * hidden window. The language service stays loaded and checks once on resume.
@@ -57,18 +83,9 @@ export function useProjectChecks(
     : pull
       ? `${pull.html_url}:${pull.head.sha}`
       : "";
-  const preference = local
-    ? `relay-checks:project:${local.id}`
-    : pull
-      ? `relay-checks:${pull.html_url}`
-      : "";
-  const [preferenceVersion, setPreferenceVersion] = useState(0);
-  const { selection, enabled } = useMemo(
-    () => ({
-      selection: readText(preference + ":target") ?? "",
-      enabled: readText(preference) !== "off",
-    }),
-    [preference, preferenceVersion],
+  const { preference, selection, enabled, toggle, choose } = useCheckPreference(
+    pull,
+    local,
   );
   const [error, setError] = useState<unknown>();
   const [retry, setRetry] = useState(0);
@@ -135,14 +152,6 @@ export function useProjectChecks(
       .then(() => qc.invalidateQueries({ queryKey }))
       .catch(() => {});
   }, [identity, enabled, asleep, paused]);
-  const toggle = (value: boolean) => {
-    writeText(preference, value ? "on" : "off");
-    setPreferenceVersion((n) => n + 1);
-  };
-  const choose = (value: string) => {
-    writeText(preference + ":target", value);
-    setPreferenceVersion((n) => n + 1);
-  };
   const buffer = useCallback(
     (path: string, text: string | null) => {
       if ((!pull && !local) || !enabled) return Promise.resolve();
