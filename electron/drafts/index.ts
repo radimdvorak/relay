@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { ProjectChatSend } from "../../shared/projects";
 import {
+  draftThread,
   hasExtras,
   type DraftChange,
   type DraftDevice,
@@ -84,9 +85,13 @@ export class Drafts {
     return this.store.get(key) ?? null;
   }
 
-  /** Forgets the drafts of threads that are gone. */
-  remove(keys: Iterable<string>) {
-    for (const change of this.store.remove(keys)) this.hooks.changed(change);
+  /** Forgets the drafts of deleted threads, their replies' too. */
+  forgetThreads(chatIds: readonly string[]) {
+    const gone = this.store
+      .list()
+      .map((draft) => draft.key)
+      .filter((key) => chatIds.includes(draftThread(key)?.chatId ?? ""));
+    for (const change of this.store.remove(gone)) this.hooks.changed(change);
   }
 
   /** Whether a phone's send of the draft must go through the desktop's page, which holds part of it. */

@@ -352,6 +352,7 @@ export function chatHandlers(ctx: ApiContext) {
 /** A deleted thread's window and pages close; nothing remembers them. */
 function letGoOfDeleted(ctx: ApiContext, chatId: string) {
   ctx.window.threads.closeDeleted(chatId);
+  ctx.drafts.forgetThreads([chatId]);
   void ctx.previews
     ?.closeThread(chatId)
     .catch((e) => console.warn("Could not forget a deleted thread's pages:", e));

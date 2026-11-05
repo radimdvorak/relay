@@ -104,6 +104,18 @@ it("drops a saved draft that doesn't read and keeps the rest", async () => {
   expect(store.list().map((d) => d.text)).toEqual(["Kept"]);
 });
 
+it("forgets a deleted thread's drafts, its replies' too, and tells everyone", async () => {
+  const { drafts, changes } = await setup();
+  const other = randomUUID();
+  for (const key of [chatId, `${chatId}:${randomUUID()}`, other])
+    drafts.write({ key, text: "Half a thought", base: 0, at: 1 }, "desktop");
+  changes.length = 0;
+  drafts.forgetThreads([chatId]);
+  expect(drafts.list().map((d) => d.key)).toEqual([other]);
+  expect(changes).toHaveLength(2);
+  expect(changes.every((change) => change.draft === null)).toBe(true);
+});
+
 it("names the phone that wrote a draft, and tells everyone", async () => {
   const { bridge, changes } = await setup();
   const after = await bridge.handle(
