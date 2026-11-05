@@ -160,6 +160,7 @@ import type {
   ProjectChat as ProjectChatData,
 } from "../../../shared/projects";
 import { chatKey } from "../../lib/chat-events";
+import { notesKey } from "../notes/useThreadNotes";
 import { threadDraftKey, writeDraftText } from "../../lib/thread-storage";
 import type { ComposerControls } from "../composer/ProjectComposer";
 import { ProjectChat } from "./ProjectChat";
@@ -213,6 +214,9 @@ const opening = "Looking into it. ".repeat(30);
 let root: Root | undefined;
 let container: HTMLElement | undefined;
 const composer = createRef<ComposerControls>();
+let cache: QueryClient | undefined;
+/** Renders the open thread again, its summary as the thread list now has it. */
+let showChat: (chat: ChatSummary) => Promise<void> = async () => {};
 
 afterEach(() => {
   act(() => root?.unmount());
@@ -241,37 +245,40 @@ async function openStreamingThread() {
   container = document.createElement("div");
   document.body.append(container);
   root = createRoot(container);
-  await act(async () => {
-    root!.render(
-      <QueryClientProvider client={qc}>
-        <ProjectChat
-          onCommand={() => false}
-          project={project}
-          projects={[project]}
-          chat={summary}
-          draftId="draft"
-          draftScope={{ kind: "project" }}
-          onContextUsed={noop}
-          onCreated={later}
-          onForked={later}
-          onOpenThread={later}
-          scopes={{
-            canChoosePR: false,
-            onClearScope: noop,
-            onSelectPR: noop,
-            onDeepReview: noop,
-          }}
-          onSwitchProject={noop}
-          onAddProject={noop}
-          onProjectSettings={noop}
-          opens={{ onOpenCode: noop, onOpenFile: noop, onOpenTurnDiff: noop }}
-          viewing={{ path: null, viewed: 0, total: 0 }}
-          ref={composer}
-        />
-      </QueryClientProvider>,
-    );
-    await new Promise((resolve) => setTimeout(resolve, 0));
-  });
+  cache = qc;
+  showChat = (chat) =>
+    act(async () => {
+      root!.render(
+        <QueryClientProvider client={qc}>
+          <ProjectChat
+            onCommand={() => false}
+            project={project}
+            projects={[project]}
+            chat={chat}
+            draftId="draft"
+            draftScope={{ kind: "project" }}
+            onContextUsed={noop}
+            onCreated={later}
+            onForked={later}
+            onOpenThread={later}
+            scopes={{
+              canChoosePR: false,
+              onClearScope: noop,
+              onSelectPR: noop,
+              onDeepReview: noop,
+            }}
+            onSwitchProject={noop}
+            onAddProject={noop}
+            onProjectSettings={noop}
+            opens={{ onOpenCode: noop, onOpenFile: noop, onOpenTurnDiff: noop }}
+            viewing={{ path: null, viewed: 0, total: 0 }}
+            ref={composer}
+          />
+        </QueryClientProvider>,
+      );
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+  await showChat(summary);
   // As lib/chat-events puts a pushed version of the answer in the cache.
   return async () => {
     answer = {
@@ -375,6 +382,65 @@ it("shows the checkout's branch once it arrives, though the branch picker skips 
     await new Promise((resolve) => setTimeout(resolve, 0));
   });
   expect(document.body.textContent).toContain("sample-branch");
+});
+
+it("shows notes kept and dropped mid-answer, though the notes chip skips streamed pieces", async () => {
+  const streamed = await openStreamingThread();
+  await streamed();
+  const chip = () =>
+    document.querySelector(".notes-chip")?.getAttribute("aria-label");
+  const keep = async (ids: string[]) => {
+    const notes = ids.map((id) => ({ id, text: id, created: 1, updated: 1 }));
+    await act(async () => {
+      cache!.setQueryData(notesKey("c1"), notes);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    await streamed();
+  };
+  expect(chip()).toBeUndefined();
+  await keep(["n1"]);
+  expect(chip()).toBe("1 note");
+  await keep(["n1", "n2"]);
+  expect(chip()).toBe("2 notes");
+  await keep([]);
+  expect(chip()).toBeUndefined();
+});
+
+it("shows folders linked and unlinked mid-answer, though the links control skips streamed pieces", async () => {
+  const streamed = await openStreamingThread();
+  await streamed();
+  const linked = () =>
+    document.querySelector(".linked-trigger")?.getAttribute("aria-label");
+  const before = linked();
+  await showChat({
+    ...summary,
+    links: [{ path: "/sample/docs", access: "read" }],
+  });
+  await streamed();
+  expect(linked()).toBe("1 linked folder");
+  await showChat({ ...summary, links: [] });
+  await streamed();
+  expect(linked()).toBe(before);
+});
+
+it("shows the thread's new worktree branch, though the branch row skips streamed pieces", async () => {
+  const streamed = await openStreamingThread();
+  await streamed();
+  expect(document.body.textContent).not.toContain("sample-worktree-branch");
+  answers.set("projectWorktree", {
+    path: "/sample/worktrees/one",
+    branch: "sample-worktree-branch",
+    files: [],
+  });
+  await showChat({
+    ...summary,
+    worktree: {
+      path: "/sample/worktrees/one",
+      branch: "sample-worktree-branch",
+    },
+  });
+  await streamed();
+  expect(document.body.textContent).toContain("sample-worktree-branch");
 });
 
 // The composer's slots, the controls around it, still render on every
