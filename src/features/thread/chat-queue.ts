@@ -22,3 +22,19 @@ export function moveQueued<T extends { input: { id: string } }>(
     ],
   };
 }
+
+/** The newest message queued in conversation `rootId`; see `conversationOf`. */
+export function newestQueued<T extends { input: I; created: number }, I>(
+  queue: T[],
+  rootId: string | null,
+  conversationOf: (input: I) => string | null,
+) {
+  let last: T | undefined;
+  for (const queued of queue)
+    if (
+      conversationOf(queued.input) === rootId &&
+      (!last || queued.created >= last.created)
+    )
+      last = queued;
+  return last;
+}
