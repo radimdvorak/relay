@@ -112,8 +112,8 @@ export function usePullThreads(
 /**
  * Reviewing a PR from the new thread makes it that PR's thread, taking the
  * unsent message and composer settings along, so a review started without
- * messages has a thread to come back to. It opens only if the user is still
- * on that new thread.
+ * messages has a thread to come back to. It opens, and takes them, only if
+ * the user is still on that new thread.
  */
 function useReviewThreadStart(
   nav: PullNavigation,
@@ -135,11 +135,13 @@ function useReviewThreadStart(
         kind: "pr",
         ref,
       });
+      await qc.refetchQueries({ queryKey: ["project-chats", project.id] });
+      // Gone elsewhere meanwhile: the new thread's draft stays where it was written.
+      if (!sameSpot(spotNow(), from)) return;
       saveComposerSettings(next.id, loadComposerSettings(draftId));
       if (readDraft(threadDraftKey(draftId)))
         moveDraft(threadDraftKey(draftId), threadDraftKey(next.id));
-      await qc.refetchQueries({ queryKey: ["project-chats", project.id] });
-      if (sameSpot(spotNow(), from)) nav.setChatId(next.id);
+      nav.setChatId(next.id);
     } catch (e) {
       onError(e);
     } finally {

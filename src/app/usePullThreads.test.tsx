@@ -5,6 +5,8 @@ import { afterEach, expect, it, vi } from "vitest";
 import { flush, mount } from "../../tests/unit/hook-harness";
 import { api } from "../lib/api";
 import { usePullThreads } from "./usePullThreads";
+import { readDraft, writeDraft } from "../features/composer/drafts";
+import { threadDraftKey } from "../lib/thread-storage";
 import type { ChatSummary, Project } from "../../shared/projects";
 import type { NavigationLock } from "../lib/navigation-lock";
 
@@ -89,6 +91,7 @@ it("opens the PR thread when the user stayed put", async () => {
 it("doesn't switch to a review's thread once the user has left its project", async () => {
   const made = deferred<ChatSummary>();
   vi.mocked(api.createProjectChat).mockReturnValue(made.promise);
+  writeDraft(threadDraftKey("new:a"), "Half a message");
   const s = setup(true);
   await flush();
   expect(api.createProjectChat).toHaveBeenCalledWith("a", { kind: "pr", ref });
@@ -98,6 +101,9 @@ it("doesn't switch to a review's thread once the user has left its project", asy
   await flush();
 
   expect(s.setChatId).not.toHaveBeenCalled();
+  // The draft stays on the new thread it was written in.
+  expect(readDraft(threadDraftKey("new:a"))).toBe("Half a message");
+  expect(readDraft(threadDraftKey("pr-thread"))).toBe("");
 });
 
 it("doesn't open a PR from the Pull requests page once the user went elsewhere", async () => {
