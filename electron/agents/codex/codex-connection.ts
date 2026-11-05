@@ -124,21 +124,22 @@ class CodexConnection {
             ready(wire);
             await lifetime;
           },
-          async (method, params) => {
-            // A fork never asks the person anything, and never through the turn.
-            if (this.sides.has(threadOf(params))) {
-              if (method.endsWith("requestApproval"))
-                return { decision: "decline" };
-              throw new Error(`A side check can't answer ${method}.`);
-            }
-            if (this.onRequest) return this.onRequest(method, params);
-            if (method.endsWith("requestApproval"))
-              return { decision: "decline" };
-            throw new Error(`No active handler for ${method}.`);
-          },
+          (method, params) => this.answer(method, params),
         );
       })
       .catch(fail);
+  }
+
+  /** What Codex asked of Relay: the turn answers, never a side check's fork. */
+  private async answer(method: string, params: unknown) {
+    // A fork never asks the person anything, and never through the turn.
+    if (this.sides.has(threadOf(params))) {
+      if (method.endsWith("requestApproval")) return { decision: "decline" };
+      throw new Error(`A side check can't answer ${method}.`);
+    }
+    if (this.onRequest) return this.onRequest(method, params);
+    if (method.endsWith("requestApproval")) return { decision: "decline" };
+    throw new Error(`No active handler for ${method}.`);
   }
 
   /**
