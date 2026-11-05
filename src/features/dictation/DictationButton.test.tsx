@@ -100,3 +100,14 @@ it("leaves the composer behind an open dialog alone", async () => {
   pressDictate();
   expect(session.startDictation).not.toHaveBeenCalled();
 });
+
+it("tries again from the shortcut while its own prompt is showing", async () => {
+  session.startDictation.mockResolvedValueOnce(false);
+  await renderComposer();
+  await act(async () => pressDictate());
+  expect(
+    document.querySelector('.dictation-prompt[role="dialog"]'),
+  ).not.toBeNull();
+  pressDictate();
+  expect(session.startDictation).toHaveBeenCalledTimes(2);
+});
