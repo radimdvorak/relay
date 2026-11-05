@@ -165,6 +165,27 @@ describe("askCodexSide", () => {
     expect(answer.reply).toBeNull();
   });
 
+  it("stops the fork's turn when the check was called off while it started", async () => {
+    const { wire, calls } = fakeServer([
+      ["turn/started", { turn: { id: "side-turn" } }],
+    ]);
+    const stop = new AbortController();
+    const request = wire.request.bind(wire);
+    wire.request = async (method, params) => {
+      if (method === "turn/start") stop.abort();
+      return request(method, params);
+    };
+    const answer = await askCodexSide(
+      wire,
+      "thread",
+      settings,
+      "Is there one thing?",
+      stop.signal,
+    );
+    expect(calls.map((c) => c.method)).toContain("turn/interrupt");
+    expect(answer.reply).toBeNull();
+  });
+
   it("stops a fork that starts a tool and drops what it says", async () => {
     const { wire, calls } = fakeServer([
       ["turn/started", { turn: { id: "side-turn" } }],
