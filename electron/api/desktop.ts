@@ -17,7 +17,7 @@ import { takes, type ApiContext, type Handlers } from "./context";
 /** A link from the window, opened by the OS: web and mail addresses only. */
 async function openOutside(url: string) {
   const u = new URL(url);
-  // Markdown and the pages answers show link to mail as well as the web.
+  // Answers and the pages they show link to mail addresses too.
   if (
     !["https:", "http:", "mailto:"].includes(u.protocol) ||
     u.username ||
