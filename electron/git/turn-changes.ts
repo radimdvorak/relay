@@ -3,7 +3,6 @@ import {
   chmod,
   lstat,
   mkdtemp,
-  readFile,
   readlink,
   readdir,
   rm,
@@ -13,12 +12,11 @@ import {
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import { textLimit } from "./working-files";
 import { ownFiles, type TurnClaim } from "./turn-claims";
 import { checkOut, durable, noMonitor, run, snapshot } from "./turn-snapshots";
 import { revisionDiff } from "./revision-diff";
+import { mergeBack } from "./merge-back";
 import { eachLimited } from "../util/each-limited";
-import { gitBytes } from "./git";
 import type { FilePair } from "../../shared/types";
 import type { TurnFileChange } from "../../shared/projects";
 import { errorMessage } from "../../shared/error-message";
@@ -252,33 +250,6 @@ async function clearEmptyDirectory(root: string, path: string): Promise<void> {
   await rmdir(join(root, path));
 }
 
-/** A blob as it would be checked out, line endings and filters applied. */
-async function checkedOut(root: string, rev: string, path: string) {
-  // Filters such as LFS may reach the network; gitEnv keeps them from prompting.
-  return gitBytes(root, ["cat-file", "--filters", `${rev}:${path}`]);
-}
-
-/** Undoes `from` → `to` on top of whatever the file holds now; null when it conflicts. */
-async function mergeBack(root: string, path: string, from: string, to: string) {
-  const dir = await mkdtemp(join(tmpdir(), "relay-rewind-"));
-  try {
-    const base = join(dir, "base");
-    const other = join(dir, "other");
-    await writeFile(base, await checkedOut(root, from, path));
-    await writeFile(other, await checkedOut(root, to, path));
-    // Exits non-zero on conflicts and refuses binary files: both stay as they are.
-    return await gitBytes(
-      root,
-      ["merge-file", "-p", "-q", join(root, path), base, other],
-      textLimit * 2,
-    );
-  } catch {
-    return null;
-  } finally {
-    await rm(dir, { recursive: true, force: true });
-  }
-}
-
 /**
  * Plans moving files from how `from` has them to how `to` has them, keeping
  * edits made since: an untouched file is replaced, an edited one merged.
@@ -325,9 +296,7 @@ export async function plan(
     // a content rollback and later text survives an executable-bit rollback.
     const contents =
       had?.mode.startsWith("100") && want?.mode.startsWith("100") && entry?.file
-        ? had.id === want.id
-          ? await readFile(join(root, path))
-          : await mergeBack(root, path, from, to)
+        ? await mergeBack(root, path, from, to, had.id === want.id)
         : null;
     if (contents) {
       const mode = entry!.mode === had!.mode ? want!.mode : entry!.mode;
