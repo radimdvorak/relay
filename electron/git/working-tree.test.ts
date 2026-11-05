@@ -15,7 +15,7 @@ import { basename, join } from "node:path";
 import { performGitAction } from "./git-actions";
 import { workingDiff } from "./working-diff";
 import { workingTree } from "./working-tree";
-import { revisionDiff } from "./turn-changes";
+import { revisionDiff } from "./revision-diff";
 import { setGitPath } from "./git";
 import { gitIn } from "../../tests/fixtures/git-repo";
 let root: string, remote: string;
