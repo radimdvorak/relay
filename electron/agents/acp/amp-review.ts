@@ -79,12 +79,14 @@ const segment = `\\s*(?:${command})\\s*`;
  */
 export const readOnlyShellPattern = new RegExp(
   [
-    "^",
+    // Amp matches with `^` and `$` at every line, so `touch x\nls` passed
+    // for its `ls`; these hold at the ends of the whole command alone.
+    "(?<![\\s\\S])",
     // Writes, substitutions and here-documents, bar `>/dev/null` and `2>&1`.
     "(?![\\s\\S]*(?:[<`]|\\$\\(|>(?!\\s*\\/dev\\/null(?:\\s|$)|&1(?:\\s|$))))",
     // A lone `&` sends a command to the background.
     "(?![\\s\\S]*(?<![&>])&(?!&))",
-    `${segment}(?:(?:&&|\\|\\||[;|\\n])${segment})*$`,
+    `${segment}(?:(?:&&|\\|\\||[;|\\n])${segment})*(?![\\s\\S])`,
   ].join(""),
 );
 

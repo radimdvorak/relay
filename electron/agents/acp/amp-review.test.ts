@@ -5,6 +5,13 @@ import { expect, it } from "vitest";
 import { readsOnly } from "../../agent-host/read-only-bash";
 import { readOnlyEnv, readOnlyShellPattern, readOnlySettings } from "./amp-review";
 
+/**
+ * Whether Amp runs `command` under the rule: it matches with `^` and `$` at
+ * every line (`amp permissions test`, Amp 0.0.1793868001).
+ */
+const ampAllows = (command: string) =>
+  new RegExp(readOnlyShellPattern.source, "m").test(command);
+
 const reads = [
   "git status --short",
   "git --no-pager diff main...HEAD -- src",
@@ -100,6 +107,8 @@ const splitByTheShell = [
   "rg foo 'a\necho x' --pre=./evil.sh .",
   "find src \\\necho -delete",
   "rg foo\ntouch pwned",
+  "touch pwned\nls",
+  "ls\ntouch pwned",
   "sed -n 1p a.ts\ntouch pwned",
   "cat #'\ntouch pwned\n'",
   "git -C ';x' status\ntouch pwned",
@@ -124,13 +133,13 @@ const expandedByTheShell = [
 
 it("reads quotes, comments and continued lines as the shell does", () => {
   for (const command of splitByTheShell)
-    expect(readOnlyShellPattern.test(command), command).toBe(false);
+    expect(ampAllows(command), command).toBe(false);
 });
 
 it("turns down what the shell expands into flags or code", () => {
   for (const command of expandedByTheShell) {
     expect(readsOnly(command), command).toBe(false);
-    expect(readOnlyShellPattern.test(command), command).toBe(false);
+    expect(ampAllows(command), command).toBe(false);
   }
 });
 
@@ -142,26 +151,26 @@ it("keeps quoted separators and quoted dollars that only search", () => {
     "ls src/*.ts",
   ]) {
     expect(readsOnly(command), command).toBe(true);
-    expect(readOnlyShellPattern.test(command), command).toBe(true);
+    expect(ampAllows(command), command).toBe(true);
   }
 });
 
 it("lets through what readsOnly does", () => {
   for (const command of reads) {
     expect(readsOnly(command), command).toBe(true);
-    expect(readOnlyShellPattern.test(command), command).toBe(true);
+    expect(ampAllows(command), command).toBe(true);
   }
 });
 
 it("turns down whatever readsOnly does", () => {
   for (const command of writes)
-    expect(readOnlyShellPattern.test(command), command).toBe(false);
+    expect(ampAllows(command), command).toBe(false);
 });
 
 it("turns down flags spelled to slip past the look", () => {
   for (const command of disguised) {
     expect(readsOnly(command), command).toBe(false);
-    expect(readOnlyShellPattern.test(command), command).toBe(false);
+    expect(ampAllows(command), command).toBe(false);
   }
 });
 
