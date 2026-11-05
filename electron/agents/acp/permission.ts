@@ -22,6 +22,18 @@ const optionOf = (request: AcpPermissionRequest, ...kinds: string[]) =>
     .map((kind) => request.options.find((o) => o.kind === kind))
     .find(Boolean);
 
+/**
+ * Whether the user can be offered `decision`. Gemini offers several "always"
+ * options (a whole MCP server, one tool, every future session), and Relay's
+ * one Always can't say which it would pick, so it offers Always only alone.
+ */
+function canOffer(request: AcpPermissionRequest, decision: AgentDecision) {
+  if (decision === "cancel") return false;
+  const kind = decisionKinds[decision];
+  const offered = request.options.filter((o) => o.kind === kind).length;
+  return decision === "acceptForSession" ? offered === 1 : offered > 0;
+}
+
 /** What the user sees of a permission request: the command, or the files it changes. */
 function requestDetail(request: AcpPermissionRequest) {
   const raw = request.toolCall.rawInput as Record<string, unknown> | undefined;
@@ -68,9 +80,7 @@ export async function permission(
 
   const decisions = (
     Object.keys(decisionKinds) as (keyof typeof decisionKinds)[]
-  ).filter((decision) =>
-    request.options.some((o) => o.kind === decisionKinds[decision]),
-  );
+  ).filter((decision) => canOffer(request, decision));
   const response = await options
     .onRequest(
       {

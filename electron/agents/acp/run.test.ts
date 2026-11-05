@@ -539,6 +539,47 @@ it("asks the user when the mode does, and answers with the option they picked", 
   });
 });
 
+it("offers no Always when the agent has several, rather than picking the broadest", async () => {
+  // Gemini CLI's options for an MCP tool: the whole server first, then the tool.
+  const { acp, root } = await agent({
+    turn: [
+      {
+        ask: {
+          toolCall: { ...editing, kind: "other", title: "query (db MCP)" },
+          options: [
+            {
+              optionId: "proceed_always_server",
+              name: 'Allow all "db" server tools for this session',
+              kind: "allow_always",
+            },
+            {
+              optionId: "proceed_always_tool",
+              name: 'Allow tool "query" for this session',
+              kind: "allow_always",
+            },
+            { optionId: "proceed_once", name: "Allow", kind: "allow_once" },
+            { optionId: "cancel", name: "Reject", kind: "reject_once" },
+          ],
+        },
+      },
+      say("ok"),
+    ],
+  });
+  const onRequest = vi.fn(async () => ({
+    kind: "approval" as const,
+    decision: "accept" as const,
+  }));
+  await runAcp(
+    acp,
+    options(root, { runtimeMode: "approval-required", onRequest }),
+  );
+
+  expect(onRequest).toHaveBeenCalledWith(
+    expect.objectContaining({ decisions: ["accept", "decline"] }),
+    expect.anything(),
+  );
+});
+
 it("answers on the user's behalf where the mode decides, without asking", async () => {
   const onRequest = vi.fn();
   const answered = async (more: Partial<AgentOptions>) => {
