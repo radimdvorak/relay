@@ -279,7 +279,7 @@ export function ThreadComposer({
     queryFn: () => api.composerPredictions(),
   });
   const savedReport = useMemo(() => latestContextReport(shown), [shown]);
-  const cost = useSteadyValue(threadCost(shown));
+  const cost = useSteadyValue(useMemo(() => threadCost(shown), [shown]));
   const cacheExpired = useCacheExpired(context?.usage.cache);
   // useCacheExpired renders again once the cache runs out.
   const compactOffer = cacheExpired
