@@ -27,6 +27,7 @@ import { cursorPolicy, runCursor } from "./run";
 import { configureCursor } from "./sdk";
 import { runtimeModesFor } from "../../../shared/agent-modes";
 import type { AgentOptions } from "../types";
+import { CANCEL_GRACE_MS } from "../turn-kit";
 import type { AgentActivity } from "../../../shared/projects";
 import {
   relayToken,
@@ -302,6 +303,18 @@ describe("a Cursor turn", () => {
     });
     await expect(runCursor(options)).rejects.toThrow(/Cancelled by you/);
   }, 15_000);
+
+  it("stops a turn at once when Stop comes before Cursor started the run", async () => {
+    const { controller, options } = turn("[[slowstart]] [[slow]]");
+    const running = runCursor(options);
+    const stopped = expect(running).rejects.toThrow(/Cancelled by you/);
+    await vi.waitFor(async () => expect(await asked()).toHaveLength(1));
+    const at = Date.now();
+    controller.abort();
+    await stopped;
+    // Cursor heard it, rather than Relay giving up on the worker.
+    expect(Date.now() - at).toBeLessThan(CANCEL_GRACE_MS);
+  });
 
   it("ends a worker whose turn ignores Stop, so the thread's next turn resumes its agent instead of finding it busy", async () => {
     const alive = (pid: number) => {
