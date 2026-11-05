@@ -1,8 +1,11 @@
 import { it, expect, vi } from "vitest";
-import { readFile, writeFile } from "node:fs/promises";
-import { basename, join } from "node:path";
+import { cp, mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { basename, dirname, join } from "node:path";
+import { tmpdir } from "node:os";
 import { randomUUID } from "node:crypto";
 import type { ChatMessage } from "../../shared/projects";
+import { Store } from "../app/store";
+import { ChatStorage } from "./storage";
 import {
   chats,
   projectId,
@@ -14,13 +17,20 @@ import {
 
 const written: { file: string; bytes: number }[] = [];
 
+/** Runs after each write lands, as if Relay died right then. */
+const afterWrite = {
+  copy: undefined as ((file: string) => Promise<void>) | undefined,
+};
+
 vi.mock("../util/atomic-write", async (importOriginal) => {
   const real = await importOriginal<typeof import("../util/atomic-write")>();
   return {
     ...real,
     writeFileAtomic: (...args: Parameters<typeof real.writeFileAtomic>) => {
       written.push({ file: basename(args[0]), bytes: args[1].length });
-      return real.writeFileAtomic(...args);
+      return real
+        .writeFileAtomic(...args)
+        .then(() => afterWrite.copy?.(args[0]));
     },
   };
 });
@@ -41,7 +51,8 @@ const earlierTurns = (): ChatMessage[] =>
     provider: "codex",
   }));
 
-it("rewrites a long thread's file whole only at the end of a turn and the session's start", async () => {
+/** A thread with a long history, as a restart finds it. */
+async function longThread() {
   const made = await chats.create(projectId, { kind: "project" });
   await chats.dispose();
   const file = join(root, "chats", `${made.id}.json`);
@@ -49,6 +60,11 @@ it("rewrites a long thread's file whole only at the end of a turn and the sessio
   saved.messages = earlierTurns();
   await writeFile(file, JSON.stringify(saved));
   restart();
+  return made;
+}
+
+it("rewrites a long thread's file whole only at the end of a turn and the session's start", async () => {
+  const made = await longThread();
   written.length = 0;
 
   await chats.send(made.id, input("@codex Explain the cache guard"));
@@ -66,4 +82,35 @@ it("rewrites a long thread's file whole only at the end of a turn and the sessio
   expect(liveFile.length).toBeGreaterThanOrEqual(2);
   for (const { bytes } of liveFile)
     expect(bytes).toBeLessThan(threadFile[0].bytes / 20);
+});
+
+it("keeps the sent message through a crash before the turn's end saves the thread whole", async () => {
+  const made = await longThread();
+  const crashed = await mkdtemp(join(tmpdir(), "relay-crashed-"));
+  let copied = false;
+  afterWrite.copy = async (file) => {
+    if (copied || basename(file) !== `${made.id}.live.json`) return;
+    copied = true;
+    // Relay's data as a crash right after the sent message's checkpoint leaves it.
+    await cp(dirname(dirname(file)), crashed, { recursive: true });
+  };
+  try {
+    await chats.send(made.id, input("@codex Explain the cache guard"));
+    await vi.waitFor(() => expect(copied).toBe(true));
+  } finally {
+    afterWrite.copy = undefined;
+  }
+
+  const reopened = new Store(join(crashed, "state"));
+  await reopened.load();
+  const storage = new ChatStorage(
+    reopened,
+    join(crashed, "chats"),
+    () => false,
+  );
+  const thread = await storage.load(made.id);
+  expect(thread.messages.map((m) => [m.role, m.body])).toContainEqual([
+    "user",
+    "@codex Explain the cache guard",
+  ]);
 });
