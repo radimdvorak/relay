@@ -74,6 +74,7 @@ import { Updater } from "./app/updater";
 import { DailyPing } from "./app/daily-ping";
 import { DevBuild } from "./app/dev-build";
 import { listenDevSwitch } from "./app/dev-switch";
+import { serveChatPushes } from "./app/chat-pushes";
 import { ProjectAdding } from "./project-add";
 import { MenubarSounds } from "./sounds/menubar-sounds";
 import { flushWorkingFiles } from "./git/working-files";
@@ -399,6 +400,7 @@ app
       window.send("relay:agent-accounts", state);
       watchSavedSignIns();
     });
+    const pushChat = serveChatPushes(window);
     const { projects, pullHosts, devops, chats, pullMerges, clockify, schedules } =
       threadServices({
         dir: dataDir,
@@ -408,7 +410,7 @@ app
         github,
         online: () => net.isOnline(),
         chatEvent: (event) => {
-          window.send("relay:project-chat", event);
+          pushChat(event);
           phoneRemote?.chatEvent(event);
         },
         prefs: () => readPrefs(file.state().values),
