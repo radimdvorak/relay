@@ -184,7 +184,7 @@ async function prepareGoogleProfile(home: string, dir: string) {
   const link = async (from: string, to: string) => {
     if (await lstat(to).catch(() => undefined)) return;
     if (!(await lstat(from).catch(() => undefined))) return;
-    await symlink(from, to).catch((error: NodeJS.ErrnoException) => {
+    await linkIn(from, to).catch((error: NodeJS.ErrnoException) => {
       if (error.code !== "EEXIST") throw error;
     });
   };
