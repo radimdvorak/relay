@@ -9,6 +9,7 @@ import { projectChatsQuery } from "../lib/workspace-queries";
 import { hasOwnWindow } from "../features/thread-windows/thread-windows";
 import type { ShellNavigation } from "./useShellNavigation";
 import type { useProjects } from "./useProjects";
+import { useShellSpot } from "./shell-spot";
 
 /** The thread and its project as they are now, either of them maybe only just added. */
 async function lookUpThread(
@@ -37,6 +38,7 @@ export function useThreadOpening(
 ) {
   const qc = useQueryClient();
   const { navigate } = nav;
+  const spotNow = useShellSpot(nav);
   /**
    * Opens `c`, or brings its own window up when it has one. Pass `fresh`
    * to show it in this window regardless.
@@ -80,9 +82,10 @@ export function useThreadOpening(
   // A thread its agent moved to another project goes along while it shows,
   // into a project the agent may have only just added.
   const followMoved = useStableCallback(async (t: ThreadWindow) => {
-    if (t.chatId !== nav.chatId) return;
+    const stillShown = () => spotNow().chatId === t.chatId;
+    if (!stillShown()) return;
     const found = await lookUpFresh(t);
-    if (found) navigate(found.p, found.next);
+    if (found && stillShown()) navigate(found.p, found.next);
   });
   useEffect(
     () => api.onThreadMoved((t) => void followMoved(t).catch(setError)),
