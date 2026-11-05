@@ -140,7 +140,6 @@ export async function askCodexSide(
       sandboxPolicy: { type: "readOnly", networkAccess: false },
     })) as { turn?: { id?: string } };
     turnId ||= started.turn?.id ?? "";
-    // Called off while starting: the abort had no turn to interrupt yet.
     if (worked || signal.aborted) await stop();
     await ended;
   } finally {
