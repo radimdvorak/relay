@@ -37,3 +37,10 @@ it("leaves a paste pill's text and the typed words around it alone", () => {
   const draft = `see${paste}then ultrathink`;
   expect(toggled(draft)).toBe(`see${paste}then`);
 });
+
+it("adds the keyword when it's only in a pill, and takes the typed one back out", () => {
+  const paste = pasteMarkdown({ n: 1, text: "ultrathink\nlog" });
+  const draft = `see${paste}`;
+  expect(toggled(draft)).toBe(`see${paste}ultrathink`);
+  expect(toggled(toggled(draft))).toBe(`see${paste}`);
+});
