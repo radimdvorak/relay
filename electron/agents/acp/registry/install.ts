@@ -37,7 +37,8 @@ export interface InstalledAgent {
   icon?: string;
 }
 
-const versionName = /^[\w.+-]+$/;
+/** A version's folder name; never `.` or `..`, which name the folder itself or the one above. */
+const versionName = /^(?!\.\.?$)[\w.+-]+$/;
 
 const pointerSchema = z.object({
   version: z.string().regex(versionName),
