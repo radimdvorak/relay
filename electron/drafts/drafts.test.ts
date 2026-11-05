@@ -2,7 +2,7 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
-import { afterEach, beforeEach, expect, it } from "vitest";
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import type { DraftChange, HeldSend } from "../../shared/drafts";
 import type { ProjectChatSend } from "../../shared/projects";
 import { RemoteBridge } from "../remote/bridge";
@@ -253,6 +253,69 @@ it("lets a refused new-draft send retry with the same send id", async () => {
   drafts.finishSend(requests[1]!.id, { chatId });
   await expect(retried).resolves.toEqual({ chatId });
   await store.flush();
+});
+
+it("doesn't start a second thread when a held send that timed out went after all", async () => {
+  vi.useFakeTimers();
+  try {
+    const requests: HeldSend[] = [];
+    const { bridge, drafts, store } = await setup(
+      (r) => (requests.push(r), true),
+    );
+    const key = "new:p1:abc";
+    const message = send("Fix this");
+    drafts.write(
+      { key, text: message.body, base: 0, at: 1, extras: { codeRefs: 1 } },
+      "desktop",
+    );
+    const first = bridge.handle("sendDraft", [key, null, message]);
+    const timedOut = expect(first).rejects.toThrow("in time");
+    await vi.advanceTimersByTimeAsync(110_000);
+    await timedOut;
+    // The page was making the worktree; the phone tries again meanwhile.
+    const retried = bridge.handle("sendDraft", [key, null, message]);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(requests).toHaveLength(1);
+    const result = { chatId: randomUUID() };
+    drafts.finishSend(requests[0]!.id, result);
+    await expect(retried).resolves.toEqual(result);
+    expect(drafts.list()).toEqual([]);
+    await store.flush();
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+it("drops the draft of a held send that went after it timed out, and answers the retry", async () => {
+  vi.useFakeTimers();
+  try {
+    const requests: HeldSend[] = [];
+    const { bridge, drafts, store } = await setup(
+      (r) => (requests.push(r), true),
+    );
+    const key = "new:p1:abc";
+    const message = send("Fix this");
+    drafts.write(
+      { key, text: message.body, base: 0, at: 1, extras: { codeRefs: 1 } },
+      "desktop",
+    );
+    const first = bridge.handle("sendDraft", [key, null, message]);
+    const timedOut = expect(first).rejects.toThrow("in time");
+    await vi.advanceTimersByTimeAsync(110_000);
+    await timedOut;
+    // A page that loads now mustn't send what the phone was told didn't go.
+    expect(drafts.waitingSends()).toEqual([]);
+    const result = { chatId: randomUUID() };
+    drafts.finishSend(requests[0]!.id, result);
+    expect(drafts.list()).toEqual([]);
+    await expect(
+      bridge.handle("sendDraft", [key, null, message]),
+    ).resolves.toEqual(result);
+    expect(requests).toHaveLength(1);
+    await store.flush();
+  } finally {
+    vi.useRealTimers();
+  }
 });
 
 it("keeps new-draft send receipts separate for different draft keys", async () => {
