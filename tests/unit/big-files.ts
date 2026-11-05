@@ -38,7 +38,7 @@ export const bigFiles: Record<string, number> = {
   "src/features/quick-switch/QuickSwitchHud.tsx": 614,
   "src/features/sidebar/ProjectTree.tsx": 657,
   "src/features/sidebar/SidebarActivity.tsx": 592,
-  "src/features/thread/ProjectChat.tsx": 622,
+  "src/features/thread/ProjectChat.tsx": 623,
   "src/features/thread/QueuedMessages.tsx": 585,
   "src/lib/shortcuts.ts": 502,
 };

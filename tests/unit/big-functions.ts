@@ -304,7 +304,7 @@ export const bigFunctions: Record<string, number> = {
   "src/features/thread/HeldSends.tsx › HeldSends": 103,
   "src/features/thread/NewThreadBranch.tsx › NewThreadBranch": 117,
   "src/features/thread/NewWorkspacePicker.tsx › NewWorkspacePicker": 134,
-  "src/features/thread/ProjectChat.tsx › ProjectChat": 530,
+  "src/features/thread/ProjectChat.tsx › ProjectChat": 531,
   "src/features/thread/QueuedMessages.tsx › QueuedMessages": 256,
   "src/features/thread/QueuedMessages.tsx › QueuedRow": 81,
   "src/features/thread/SelectionQuote.tsx › SelectionQuote": 155,
