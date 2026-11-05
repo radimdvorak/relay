@@ -40,9 +40,37 @@ export function gitTool(cwd: string, signal: AbortSignal): SDKCustomTool {
           `git ${words.join(" ")} isn't allowed: this turn only reads. Use ${[...gitReads].slice(0, 6).join(", ")} and the like.`,
           true,
         );
-      return run(cwd, words, signal);
+      return run(cwd, withoutDiffDrivers(words), signal);
     },
   };
+}
+
+/** Subcommands that run a checkout's textconv or external diff command unless told not to. */
+const diffShowing = new Set([
+  "diff",
+  "log",
+  "show",
+  "diff-tree",
+  "range-diff",
+  "blame",
+]);
+
+/**
+ * A checkout's own `.git/config` can name a command that turns a file into
+ * text for a diff, or that shows the diff itself. A read-only turn runs
+ * neither: the flags go right after the subcommand.
+ */
+function withoutDiffDrivers(args: string[]) {
+  let i = 0;
+  while (args[i] === "--no-pager" || args[i] === "-C")
+    i += args[i] === "-C" ? 2 : 1;
+  if (!diffShowing.has(args[i])) return args;
+  return [
+    ...args.slice(0, i + 1),
+    "--no-textconv",
+    "--no-ext-diff",
+    ...args.slice(i + 1),
+  ];
 }
 
 function run(cwd: string, args: string[], signal: AbortSignal) {

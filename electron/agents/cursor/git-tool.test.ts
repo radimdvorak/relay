@@ -71,6 +71,25 @@ describe("Cursor's read-only git", () => {
     expect(existsSync(marker)).toBe(false);
   });
 
+  it("doesn't run the diff commands the checkout's own config names", async () => {
+    const marker = join(repo, "ran");
+    await writeFile(join(repo, ".gitattributes"), "*.ts diff=evil\n");
+    git("config", "diff.evil.textconv", `touch '${marker}'; cat`);
+    git("config", "diff.external", `touch '${marker}'; true`);
+    await writeFile(join(repo, "a.ts"), "one\ntwo\n");
+    for (const args of [
+      ["diff"],
+      ["-C", ".", "diff", "HEAD"],
+      ["log", "-p"],
+      ["show"],
+      ["blame", "a.ts"],
+    ]) {
+      expect((await said(args)).isError, args.join(" ")).toBe(false);
+      expect(existsSync(marker), args.join(" ")).toBe(false);
+    }
+    expect((await said(["diff"])).text).toContain("+two");
+  });
+
   it("leaves the index alone, where a plain git status would refresh it", async () => {
     await utimes(
       join(repo, "a.ts"),
