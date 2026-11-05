@@ -91,10 +91,14 @@ export function spokenInline(text: string): string {
   // Code and escaped characters are set aside so nothing below rewrites them.
   const kept: string[] = [];
   const keep = (value: string) => `\u0000${kept.push(value) - 1}\u0000`;
+  const placeholder = /\u0000(\d+)\u0000/g;
+  // Code is literal, so a backslash in it was never an escape.
+  const literal = (code: string) =>
+    code.replace(placeholder, (_, i: string) => `\\${kept[Number(i)]}`);
   let out = text
     .replace(/\\([\\`*_{}[\]()#+\-.!|~<>])/g, (_, c: string) => keep(c))
     .replace(/(`+)([\s\S]*?[^`])\1(?!`)/g, (_, _ticks, code: string) =>
-      keep(spokenCode(code.trim())),
+      keep(spokenCode(literal(code).trim())),
     )
     .replace(/!\[([^\]]*)\]\([^)]*\)/g, "$1")
     .replace(/\[\^[^\]]+\]/g, "")
@@ -111,7 +115,7 @@ export function spokenInline(text: string): string {
     .replace(/\s*(?:→|⟶|⇒|->|=>)\s*/g, " to ")
     .replace(/\s+/g, " ")
     .trim();
-  out = out.replace(/\u0000(\d+)\u0000/g, (_, i: string) => kept[Number(i)]);
+  out = out.replace(placeholder, (_, i: string) => kept[Number(i)]);
   return out;
 }
 
