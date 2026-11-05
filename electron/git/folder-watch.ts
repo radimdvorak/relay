@@ -1,6 +1,6 @@
 import { EventEmitter } from "node:events";
 import { watch, type FSWatcher } from "node:fs";
-import { readdir, readFile, stat } from "node:fs/promises";
+import { lstat, readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 
 /** What a tree watch hands back: closed when nobody shows the place. */
@@ -177,7 +177,9 @@ class EachFolder extends EventEmitter implements FolderWatch {
   /** `rel` was made, moved or deleted. */
   private async appeared(rel: string) {
     try {
-      if (!(await stat(join(this.root, rel))).isDirectory()) return;
+      // Not through a link, as the first crawl doesn't: one back up the tree
+      // would watch all of it again under its name.
+      if (!(await lstat(join(this.root, rel))).isDirectory()) return;
     } catch {
       return this.drop(rel);
     }

@@ -1,5 +1,5 @@
 import { afterEach, expect, it, vi } from "vitest";
-import { mkdir, mkdtemp, realpath, rm, rmdir } from "node:fs/promises";
+import { mkdir, mkdtemp, realpath, rm, rmdir, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { WatchPool, watchEachFolder } from "./folder-watch";
@@ -252,5 +252,20 @@ it("drops a folder that went with what's under it, and nothing else", async () =
   await rm(join(temp, "a"), { recursive: true });
   watches.made[0]!.change("rename", "a");
   await vi.waitFor(() => expect(watching()).toEqual(["", "/ab", "/b"]));
+  folders.close();
+});
+
+it("leaves a link to a folder that appears unwatched, as the first crawl does", async () => {
+  await open();
+  const folders = await watchEachFolder(
+    temp,
+    { skip: () => false, skipLater: async () => false, budget: 100 },
+    () => {},
+  );
+  // A link back up the tree would watch all of it again under its name.
+  await symlink(temp, join(temp, "b", "up"));
+  watches.made.find((w) => w.dir === join(temp, "b"))!.change("rename", "up");
+  await new Promise((done) => setTimeout(done, 50));
+  expect(watching()).toEqual(["", "/a", "/a/deep", "/b"]);
   folders.close();
 });
