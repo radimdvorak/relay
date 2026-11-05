@@ -38,10 +38,7 @@ vi.mock("node:child_process", () => ({
     if (args[0] === "find-generic-password") {
       const item = keychain.find(matches);
       if (!item) return done(new Error("not found"));
-      if (args.includes("-w")) return done(null, { stdout: item.value });
-      return done(null, {
-        stdout: `class: "genp"\nattributes:\n    "acct"<blob>="${item.account}"\n    "svce"<blob>="${item.service}"\n`,
-      });
+      return done(null, { stdout: item.value });
     }
     // add-generic-password -U updates the item with this service and account.
     const value = flag("-w")!;
