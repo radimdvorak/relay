@@ -136,6 +136,8 @@ export class AzureCliTokens {
     try {
       ({ stdout: out } = await exec(line.command, line.args, {
         timeout: 30_000,
+        // Python is a console program: unhidden, each token flashes a window.
+        windowsHide: true,
       }));
     } catch (e) {
       const failure = e as Error & { stderr?: string; killed?: boolean };
