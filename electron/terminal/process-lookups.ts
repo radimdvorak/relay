@@ -1,7 +1,8 @@
 // What the OS says about processes: where each one works and the ports it
 // listens on.
 import { execFile } from "node:child_process";
-import { readlink } from "node:fs/promises";
+import { readdir, readFile, readlink } from "node:fs/promises";
+import { join } from "node:path";
 
 const windows = process.platform === "win32";
 
@@ -99,6 +100,7 @@ async function listening(pids: number[]) {
     for (const [pid, list] of ports) ports.set(pid, [...new Set(list)]);
     return ports;
   }
+  if (process.platform === "linux") return procListening(pids);
   const out = await run("lsof", [
     "-nP",
     "-a",
@@ -115,6 +117,47 @@ async function listening(pids: number[]) {
       const port = Number(/:(\d+)$/.exec(line)?.[1]);
       if (port) ports.set(pid, [...(ports.get(pid) ?? []), port]);
     }
+  return ports;
+}
+
+/**
+ * The ports each of `pids` listens on, read from /proc: lsof isn't installed
+ * on many Linux systems (Arch, minimal Debian, most server images). A
+ * socket a process holds shows in its fd folder as `socket:[inode]`, and the
+ * kernel's TCP tables say which inodes listen on which port.
+ */
+export async function procListening(pids: number[], proc = "/proc") {
+  const listeningOn = new Map<string, number>();
+  for (const table of ["tcp", "tcp6"]) {
+    const text = await readFile(join(proc, "net", table), "utf8").catch(
+      () => "",
+    );
+    for (const row of text.split("\n").slice(1)) {
+      const fields = row.trim().split(/\s+/);
+      const [local, state, inode] = [fields[1], fields[3], fields[9]];
+      // 0A is TCP_LISTEN.
+      if (state !== "0A" || !local || !inode) continue;
+      const port = Number.parseInt(local.slice(local.lastIndexOf(":") + 1), 16);
+      if (port) listeningOn.set(inode, port);
+    }
+  }
+  const ports = new Map<number, number[]>();
+  await Promise.all(
+    pids.map(async (pid) => {
+      const fd = join(proc, String(pid), "fd");
+      const handles = await readdir(fd).catch(() => []);
+      const links = await Promise.all(
+        handles.map((handle) => readlink(join(fd, handle)).catch(() => "")),
+      );
+      const found = links.flatMap((link) => {
+        const port = listeningOn.get(
+          /^socket:\[(\d+)\]$/.exec(link)?.[1] ?? "",
+        );
+        return port ? [port] : [];
+      });
+      if (found.length) ports.set(pid, [...new Set(found)]);
+    }),
+  );
   return ports;
 }
 
