@@ -26,7 +26,7 @@ import {
   useDictationMicrophone,
   useMicrophones,
 } from "./audio/microphones";
-import { matchedCombo, useShortcutLabel } from "../../lib/shortcuts";
+import { matchedCombo, popupOpen, useShortcutLabel } from "../../lib/shortcuts";
 import type { KeyCombo } from "../../../shared/shortcuts";
 import { DictationWave } from "./DictationWave";
 import { noteUsed } from "../../lib/used";
@@ -69,6 +69,8 @@ function onKeyDown(e: KeyboardEvent) {
   }
   const combo = matchedCombo("dictate", e);
   if (!combo || e.isComposing) return;
+  // Settings or a dialog covers the composers; the key is theirs.
+  if (phase === "idle" && popupOpen()) return;
   e.preventDefault();
   if (e.repeat) return;
   if (phase === "idle") {
