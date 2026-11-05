@@ -22,6 +22,27 @@ export type ThreadLinks = ReturnType<typeof useThreadLinks>;
 const CHOOSE = ":choose";
 
 /**
+ * What the query cache holds for a key, fetched once when it holds nothing;
+ * the caller renders again once it's in.
+ */
+function useListing() {
+  const qc = useQueryClient();
+  const [, bump] = useReducer((n: number) => n + 1, 0);
+  return function cached<T>(
+    key: unknown[],
+    load: () => Promise<T>,
+  ): T | undefined {
+    const state = qc.getQueryState<T>(key);
+    if (!state)
+      void qc
+        .query({ queryKey: key, queryFn: load, staleTime: 30_000 })
+        .catch(() => undefined)
+        .then(bump);
+    return state?.data;
+  };
+}
+
+/**
  * The folders a thread reaches beyond its project: the project's links and
  * its own. An unsent thread holds its own until its first write makes it;
  * `/add-dir` links one, completing paths as they're typed.
@@ -68,7 +89,7 @@ export function useThreadLinks({
   }
   const links = threadLinks(project.settings?.links, own, project.path);
   // Folder listings for completing a typed path; fetched as the query asks for them.
-  const [, bump] = useReducer((n: number) => n + 1, 0);
+  const cached = useListing();
 
   async function save(next: LinkedFolder[]) {
     next = linkedFoldersSchema.parse(next);
@@ -203,17 +224,6 @@ export function useThreadLinks({
       ];
     },
   };
-
-  /** What the query cache holds for `key`, fetching it once when it holds nothing. */
-  function cached<T>(key: unknown[], load: () => Promise<T>): T | undefined {
-    const state = qc.getQueryState<T>(key);
-    if (!state)
-      void qc
-        .query({ queryKey: key, queryFn: load, staleTime: 30_000 })
-        .catch(() => undefined)
-        .then(bump);
-    return state?.data;
-  }
 
   /** A typed path: what's in the folder it names so far. */
   function pathOptions(query: string, taken: Set<string>): CommandOption[] {

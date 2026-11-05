@@ -23,6 +23,35 @@ const OFF_BRANCH =
   "A session from a terminal or an agent's app goes on from the project folder, not another branch: pick New worktree or Current checkout first";
 
 /**
+ * The project's sessions as last listed, listed again when that's stale; the
+ * caller renders again once a new listing is in.
+ */
+function useSessionListing(
+  projectId: string,
+  onError: (error: unknown) => void,
+) {
+  const qc = useQueryClient();
+  const [, bump] = useReducer((n: number) => n + 1, 0);
+  return function sessions(): TerminalSession[] | undefined {
+    const key = ["terminal-sessions", projectId];
+    const state = qc.getQueryState<TerminalSession[]>(key);
+    if (
+      state?.fetchStatus !== "fetching" &&
+      (!state || Date.now() - state.dataUpdatedAt > FRESH_MS)
+    )
+      void qc
+        .query({
+          queryKey: key,
+          queryFn: () => api.terminalSessions(projectId),
+          staleTime: FRESH_MS,
+        })
+        .catch(onError)
+        .then(bump);
+    return state?.data;
+  };
+}
+
+/**
  * `/resume`: carries on a Claude Code or Codex session run in a terminal, or
  * in the Claude or Codex app, in the project's folder, in a thread of its own that opens at once.
  */
@@ -52,27 +81,10 @@ export function useResumeCommand({
   onError: (error: unknown) => void;
 }) {
   const qc = useQueryClient();
-  const [, bump] = useReducer((n: number) => n + 1, 0);
   const key = ["terminal-sessions", project.id];
+  const sessions = useSessionListing(project.id, onError);
   // The session's files are the project folder's, so its worktree copies those.
   const offBranch = workspace === "worktree" && !!start;
-
-  function sessions(): TerminalSession[] | undefined {
-    const state = qc.getQueryState<TerminalSession[]>(key);
-    if (
-      state?.fetchStatus !== "fetching" &&
-      (!state || Date.now() - state.dataUpdatedAt > FRESH_MS)
-    )
-      void qc
-        .query({
-          queryKey: key,
-          queryFn: () => api.terminalSessions(project.id),
-          staleTime: FRESH_MS,
-        })
-        .catch(onError)
-        .then(bump);
-    return state?.data;
-  }
 
   async function resume(session: TerminalSession) {
     // A session some thread already continues opens that thread.
