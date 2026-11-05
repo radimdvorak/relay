@@ -20,7 +20,7 @@ import { optional, takes, type ApiContext, type Handlers } from "./context";
 const branchSchema = z.string().trim().min(1).max(250);
 const findingIdSchema = z.string().regex(/^F\d{1,6}$/);
 
-/** Moves a thread onto the branch findings it was refused a fix of were reviewed on. */
+/** Moves a thread onto the code findings it was refused a fix of were reviewed on. */
 function checkOutReviewed({
   projects,
   projectChats,
@@ -31,12 +31,18 @@ function checkOutReviewed({
     [idSchema, z.array(findingIdSchema).min(1).max(500)],
     async (chatId, ids) => {
       const chat = await projectChats.get(chatId);
-      const root = await projects.root(chat.projectId);
-      const branch = await branchToFix(root, chat, ids, forgePulls(clientFor));
-      const moved = await projectChats.worktrees.branches.workOn(
-        chatId,
-        branch,
-      );
+      const pull = forgePulls(clientFor);
+      const ontoBranch = async () => {
+        const root = await projects.root(chat.projectId);
+        const branch = await branchToFix(root, chat, ids, pull);
+        return projectChats.worktrees.branches.workOn(chatId, branch);
+      };
+      // Pull request and review threads stay off branches of their own; they
+      // follow a checkout of the reviewed code instead.
+      const moved =
+        chat.scope.kind === "project"
+          ? await ontoBranch()
+          : await projectChats.councils.checkOut(chatId, ids, pull);
       // The thread's workspace id names its new folder now.
       treeWatch?.moved(workspaceId(moved.projectId, chatId));
       return moved;

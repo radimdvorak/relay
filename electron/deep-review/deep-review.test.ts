@@ -1271,6 +1271,65 @@ it("refuses a fix of a branch an ordinary thread reviewed from Git until the thr
   expect(git(answer.cwd, "branch", "--show-current")).toBe("panel");
 });
 
+it("checks a pull request thread's reviewed code out for its fix, rather than switching the thread's branch", async () => {
+  const git = (cwd: string, ...args: string[]) =>
+    execFileSync(
+      "git",
+      ["-C", cwd, "-c", "user.name=R", "-c", "user.email=r@x", ...args],
+      { encoding: "utf8" },
+    ).trim();
+  const main = git(repo, "branch", "--show-current");
+  git(repo, "switch", "-q", "-c", "panel");
+  await writeFile(join(repo, "src", "panel.ts"), "export {};\n");
+  git(repo, "add", ".");
+  git(repo, "commit", "-q", "-m", "Add the panel");
+  git(repo, "switch", "-q", main);
+
+  const chat = await chats.create(projectId, {
+    kind: "pr",
+    ref: { owner: "team", name: "app", number: 4 },
+  });
+  await chats.startDeepReview(
+    chat.id,
+    config({ target: { kind: "branch", head: "panel", base: main } }),
+  );
+  await vi.waitFor(async () =>
+    expect((await chats.get(chat.id)).reviews?.at(-1)?.status).toBe("done"),
+  );
+  const reviewed = await chats.get(chat.id);
+  const fix = () =>
+    chats.send(chat.id, {
+      id: randomUUID(),
+      body: fixRequest("claude", reviewed.findings!.reports[0]!.findings),
+      provider: "claude",
+      choice: { ...choice, model: "" },
+      runtimeMode: "full-access",
+      interactionMode: "default",
+      fixes: ["F1"],
+    });
+  await expect(fix()).rejects.toThrow(reviewedElsewhere("panel → " + main));
+
+  const pull = async () => {
+    throw new Error("A branch review asks no forge.");
+  };
+  await expect(
+    chats.worktrees.branches.workOn(chat.id, "panel"),
+  ).rejects.toThrow("Only repository threads can switch branches.");
+  const moved = await chats.councils.checkOut(chat.id, ["F1"], pull);
+  const there = moved.reviewFolder!.path;
+  expect(moved.reviewFolder).toMatchObject({ branch: "panel" });
+  expect(git(there, "branch", "--show-current")).toBe("panel");
+  expect(git(repo, "branch", "--show-current")).toBe(main);
+  await fix();
+  await vi.waitFor(async () =>
+    expect((await chats.get(chat.id)).findings?.statuses?.F1).toBe("fixed"),
+  );
+  const answer = (await capture()).find((r) =>
+    r.prompt?.includes("Fix this finding"),
+  );
+  expect(answer.cwd).toBe(there);
+});
+
 it("answers a question when edits in the review's worktree keep the branch out, and fixes in a worktree beside it", async () => {
   const git = (cwd: string, ...args: string[]) =>
     execFileSync(

@@ -20,7 +20,14 @@ import {
   sweepReviewCheckouts,
   type PullInfo,
 } from "../deep-review";
+import { checkOutRound } from "../deep-review/fix-here";
+import { noteWorkspaceMove } from "../../shared/workspace-moves";
+import { chatSummary } from "./chat-summaries";
 import type { ChatCore } from "./core";
+
+/** A deep review's own thread and a pull request's work where their latest checked-out round does. */
+const followsReviews = (chat: ProjectChat) =>
+  chat.scope.kind === "review" || chat.scope.kind === "pr";
 
 export interface CouncilHost {
   send(id: string, input: ProjectChatSend): Promise<void>;
@@ -116,7 +123,7 @@ export class Councils {
             ?.reviews,
           chat.reviewer,
         )
-      : chat.scope.kind === "review"
+      : followsReviews(chat)
         ? workingReview(chat)
         : // Any other thread keeps working where it did.
           undefined;
@@ -134,6 +141,54 @@ export class Councils {
       checkout,
       state.scope.head ?? checkout.branch,
     );
+  }
+
+  /**
+   * Checks out the code a round of thread `id` reviewed from Git, so the
+   * findings `ids` can be fixed there; the thread works in that checkout
+   * from now on, as a deep review's own thread does.
+   */
+  checkOut(
+    id: string,
+    ids: string[],
+    pull: (ref: PullRef) => Promise<PullInfo>,
+  ) {
+    return this.core.control(id, async () => {
+      await this.core.active.assertIdle(id);
+      const chat = await this.core.storage.load(id);
+      if (!followsReviews(chat))
+        throw new Error(
+          "Only pull request and review threads check out a review.",
+        );
+      if (this.busy(chat))
+        throw new Error("Wait for the review to finish first.");
+      const root = await this.core.projects.root(chat.projectId);
+      const from = threadWorktree(chat)?.path ?? root;
+      const checkout = await checkOutRound(
+        root,
+        chat,
+        ids,
+        this.worktrees,
+        pull,
+      );
+      noteWorkspaceMove(chat, {
+        how: "switched",
+        to: checkout.path,
+        ...(checkout.branch ? { branch: checkout.branch } : {}),
+      });
+      // Its sessions started in the folder it left.
+      const owed = Object.keys(chat.scopeHeard ?? {});
+      if (owed.length)
+        chat.movedIn = {
+          from: chat.movedIn?.from ?? from,
+          to: checkout.path,
+          owed: [...new Set([...(chat.movedIn?.owed ?? []), ...owed])],
+          selected: true,
+        };
+      this.core.sessions.close(id);
+      await this.core.storage.save(chat);
+      return chatSummary(chat);
+    });
   }
 
   /**

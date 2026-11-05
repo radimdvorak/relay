@@ -122,7 +122,7 @@ export class ProjectChats {
   private disposing = false;
   private leakCheck: ReturnType<typeof setInterval>;
   private news: TurnNews;
-  private councils: Councils;
+  readonly councils: Councils;
   private watchNotes: WatchReviews;
   private core: ChatCore;
   private threads: ThreadList;
