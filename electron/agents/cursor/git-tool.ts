@@ -5,6 +5,7 @@
 import { execFile } from "node:child_process";
 import type { SDKCustomTool, SDKCustomToolResult } from "@cursor/sdk";
 import { gitReads, gitReadsOnly } from "../../agent-host/read-only-bash";
+import { readOnlyGitEnv } from "../read-only-git";
 
 /** About 25k tokens; past it the model is asked to narrow what it asks for. */
 export const MAX_GIT_OUTPUT = 100_000;
@@ -55,8 +56,11 @@ function run(cwd: string, args: string[], signal: AbortSignal) {
         timeout: 60_000,
         maxBuffer: 64 * 1024 * 1024,
         // Not even `git status` refreshing the index: this turn changes nothing.
+        // The worker may predate the switch to Read only, so the read-only
+        // git settings go on every call rather than coming from its env.
         env: {
           ...process.env,
+          ...readOnlyGitEnv(process.env),
           GIT_OPTIONAL_LOCKS: "0",
           GIT_TERMINAL_PROMPT: "0",
           GIT_PAGER: "cat",

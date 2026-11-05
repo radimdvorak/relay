@@ -58,6 +58,19 @@ describe("Cursor's read-only git", () => {
     expect(git("stash", "list")).toBe("");
   });
 
+  it("doesn't open a bare repository committed in the checkout", async () => {
+    // Its config runs a command on status. The worker may have started before
+    // the thread was switched to Read only, without the turn's git settings.
+    const marker = join(repo, "ran");
+    const trap = ["-C", "fixtures/evil.git", "config"];
+    git("init", "--quiet", "--bare", "fixtures/evil.git");
+    git(...trap, "core.bare", "false");
+    git(...trap, "core.worktree", "..");
+    git(...trap, "core.fsmonitor", `touch '${marker}'; false`);
+    await said(["-C", "fixtures/evil.git", "status"]);
+    expect(existsSync(marker)).toBe(false);
+  });
+
   it("leaves the index alone, where a plain git status would refresh it", async () => {
     await utimes(
       join(repo, "a.ts"),
