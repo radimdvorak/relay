@@ -4,6 +4,7 @@ import type { DictationTarget } from "../../dictation/audio/session";
 import { quotesIn } from "../prompt-pills";
 import type { DraftEditor } from "../useComposerDraft";
 import type { DraftPills } from "../useDraftPills";
+import { typedText } from "../prompt-text";
 import { copiedPills } from "./pill-clipboard";
 import { dictationTarget } from "./dictation";
 import {
@@ -39,6 +40,8 @@ export interface PromptInputHandle extends DraftEditor {
   dictation: DictationTarget;
   /** The selection's ends in the draft's text; equal for a bare caret. */
   caret: () => { start: number; end: number } | undefined;
+  /** The draft's text with its pills blotted out, at the same offsets. */
+  typedText: () => string;
   /** Shows `text` as the whole draft, caret at its end; what the draft and caret are then. */
   replace: (text: string) => { text: string; caret: number } | undefined;
 }
@@ -102,6 +105,7 @@ export function usePromptHandle(
         if (editor) inlinePaste(editor, index);
       },
       caret: () => (editor ? caretOffsets(editor) : undefined),
+      typedText: () => (editor ? typedText(editor.state.doc) : ""),
       adoptPills(html) {
         const copied = copiedPills(html);
         if (copied) pills.adopt(copied);
