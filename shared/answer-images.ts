@@ -32,15 +32,21 @@ function localPath(src: string, root: string): string | null {
   } catch {
     return null;
   }
-  if (/^[a-z]:[\\/]/i.test(path)) return path;
+  // A file URL's path keeps a slash before the drive: `/C:/Users/…`.
+  if (/^\/[a-z]:[\\/]/i.test(path)) path = path.slice(1);
+  const drive = /^[a-z]:[\\/]/i;
+  if (drive.test(path)) return path;
+  const full = path.startsWith("/") ? path : `${root}/${path}`;
+  const windows = drive.test(full);
+  // A drive is the top; `..` can't climb past it.
+  const top = windows ? 1 : 0;
   const parts: string[] = [];
-  for (const part of (path.startsWith("/") ? path : `${root}/${path}`).split(
-    "/",
-  )) {
-    if (part === "..") parts.pop();
-    else if (part && part !== ".") parts.push(part);
+  for (const part of full.split(windows ? /[\\/]/ : "/")) {
+    if (part === "..") {
+      if (parts.length > top) parts.pop();
+    } else if (part && part !== ".") parts.push(part);
   }
-  return `/${parts.join("/")}`;
+  return windows ? parts.join("\\") : `/${parts.join("/")}`;
 }
 
 /** The image file an answer's `![alt](src)` shows, or null when it isn't one on this computer. */
