@@ -27,6 +27,9 @@ export { receiveFileChunk, writeUploadChunk } from "./uploads";
 /** How long a phone's send waits on the desktop's page; the phone gives a send two minutes. */
 const heldSendMs = 110_000;
 
+/** How long a send the phone gave up on is kept for its retry; a retry comes well within it. */
+const lateSendMs = 15 * 60_000;
+
 /** A phone's send waiting on a desktop page. */
 interface Held {
   request: HeldSend;
@@ -35,6 +38,8 @@ interface Held {
   done(result: HeldSendResult): void;
   /** Nobody waits on it any more: a page that comes next doesn't pick it up. */
   overdue?: true;
+  /** Gives up on the page once no retry is coming. */
+  forget?: ReturnType<typeof setTimeout>;
 }
 
 /** One phone send of one draft, across the phone's retries. */
@@ -110,6 +115,7 @@ export class Drafts {
       [...this.held.values()].find(
         ({ request }) => request.key === key && request.send.id === send.id,
       ) ?? this.hold(key, chatId, send);
+    clearTimeout(held.forget);
     delete held.overdue;
     return this.waitFor(held);
   }
@@ -141,6 +147,7 @@ export class Drafts {
       request,
       sent,
       done: (result) => {
+        clearTimeout(held.forget);
         this.held.delete(request.id);
         if ("error" in result) return reject(new Error(result.error));
         // What went out goes from the draft, and with it the desktop's part;
@@ -148,8 +155,7 @@ export class Drafts {
         if (this.store.get(key))
           this.write({ key, text: "", base, at, sent: send.body }, "desktop");
         // A thread's own retry is a plain send, which knows its message.
-        if (held.overdue && !chatId)
-          this.wentLate.set(sendOf(key, send), result);
+        if (held.overdue && !chatId) this.keepLate(sendOf(key, send), result);
         resolve(result);
       },
     };
@@ -164,12 +170,23 @@ export class Drafts {
     return new Promise<{ chatId: string }>((resolve, reject) => {
       const timer = setTimeout(() => {
         held.overdue = true;
+        held.forget = setTimeout(
+          () => held.done({ error: "The page never sent it." }),
+          lateSendMs,
+        );
         reject(
           new Error("Relay on the computer didn't get to send it in time."),
         );
       }, heldSendMs);
       held.sent.then(resolve, reject).finally(() => clearTimeout(timer));
     });
+  }
+
+  private keepLate(sent: string, result: { chatId: string }) {
+    this.wentLate.set(sent, result);
+    setTimeout(() => {
+      if (this.wentLate.get(sent) === result) this.wentLate.delete(sent);
+    }, lateSendMs);
   }
 
   /** Sends still waiting on a page, for one that just loaded. */

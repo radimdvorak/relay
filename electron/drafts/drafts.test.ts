@@ -318,6 +318,60 @@ it("drops the draft of a held send that went after it timed out, and answers the
   }
 });
 
+it("gives up on a held send the page never answers once the phone has long stopped waiting", async () => {
+  vi.useFakeTimers();
+  try {
+    const requests: HeldSend[] = [];
+    const { drafts, store } = await setup((r) => (requests.push(r), true));
+    const key = "new:p1:abc";
+    const message = send("Fix this");
+    drafts.write(
+      { key, text: message.body, base: 0, at: 1, extras: { codeRefs: 1 } },
+      "desktop",
+    );
+    const first = drafts.sendHeld(key, undefined, message);
+    const timedOut = expect(first).rejects.toThrow("in time");
+    await vi.advanceTimersByTimeAsync(110_000);
+    await timedOut;
+    await vi.advanceTimersByTimeAsync(15 * 60_000);
+
+    // Nothing is left waiting on that page, so a much later retry asks again.
+    const retried = drafts.sendHeld(key, undefined, message);
+    expect(requests).toHaveLength(2);
+    const result = { chatId: randomUUID() };
+    drafts.finishSend(requests[1]!.id, result);
+    await expect(retried).resolves.toEqual(result);
+    await store.flush();
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+it("forgets the thread a late send went to when the phone never retries", async () => {
+  vi.useFakeTimers();
+  try {
+    const requests: HeldSend[] = [];
+    const { drafts, store } = await setup((r) => (requests.push(r), true));
+    const key = "new:p1:abc";
+    const message = send("Fix this");
+    drafts.write(
+      { key, text: message.body, base: 0, at: 1, extras: { codeRefs: 1 } },
+      "desktop",
+    );
+    const first = drafts.sendHeld(key, undefined, message);
+    const timedOut = expect(first).rejects.toThrow("in time");
+    await vi.advanceTimersByTimeAsync(110_000);
+    await timedOut;
+    drafts.finishSend(requests[0]!.id, { chatId: randomUUID() });
+
+    await vi.advanceTimersByTimeAsync(15 * 60_000);
+    expect(drafts.sentLate(key, message)).toBeUndefined();
+    await store.flush();
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
 it("keeps new-draft send receipts separate for different draft keys", async () => {
   const requests: HeldSend[] = [];
   const { bridge, drafts, store } = await setup(
