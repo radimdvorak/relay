@@ -1,7 +1,7 @@
 import RelayRemote
 import SwiftUI
 
-/// Android's SettingsScreen: theme, this app's version and licences, the paired computers,
+/// Android's SettingsScreen: theme and contrast, this app's version and licences, the paired computers,
 /// and how to reach the one in use.
 struct SettingsView: View {
     @Environment(Connection.self) private var connection
@@ -9,6 +9,7 @@ struct SettingsView: View {
     @Environment(AppLock.self) private var lock
     @State private var lockFlow: PinFlow.Kind?
     @AppStorage(ThemeMode.key) private var theme = ThemeMode.computer
+    @AppStorage(Contrast.key) private var contrast = Contrast.standard
     @AppStorage(ThreadNotices.switchKey) private var notices = true
     @AppStorage(DictationEngine.key) private var dictation = DictationEngine.computer
     #if DEBUG
@@ -23,6 +24,7 @@ struct SettingsView: View {
                     let (label, hint) = choice(mode, name: name, known: connection.overview?.appearance != nil)
                     ChoiceRow(label: label, hint: hint, chosen: theme == mode) { theme = mode }
                 }
+                ContrastRow(contrast: $contrast)
             }
             .cardRow()
             if PhoneSpeech.available {
@@ -109,5 +111,36 @@ struct ChoiceRow: View {
             .contentShape(.rect)
         }
         .accessibilityAddTraits(chosen ? .isSelected : [])
+    }
+}
+
+/// The phone's own contrast over whichever theme it wears; the whole app recolours as it moves.
+private struct ContrastRow: View {
+    @Binding var contrast: Int
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Contrast").foregroundStyle(.primary)
+                    Text("On top of the theme, on this phone only.").font(.footnote).foregroundStyle(.secondary)
+                }
+                Spacer()
+                if contrast != Contrast.standard {
+                    Button("Reset") { contrast = Contrast.standard }
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .buttonStyle(.borderless)
+                }
+                Text("\(contrast)").monospacedDigit().foregroundStyle(.primary)
+            }
+            Slider(
+                value: Binding(get: { Double(contrast) }, set: { contrast = Int($0.rounded()) }),
+                in: 0...100
+            )
+            .tint(.primary)
+            .accessibilityLabel("Contrast")
+            .accessibilityValue("\(contrast)")
+        }
     }
 }

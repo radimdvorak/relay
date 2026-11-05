@@ -31,24 +31,26 @@ nonisolated struct RelayColors: Equatable, Sendable {
     /// The desktop's colour for threads waiting on you.
     var waiting: Color
 
-    init(_ p: PhonePalette) {
+    /// `contrast` is the phone's own, 0–100, on top of the palette; see Contrast.swift.
+    init(_ p: PhonePalette, contrast: Int = Contrast.standard) {
         let dark = p.kind != "light"
         let surface = RGB(p.surface) ?? (dark ? RGB(0x1e1e21) : RGB(0xffffff))
         let text = RGB(p.text) ?? (dark ? RGB(0xe1e1e5) : RGB(0x303237))
+        let line = Contrast(contrast, from: surface, to: text)
         let muted = RGB(p.muted) ?? (dark ? RGB(0x94949f) : RGB(0x676972))
         let accent = RGB(p.accent)?.color ?? .accentColor
         let onAccent = RGB(p.onAccent)?.color ?? (dark ? .black : .white)
         self.dark = dark
         background = surface.color
         foreground = text.color
-        card = RGB(p.inbox)?.color ?? surface.color
-        fill = RGB(p.hover)?.color ?? muted.mix(surface, 0.85).color
-        self.muted = muted.color
-        faint = surface.mix(muted, 0.62).color
-        border = RGB(p.border)?.color ?? muted.mix(surface, 0.7).color
-        selected = RGB(p.selected)?.color ?? muted.mix(surface, 0.8).color
+        card = line.surface(RGB(p.inbox) ?? surface).color
+        fill = line.surface(RGB(p.hover) ?? muted.mix(surface, 0.85)).color
+        self.muted = line.secondary(muted).color
+        faint = line.secondary(surface.mix(muted, 0.62)).color
+        border = line.surface(RGB(p.border) ?? muted.mix(surface, 0.7)).color
+        selected = line.surface(RGB(p.selected) ?? muted.mix(surface, 0.8)).color
         self.accent = accent
-        accentSoft = RGB(p.accentSoft)?.color ?? accent.opacity(0.15)
+        accentSoft = RGB(p.accentSoft).map { line.surface($0).color } ?? accent.opacity(0.15)
         self.onAccent = onAccent
         send = (RGB(p.send ?? "") ?? RGB(p.accent))?.color ?? accent
         onSend = (RGB(p.onSend ?? "") ?? RGB(p.onAccent))?.color ?? onAccent
@@ -56,24 +58,27 @@ nonisolated struct RelayColors: Equatable, Sendable {
         diffDeletion = RGB(p.diffDeletion)?.color ?? .red.opacity(0.2)
         additionText = dark ? RGB(0x4ade80).color : RGB(0x008235).color
         deletionText = dark ? RGB(0xff8a8c).color : RGB(0xc0101c).color
-        code = (dark ? RGB(0x000000) : text).mix(surface, 0.9).color
+        code = line.surface((dark ? RGB(0x000000) : text).mix(surface, 0.9)).color
         destructive = dark ? RGB(0xff6467).color : RGB(0xdc2626).color
         waiting = RGB(0xd99a2b).color
     }
 
+    static let relayDark = RelayColors(.relayDark)
+    static let relayLight = RelayColors(.relayLight)
+}
+
+nonisolated extension PhonePalette {
     /// The desktop's default theme, "relay", in each kind.
-    static let relayDark = RelayColors(
-        PhonePalette(
-            kind: "dark", sidebar: "#232326", surface: "#1e1e21", toolbar: "#242427", inbox: "#28282c",
-            text: "#e1e1e5", muted: "#94949f", border: "#37373d", hover: "#34343c", selected: "#41414f",
-            accent: "#aaa8e5", accentSoft: "#373744", onAccent: "#1b1b22", send: "#aaa8e5", onSend: "#1b1b22",
-            diffAddition: "#213f2d", diffDeletion: "#45272c"))
-    static let relayLight = RelayColors(
-        PhonePalette(
-            kind: "light", sidebar: "#ececee", surface: "#ffffff", toolbar: "#f9f9fa", inbox: "#f7f7f8",
-            text: "#303237", muted: "#676972", border: "#e2e3e6", hover: "#e5e5e9", selected: "#dedee8",
-            accent: "#6565a9", accentSoft: "#f0f0f6", onAccent: "#ffffff", send: "#aaa8e5", onSend: "#1b1b22",
-            diffAddition: "#d6efdd", diffDeletion: "#f9dcdf"))
+    static let relayDark = PhonePalette(
+        kind: "dark", sidebar: "#232326", surface: "#1e1e21", toolbar: "#242427", inbox: "#28282c",
+        text: "#e1e1e5", muted: "#94949f", border: "#37373d", hover: "#34343c", selected: "#41414f",
+        accent: "#aaa8e5", accentSoft: "#373744", onAccent: "#1b1b22", send: "#aaa8e5", onSend: "#1b1b22",
+        diffAddition: "#213f2d", diffDeletion: "#45272c")
+    static let relayLight = PhonePalette(
+        kind: "light", sidebar: "#ececee", surface: "#ffffff", toolbar: "#f9f9fa", inbox: "#f7f7f8",
+        text: "#303237", muted: "#676972", border: "#e2e3e6", hover: "#e5e5e9", selected: "#dedee8",
+        accent: "#6565a9", accentSoft: "#f0f0f6", onAccent: "#ffffff", send: "#aaa8e5", onSend: "#1b1b22",
+        diffAddition: "#d6efdd", diffDeletion: "#f9dcdf")
 }
 
 // Nonisolated: a ShapeStyle resolves off the main actor.
@@ -82,7 +87,7 @@ nonisolated extension EnvironmentValues {
 }
 
 /// An sRGB colour the theme can mix.
-nonisolated private struct RGB {
+nonisolated struct RGB {
     var r, g, b, a: Double
 
     init(_ hex: UInt32) {
@@ -159,6 +164,7 @@ private struct RelayTheme: ViewModifier {
     /// The last appearance a desktop sent, so the app opens in it before connecting.
     @AppStorage("appearance") private var saved: Data?
     @AppStorage(ThemeMode.key) private var themeMode = ThemeMode.computer
+    @AppStorage(Contrast.key) private var contrast = Contrast.standard
 
     private var appearance: PhoneAppearance? {
         connection.overview?.appearance ?? saved.flatMap { try? JSONDecoder().decode(PhoneAppearance.self, from: $0) }
@@ -173,7 +179,8 @@ private struct RelayTheme: ViewModifier {
             case .dark: "dark"
             }
         let dark = mode == "dark" || (mode != "light" && system == .dark)
-        let colors = appearance.map { RelayColors(dark ? $0.dark : $0.light) } ?? (dark ? .relayDark : .relayLight)
+        let palette = appearance.map { dark ? $0.dark : $0.light } ?? (dark ? .relayDark : .relayLight)
+        let colors = RelayColors(palette, contrast: contrast)
         content
             .environment(\.colors, colors)
             // .secondary and .tertiary across the app are the desktop's muted and faint.
