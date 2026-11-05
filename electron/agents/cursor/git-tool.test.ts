@@ -92,7 +92,10 @@ describe("Cursor's read-only git", () => {
 
   it("refuses flags that switch a checkout's drivers back on", async () => {
     const marker = join(repo, "ran");
-    await writeFile(join(repo, ".gitattributes"), "*.ts diff=evil filter=evil\n");
+    await writeFile(
+      join(repo, ".gitattributes"),
+      "*.ts diff=evil filter=evil\n",
+    );
     git("config", "diff.evil.textconv", `touch '${marker}'; cat`);
     await writeFile(join(repo, "a.ts"), "one\ntwo\n");
     git("config", "filter.evil.smudge", `touch '${marker}'; cat`);
