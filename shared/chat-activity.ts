@@ -336,7 +336,7 @@ export function sendLaterPresets(now: Date): { label: string; at: number }[] {
 }
 
 /** Midnights from `from`'s date to `to`'s, negative when `to` is earlier. */
-function calendarDays(from: Date, to: Date) {
+export function calendarDays(from: Date, to: Date) {
   const midnight = (date: Date) => new Date(date).setHours(0, 0, 0, 0);
   // Rounded: a day the clocks change on lasts 23 or 25 hours.
   return Math.round((midnight(to) - midnight(from)) / 86_400_000);
