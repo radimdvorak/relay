@@ -6,14 +6,10 @@ import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import {
   appendFileSync,
   mkdirSync,
-  mkdtempSync,
   readFileSync,
-  renameSync,
   rmSync,
   statSync,
-  writeFileSync,
 } from "node:fs";
-import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
@@ -25,8 +21,8 @@ import {
   type Asks,
   type ClientMessage,
   type HostMessage,
-  type HostRecord,
 } from "./protocol";
+import { hostSocket, writeRecord } from "./host-endpoint";
 import {
   readRelayMcp,
   relayToolsWhere,
@@ -405,20 +401,7 @@ function greet(socket: Socket, message: ClientMessage) {
 }
 
 const token = randomBytes(24).toString("hex");
-// A folder only this user can enter; Linux prefers its per-user runtime dir.
-const socketDir =
-  process.platform === "win32"
-    ? undefined
-    : mkdtempSync(
-        join(
-          (process.platform === "linux" && process.env.XDG_RUNTIME_DIR) ||
-            tmpdir(),
-          "relay-",
-        ),
-      );
-const socketPath = socketDir
-  ? join(socketDir, "host.sock")
-  : `\\\\.\\pipe\\relay-agent-host-${randomBytes(8).toString("hex")}`;
+const { folder: socketDir, path: socketPath } = hostSocket();
 const recordFile = join(dir, `host-${process.pid}.json`);
 
 const server = createServer((socket) => {
@@ -496,17 +479,14 @@ try {
 } catch {}
 
 server.listen(socketPath, () => {
-  const record: HostRecord = {
+  writeRecord(recordFile, {
     pid: process.pid,
     socket: socketPath,
     token,
     version,
     protocol: protocolVersion,
     started: Date.now(),
-  };
-  const temp = `${recordFile}.tmp`;
-  writeFileSync(temp, JSON.stringify(record), { mode: 0o600 });
-  renameSync(temp, recordFile);
+  });
   log(`listening, version ${version}`);
   serveTools();
 });
