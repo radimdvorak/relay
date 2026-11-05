@@ -50,7 +50,7 @@ describe("installing a download", () => {
     const root = await folder();
     await mkdir(join(root, "other", "1.0.0"), { recursive: true });
     const dir = join(root, "goose");
-    for (const version of ["..", "."])
+    for (const version of ["..", ".", "...", "1.0.", ".1", "", "../x", "a/b", "a\\b", "/abs", "..%2f"])
       await expect(
         installInto(dir, binary("https://example.com/goose", { version }), { fetch: download("bin") }),
       ).rejects.toThrow(/isn't a version Relay can keep/);
