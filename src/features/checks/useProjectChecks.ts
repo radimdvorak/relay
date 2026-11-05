@@ -34,13 +34,16 @@ function useAsleep(away: boolean) {
   return asleep;
 }
 
+/** Where the folder's or PR's check settings are saved here; "" for neither. */
+function preferenceKey(pull?: Pull, local?: { id: string }) {
+  if (local) return `relay-checks:project:${local.id}`;
+  if (pull) return `relay-checks:${pull.html_url}`;
+  return "";
+}
+
 /** Whether checks are on for the folder or PR, and the target picked, as saved here. */
 function useCheckPreference(pull?: Pull, local?: { id: string }) {
-  const preference = local
-    ? `relay-checks:project:${local.id}`
-    : pull
-      ? `relay-checks:${pull.html_url}`
-      : "";
+  const preference = preferenceKey(pull, local);
   const [preferenceVersion, setPreferenceVersion] = useState(0);
   const { selection, enabled } = useMemo(
     () => ({

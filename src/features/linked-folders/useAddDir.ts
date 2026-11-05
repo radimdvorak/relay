@@ -41,6 +41,13 @@ function useListing() {
   return { cached, listed };
 }
 
+/** What a repository in the list is to this thread. */
+function repositoryNote(path: string, projectPath: string, taken: Set<string>) {
+  if (path === projectPath) return "This project";
+  if (taken.has(path)) return "Linked already";
+  return "Repository";
+}
+
 /** A typed path: what's in the folder it names so far. */
 function pathOptions(
   query: string,
@@ -63,12 +70,7 @@ function pathOptions(
         ? {
             value: f.path,
             label: tildePath(f.path),
-            description:
-              f.path === projectPath
-                ? "This project"
-                : taken.has(f.path)
-                  ? "Linked already"
-                  : "Repository",
+            description: repositoryNote(f.path, projectPath, taken),
             source: "Disk",
             folder: true,
           }

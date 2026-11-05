@@ -144,6 +144,12 @@ function portTaken(port: number) {
 }
 
 /** The desktop end of the phone remote; see shared/remote-crypto for the channel. */
+/** Why a phone's sign-in was turned down, in the words the phone shows. */
+function denialFor(frame: ClientFrame, error: unknown) {
+  if (frame.t === "auth") return "This phone isn't paired with Relay anymore.";
+  return error instanceof Error ? error.message : "Not allowed.";
+}
+
 export class RemoteServer {
   private server?: WebSocketServer;
   private bound?: string;
@@ -366,12 +372,7 @@ export class RemoteServer {
         console.warn("Phone remote: couldn't check a phone's sign-in:", e.cause);
         return c.socket.close();
       }
-      this.send(c, {
-        t: "denied",
-        reason: frame.t === "auth"
-          ? "This phone isn't paired with Relay anymore."
-          : e instanceof Error ? e.message : "Not allowed.",
-      });
+      this.send(c, { t: "denied", reason: denialFor(frame, e) });
       c.socket.close();
     }
   }
