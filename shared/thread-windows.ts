@@ -142,6 +142,22 @@ export const savedThreadWindows = (saved: unknown): SavedThreadWindow[] =>
       })
     : [];
 
+/**
+ * Whether a saved thread window still has something to show: its thread, in
+ * the project it was saved with, and that project not removed. A window
+ * without them would sit on its loading screen.
+ */
+export function threadWindowExists(
+  { projectId, chatId }: ThreadWindow,
+  projects: readonly { id: string; removed?: unknown }[],
+  chats: readonly { id: string; projectId: string }[],
+) {
+  return (
+    projects.some((p) => p.id === projectId && !p.removed) &&
+    chats.some((c) => c.id === chatId && c.projectId === projectId)
+  );
+}
+
 /** The query string a thread's window loads Relay's page with. */
 export const threadWindowSearch = (w: ThreadWindow) =>
   new URLSearchParams({ thread: w.chatId, project: w.projectId }).toString();

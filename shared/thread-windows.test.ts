@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   placeOnScreen,
   savedThreadWindows,
+  threadWindowExists,
   threadWindowOf,
   threadWindowSearch,
 } from "./thread-windows";
@@ -71,5 +72,27 @@ describe("savedThreadWindows", () => {
       savedThreadWindows([good, { chatId: "c" }, { ...good, bounds: null }, 3]),
     ).toEqual([good]);
     expect(savedThreadWindows(undefined)).toEqual([]);
+  });
+});
+
+describe("threadWindowExists", () => {
+  const projects = [{ id: "p" }, { id: "gone", removed: 1 }];
+  const chats = [
+    { id: "c", projectId: "p" },
+    { id: "hidden", projectId: "gone" },
+  ];
+
+  it("keeps a window whose thread is still in its project", () => {
+    expect(
+      threadWindowExists({ projectId: "p", chatId: "c" }, projects, chats),
+    ).toBe(true);
+  });
+
+  it("drops one whose project was removed, or whose thread is elsewhere or gone", () => {
+    const exists = (projectId: string, chatId: string) =>
+      threadWindowExists({ projectId, chatId }, projects, chats);
+    expect(exists("gone", "hidden")).toBe(false);
+    expect(exists("p", "hidden")).toBe(false);
+    expect(exists("p", "deleted")).toBe(false);
   });
 });
