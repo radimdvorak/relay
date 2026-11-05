@@ -282,6 +282,7 @@ export const relayToolSchemas = {
     .object({
       ids: z
         .array(threadId)
+        .min(1)
         .max(50)
         .optional()
         .describe("Any threads. Left out: every thread you started."),

@@ -235,6 +235,21 @@ test("rejects invalid tool arguments before reading the caller or sending", asyn
   expect(sent).toEqual([]);
 });
 
+test("refuses to wait for an empty list of threads instead of returning as if they were done", async () => {
+  const { lead, api } = fakeChats();
+  const result = await call(
+    new StartedThreads(api),
+    lead.id,
+    "wait_for_threads",
+    {
+      ids: [],
+      timeoutSeconds: 1,
+    },
+  );
+  expect(result.isError).toBe(true);
+  expect(resultText(result)).toContain("ids:");
+});
+
 test("starts threads on the lead's agent and settings, each saying who sent it", async () => {
   const { lead, sent, chats, api } = fakeChats();
   const threads = new StartedThreads(api);
