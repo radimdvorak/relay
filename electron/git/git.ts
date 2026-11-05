@@ -1,7 +1,7 @@
 import { stopProcessTree } from "../platform/terminate";
 import { execFile, spawn } from "node:child_process";
 import { access } from "node:fs/promises";
-import { delimiter, dirname } from "node:path";
+import { delimiter, dirname, resolve } from "node:path";
 import { promisify } from "node:util";
 import { NotText, textLimit, tooLarge } from "./working-files";
 import { findGit } from "../platform/executables";
@@ -319,13 +319,24 @@ export async function checkedOutOr(
  * has checked out; a prunable one's folder is gone, only Git's record is left.
  */
 export async function worktreeList(root: string) {
-  const out = await git(root, ["worktree", "list", "--porcelain"]);
+  return parseWorktreeList(
+    await git(root, ["worktree", "list", "--porcelain"]),
+  );
+}
+
+/**
+ * What `git worktree list --porcelain` says, with each folder as this
+ * computer writes paths: Git for Windows lists C:/Users/…, which Relay's
+ * C:\Users\… never equals.
+ */
+export function parseWorktreeList(out: string) {
   return out.split("\n\n").flatMap((block) => {
     const lines = block.split("\n");
     const value = (key: string) =>
       lines.find((l) => l.startsWith(key + " "))?.slice(key.length + 1);
-    const path = value("worktree");
-    if (!path) return [];
+    const listed = value("worktree");
+    if (!listed) return [];
+    const path = resolve(listed);
     const branch = value("branch")?.replace(/^refs\/heads\//, "");
     const prunable = lines.some((l) => /^prunable( |$)/.test(l));
     return [{ path, ...(branch ? { branch } : {}), prunable }];
