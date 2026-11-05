@@ -309,6 +309,28 @@ it("runs a Read only turn in Codex's read-only sandbox, never asking", async () 
   expect((await chats.get(chat.id)).lastInput?.runtimeMode).toBe("read-only");
 });
 
+it("keeps git in a Read only turn from opening a bare repository it finds", async () => {
+  vi.stubEnv("GIT_CONFIG_COUNT", "1");
+  vi.stubEnv("GIT_CONFIG_KEY_0", "user.name");
+  vi.stubEnv("GIT_CONFIG_VALUE_0", "Someone");
+  const chat = await chats.create(projectId, { kind: "project" });
+  await chats.send(chat.id, {
+    ...input("@codex Explain the cache guard"),
+    runtimeMode: "read-only",
+  });
+  await vi.waitFor(async () =>
+    expect((await chats.get(chat.id)).messages.at(-1)?.status).toBe("complete"),
+  );
+  const started = JSON.parse((await agentCalls()).trim().split("\n")[0]);
+  expect(started.gitConfig).toEqual({
+    GIT_CONFIG_COUNT: "2",
+    GIT_CONFIG_KEY_0: "user.name",
+    GIT_CONFIG_VALUE_0: "Someone",
+    GIT_CONFIG_KEY_1: "safe.bareRepository",
+    GIT_CONFIG_VALUE_1: "explicit",
+  });
+});
+
 it("names a thread from its first message while the answer is still running", async () => {
   vi.stubEnv("RELAY_AGENT_NO_TITLE", "1");
   vi.stubEnv("RELAY_AGENT_TURN_MS", "4000");
