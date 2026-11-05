@@ -229,10 +229,13 @@ require("node:readline").createInterface({ input: process.stdin }).on("line", (l
 });
 `,
     );
-    const connection = await acquireCodexConnection(undefined, cli, [], root, {
-      id: SYSTEM_ACCOUNT,
-      env: {},
-    });
+    const connection = await acquireCodexConnection(
+      undefined,
+      cli,
+      [],
+      { cwd: root },
+      { id: SYSTEM_ACCOUNT, env: {} },
+    );
     const asked: unknown[] = [];
     connection.onRequest = async (_method, params) => {
       asked.push(params);

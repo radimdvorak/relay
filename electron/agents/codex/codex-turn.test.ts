@@ -72,8 +72,10 @@ require("node:readline").createInterface({ input: process.stdin }).on("line", (l
     send({ method: "turn/completed", params: { threadId: "thread", turn: { id: "turn", status: "interrupted" } } });
   }
   else if (m.method === "config/read") send({ id: m.id, result: { config: {} } });
-  else if (m.method === "thread/start")
+  else if (m.method === "thread/start") {
+    require("node:fs").appendFileSync(${JSON.stringify(log + ".threads")}, JSON.stringify(m.params) + "\\n");
     send({ id: m.id, result: ${JSON.stringify(thread)} });
+  }
   else if (m.method === "thread/items/list")
     send({ id: m.id, result: { data: ${JSON.stringify(items)}, nextCursor: null } });
   else if (m.method === "turn/start" || m.method === "review/start") {
@@ -165,6 +167,47 @@ it("estimates context through the existing live connection without another turn 
     await closeCodexConnection(key);
   }
   expect(await readCodexContext(key, usage)).toBeNull();
+});
+
+it("starts a thread's app server again when it switches to Read only and back, with the tools that mode gets", async () => {
+  const key = "codex-read-only-switch";
+  const root = await realpath(await mkdtemp(join(tmpdir(), "relay-codex-")));
+  const log = join(root, "turn.json");
+  const cli = await fakeCli(join(root, "codex"), fakeCodex(log));
+  vi.mocked(findExecutable).mockResolvedValue(cli);
+  onTestFinished(() => closeCodexConnection(key));
+  const relayTools = { url: "http://127.0.0.1:1/mcp", token: "t" };
+  const turn = (more: Partial<AgentOptions>) =>
+    runCodex({
+      job: { kind: "prompt" },
+      cwd: root,
+      prompt: "Hi",
+      choice: { model: "", reasoningEffort: "", fast: false },
+      runtimeMode: "approval-required",
+      interactionMode: "default",
+      signal: new AbortController().signal,
+      onText() {},
+      session: { key, onId: async () => {} },
+      ...more,
+    });
+  await turn({ relayTools });
+  // Read only reaches the agent as Supervised with `readOnly`, and no Relay tools.
+  await turn({ readOnly: true });
+  await turn({ relayTools });
+  const threads = (await readFile(`${log}.threads`, "utf8"))
+    .trim()
+    .split("\n")
+    .map((line) => JSON.parse(line));
+  expect(
+    threads.map((t) => [
+      t.config.features.plugins,
+      !!t.config["mcp_servers.relay.url"],
+    ]),
+  ).toEqual([
+    [true, true],
+    [false, false],
+    [true, true],
+  ]);
 });
 
 it("says what is missing when Codex's answer to starting the thread or the turn lacks it", async () => {

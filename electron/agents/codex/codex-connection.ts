@@ -23,6 +23,7 @@ export const codexMetaSchema = z
     provider: z.literal("codex"),
     started: threadStartedSchema.optional(),
     account: z.string().optional(),
+    readOnly: z.boolean().optional(),
   })
   .loose();
 type CodexMeta = z.infer<typeof codexMetaSchema>;
@@ -35,6 +36,8 @@ class CodexConnection {
   started?: CodexThreadStarted;
   /** The account its app server signed in as; see agents/accounts. */
   account?: string;
+  /** Started for a Read only thread: its thread has no MCP servers, plugins or Relay's tools. */
+  readOnly = false;
   busy = false;
   closed = false;
   onNotification?: (method: string, params: unknown) => void;
@@ -188,6 +191,7 @@ class CodexConnection {
         provider: "codex",
         started,
         account: this.account,
+        readOnly: this.readOnly,
       } satisfies CodexMeta);
   }
 
@@ -237,12 +241,14 @@ export async function acquireCodexConnection(
   key: string | undefined,
   executable: string,
   args: string[],
-  cwd: string,
+  { cwd, readOnly = false }: { cwd: string; readOnly?: boolean },
   account: { id: string; env: Record<string, string> },
 ) {
-  // Another account needs an app server signed in as it; the thread resumes there.
+  // Another account needs an app server signed in as it, and Read only on or
+  // off a thread with other tools; the thread resumes there.
   const live = key ? sessions.get(key) : undefined;
-  if (live && !live.busy && (live.account ?? SYSTEM_ACCOUNT) !== account.id)
+  const otherAccount = (live?.account ?? SYSTEM_ACCOUNT) !== account.id;
+  if (live && !live.busy && (otherAccount || live.readOnly !== readOnly))
     await sessions.close(key!);
   // A thread's session runs in the host; helper jobs end with their turn.
   return sessions.acquire(key, async () => {
@@ -265,6 +271,7 @@ export async function acquireCodexConnection(
       ),
     );
     connection.account = account.id;
+    connection.readOnly = readOnly;
     return connection;
   });
 }
@@ -307,6 +314,7 @@ export function reattachCodexSessions(owns: (key: string) => boolean) {
     const connection = new CodexConnection(async () => child);
     connection.started = meta.started;
     connection.account = meta.account;
+    connection.readOnly = !!meta.readOnly;
     if (!info.open) child.release();
     return connection;
   });
