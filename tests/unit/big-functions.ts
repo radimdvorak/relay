@@ -229,7 +229,7 @@ export const bigFunctions: Record<string, number> = {
   "src/features/html-render/AskPage.tsx › AskPage": 100,
   "src/features/html-render/HtmlRenders.tsx › RenderCard": 370,
   "src/features/images/ImagePreview.tsx › AnswerImage": 81,
-  "src/features/images/ImageSketch.tsx › SketchEditor": 384,
+  "src/features/images/ImageSketch.tsx › SketchEditor": 359,
   "src/features/images/ImageViewer.tsx › ImageViewer": 452,
   "src/features/import-offer/ImportOfferCard.tsx › ImportOfferCard": 217,
   "src/features/linked-folders/LinksControl.tsx › LinksControl": 114,
