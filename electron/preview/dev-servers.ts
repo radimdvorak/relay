@@ -49,8 +49,6 @@ interface Server {
   /** In the agent host when there is one, so it outlives a restart of Relay. */
   child?: ChildProcess | HostedChild;
   state: DevServerState;
-  /** Previews showing it now; it sleeps only with none. */
-  watchers: number;
   usedAt: number;
 }
 
@@ -61,6 +59,11 @@ interface Server {
  */
 export class DevServers {
   private servers = new Map<string, Server>();
+  /**
+   * Previews showing each folder now; its server sleeps only with none. Kept
+   * apart from the server, which a port change or a restart of Relay replaces.
+   */
+  private watchers = new Map<string, number>();
   private sweep: NodeJS.Timeout;
   private reattached?: Promise<void>;
   private reattaching = false;
@@ -113,7 +116,6 @@ export class DevServers {
             port,
             command,
             env: { ...env },
-            watchers: 0,
             usedAt: this.now(),
             state: { state: "starting", port },
           };
@@ -280,7 +282,6 @@ export class DevServers {
           port: saved.port,
           command: saved.command,
           env: saved.env,
-          watchers: 0,
           usedAt: this.now(),
           state: { state: "starting", port: saved.port },
         };
@@ -379,10 +380,15 @@ export class DevServers {
 
   /** A preview of the folder shows, or stops showing. */
   watch(folder: string, on: boolean) {
+    const watchers = Math.max(0, this.watched(folder) + (on ? 1 : -1));
+    if (watchers) this.watchers.set(folder, watchers);
+    else this.watchers.delete(folder);
     const server = this.servers.get(folder);
-    if (!server) return;
-    server.watchers = Math.max(0, server.watchers + (on ? 1 : -1));
-    server.usedAt = this.now();
+    if (server) server.usedAt = this.now();
+  }
+
+  private watched(folder: string) {
+    return this.watchers.get(folder) ?? 0;
   }
 
   /**
@@ -391,7 +397,7 @@ export class DevServers {
    */
   async sleepIdle() {
     const unwatched = [...this.servers.values()].filter(
-      (server) => server.child && !server.watchers,
+      (server) => server.child && !this.watched(server.folder),
     );
     if (!unwatched.length) return;
     const busy = await this.connected(unwatched.map((s) => s.port)).then(
@@ -407,7 +413,7 @@ export class DevServers {
       const child = server.child;
       if (
         child &&
-        !server.watchers &&
+        !this.watched(server.folder) &&
         this.servers.get(server.folder) === server &&
         this.now() - server.usedAt > IDLE_MS
       ) {
