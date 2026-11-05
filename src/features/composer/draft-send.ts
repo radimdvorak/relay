@@ -204,12 +204,23 @@ async function startedThread(
     outgoing.images.map((image) => image.id),
   ]);
   const failed = started.get(id);
-  const thread =
-    failed?.message === message
-      ? failed.thread
-      : await createDraftThread(id, project, scope);
+  const retry =
+    failed?.message === message &&
+    (await threadStillThere(project.id, failed.thread.id));
+  const thread = retry
+    ? failed.thread
+    : await createDraftThread(id, project, scope);
   started.set(id, { message, thread });
   return thread;
+}
+
+/**
+ * Whether the thread a failed send made is still in its project to take the
+ * retry: it may have been deleted since. A list that can't be read keeps it.
+ */
+export async function threadStillThere(projectId: string, id: string) {
+  const threads = await api.projectChats(projectId).catch(() => undefined);
+  return !threads || threads.some((t) => t.id === id && !t.archivedAt);
 }
 
 /** The thread an unsent draft's first message starts, with what the draft set up. */

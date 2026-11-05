@@ -29,6 +29,7 @@ import {
   loadDraftWorkspace,
 } from "./drafts";
 import { quietly } from "./draft-sync";
+import { threadStillThere } from "./draft-send";
 import { errorMessage } from "../../../shared/error-message";
 
 // A thread made for a message that then failed takes that message's retry.
@@ -36,6 +37,16 @@ import { errorMessage } from "../../../shared/error-message";
 // new-thread slot gets a thread of its own.
 const started = new Map<string, string>();
 const attemptOf = (key: string, send: ProjectChatSend) => `${key}\n${send.id}`;
+
+/** The thread this message's failed send made, unless it has gone since. */
+async function threadFromFailedSend(key: string, attempt: string) {
+  const thread = started.get(attempt);
+  const projectId = newDraftProject(key);
+  if (!thread || !projectId) return thread;
+  if (await threadStillThere(projectId, thread)) return thread;
+  started.delete(attempt);
+  return undefined;
+}
 
 /** Answers the phones' sends the main process hands this page, and those it held while none was open. */
 export function followHeldSends() {
@@ -93,7 +104,7 @@ async function sendHeld({
     ? { ...withAttachments(base, attachments), id: send.id }
     : base;
   const attempt = attemptOf(key, send);
-  let target = chatId ?? started.get(attempt);
+  let target = chatId ?? (await threadFromFailedSend(key, attempt));
   if (!target) {
     const projectId = newDraftProject(key);
     const project = (await api.projects()).find((p) => p.id === projectId);

@@ -45,6 +45,9 @@ vi.mock("../../lib/api", () => ({
     agentModels: async () => [],
     projectChat: async () => ({ ...chat, messages: [], lastInput }),
     createProjectChat: async () => ({ ...chat, id: `made-${++made}` }),
+    // Every thread a send made is still there.
+    projectChats: async () =>
+      Array.from({ length: made }, (_, i) => ({ id: `made-${i + 1}` })),
     sendProjectChat: (thread: string, send: ProjectChatSend) =>
       new Promise<void>((resolve, reject) =>
         sends.push({ ...send, thread, resolve, reject }),

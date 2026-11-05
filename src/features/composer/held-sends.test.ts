@@ -9,6 +9,10 @@ const api = vi.hoisted(() => ({
   projects: vi.fn(async () => [{ id: "p1", path: "/p1" }]),
   createProjectChat: vi.fn(),
   sendProjectChat: vi.fn(),
+  // Every thread the page made is still there.
+  projectChats: vi.fn(() =>
+    Promise.all(api.createProjectChat.mock.results.map((made) => made.value)),
+  ),
 }));
 
 vi.mock("../../lib/api", () => ({ api }));

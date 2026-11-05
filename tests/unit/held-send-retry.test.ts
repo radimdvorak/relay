@@ -22,6 +22,7 @@ const api = vi.hoisted(() => ({
   projects: vi.fn(async () => [{ id: "p1", path: "/p1" }]),
   createProjectChat: vi.fn(),
   sendProjectChat: vi.fn(),
+  projectChats: vi.fn(),
 }));
 
 vi.mock("../../src/lib/api", () => ({ api }));
@@ -64,6 +65,9 @@ beforeEach(async () => {
   saveDraftImages.mockClear();
   api.projects.mockImplementation(async () => [{ id: "p1", path: "/p1" }]);
   threads.clear();
+  api.projectChats.mockImplementation(async () =>
+    [...threads.keys()].map((id) => ({ id })),
+  );
   making = Promise.resolve();
   api.createProjectChat.mockImplementation(async () => {
     await making;
@@ -199,5 +203,16 @@ it("sends a retry to the thread the page made when its message failed after the 
   expect([...threads]).toEqual([["chat-1", [message.id]]]);
   expect(clears()).toBe(1);
   expect(saveDraftImages).toHaveBeenCalledTimes(1);
+  await store.flush();
+});
+
+it("makes a new thread for a retry once the one its failed send made is deleted", async () => {
+  const { message, phoneSends, store } = await setup();
+  api.sendProjectChat.mockRejectedValueOnce(new Error("Codex isn't signed in"));
+  await expect(phoneSends()).rejects.toThrow("signed in");
+  threads.delete("chat-1");
+  await expect(phoneSends()).resolves.toEqual({ chatId: "chat-1" });
+  expect(api.createProjectChat).toHaveBeenCalledTimes(2);
+  expect(threads.get("chat-1")).toEqual([message.id]);
   await store.flush();
 });
