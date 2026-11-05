@@ -429,6 +429,8 @@ export class DeepReviews {
     } finally {
       this.advancing.delete(state.request);
     }
+    // A reviewer whose turn ended meanwhile found the pass still starting.
+    await this.reviewerDone(chat.id, state.request);
   }
 
   /**
