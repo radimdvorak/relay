@@ -193,3 +193,20 @@ it("finds a Windows path in the project whatever its case", () => {
     chatFileLink("/home/bob/proj/a.ts", "/home/Bob/proj", true),
   ).toMatchObject({ outside: true });
 });
+
+it("reads a long run of slashes inside a folder path in linear time", () => {
+  const path = `/Users/${"/".repeat(20_000)}x/`;
+  const started = performance.now();
+  expect(chatFileLink(path, "/repo", true)).toMatchObject({
+    path: path.slice(0, -1),
+    directory: true,
+  });
+  expect(performance.now() - started).toBeLessThan(100);
+});
+
+it("drops every trailing slash of a folder outside the project", () => {
+  expect(chatFileLink("/Users/jane/notes//", "/repo")).toMatchObject({
+    path: "/Users/jane/notes",
+    directory: true,
+  });
+});

@@ -4,6 +4,7 @@ import {
   isOutsideFilePath,
   isOutsideFolderPath,
   resolveFileLink,
+  withoutTrailingSlashes,
 } from "./markdown-links";
 
 export type ProjectFileLink = {
@@ -99,7 +100,7 @@ export function chatFileLink(
   if (pathInRoot(target.path, root) !== null) return null;
   if (isOutsideFolderPath(target.path))
     return {
-      path: target.path.replace(/[/\\]+$/, ""),
+      path: withoutTrailingSlashes(target.path),
       directory: true,
       outside: true,
     };
