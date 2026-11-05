@@ -126,12 +126,17 @@ export async function apply(target: UpdateTarget, staged: string) {
       // electron-builder's NSIS installer kills a Relay still running a few
       // seconds after it starts, then relaunches it. Started any earlier, it
       // would cut short the save on quit, or a quit the user cancelled.
-      app.once("will-quit", () =>
-        spawn(staged, ["--updated", "/S", "--force-run"], {
+      app.once("will-quit", () => {
+        const installer = spawn(staged, ["--updated", "/S", "--force-run"], {
           detached: true,
           stdio: "ignore",
-        }).unref(),
-      );
+        });
+        // Unhandled, a missing installer would stop the quit with an error box.
+        installer.on("error", (error) =>
+          console.warn("Could not start the update installer:", error),
+        );
+        installer.unref();
+      });
       return;
     case "linux-x64-appimage": {
       const current = process.env.APPIMAGE!;
