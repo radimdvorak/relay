@@ -78,6 +78,8 @@ type Ask = {
 };
 
 const sessions = new Map<string, HostSession>();
+/** Closed but not ended yet: the host stays for the kill their grace ends in. */
+const stopping = new Set<HostSession>();
 const asks = new Map<number, Ask>();
 let nextAsk = 1;
 let client: Socket | undefined;
@@ -260,6 +262,8 @@ function closeSession(id: string) {
   if (!session) return;
   sessions.delete(id);
   session.close();
+  for (const each of stopping) if (each.ended) stopping.delete(each);
+  if (!session.ended) stopping.add(session);
   for (const [askId, pending] of asks)
     if (pending.message.session === id) {
       asks.delete(askId);
@@ -435,7 +439,6 @@ function shutdown(reason: string) {
   for (const call of [...toolCalls.values()])
     call.resolve(toolText("Relay's agent host closed.", true));
   stopTools();
-  const closing = [...sessions.values()];
   for (const id of [...sessions.keys()]) closeSession(id);
   server.close();
   client?.destroy();
@@ -446,7 +449,8 @@ function shutdown(reason: string) {
   // Exiting at once would skip the kill a child ignoring its stop gets after the grace.
   const deadline = Date.now() + closingMs;
   setInterval(() => {
-    if (closing.every((s) => s.ended) || Date.now() > deadline) process.exit(0);
+    const ended = [...stopping].every((s) => s.ended);
+    if (ended || Date.now() > deadline) process.exit(0);
   }, 100);
 }
 

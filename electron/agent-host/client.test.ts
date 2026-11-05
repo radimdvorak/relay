@@ -130,14 +130,13 @@ it("ends a process taken back from a host that has since died", async () => {
   expect(await Promise.race([exited, late])).toBe("exited");
 });
 
-it("kills a process that ignores being asked to stop when its host shuts down", async () => {
-  const hosts = hostsFor();
+/** Starts a process that ignores both SIGTERM and the end of its input. */
+async function stubbornProcess(hosts: AgentHosts) {
   const running = await hosts.openProcess({
     key: "agent",
     meta: { provider: "fixture" },
     process: {
       ...server,
-      // Ignores both SIGTERM and the end of its input.
       args: [
         "-e",
         'process.on("SIGTERM", () => {}); process.stdin.resume(); console.log("up"); setInterval(() => {}, 1000);',
@@ -151,10 +150,29 @@ it("kills a process that ignores being asked to stop when its host shuts down", 
   const childPid = (await running.pid())!;
   strays.push(childPid);
   const [hostPid] = hosts.pids();
-  // Relay quits for good; the host is told to stop, as when it idles out.
-  process.kill(hostPid!, "SIGTERM");
+  return { running, childPid, hostPid: hostPid! };
+}
+
+it("kills a process that ignores being asked to stop when its host shuts down", async () => {
+  const hosts = hostsFor();
+  const { childPid, hostPid } = await stubbornProcess(hosts);
+  // The host is told to stop, as when the system shuts down.
+  process.kill(hostPid, "SIGTERM");
   await expect
-    .poll(() => alive(hostPid!), { timeout: 6000, interval: 250 })
+    .poll(() => alive(hostPid), { timeout: 6000, interval: 250 })
+    .toBe(false);
+  expect(alive(childPid)).toBe(false);
+}, 15000);
+
+it("kills a process Relay stopped before quitting, once its host has nothing left", async () => {
+  const hosts = hostsFor();
+  const { running, childPid, hostPid } = await stubbornProcess(hosts);
+  // Relay quits for good: it closes its sessions, then lets go of the host.
+  running.close();
+  await new Promise((r) => setTimeout(r, 200));
+  hosts.detach();
+  await expect
+    .poll(() => alive(hostPid), { timeout: 6000, interval: 250 })
     .toBe(false);
   expect(alive(childPid)).toBe(false);
 }, 15000);
