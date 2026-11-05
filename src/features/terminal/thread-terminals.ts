@@ -151,8 +151,11 @@ export class ThreadTerminal {
         fresh,
         this.slot || undefined,
       );
-      if (this.closedWhileStarting()) {
-        void api.closeTerminal(this.key).catch(() => {});
+      // Its tab closed while the shell started: it's either ended now, or the
+      // new tab that took its key draws it.
+      if (this.disposed) {
+        if (!terminals.has(this.key))
+          void api.closeTerminal(this.key).catch(() => {});
         return;
       }
       this.cwd = opened.cwd;
@@ -175,14 +178,6 @@ export class ThreadTerminal {
       this.error = errorMessage(e);
     }
     this.emit();
-  }
-
-  /**
-   * Its tab closed before the shell was up, so closing ended nothing; unless
-   * a new tab took its key meanwhile, which uses the same shell.
-   */
-  private closedWhileStarting() {
-    return this.disposed && !terminals.has(this.key);
   }
 
   /** Ends the shell and starts a new one in the same folder. */

@@ -45,6 +45,10 @@ it("leaves the shell to a tab that took its place meanwhile", async () => {
   );
   const first = terminalFor("project", "chat");
   const starting = first.start();
+  // Typed while it started, then the tab closed: none of it is the new tab's.
+  (first as unknown as { term: { input(data: string): void } }).term.input(
+    "rm -rf build\r",
+  );
   closeTerminal("project", "chat", "");
   terminalFor("project", "chat");
 
@@ -52,6 +56,7 @@ it("leaves the shell to a tab that took its place meanwhile", async () => {
   await starting;
 
   expect(api.closeTerminal).toHaveBeenCalledTimes(1);
+  expect(api.writeTerminal).not.toHaveBeenCalled();
 });
 
 it("sends a paste too big for one write in pieces, none of it lost", async () => {
