@@ -1,4 +1,5 @@
 import { agentName } from "../../../shared/agents";
+import type { CommandOption } from "../../../shared/commands";
 import {
   continuesAsCopy,
   terminalAgents,
@@ -60,3 +61,31 @@ export function matchingSessions(sessions: TerminalSession[], search: string) {
 
 export const sessionKey = (session: Pick<TerminalSession, "provider" | "id">) =>
   `${session.provider}:${session.id}`;
+
+/** The option shown when no session was found. */
+export const NONE = ":none";
+
+/** The `/resume` menu's rows for the sessions matching `query`; `where` leads each one's detail. */
+export function sessionOptions(
+  sessions: TerminalSession[],
+  query: string,
+  where: string,
+  projectName: string,
+): CommandOption[] {
+  const found = matchingSessions(sessions, query).map((s) => ({
+    value: sessionKey(s),
+    label: s.title,
+    description: where + sessionDetail(s),
+    source: s.app ? `${agentName(s.provider)} app` : "Terminal",
+    terminal: true,
+  }));
+  if (found.length || query) return found;
+  return [
+    {
+      value: NONE,
+      label: "No sessions to resume",
+      description: `No saved sessions found in ${projectName}`,
+      source: "",
+    },
+  ];
+}
