@@ -81,6 +81,18 @@ it("turns down a plain command whose expansion runs another command", () => {
     expect(readsOnly(command), command).toBe(false);
 });
 
+it("turns down sed flags hidden in quotes, which GNU sed still reads", () => {
+  // GNU sed reads '-e' after the script as a flag, and its `e` command runs
+  // a shell command; '-i' edits the file in place.
+  for (const command of [
+    "sed -n '1p' '-e' '1e touch pwned' README.md",
+    "sed -n '1p' '-i' src/app.ts",
+    "sed -n 1p \\-i src/app.ts",
+  ])
+    expect(readsOnly(command), command).toBe(false);
+  expect(readsOnly("sed -n '1,$p' src/app.ts")).toBe(true);
+});
+
 it("leaves other tools to the usual checks", async () => {
   expect(await readOnlyBashHook({ tool_name: "Read", tool_input: {} })).toEqual(
     {},

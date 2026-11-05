@@ -232,7 +232,8 @@ function segmentReads(segment: string) {
   const [name, ...args] = segment.split(/\s+/);
   if (expansion.test(segment)) return false;
   // Their flags decide whether they write, so a flag has to be spelled plainly.
-  const flagged = ["git", ...Object.keys(allowedFlags)];
+  // GNU sed reads a flag anywhere, so a quoted `'-i'` after the script still edits.
+  const flagged = ["git", "sed", ...Object.keys(allowedFlags)];
   if (flagged.includes(name!) && disguised.test(segment)) return false;
   const flags = flagRules[name];
   if (flags) return args.every((a) => !a.startsWith("-") || flags.test(a));
