@@ -126,15 +126,16 @@ export class ThreadSchedules {
     return json(this.schedules.list().map((s) => listed(s, this.projectName)));
   }
 
-  /** Why the agent named can't run it, in start_threads' words; undefined when it can or none is named. */
-  private async refusalFor(agent: AgentProvider | undefined, defaults: ScheduleDefaults) {
-    if (!agent) return undefined;
-    return this.agentChoices.refusal([{ agent }], defaults.agent);
+  /**
+   * Why the agent or model named can't run it, in start_threads' words;
+   * undefined when they can, or neither is named.
+   */
+  private async refusalFor(fields: Fields, input: ScheduleInput, defaults: ScheduleDefaults) {
+    if (!fields.agent && fields.model === undefined) return undefined;
+    return this.agentChoices.refusal([{ agent: input.agent, model: input.choice.model }], defaults.agent);
   }
 
   async add(lead: ProjectChat, fields: RelayToolArgs<"add_schedule">, defaults: ScheduleDefaults, ask: Ask) {
-    const refusal = await this.refusalFor(fields.agent, defaults);
-    if (refusal) return toolText(refusal, true);
     const input = applied(
       {
         name: fields.name,
@@ -154,6 +155,8 @@ export class ThreadSchedules {
       fields,
       defaults,
     );
+    const refusal = await this.refusalFor(fields, input, defaults);
+    if (refusal) return toolText(refusal, true);
     if (!(await ask(`Schedule “${input.name}”?`, described(input, this.projectName))))
       return toolText("The user didn't save this schedule. Ask them what they want instead.", true);
     const saved = await this.schedules.save(null, input, { chatId: lead.id, title: lead.title });
@@ -163,9 +166,9 @@ export class ThreadSchedules {
   async update(fields: RelayToolArgs<"update_schedule">, defaults: ScheduleDefaults, ask: Ask) {
     const { id, ...changes } = fields;
     const old = this.find(id);
-    const refusal = await this.refusalFor(changes.agent, defaults);
-    if (refusal) return toolText(refusal, true);
     const input = applied(scheduleInputOf(old), changes, defaults);
+    const refusal = await this.refusalFor(changes, input, defaults);
+    if (refusal) return toolText(refusal, true);
     if (!(await ask(`Change “${old.name}”?`, described(input, this.projectName))))
       return toolText("The user kept the schedule as it was. Ask them what they want instead.", true);
     return json(listed(await this.schedules.save(id, input), this.projectName));

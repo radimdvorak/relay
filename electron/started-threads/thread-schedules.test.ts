@@ -106,3 +106,36 @@ test("a schedule on an agent that can run, or naming none, still goes to the use
   expect(ask).toHaveBeenCalledTimes(3);
   expect(tools.save).toHaveBeenCalledTimes(3);
 });
+
+test("a schedule naming a model its agent doesn't offer is refused before the user is asked", async () => {
+  const { tools } = schedulesWith();
+  const choices = new AgentChoices({
+    ...agents,
+    models: async () => [{ id: "opus", name: "Opus" }] as never,
+  });
+  const schedules = new ThreadSchedules(tools, choices);
+  const ask = vi.fn(async () => true);
+
+  const updated = await schedules.update(
+    { id: "s1", model: "opsu" },
+    defaults,
+    ask,
+  );
+  expect(updated).toMatchObject({ isError: true });
+  expect(resultText(updated)).toContain("has no model opsu");
+
+  const added = await schedules.add(
+    lead,
+    {
+      name: "Changelog",
+      prompt: "Write it",
+      repeat: "daily",
+      time: "09:00",
+      model: "opus",
+    },
+    defaults,
+    ask,
+  );
+  expect(added).not.toMatchObject({ isError: true });
+  expect(ask).toHaveBeenCalledOnce();
+});
