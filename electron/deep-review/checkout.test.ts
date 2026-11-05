@@ -224,7 +224,9 @@ it("never hands git a pull request's head branch named like an option", async ()
   const fixing = await follow(made, "c2", true);
   expect(fixing.branch).toBe("pr/4");
   expect(git(repo, "rev-parse", "pr/4")).toBe(head);
-  expect(git(repo, "for-each-ref", "--format=%(upstream)", "refs/heads/main")).toBe("");
+  expect(
+    git(repo, "for-each-ref", "--format=%(upstream)", "refs/heads/main"),
+  ).toBe("");
 });
 
 it("moves a pull request's worktree to its new head in the next round, or reads beside edits there", async () => {
