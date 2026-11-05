@@ -1,5 +1,9 @@
 import { useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  useQuery,
+  useQueryClient,
+  type QueryClient,
+} from "@tanstack/react-query";
 import type { Project } from "../../../shared/projects";
 import {
   groupBefore,
@@ -20,6 +24,62 @@ import { groupKey } from "./useSidebarFolds";
 
 export type ProjectGroups = ReturnType<typeof useProjectGroups>;
 
+/** An import offer's plan, whose new projects stand in the tree. */
+interface PlannedGroups {
+  move: (id: string, folder: string, before: string | null) => void;
+  regroup: (from: string, to: string) => void;
+}
+
+/**
+ * Runs `work` on the projects or their groups, showing `optimistic` groups
+ * meanwhile. A failure goes to `setError`; both lists are asked again after.
+ */
+async function changeGroups(
+  qc: QueryClient,
+  setError: (message: string | undefined) => void,
+  work: () => Promise<void>,
+  optimistic?: (groups: string[]) => string[],
+) {
+  setError(undefined);
+  if (optimistic)
+    qc.setQueryData<string[]>(["project-groups"], (list) =>
+      optimistic(list ?? []),
+    );
+  try {
+    await work();
+  } catch (e) {
+    setError(errorMessage(e));
+  } finally {
+    void qc.invalidateQueries({ queryKey: ["projects"] });
+    void qc.invalidateQueries({ queryKey: ["project-groups"] });
+  }
+}
+
+/**
+ * Moves project `id` to `target`: in the import plan, and unless it is only
+ * one of the plan's stand-ins, in the listed projects at once and on the
+ * desktop.
+ */
+async function placeProject(
+  qc: QueryClient,
+  projects: Project[],
+  id: string,
+  target: ProjectPlace,
+  planned: PlannedGroups | undefined,
+) {
+  const placement = projectPlacement(projects, id, target);
+  if (!placement) return;
+  const { folder } = placement;
+  planned?.move(id, folder, placement.before);
+  // A stand-in isn't a project yet: only the plan moves it.
+  if (ghostKey(id)) return;
+  const before = realBefore(projects, folder, placement.before);
+  qc.setQueriesData<Project[]>({ queryKey: ["projects"] }, (list) =>
+    list ? moveProjectInList(list, id, folder, before) : list,
+  );
+  await api.moveProject(id, folder, before);
+}
+
 /**
  * The Projects tree: its groups, the names being typed into it, and naming,
  * moving and removing groups and projects. Each change shows before the
@@ -31,10 +91,7 @@ export function useProjectGroups(
   setOpen: (key: string, open: boolean) => void,
   setError: (message: string | undefined) => void,
   /** An import plan's new projects stand among `projects`; it hears every move. */
-  planned?: {
-    move: (id: string, folder: string, before: string | null) => void;
-    regroup: (from: string, to: string) => void;
-  },
+  planned?: PlannedGroups,
 ) {
   const qc = useQueryClient();
   const groups = useQuery({
@@ -45,45 +102,13 @@ export function useProjectGroups(
   const [adding, setAdding] = useState<{ parent: string; project?: string }>();
   const [renaming, setRenaming] = useState<string>();
   const [renamingProject, setRenamingProject] = useState<string>();
-  const refresh = () =>
-    Promise.all([
-      qc.invalidateQueries({ queryKey: ["projects"] }),
-      qc.invalidateQueries({ queryKey: ["project-groups"] }),
-    ]);
-  const change = async (
+  const change = (
     work: () => Promise<void>,
     optimistic?: (groups: string[]) => string[],
-  ) => {
-    setError(undefined);
-    if (optimistic)
-      qc.setQueryData<string[]>(["project-groups"], (list) =>
-        optimistic(list ?? []),
-      );
-    try {
-      await work();
-    } catch (e) {
-      setError(errorMessage(e));
-    } finally {
-      void refresh();
-    }
-  };
-  const place = async (id: string, target: ProjectPlace) => {
-    const placement = projectPlacement(projects, id, target);
-    if (!placement) return;
-    const { folder } = placement;
-    planned?.move(id, folder, placement.before);
-    // A stand-in isn't a project yet: only the plan moves it.
-    if (ghostKey(id)) return;
-    const before = realBefore(projects, folder, placement.before);
-    qc.setQueriesData<Project[]>({ queryKey: ["projects"] }, (list) =>
-      list ? moveProjectInList(list, id, folder, before) : list,
-    );
-    try {
-      await api.moveProject(id, folder, before);
-    } finally {
-      void refresh();
-    }
-  };
+  ) => changeGroups(qc, setError, work, optimistic);
+  // Both callers go through `change`, which refreshes the lists after.
+  const place = (id: string, target: ProjectPlace) =>
+    placeProject(qc, projects, id, target, planned);
   const tree = projectFolderTree(projects, groups);
   const paths = groupPaths(tree);
   return {
