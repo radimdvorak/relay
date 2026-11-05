@@ -59,15 +59,17 @@ function makeCredential(input: {
   source: Source;
   root: Record<string, unknown>;
 }): Credential {
+  const saved = async () => {
+    const text =
+      input.source.kind === "file"
+        ? await readText(input.source.path)
+        : await readKeychain(input.source.service, input.source.account);
+    return text ? codexCredential(text, input.source) : null;
+  };
   const cred: Credential = {
     ...input,
     reload: async () => {
-      const text =
-        input.source.kind === "file"
-          ? await readText(input.source.path)
-          : await readKeychain(input.source.service, input.source.account);
-      if (!text) return;
-      const next = codexCredential(text, input.source);
+      const next = await saved();
       if (!next) return;
       cred.accessToken = next.accessToken;
       cred.refreshToken = next.refreshToken;
@@ -76,6 +78,13 @@ function makeCredential(input: {
       cred.root = next.root;
     },
     save: async (next) => {
+      const now = await saved();
+      // Signed in again while the refresh ran: that login stays.
+      const loginChanged = !!now && now.refreshToken !== cred.refreshToken;
+      if (loginChanged) {
+        cred.accessToken = next.accessToken;
+        return;
+      }
       const tokens = asRecord(cred.root.tokens) ?? cred.root;
       setToken(tokens, "accessToken", "access_token", next.accessToken);
       if (next.refreshToken) {
