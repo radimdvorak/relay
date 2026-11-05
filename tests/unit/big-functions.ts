@@ -229,7 +229,7 @@ export const bigFunctions: Record<string, number> = {
   "src/features/images/ImageViewer.tsx › ImageViewer": 452,
   "src/features/import-offer/ImportOfferCard.tsx › ImportOfferCard": 217,
   "src/features/linked-folders/LinksControl.tsx › LinksControl": 114,
-  "src/features/linked-folders/useThreadLinks.ts › useThreadLinks": 226,
+  "src/features/linked-folders/useThreadLinks.ts › useThreadLinks": 147,
   "src/features/memes/MemePicker.tsx › Strip": 92,
   "src/features/memes/useMemePicker.ts › useMemePicker": 101,
   "src/features/notes/NotesChip.tsx › ListOrText": 162,

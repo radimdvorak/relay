@@ -80,31 +80,7 @@ export function useThreadWorktree({
   useEffect(() => {
     if (!chat) threadStorage(id).branch.save(newBranch);
   }, [newBranch, !chat]);
-  // Where the new worktree starts; none is off the checkout's commit. Read
-  // from the draft, so dropping the scope there drops it here too.
-  const saved = useDraftRecord(id, (draft) =>
-    draft.start ? JSON.stringify(draft.start) : undefined,
-  );
-  const start = useMemo(
-    () => (saved ? (JSON.parse(saved) as WorktreeStart) : undefined),
-    [saved],
-  );
-  const setStart = (next: WorktreeStart | undefined) => {
-    if (!chat) saveDraftStart(id, next);
-  };
-  // A draft from when threads were joined by thread carries on that one's
-  // branch instead, as the picker shows; with the thread gone, it's none.
-  const joining =
-    !chat && start && "thread" in start ? start.thread : undefined;
-  const threads = useQuery({
-    ...projectChatsQuery(project.id),
-    enabled: !!joining,
-  });
-  useEffect(() => {
-    if (!joining || !threads.data) return;
-    const branch = threads.data.find((c) => c.id === joining)?.worktree?.branch;
-    setStart(branch ? { on: branch } : undefined);
-  }, [joining, threads.data]);
+  const { start, setStart } = useDraftStart(chat, id, project);
   const query = useQuery(worktreeQuery(chat?.id, !!chat?.worktree, poll));
   // A thread that left its worktree keeps the last status it had there.
   const status = chat?.worktree ? query.data : undefined;
@@ -126,7 +102,11 @@ export function useThreadWorktree({
   });
   // Offered only while the deleted worktree's branch is still there to make it from.
   const recreatable = useQuery({
-    queryKey: ["agent-worktree-recreatable", chat?.id, chat?.activeAgentWorktree?.path],
+    queryKey: [
+      "agent-worktree-recreatable",
+      chat?.id,
+      chat?.activeAgentWorktree?.path,
+    ],
     queryFn: () => api.agentWorktreeRecreatable(chat!.id),
     enabled: !!chat && unavailable,
   });
@@ -195,7 +175,8 @@ export function useThreadWorktree({
         : (agentWorktree?.branch ?? reviewFolderLabel(reviewFolder(chat)))),
     inWorktree: !!live || !!agentWorktree,
     /** A repository thread goes to any branch picked; a review keeps the code it reviews. */
-    branchSwitchable: !chat || (chat.scope.kind === "project" && !chat.reviewer),
+    branchSwitchable:
+      !chat || (chat.scope.kind === "project" && !chat.reviewer),
     /** Its worktree waits on the thread's title for a name. */
     naming: !!live?.naming,
     unavailable,
@@ -208,6 +189,40 @@ export function useThreadWorktree({
     selectionDisabled: running || lock.locked,
     ...removal,
   };
+}
+
+/** Where an unsent thread's new worktree starts, kept in its draft. */
+function useDraftStart(
+  chat: ChatSummary | undefined,
+  id: string,
+  project: Project,
+) {
+  // Where the new worktree starts; none is off the checkout's commit. Read
+  // from the draft, so dropping the scope there drops it here too.
+  const saved = useDraftRecord(id, (draft) =>
+    draft.start ? JSON.stringify(draft.start) : undefined,
+  );
+  const start = useMemo(
+    () => (saved ? (JSON.parse(saved) as WorktreeStart) : undefined),
+    [saved],
+  );
+  const setStart = (next: WorktreeStart | undefined) => {
+    if (!chat) saveDraftStart(id, next);
+  };
+  // A draft from when threads were joined by thread carries on that one's
+  // branch instead, as the picker shows; with the thread gone, it's none.
+  const joining =
+    !chat && start && "thread" in start ? start.thread : undefined;
+  const threads = useQuery({
+    ...projectChatsQuery(project.id),
+    enabled: !!joining,
+  });
+  useEffect(() => {
+    if (!joining || !threads.data) return;
+    const branch = threads.data.find((c) => c.id === joining)?.worktree?.branch;
+    setStart(branch ? { on: branch } : undefined);
+  }, [joining, threads.data]);
+  return { start, setStart };
 }
 
 /** Removing the thread's worktree, from its dialog. */
