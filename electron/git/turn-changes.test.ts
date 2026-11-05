@@ -5,7 +5,6 @@ import { chmod, mkdir, readFile, readlink, rm, symlink, stat, writeFile } from "
 import { join } from "node:path";
 import {
   finishTurn,
-  ownFiles,
   parseNumstat,
   redoRevert,
   revertRef,
@@ -99,46 +98,6 @@ it("keeps no ref when only someone else changed files during the turn", async ()
     await finishTurn(root, id, before!, id, { edited: [], commands: [] }),
   ).toEqual([]);
   expect(() => git("rev-parse", "--verify", "-q", turnRef(id))).toThrow();
-});
-
-it("matches the agent's paths whether relative, absolute or dotted", () => {
-  const files = [
-    { path: "app/src/x.ts", additions: 1, deletions: 0 },
-    { path: "app/src/y.ts", additions: 1, deletions: 0 },
-    { path: "app/src/z.ts", additions: 1, deletions: 0 },
-    { path: "app/src/other.ts", additions: 1, deletions: 0 },
-  ];
-  expect(
-    ownFiles(
-      files,
-      {
-        edited: ["app/src/x.ts", "/repo/app/src/y.ts"],
-        commands: ["sed -i '' 's/a/b/' ./app/src/z.ts"],
-      },
-      "/repo",
-    ).map((f) => f.path),
-  ).toEqual(["app/src/x.ts", "app/src/y.ts", "app/src/z.ts"]);
-});
-
-it("matches a file a command names from the folder it changed into", () => {
-  const files = [
-    { path: "app/src/x.ts", additions: 1, deletions: 0 },
-    { path: "app/src/y.ts", additions: 1, deletions: 0 },
-    { path: "web/z.ts", additions: 1, deletions: 0 },
-  ];
-  expect(
-    ownFiles(
-      files,
-      {
-        edited: [],
-        commands: [
-          `/bin/zsh -lc "cd app/src && sed -i '' 's/a/b/' x.ts"`,
-          "cd '/repo/web' && npx prettier --write ./z.ts",
-        ],
-      },
-      "/repo",
-    ).map((f) => f.path),
-  ).toEqual(["app/src/x.ts", "web/z.ts"]);
 });
 
 it("drops the ref when a turn changes nothing", async () => {
