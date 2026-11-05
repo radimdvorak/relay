@@ -40,6 +40,7 @@ import { useQueuedMessages } from "./useQueuedMessages";
 import { useSessionCommands } from "./useSessionCommands";
 import { useThreadScroll } from "./useThreadScroll";
 import { useStableCallback } from "../../lib/useStableCallback";
+import { useSteady } from "../../lib/useSteady";
 import { flashPassage, quotedPassage } from "./quote-passage";
 import { QuoteJump } from "./SentPills";
 import { useThreadSend } from "./useThreadSend";
@@ -161,6 +162,10 @@ export function ProjectChat({
     queryKey: workingTreeKey(project.id),
     queryFn: () => api.projectWorkingTree(project.id),
     enabled: !project.plain,
+  });
+  const projectCheckout = useSteady({
+    branch: checkout.data?.branch,
+    locked: checkoutDisabled,
   });
   const [rootId, setRootId] = useState<string | null>(() =>
     threadStorage(id).reply.load(),
@@ -539,10 +544,7 @@ export function ProjectChat({
                 />
               )
             }
-            checkout={{
-              branch: checkout.data?.branch,
-              locked: checkoutDisabled,
-            }}
+            checkout={projectCheckout}
             scopeButtons={scopeButtons}
             notesChip={
               <NotesChip

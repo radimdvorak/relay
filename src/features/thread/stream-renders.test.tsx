@@ -355,13 +355,33 @@ it("shows a command's listing once it arrives, though the composer skips its par
   expect(document.body.textContent).toContain("Fix the flaky login test");
 });
 
+it("leaves the thread's folder, branch and linked folders alone", async () => {
+  await streamThreePieces();
+  expect(rendered.get("ThreadWhere") ?? 0).toBe(0);
+  expect(rendered.get("ProjectBranchPicker") ?? 0).toBe(0);
+  expect(rendered.get("LinksControl") ?? 0).toBe(0);
+});
+
+it("shows the checkout's branch once it arrives, though the branch picker skips streamed pieces", async () => {
+  let tree = (_: unknown) => {};
+  answers.set("projectWorkingTree", new Promise((resolve) => (tree = resolve)));
+  const streamed = await openStreamingThread();
+  await streamed();
+  expect(document.body.textContent).not.toContain("sample-branch");
+  await act(async () => {
+    tree({ branch: "sample-branch", changes: [] });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  });
+  expect(document.body.textContent).toContain("sample-branch");
+});
+
 // The composer's slots, the controls around it, still render on every
 // piece: ProjectChat reads the whole thread and hands them fresh objects.
 // This may shrink, never grow; lower it when you cut renders.
-it("renders at most 67 components a streamed piece", async () => {
+it("renders at most 46 components a streamed piece", async () => {
   await streamThreePieces();
   const total = [...rendered.values()].reduce((sum, n) => sum + n, 0);
-  expect(total / 3).toBeLessThanOrEqual(67);
+  expect(total / 3).toBeLessThanOrEqual(46);
 });
 
 it("works out the reply roots once a streamed piece", async () => {

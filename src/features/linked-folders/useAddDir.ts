@@ -1,4 +1,4 @@
-import { useReducer } from "react";
+import { useCallback, useReducer } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import type { CommandOption, RelayCommand } from "../../../shared/commands";
 import {
@@ -11,6 +11,7 @@ import {
 } from "../../../shared/projects";
 import { api } from "../../lib/api";
 import { fileManager } from "../../lib/mod-key";
+import { useStableCallback } from "../../lib/useStableCallback";
 
 /** The `/add-dir` option that opens the system's folder picker. */
 const CHOOSE = ":choose";
@@ -25,15 +26,18 @@ type Cached = <T>(key: unknown[], load: () => Promise<T>) => T | undefined;
 function useListing() {
   const qc = useQueryClient();
   const [listed, bump] = useReducer((n: number) => n + 1, 0);
-  function cached<T>(key: unknown[], load: () => Promise<T>): T | undefined {
-    const state = qc.getQueryState<T>(key);
-    if (!state)
-      void qc
-        .query({ queryKey: key, queryFn: load, staleTime: 30_000 })
-        .catch(() => undefined)
-        .then(bump);
-    return state?.data;
-  }
+  const cached = useCallback(
+    <T>(key: unknown[], load: () => Promise<T>): T | undefined => {
+      const state = qc.getQueryState<T>(key);
+      if (!state)
+        void qc
+          .query({ queryKey: key, queryFn: load, staleTime: 30_000 })
+          .catch(() => undefined)
+          .then(bump);
+      return state?.data;
+    },
+    [qc],
+  );
   return { cached, listed };
 }
 
@@ -108,7 +112,7 @@ export function useAddDir({
 }) {
   const { cached, listed } = useListing();
 
-  function command(
+  const command = useStableCallback(function command(
     command: RelayCommand,
     args: string,
   ): boolean | string | undefined {
@@ -123,45 +127,49 @@ export function useAddDir({
       if (problem) onError(new Error(problem));
     })().catch(onError);
     return true;
-  }
+  });
 
-  function options(
-    command: RelayCommand,
-    query: string,
-  ): CommandOption[] | undefined {
-    if (command !== "add-dir") return undefined;
-    const taken = new Set([project.path, ...links.map((l) => l.path)]);
-    if (/^[~/]/.test(query))
-      return pathOptions(query, taken, project.path, cached);
-    const suggestions = cached<LinkSuggestion[]>(
-      ["link-suggestions", project.id],
-      () => api.linkSuggestions(project.id),
-    );
-    const words = query.toLowerCase();
-    return [
-      ...(suggestions ?? [])
-        .filter((s) => !taken.has(s.path))
-        .map((s) => ({
-          value: s.path,
-          label: s.project ?? linkName(s.path),
-          description: tildePath(s.path),
-          source: s.project ? "Project" : "Beside it",
+  // The menu calls it as it renders, so it changes with what it reads.
+  const options = useCallback(
+    function options(
+      command: RelayCommand,
+      query: string,
+    ): CommandOption[] | undefined {
+      if (command !== "add-dir") return undefined;
+      const taken = new Set([project.path, ...links.map((l) => l.path)]);
+      if (/^[~/]/.test(query))
+        return pathOptions(query, taken, project.path, cached);
+      const suggestions = cached<LinkSuggestion[]>(
+        ["link-suggestions", project.id],
+        () => api.linkSuggestions(project.id),
+      );
+      const words = query.toLowerCase();
+      return [
+        ...(suggestions ?? [])
+          .filter((s) => !taken.has(s.path))
+          .map((s) => ({
+            value: s.path,
+            label: s.project ?? linkName(s.path),
+            description: tildePath(s.path),
+            source: s.project ? "Project" : "Beside it",
+            folder: true,
+          }))
+          .filter(
+            (o) =>
+              o.label.toLowerCase().includes(words) ||
+              o.description.toLowerCase().includes(words),
+          ),
+        {
+          value: CHOOSE,
+          label: "Choose a folder…",
+          description: "Or type a path, like ~/work/",
+          source: fileManager,
           folder: true,
-        }))
-        .filter(
-          (o) =>
-            o.label.toLowerCase().includes(words) ||
-            o.description.toLowerCase().includes(words),
-        ),
-      {
-        value: CHOOSE,
-        label: "Choose a folder…",
-        description: "Or type a path, like ~/work/",
-        source: fileManager,
-        folder: true,
-      },
-    ];
-  }
+        },
+      ];
+    },
+    [links, project.id, project.path, cached],
+  );
 
   return { options, command, listed };
 }

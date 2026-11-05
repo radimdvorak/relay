@@ -30,6 +30,8 @@ import { useNavigationLock } from "../../lib/navigation-lock";
 import { worktreeQuery } from "../changes/turn-diff";
 import { projectChatsQuery } from "../../lib/workspace-queries";
 import { usePoll } from "../../lib/poll";
+import { useStableCallback } from "../../lib/useStableCallback";
+import { useSteady } from "../../lib/useSteady";
 
 export type ThreadWorktree = ReturnType<typeof useThreadWorktree>;
 
@@ -62,9 +64,9 @@ export function useThreadWorktree({
   // keeps its own.
   const picked = useDraftRecord(id, (draft) => draft.workspace);
   const workspace = chat ? "checkout" : (picked ?? projectWorkspace(project));
-  const setWorkspace = (next: ChatWorkspace) => {
+  const setWorkspace = useStableCallback((next: ChatWorkspace) => {
     if (!chat) saveDraftWorkspace(id, next, project);
-  };
+  });
   useEffect(() => {
     if (!chat) onDraftWorkspace?.(workspace);
   }, [workspace, !chat]);
@@ -121,20 +123,23 @@ export function useThreadWorktree({
     // A finished turn leaves new changes to count.
     if (!running && chat?.worktree) void query.refetch();
   }, [running]);
-  async function select(path: string | null) {
+  const select = useStableCallback(async (path: string | null) => {
     await changeWorkspace(() => api.selectAgentWorktree(chat!.id, path));
-  }
+  });
   /** Moves the thread to `branch` wherever it's worked on; see `projectChatWorkOn`. */
-  async function workOn(branch: string) {
+  const workOn = useStableCallback(async (branch: string) => {
     await changeWorkspace(() => api.projectChatWorkOn(chat!.id, branch));
     void query.refetch();
     void qc.invalidateQueries({ queryKey: ["project-branches", project.id] });
-  }
-  async function recreate() {
+  });
+  const recreate = useStableCallback(async () => {
     await changeWorkspace(() => api.recreateAgentWorktree(chat!.id));
     // Its answer was about the folder now back; a later deletion asks again.
     qc.removeQueries({ queryKey: ["agent-worktree-recreatable", chat?.id] });
-  }
+  });
+  const showError = useStableCallback((reason: string) =>
+    setError(new Error(reason)),
+  );
   async function changeWorkspace(change: () => Promise<ChatSummary>) {
     if (!chat || lock.blocked() || running) return;
     await run(async () => {
@@ -152,7 +157,8 @@ export function useThreadWorktree({
       void listChanged();
     });
   }
-  return {
+  // Stable while nothing in it changes, so the controls showing it skip renders.
+  return useSteady({
     workspace,
     setWorkspace,
     startOn: chat ? undefined : startOn,
@@ -184,11 +190,11 @@ export function useThreadWorktree({
     select,
     workOn,
     /** Shows why a branch control couldn't do what was picked. */
-    showError: (reason: string) => setError(new Error(reason)),
+    showError,
     recreate,
     selectionDisabled: running || lock.locked,
     ...removal,
-  };
+  });
 }
 
 /** Where an unsent thread's new worktree starts, kept in its draft. */
@@ -206,9 +212,9 @@ function useDraftStart(
     () => (saved ? (JSON.parse(saved) as WorktreeStart) : undefined),
     [saved],
   );
-  const setStart = (next: WorktreeStart | undefined) => {
+  const setStart = useStableCallback((next: WorktreeStart | undefined) => {
     if (!chat) saveDraftStart(id, next);
-  };
+  });
   // A draft from when threads were joined by thread carries on that one's
   // branch instead, as the picker shows; with the thread gone, it's none.
   const joining =
@@ -242,7 +248,7 @@ function useWorktreeRemoval({
   const qc = useQueryClient();
   const [busy, setBusy] = useState(false);
   const [dialog, setDialog] = useState<"remove">();
-  async function remove() {
+  const remove = useStableCallback(async () => {
     if (!chatId || busy) return;
     setBusy(true);
     setError(undefined);
@@ -258,7 +264,7 @@ function useWorktreeRemoval({
       void qc.invalidateQueries({ queryKey: workingTreeKey() });
       void listChanged();
     }
-  }
+  });
   return {
     busy,
     /** The Remove dialog, while it is open. */

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   linkedFoldersSchema,
@@ -11,9 +11,28 @@ import {
 } from "../../../shared/projects";
 import { threadStorage } from "../../lib/thread-storage";
 import { api } from "../../lib/api";
+import { useStableCallback } from "../../lib/useStableCallback";
+import { useSteady } from "../../lib/useSteady";
 import { useAddDir } from "./useAddDir";
 
 export type ThreadLinks = ReturnType<typeof useThreadLinks>;
+
+/** No links, one array for all, so a thread without any keeps the same list. */
+const NONE: LinkedFolder[] = [];
+
+type SavedLinks = { id: string; links: LinkedFolder[] };
+
+/** The thread's own links: the save in flight, the thread's, or the unsent one's. */
+function ownLinks(
+  chat: ChatSummary | undefined,
+  pending: SavedLinks | undefined,
+  draft: SavedLinks,
+  draftId: string,
+): LinkedFolder[] {
+  if (!chat) return draft.id === draftId ? draft.links : NONE;
+  if (pending?.id === chat.id) return pending.links;
+  return chat.links ?? NONE;
+}
 
 /**
  * The folders a thread reaches beyond its project: the project's links and
@@ -37,18 +56,9 @@ export function useThreadLinks({
     links: threadStorage(draftId).links.load(),
   }));
   // Shown at once; the thread list catches up after the save.
-  const [pending, setPending] = useState<{
-    id: string;
-    links: LinkedFolder[];
-  }>();
+  const [pending, setPending] = useState<SavedLinks>();
   useEffect(() => setPending(undefined), [chat?.links]);
-  const own = chat
-    ? pending?.id === chat.id
-      ? pending.links
-      : (chat.links ?? [])
-    : draft?.id === draftId
-      ? draft.links
-      : [];
+  const own = ownLinks(chat, pending, draft, draftId);
   const current = useRef(own);
   current.current = own;
   const queue = useRef(Promise.resolve());
@@ -60,7 +70,10 @@ export function useThreadLinks({
     );
     return next;
   }
-  const links = threadLinks(project.settings?.links, own, project.path);
+  const links = useMemo(
+    () => threadLinks(project.settings?.links, own, project.path),
+    [project.settings?.links, own, project.path],
+  );
 
   async function save(next: LinkedFolder[]) {
     next = linkedFoldersSchema.parse(next);
@@ -101,7 +114,9 @@ export function useThreadLinks({
     await save([...current.current, { path: info.path, access: "read" }]);
   }
 
-  const linkFolder = (path: string) => enqueue(() => link(path));
+  const linkFolder = useStableCallback((path: string) =>
+    enqueue(() => link(path)),
+  );
   const { options, command, listed } = useAddDir({
     project,
     links,
@@ -109,25 +124,30 @@ export function useThreadLinks({
     onError,
   });
 
-  return {
-    links,
-    /** Goes up as each listing `/add-dir` asked for arrives. */
-    listed,
-    /** What the unsent thread is made with. */
-    draftLinks: chat ? undefined : own,
-    link: linkFolder,
-    async change(path: string, next: Partial<LinkedFolder>) {
+  const change = useStableCallback(
+    async (path: string, next: Partial<LinkedFolder>) => {
       await enqueue(() =>
         save(
           current.current.map((l) => (l.path === path ? { ...l, ...next } : l)),
         ),
       );
     },
-    async unlink(path: string) {
-      await enqueue(() => save(current.current.filter((l) => l.path !== path)));
-    },
+  );
+  const unlink = useStableCallback(async (path: string) => {
+    await enqueue(() => save(current.current.filter((l) => l.path !== path)));
+  });
+
+  return useSteady({
+    links,
+    /** Goes up as each listing `/add-dir` asked for arrives. */
+    listed,
+    /** What the unsent thread is made with. */
+    draftLinks: chat ? undefined : own,
+    link: linkFolder,
+    change,
+    unlink,
     /** Moves a thread's link to its project, so every thread reaches it. */
-    linkToProject: (path: string) =>
+    linkToProject: useStableCallback((path: string) =>
       enqueue(async () => {
         const moving = current.current.find((l) => l.path === path);
         if (!moving) return;
@@ -156,9 +176,10 @@ export function useThreadLinks({
           onError(e);
         }
       }),
+    ),
     /** `/add-dir`, typed or picked from its menu. */
     command,
     /** What `/add-dir` offers for what's typed after it. */
     options,
-  };
+  });
 }
