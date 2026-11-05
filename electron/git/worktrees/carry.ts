@@ -4,6 +4,7 @@ import { commitTree } from "../turn-snapshots";
 import { adoptWorktree } from "./adopt";
 import { uncommitted } from "./changes";
 import { git, type MadeWorktree, movedRef, copiedRef } from "./common";
+import { git as gitIn, nulSeparated, pathsFromStdin } from "../git";
 import { createWorktree } from "./create";
 import { unlinkModules } from "./bootstrap";
 
@@ -62,8 +63,11 @@ export async function moveIntoWorktree(
   // From here the worktree holds the edits, so it stays even if this fails.
   await apply(root, head, steps);
   // A staged edit would otherwise linger in the checkout's index.
-  for (let i = 0; i < paths.length; i += 500)
-    await git(root, ["reset", "-q", "--", ...paths.slice(i, i + 500)]);
+  if (paths.length)
+    await gitIn(root, ["reset", "-q", ...pathsFromStdin], {
+      timeout: 30000,
+      input: nulSeparated(paths),
+    });
   return made;
 }
 

@@ -32,6 +32,7 @@ import { mergeBranch, mergePlan } from "./branch-merge";
 import { worktreeStartSchema } from "../../shared/projects";
 import type { ChatWorktree } from "../../shared/projects";
 import { initRepo } from "../../tests/fixtures/git-repo";
+import { writeLongPaths } from "../../tests/fixtures/long-paths";
 
 // A Git run from inside another repository's hook or bisect would act on that one.
 for (const name of ["GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE"])
@@ -546,6 +547,19 @@ it("moves every uncommitted edit into a new worktree, leaving the checkout at it
   const kept = git(root, "rev-parse", "refs/relay/worktrees/c1/moved");
   expect(git(root, "show", `${kept}:src/deep/new.ts`)).toBe("untracked");
 });
+
+it("moves more staged deletions than fit on a command line", async () => {
+  const many = await writeLongPaths(root);
+  git(root, "add", ".");
+  git(root, "commit", "-qm", "Many files");
+  git(root, "rm", "-rq", "0".repeat(240));
+
+  const worktree = await moveIntoWorktree(root, dir, "Split the store", "c1");
+
+  expect(git(root, "status", "--porcelain")).toBe("");
+  expect(await read(join(root, many[1499]!))).toBe(many[1499]);
+  expect(existsSync(join(worktree.path, many[1499]!))).toBe(false);
+}, 60000);
 
 it("leaves a nested repository where it is and moves the rest", async () => {
   const inner = join(root, "inner");
