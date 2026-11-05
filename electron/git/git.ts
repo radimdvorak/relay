@@ -2,6 +2,7 @@ import { stopProcessTree } from "../platform/terminate";
 import { execFile, spawn } from "node:child_process";
 import { access } from "node:fs/promises";
 import { delimiter, dirname, resolve } from "node:path";
+import type { Writable } from "node:stream";
 import { promisify } from "node:util";
 import { NotText, textLimit, tooLarge } from "./working-files";
 import { findGit } from "../platform/executables";
@@ -120,6 +121,8 @@ export interface GitOptions {
   /** Added over `gitEnv`. */
   env?: NodeJS.ProcessEnv;
   signal?: AbortSignal;
+  /** Written to Git's stdin, e.g. paths for `--pathspec-from-file=-`. */
+  input?: string;
 }
 
 /** Git's failure as the user should see it: its own message, no credentials. */
@@ -174,6 +177,7 @@ export async function git(
     maxBuffer = 16 * 1024 * 1024,
     env,
     signal,
+    input,
   } = typeof options === "number" ? { timeout: options } : options;
   const file = resolved ?? (await gitExecutable());
   signal?.throwIfAborted();
@@ -183,16 +187,17 @@ export async function git(
       maxBuffer,
       env,
       signal,
+      input,
     });
   try {
-    return (
-      await exec(file, ["-C", root, ...args], {
-        timeout,
-        maxBuffer,
-        env: gitEnv(env),
-        encoding: "utf8",
-      })
-    ).stdout;
+    const running = exec(file, ["-C", root, ...args], {
+      timeout,
+      maxBuffer,
+      env: gitEnv(env),
+      encoding: "utf8",
+    });
+    writeInput(running.child.stdin, input);
+    return (await running).stdout;
   } catch (error) {
     throw gitError(error);
   }
@@ -204,7 +209,7 @@ function cancellableGit(
   root: string,
   args: string[],
   options: Required<Pick<GitOptions, "timeout" | "maxBuffer" | "signal">> &
-    Pick<GitOptions, "env">,
+    Pick<GitOptions, "env" | "input">,
 ): Promise<string> {
   return new Promise((resolve, reject) => {
     const { signal, timeout, maxBuffer } = options;
@@ -212,8 +217,10 @@ function cancellableGit(
       env: gitEnv(options.env),
       detached: process.platform !== "win32",
       windowsHide: true,
-      stdio: ["ignore", "pipe", "pipe"],
+      stdio: "pipe",
     });
+    // Ended even without input, so Git never waits on it.
+    writeInput(child.stdin, options.input ?? "");
     let stopping: Promise<void> | undefined;
     let failure: Error | undefined;
     const stop = () => {
@@ -262,6 +269,13 @@ function cancellableGit(
       resolve(Buffer.concat(stdout).toString());
     });
   });
+}
+
+function writeInput(stdin: Writable | null, input: string | undefined) {
+  if (input === undefined || !stdin) return;
+  // Git may exit before reading it all; its exit code says what went wrong.
+  stdin.on("error", () => {});
+  stdin.end(input);
 }
 
 /** Whether commit `a` is in `b`'s history. */
