@@ -38,7 +38,7 @@ export class ChatPushSender<Target extends object> {
 
   constructor(
     /** A deep copy: the event may hold the live answer its recorder keeps writing into. */
-    private copy: (message: ChatMessage) => ChatMessage,
+    private copy: <T>(value: T) => T,
   ) {}
 
   /** What each of `targets` gets for `event`. */
@@ -51,25 +51,35 @@ export class ChatPushSender<Target extends object> {
       for (const target of targets) this.sent.get(target)?.delete(message.id);
       return targets.map((target) => [target, event]);
     }
-    const copy = this.copy(message);
+    let whole: ChatMessage | undefined;
     // Windows that got the same copy last time get the same patch now.
-    const patches = new Map<ChatMessage, ProjectChatPatchEvent>();
+    const patches = new Map<
+      ChatMessage,
+      { push: ProjectChatPatchEvent; held: ChatMessage }
+    >();
     return targets.map((target) => {
       const sent = this.sentTo(target);
       const prev = sent.get(message.id);
-      sent.set(message.id, copy);
-      if (!prev) return [target, event];
-      let push = patches.get(prev);
-      if (!push) {
-        push = {
+      if (!prev) {
+        sent.set(message.id, (whole ??= this.copy(message)));
+        return [target, event];
+      }
+      let patched = patches.get(prev);
+      if (!patched) {
+        const patch = diffMessage(prev, message);
+        const push: ProjectChatPatchEvent = {
           chatId: event.chatId,
-          patch: diffMessage(prev, message),
+          patch,
           base: prev.version,
           ...(event.title ? { title: event.title } : {}),
         };
-        patches.set(prev, push);
+        // What the window holds next is its copy with the patch on, as it
+        // builds it too: a copy of what changed, not of the whole answer.
+        const held = applyMessagePatch(prev, this.copy(patch));
+        patches.set(prev, (patched = { push, held }));
       }
-      return [target, push];
+      sent.set(message.id, patched.held);
+      return [target, patched.push];
     });
   }
 

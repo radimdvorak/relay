@@ -2,6 +2,7 @@ import { serialize } from "node:v8";
 import { beforeEach, expect, it, vi } from "vitest";
 import {
   ChatPushReceiver,
+  ChatPushSender,
   type ProjectChatPush,
 } from "../../shared/chat-pushes";
 import type { ProjectChatEvent } from "../../shared/events";
@@ -160,4 +161,23 @@ it("sends a settled answer whole and starts the next stream of it afresh", () =>
     false,
     false,
   ]);
+});
+
+it("copies only what changed of a streaming answer, and serializes nothing to compare", () => {
+  let copied = 0;
+  let whole = 0;
+  const sender = new ChatPushSender<object>((value) => {
+    copied += serialize(value).length;
+    return structuredClone(value);
+  });
+  const window = {};
+  const stringify = vi.spyOn(JSON, "stringify");
+  for (const message of longAnswer()) {
+    sender.pushes(event(message), [window]);
+    whole += serialize(message).length;
+  }
+  expect(stringify).not.toHaveBeenCalled();
+  stringify.mockRestore();
+  // Copied whole each tick, the answer took 21.6MB; patch by patch 170KB.
+  expect(copied).toBeLessThan(whole / 50);
 });
