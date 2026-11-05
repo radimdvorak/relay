@@ -16,6 +16,14 @@ function span(ms: number) {
 export const clock = (at: number) =>
   formatDate(at, { hour: "2-digit", minute: "2-digit" });
 
+/** "14:30" today, "Mon 14:30" on another day: weekly limits lift days out. */
+export function resetClock(at: number, now: number) {
+  const day = new Date(at);
+  return day.toDateString() === new Date(now).toDateString()
+    ? clock(at)
+    : `${day.toLocaleDateString([], { weekday: "short" })} ${clock(at)}`;
+}
+
 export function wakeupTitle(item: Extract<ChatPending, { kind: "wakeup" }>) {
   if (!item.at) return "Claude checks back on a schedule";
   return `Claude will check back at ${clock(item.at)}`;
