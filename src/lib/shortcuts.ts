@@ -17,7 +17,10 @@ import {
 } from "../../shared/shortcuts";
 import { mac } from "./mod-key";
 import { persistedStore, readJson, writeText } from "./persisted-store";
+import { isTypingTarget } from "./typing-target";
 import { noteUsed } from "./used";
+
+export { isTypingTarget };
 
 /**
  * Every app shortcut's keys: the defaults, and whatever the user changed in
@@ -206,20 +209,6 @@ export function matchedCombo(id: ShortcutId, e: KeyEventLike) {
 
 export const matches = (id: ShortcutId, e: KeyEventLike) =>
   !!matchedCombo(id, e);
-
-/**
- * Whether a key event is typing into a field. Pierre's code editor types
- * inside a shadow root, where `e.target` is only its host.
- */
-export function isTypingTarget(e: Event) {
-  const target = e.composedPath()[0];
-  return (
-    target instanceof HTMLInputElement ||
-    target instanceof HTMLTextAreaElement ||
-    target instanceof HTMLSelectElement ||
-    (target instanceof HTMLElement && target.isContentEditable)
-  );
-}
 
 /** Presses a rich text field left to the app's shortcuts, though it prevented their default. */
 const handedOver = new WeakSet<Event>();
