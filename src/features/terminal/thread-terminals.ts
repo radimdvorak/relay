@@ -47,6 +47,7 @@ export class ThreadTerminal {
   private fitFrame?: number;
   private listeners = new Set<() => void>();
   private version = 0;
+  private disposed = false;
 
   constructor(
     public key: string,
@@ -144,6 +145,10 @@ export class ThreadTerminal {
         fresh,
         this.slot || undefined,
       );
+      if (this.closedWhileStarting()) {
+        void api.closeTerminal(this.key).catch(() => {});
+        return;
+      }
       this.cwd = opened.cwd;
       if (opened.backlog) this.term.write(opened.backlog);
       this.status = "running";
@@ -165,6 +170,14 @@ export class ThreadTerminal {
       this.error = errorMessage(e);
     }
     this.emit();
+  }
+
+  /**
+   * Its tab closed before the shell was up, so closing ended nothing; unless
+   * a new tab took its key meanwhile, which uses the same shell.
+   */
+  private closedWhileStarting() {
+    return this.disposed && !terminals.has(this.key);
   }
 
   /** Ends the shell and starts a new one in the same folder. */
@@ -237,6 +250,7 @@ export class ThreadTerminal {
 
   /** Called once its tab closes for good. */
   dispose() {
+    this.disposed = true;
     clearTimeout(this.ackTimer);
     if (this.fitFrame) cancelAnimationFrame(this.fitFrame);
     this.element.remove();
