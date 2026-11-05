@@ -114,6 +114,30 @@ it("reads the commands of a line where the shell splits them", () => {
     expect(readsOnly(command), command).toBe(true);
 });
 
+it("turns down a wildcard that may expand to a file named like a flag", () => {
+  // A repository can ship files named --pre=sh, -i, -o or --output=x.
+  for (const command of [
+    "rg foo *",
+    "rg foo ''*",
+    "rg foo ?*",
+    "sed -n 1p *",
+    "sort *.txt",
+    "git diff *",
+    "find * -name '*.ts'",
+    "tree [a-z]*",
+  ])
+    expect(readsOnly(command), command).toBe(false);
+  for (const command of [
+    "rg foo src/*.ts",
+    "rg foo ./*",
+    "rg foo '*'",
+    "rg foo \\*",
+    "cat *.md",
+    "ls -la *",
+  ])
+    expect(readsOnly(command), command).toBe(true);
+});
+
 it("keeps the git config a read-only turn's environment sets", () => {
   // The turn's env sets safe.bareRepository=explicit, so a committed bare
   // repository's core.fsmonitor doesn't run; each of these would undo it.

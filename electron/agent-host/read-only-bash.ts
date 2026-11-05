@@ -225,8 +225,18 @@ export function readsOnly(command: string): boolean {
   // the command is turned down.
   if (/[<>`]|\$\(/.test(bare)) return false;
   const commands = commandsIn(bare);
-  return !!commands && commands.every((c) => !!c && segmentReads(c));
+  return !!commands && commands.every((c) => !!c.text && segmentReads(c));
 }
+
+/** One command of a line, as the shell reads it. */
+type ShellCommand = {
+  text: string;
+  /** A word starts with an unquoted wildcard, which may expand to a file named like a flag. */
+  globbed: boolean;
+};
+
+/** Wildcards bash and zsh expand at the start of a word; `{` for zsh's brace_ccl, `^` for extended_glob. */
+const wildcards = "*?[{^";
 
 /**
  * The commands of `line`, split where bash and zsh split them: a `;`, `|` or
@@ -235,54 +245,57 @@ export function readsOnly(command: string): boolean {
  * subshell or zsh's `*(e:…:)` and `=(…)`, which run code, a command sent to
  * the background, or an unclosed quote.
  */
-function commandsIn(line: string): string[] | undefined {
-  const commands: string[] = [];
-  let text = "";
-  let wordStart = true;
+function commandsIn(line: string): ShellCommand[] | undefined {
+  const commands: ShellCommand[] = [];
+  let command: ShellCommand = { text: "", globbed: false };
+  /** Nothing of the word being read so far; empty quotes don't count. */
+  let newWord = true;
   /** How far a comment has been checked for quotes, so each line is read once. */
   let commentChecked = -1;
   const endCommand = () => {
-    commands.push(text.trim());
-    text = "";
+    commands.push({ ...command, text: command.text.trim() });
+    command = { text: "", globbed: false };
   };
   for (let i = 0; i < line.length; i++) {
     const c = line[i]!;
     const next = line[i + 1];
-    const atWordStart = wordStart;
-    wordStart = c === " " || c === "\t";
+    const startsWord = newWord;
+    newWord = c === " " || c === "\t";
     if (c === "\n" || c === ";") {
       endCommand();
-      wordStart = true;
+      newWord = true;
     } else if (c === "|" || c === "&") {
       const doubled = next === c;
       if (!doubled && (c === "&" || next === "&")) return undefined;
       if (doubled) i++;
       endCommand();
-      wordStart = true;
+      newWord = true;
     } else if (c === "(" || c === ")") {
       return undefined;
     } else if (c === "\\" && next === "\n") {
       // Removed, as if the two lines were one.
       i++;
-      wordStart = atWordStart;
+      newWord = startsWord;
     } else if (c === "\\") {
-      text += c + (next ?? "");
+      command.text += c + (next ?? "");
       i++;
     } else if (c === "'" || c === '"' || (c === "$" && next === "'")) {
-      const ansi = c === "$";
-      const close = quoteEnd(line, ansi ? i + 1 : i, ansi || c === '"');
+      const open = c === "$" ? i + 1 : i;
+      const close = quoteEnd(line, open, open > i || c === '"');
       if (close < 0) return undefined;
-      text += line.slice(i, close + 1);
+      command.text += line.slice(i, close + 1);
+      newWord = startsWord && close === open + 1;
       i = close;
     } else {
       // A comment where the shell has them on, words where it hasn't: a quote
       // in it would split the line differently between the two.
-      if (c === "#" && atWordStart && i > commentChecked) {
+      if (c === "#" && startsWord && i > commentChecked) {
         const eol = line.indexOf("\n", i);
         commentChecked = eol < 0 ? line.length : eol;
         if (/['"\\]/.test(line.slice(i, commentChecked))) return undefined;
       }
-      text += c;
+      if (startsWord && wildcards.includes(c)) command.globbed = true;
+      command.text += c;
     }
   }
   endCommand();
@@ -299,13 +312,14 @@ function quoteEnd(line: string, open: number, escapes: boolean) {
   return -1;
 }
 
-function segmentReads(segment: string) {
+function segmentReads({ text: segment, globbed }: ShellCommand) {
   const [name, ...args] = segment.split(/\s+/);
   if (expansion.test(segment)) return false;
   // Their flags decide whether they write, so a flag has to be spelled plainly.
   // GNU sed reads a flag anywhere, so a quoted `'-i'` after the script still edits.
   const flagged = ["git", "sed", ...Object.keys(allowedFlags)];
-  if (flagged.includes(name!) && disguised.test(segment)) return false;
+  const flagHidden = globbed || disguised.test(segment);
+  if (flagged.includes(name!) && flagHidden) return false;
   const flags = flagRules[name];
   if (flags) return args.every((a) => !a.startsWith("-") || flags.test(a));
   switch (name) {
