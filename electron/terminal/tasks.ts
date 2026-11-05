@@ -1,5 +1,4 @@
-import { execFile, spawn } from "node:child_process";
-import { readlink } from "node:fs/promises";
+import { spawn } from "node:child_process";
 import { cpus } from "node:os";
 import { sep } from "node:path";
 import { agentProviders, type AgentProvider } from "../../shared/agents";
@@ -18,6 +17,7 @@ import {
   processTable,
   type ProcessRow,
 } from "../platform/processes";
+import { listeningPorts, workingFolders } from "./process-lookups";
 
 type Proc = ProcessRow;
 const windows = process.platform === "win32";
@@ -51,24 +51,6 @@ interface Tracked {
   pids: Map<number, number>;
 }
 
-function run(file: string, args: string[]) {
-  return new Promise<string>((resolve) => {
-    execFile(
-      file,
-      args,
-      {
-        maxBuffer: 16 << 20,
-        timeout: 5000,
-        windowsHide: true,
-        env: { ...process.env, LC_ALL: "C" },
-      },
-      (_e, out) => resolve(out ?? ""),
-    );
-  });
-}
-
-/** Linux marks the working folder of a process whose folder was deleted with a suffix. */
-export const liveCwd = (link: string) => link.replace(/ \(deleted\)$/, "");
 const within = (path: string, root: string) =>
   path === root || path.startsWith(root + sep);
 /** Which agent's CLI a command line runs, if any. */
@@ -116,12 +98,6 @@ class ProjectTasks {
   /** Project folders Relay has asked about; processes elsewhere aren't followed. */
   private roots = new Set<string>();
   private scanning?: { costed: boolean; done: Promise<Proc[]> };
-
-  private portLook?: {
-    wanted: Set<number>;
-    done: Promise<Map<number, number[]>>;
-  };
-
   private scanned = 0;
   private last: Proc[] = [];
   /** Relay's terminal shells, and the thread each belongs to. */
@@ -202,7 +178,9 @@ class ProjectTasks {
           now - t.started >= minimumAge ||
           options.includeNewServers),
     );
-    const ports = await this.ports(tasks.flatMap((t) => [...t.pids.keys()]));
+    const ports = await listeningPorts(
+      tasks.flatMap((t) => [...t.pids.keys()]),
+    );
     const cost = options.costed ? this.costs() : undefined;
     // An editor or pager open in a terminal isn't worth listing; servers are.
     return tasks
@@ -601,7 +579,7 @@ class ProjectTasks {
     return best && { chatId: best.chatId, root: best.root };
   }
 
-  /** Working folders decide the project. One `lsof` call for everything not placed yet. */
+  /** Working folders decide the project. One look for everything not placed yet. */
   private async placeFolders(pids: number[]) {
     // Windows keeps a process's folder where only a debugger reads it; tasks
     // go by the thread that started them instead.
@@ -611,101 +589,9 @@ class ProjectTasks {
       return !this.cwds.has(`${pid}:${started}`);
     });
     if (!pending.length) return;
-    if (process.platform === "linux") {
-      await Promise.all(
-        pending.map(async (pid) =>
-          this.cwds.set(
-            `${pid}:${this.seen.get(pid)}`,
-            await readlink(`/proc/${pid}/cwd`).then(liveCwd, () => null),
-          ),
-        ),
-      );
-      return;
-    }
-    const out = await run("lsof", [
-      "-a",
-      "-d",
-      "cwd",
-      "-Fn",
-      "-p",
-      pending.join(","),
-    ]);
-    const found = lsofFolders(out);
-    for (const pid of pending)
-      this.cwds.set(`${pid}:${this.seen.get(pid)}`, found.get(pid) ?? null);
+    for (const [pid, folder] of await workingFolders(pending))
+      this.cwds.set(`${pid}:${this.seen.get(pid)}`, folder);
   }
-
-  /**
-   * Lists asked for together, as Sites does over every project, share one
-   * look: the pids asked for before the next turn of the event loop.
-   */
-  private ports(pids: number[]): Promise<Map<number, number[]>> {
-    if (!pids.length) return Promise.resolve(new Map());
-    if (!this.portLook) {
-      const wanted = new Set<number>();
-      this.portLook = {
-        wanted,
-        done: new Promise((resolve) => setImmediate(resolve)).then(() => {
-          this.portLook = undefined;
-          return this.listening([...wanted]);
-        }),
-      };
-    }
-    for (const pid of pids) this.portLook.wanted.add(pid);
-    return this.portLook.done;
-  }
-
-  private async listening(pids: number[]) {
-    const ports = new Map<number, number[]>();
-    if (windows) {
-      const wanted = new Set(pids);
-      for (const [pid, port] of netstatListening(
-        await run("netstat", ["-ano"]),
-      ))
-        if (wanted.has(pid)) ports.set(pid, [...(ports.get(pid) ?? []), port]);
-      for (const [pid, list] of ports) ports.set(pid, [...new Set(list)]);
-      return ports;
-    }
-    const out = await run("lsof", [
-      "-nP",
-      "-a",
-      "-iTCP",
-      "-sTCP:LISTEN",
-      "-Fn",
-      "-p",
-      pids.join(","),
-    ]);
-    let pid = 0;
-    for (const line of out.split("\n"))
-      if (line[0] === "p") pid = +line.slice(1);
-      else if (line[0] === "n" && pid) {
-        const port = Number(/:(\d+)$/.exec(line)?.[1]);
-        if (port) ports.set(pid, [...(ports.get(pid) ?? []), port]);
-      }
-    return ports;
-  }
-}
-
-/** `lsof -d cwd -Fn`'s answer, by pid. */
-function lsofFolders(out: string) {
-  const found = new Map<number, string>();
-  let pid = 0;
-  for (const line of out.split("\n"))
-    if (line[0] === "p") pid = +line.slice(1);
-    else if (line[0] === "n" && pid) found.set(pid, line.slice(1));
-  return found;
-}
-
-/**
- * `netstat -ano` rows listening for connections, as [pid, port]. The state's
- * name is translated on non-English Windows; a listening socket is the one
- * whose remote end is port 0.
- */
-export function netstatListening(out: string): [number, number][] {
-  return out.split(/\r?\n/).flatMap((row) => {
-    const m = /^\s*TCP\s+\S*:(\d+)\s+\S*:0\s+\S+\s+(\d+)\s*$/i.exec(row);
-    return m ? [[+m[2], +m[1]] as [number, number]] : [];
-  });
 }
 
 export const projectTasks = new ProjectTasks();

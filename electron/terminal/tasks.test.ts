@@ -1,7 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 import { spawn } from "node:child_process";
 import type { ProcessRow } from "../platform/processes";
-import { agentName, liveCwd, netstatListening, projectTasks } from "./tasks";
+import { liveCwd, netstatListening } from "./process-lookups";
+import { agentName, projectTasks } from "./tasks";
 import {
   commandKey,
   describeTask,
