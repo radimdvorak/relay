@@ -119,6 +119,47 @@ it("shows commit statuses from CI outside Actions next to Actions runs", async (
   expect(actionsOnly?.runs.map((r) => r.workflow)).toEqual(["Checks"]);
 });
 
+it("reads every page of the tip's statuses, so an early failure still counts", async () => {
+  /** 150 contexts, newest first; the oldest failed. */
+  const statuses = Array.from({ length: 150 }, (_, i) => ({
+    context: `job${150 - i}`,
+    state: i === 149 ? "failure" : "success",
+    target_url: `https://ci.example/${150 - i}`,
+    updated_at: "2026-11-05T10:00:00Z",
+  }));
+  const asked: string[] = [];
+  const github = new GitHub(
+    async (url) => {
+      const { pathname, searchParams } = new URL(url);
+      asked.push(pathname);
+      if (pathname.endsWith("/actions/runs"))
+        return Response.json({ workflow_runs: [] });
+      if (!pathname.endsWith("/status"))
+        return Response.json({ commit: { message: "m" } });
+      // GitHub's combined status: 30 a page unless asked, 100 at most.
+      const size = Math.min(Number(searchParams.get("per_page")) || 30, 100);
+      const page = Number(searchParams.get("page")) || 1;
+      return Response.json({
+        sha: "tip",
+        statuses: statuses.slice((page - 1) * size, page * size),
+      });
+    },
+    new GithubCredentials(async () => null),
+  );
+
+  const reading = await github.read({ owner: "o", name: "r" }, "main");
+
+  expect(reading?.runs).toHaveLength(150);
+  expect(reading?.runs).toContainEqual(
+    expect.objectContaining({ workflow: "job1", state: "failure" }),
+  );
+  // The second page is asked by the sha, in case the branch moved meanwhile.
+  expect(asked.filter((p) => p.endsWith("/status"))).toEqual([
+    "/repos/o/r/commits/heads/main/status",
+    "/repos/o/r/commits/tip/status",
+  ]);
+});
+
 it("walks back past commits CI never saw to the last one it reported on", async () => {
   const commit = (oid: string, contexts?: RollupContext[]) => ({
     oid,

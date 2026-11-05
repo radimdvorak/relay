@@ -68,6 +68,11 @@ export function latestGithubRuns(runs: GithubRun[]) {
   return { head, runs: latest };
 }
 
+/** Commit statuses a page, GitHub's most. */
+const STATUS_PAGE = 100;
+/** A commit rarely carries more contexts than this. */
+const STATUS_PAGES = 5;
+
 /** How far back a branch is walked for a commit CI reported on, 100 commits a page. */
 const HISTORY_PAGES = 5;
 
@@ -346,6 +351,27 @@ export class GitHub {
     return null;
   }
 
+  /**
+   * The latest status of every context on the commit `ref` points at. GitHub
+   * pages them, 30 by default; later pages go by the sha the first one named,
+   * so a push in between can't mix two commits' statuses.
+   */
+  private async tipStatuses(repo: CiRepo, ref: string) {
+    const page = (at: string, n: number) =>
+      this.get<{ sha: string; statuses: CommitStatus[] }>(
+        `${this.repoPath(repo)}/commits/${at}/status?per_page=${STATUS_PAGE}&page=${n}`,
+      );
+    const tip = await page(ref, 1);
+    const statuses = [...tip.statuses];
+    let last = tip.statuses;
+    // The page body is all `get` keeps of a cached answer, so a short page, not the Link header, says it was the last.
+    for (let n = 2; n <= STATUS_PAGES && last.length === STATUS_PAGE; n++) {
+      last = (await page(tip.sha, n)).statuses;
+      statuses.push(...last);
+    }
+    return { sha: tip.sha, statuses };
+  }
+
   private async readTip(
     repo: CiRepo,
     branch: string,
@@ -356,9 +382,7 @@ export class GitHub {
         `${this.repoPath(repo)}/actions/runs?branch=${encodeURIComponent(branch)}&per_page=30&exclude_pull_requests=true`,
       ),
       // CI outside Actions, like a build machine of your own, posts commit statuses.
-      this.get<{ sha: string; statuses: CommitStatus[] }>(
-        `${this.repoPath(repo)}/commits/${ref}/status`,
-      ).catch(() => null),
+      this.tipStatuses(repo, ref).catch(() => null),
     ]);
     const latest = latestGithubRuns(workflow_runs);
     const statuses = tip ? statusRuns(tip.statuses) : [];
