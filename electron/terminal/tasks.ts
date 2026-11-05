@@ -387,7 +387,9 @@ class ProjectTasks {
     this.scanned = 0;
   }
 
-  private scan(costed = false): Promise<Proc[]> {
+  private scan(asked = false): Promise<Proc[]> {
+    // macOS's `ps` says what each process costs in every look.
+    const costed = asked || process.platform === "darwin";
     if (Date.now() - this.scanned < 1500) return Promise.resolve(this.last);
     const under = this.scanning;
     if (under && (under.costed || !costed)) return under.done;

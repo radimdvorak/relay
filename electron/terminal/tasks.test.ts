@@ -526,6 +526,21 @@ it("stops a server an agent started a moment ago in a worktree about to go away"
   }
 });
 
+it("reuses a plain look for costs on macOS, whose ps says them anyway", async () => {
+  const platform = process.platform;
+  Object.defineProperty(process, "platform", { value: "darwin" });
+  try {
+    const root = "/projects/costs-anyway";
+    await projectTasks.list(root, [], { fresh: true });
+    fake.usage.length = 0;
+    await projectTasks.list(root);
+    await projectTasks.list(root, [], { costed: true });
+    expect(fake.usage).toEqual([]);
+  } finally {
+    Object.defineProperty(process, "platform", { value: platform });
+  }
+});
+
 it("doesn't take a stranger that reuses the pid of a dev server gone before a scan saw it", async () => {
   const root = "/projects/quick-exit";
   fake.cwd = root;
