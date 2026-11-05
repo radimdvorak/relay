@@ -21,6 +21,7 @@ import {
   vi,
 } from "vitest";
 import { forgetCursorModels, cursorDefaults, cursorModels } from "./catalog";
+import { cursorPrompt } from "./commands";
 import { closeCursorConnection } from "./connection";
 import { cursorPolicy, runCursor } from "./run";
 import { configureCursor } from "./sdk";
@@ -33,6 +34,11 @@ import {
   toolText,
   verifyRelayToken,
 } from "../../relay-mcp";
+
+vi.mock("./commands", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./commands")>();
+  return { ...actual, cursorPrompt: vi.fn(actual.cursorPrompt) };
+});
 
 let dir: string;
 let log: string;
@@ -287,6 +293,15 @@ describe("a Cursor turn", () => {
     controller.abort();
     await cancelled;
   });
+
+  it("stops a turn stopped while its prompt was being prepared", async () => {
+    const { controller, options } = turn("[[slow]]");
+    vi.mocked(cursorPrompt).mockImplementationOnce(async (prompt) => {
+      controller.abort();
+      return prompt;
+    });
+    await expect(runCursor(options)).rejects.toThrow(/Cancelled by you/);
+  }, 15_000);
 
   it("ends a worker whose turn ignores Stop, so the thread's next turn resumes its agent instead of finding it busy", async () => {
     const alive = (pid: number) => {

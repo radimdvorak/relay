@@ -224,17 +224,16 @@ export async function runCursor(options: AgentOptions): Promise<string> {
     if (signal.aborted) abort();
     // The worker reports the cancel; if it doesn't, stop waiting anyway.
     const cancelled = new Promise<never>((_, reject) => {
-      signal.addEventListener(
-        "abort",
-        () => {
-          cancelTimer = setTimeout(
-            () => reject(cancelledByYou()),
-            CANCEL_GRACE_MS,
-          );
-          cancelTimer.unref();
-        },
-        { once: true },
-      );
+      const giveUpLater = () => {
+        cancelTimer = setTimeout(
+          () => reject(cancelledByYou()),
+          CANCEL_GRACE_MS,
+        );
+        cancelTimer.unref();
+      };
+      // Stopped while the prompt was prepared: no abort event comes any more.
+      if (signal.aborted) giveUpLater();
+      else signal.addEventListener("abort", giveUpLater, { once: true });
     });
     let result: CursorRunResult;
     try {
