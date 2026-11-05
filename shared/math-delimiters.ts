@@ -13,6 +13,7 @@ export function normalizeMath(text: string): string {
   if (!/\\[([]|\$/.test(text)) return text;
   const lines = text.split("\n"),
     out: string[] = [];
+  const closingLine = closingLineFinder(lines);
   let fence: RegExp | undefined;
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i]!;
@@ -27,7 +28,7 @@ export function normalizeMath(text: string): string {
       out.push(line);
       continue;
     }
-    const display = displayMath(lines, i);
+    const display = displayMath(lines, i, closingLine);
     if (display) {
       out.push(...display.lines);
       i = display.last;
@@ -48,6 +49,7 @@ const DISPLAY_OPENER = /^([ \t>]*)(\$\$|\\\[)(.*)$/;
 function displayMath(
   lines: string[],
   from: number,
+  closingLine: ClosingLineFinder,
 ): { lines: string[]; last: number } | undefined {
   const match = DISPLAY_OPENER.exec(lines[from]!);
   if (!match) return undefined;
@@ -66,12 +68,7 @@ function displayMath(
     };
   }
 
-  let last = from + 1;
-  while (
-    last < lines.length &&
-    !stripPrefix(lines[last]!).trimEnd().endsWith(closer)
-  )
-    last++;
+  const last = closingLine(closer, from + 1);
   const closes = last < lines.length;
   if (!closes && opener !== "$$" && rest.trim()) return undefined;
   // Still streaming in: the formula runs to the end of what has arrived.
@@ -91,6 +88,32 @@ function displayMath(
   if (body) out.push(prefix + body);
   out.push(fence);
   return { lines: out, last };
+}
+
+type ClosingLineFinder = (closer: string, from: number) => number;
+
+/**
+ * The first line at or after `from` that ends with `closer`, or
+ * `lines.length` when none does. It remembers the last search per closer, so
+ * a run of openers that never close reads the rest of the text once, not once
+ * per opener.
+ */
+function closingLineFinder(lines: string[]): ClosingLineFinder {
+  const searched = new Map<string, { from: number; found: number }>();
+  return (closer, from) => {
+    const last = searched.get(closer);
+    // Nothing between the last search's start and what it found ends with the
+    // closer, so a later start up to that line finds the same one.
+    if (last && last.from <= from && from <= last.found) return last.found;
+    let found = from;
+    while (
+      found < lines.length &&
+      !stripPrefix(lines[found]!).trimEnd().endsWith(closer)
+    )
+      found++;
+    searched.set(closer, { from, found });
+    return found;
+  };
 }
 
 const stripPrefix = (line: string) => line.replace(/^[ \t>]*/, "");
