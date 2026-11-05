@@ -361,6 +361,7 @@ it("leaves the thread's folder, branch and linked folders alone", async () => {
   expect(rendered.get("ThreadWhere") ?? 0).toBe(0);
   expect(rendered.get("ProjectBranchPicker") ?? 0).toBe(0);
   expect(rendered.get("LinksControl") ?? 0).toBe(0);
+  expect(rendered.get("WorktreeDialogs") ?? 0).toBe(0);
 });
 
 it("shows the checkout's branch once it arrives, though the branch picker skips streamed pieces", async () => {
@@ -379,10 +380,10 @@ it("shows the checkout's branch once it arrives, though the branch picker skips 
 // The composer's slots, the controls around it, still render on every
 // piece: ProjectChat reads the whole thread and hands them fresh objects.
 // This may shrink, never grow; lower it when you cut renders.
-it("renders at most 45 components a streamed piece", async () => {
+it("renders at most 44 components a streamed piece", async () => {
   await streamThreePieces();
   const total = [...rendered.values()].reduce((sum, n) => sum + n, 0);
-  expect(total / 3).toBeLessThanOrEqual(45);
+  expect(total / 3).toBeLessThanOrEqual(44);
 });
 
 it("works out the reply roots once a streamed piece", async () => {
