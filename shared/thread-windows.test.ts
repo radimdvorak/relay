@@ -43,6 +43,17 @@ describe("placeOnScreen", () => {
     expect(placeOnScreen(saved, [screen], screen).x).toBe(510);
   });
 
+  it("moves a window whose title bar was on a display above that's gone", () => {
+    const saved = { x: 200, y: -1000, width: 1500, height: 1100 };
+    expect(placeOnScreen(saved, [screen], screen).y).toBe(0);
+  });
+
+  it("keeps a window whose title bar sits on a display above", () => {
+    const above = { x: 0, y: -1440, width: 2560, height: 1440 };
+    const saved = { x: 200, y: -1000, width: 1500, height: 1100 };
+    expect(placeOnScreen(saved, [screen, above], screen)).toEqual(saved);
+  });
+
   it("shrinks a window bigger than the display it lands on", () => {
     const saved = { x: 5000, y: 0, width: 2500, height: 1400 };
     expect(placeOnScreen(saved, [screen], screen)).toEqual(screen);
