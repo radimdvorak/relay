@@ -20,7 +20,7 @@ import { api } from "../../lib/api";
 import { ghostKey } from "../../../shared/import-offer";
 import { realBefore } from "../import-offer/import-plan";
 import { errorMessage } from "../../../shared/error-message";
-import { groupKey } from "./useSidebarFolds";
+import { groupKey, type SidebarFolds } from "./useSidebarFolds";
 
 export type ProjectGroups = ReturnType<typeof useProjectGroups>;
 
@@ -88,7 +88,7 @@ async function placeProject(
 export function useProjectGroups(
   /** Every project but Scratchpad's. */
   projects: Project[],
-  setOpen: (key: string, open: boolean) => void,
+  { setOpen, regroup }: Pick<SidebarFolds, "setOpen" | "regroup">,
   setError: (message: string | undefined) => void,
   /** An import plan's new projects stand among `projects`; it hears every move. */
   planned?: PlannedGroups,
@@ -142,10 +142,12 @@ export function useProjectGroups(
     renameGroup(path: string, name: string, open: boolean) {
       const to = joinGroup(parentGroup(path), name);
       setOpen(groupKey(to), open);
+      regroup(path, to);
       planned?.regroup(path, to);
       void change(() => api.renameProjectGroup(path, to));
     },
     removeGroup(path: string) {
+      regroup(path, parentGroup(path));
       planned?.regroup(path, parentGroup(path));
       void change(() => api.removeProjectGroup(path));
     },
