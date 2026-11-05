@@ -67,6 +67,19 @@ async function worktreeWork(qc: QueryClient, c: ChatSummary) {
   return status && !status.removed ? status.files.length : 0;
 }
 
+/** Forks `c` from its latest answer, the fork's composer set as that answer's was. */
+async function forkThread(qc: QueryClient, c: ChatSummary) {
+  const forked = await api.forkProjectChat(c.id);
+  const history = await fetchChat(qc, forked.id);
+  forkThreadSettings(
+    c.id,
+    forked.id,
+    forked.provider,
+    lastComposerSettings(history),
+  );
+  return forked;
+}
+
 /**
  * What the sidebar does to a thread: opening, triage, naming, forking it and
  * reloading its agent. Each change shows at once in every list holding the
@@ -274,14 +287,7 @@ export function useThreadActions({
   const fork = async (c: ChatSummary) => {
     setError(undefined);
     try {
-      const forked = await api.forkProjectChat(c.id);
-      const history = await fetchChat(qc, forked.id);
-      forkThreadSettings(
-        c.id,
-        forked.id,
-        forked.provider,
-        lastComposerSettings(history),
-      );
+      const forked = await forkThread(qc, c);
       await refresh(c);
       open(forked);
     } catch (e) {
