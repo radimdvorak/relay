@@ -26,7 +26,15 @@ export class Updater {
   private state: UpdateState;
   private install: Install | null = null;
   private manifest?: UpdateManifest;
-  private staged?: { version: string; path: string; dir: string };
+
+  private staged?: {
+    version: string;
+    path: string;
+    dir: string;
+    /** The installer waits for Relay to quit; the next quit installs this one. */
+    handedOff?: boolean;
+  };
+
   private busy = false;
   private checking?: Promise<UpdateState>;
   private checkedAt = 0;
@@ -41,8 +49,9 @@ export class Updater {
     private readonly hooks: {
       /** Claude's background work still running; the restart waits for it. */
       runningTasks: () => number;
-      beforeQuit: () => void;
-    } = { runningTasks: () => 0, beforeQuit: () => {} },
+      /** Quits for the restart; `cancelled` runs when Relay is kept open instead. */
+      quit: (cancelled: () => void) => void;
+    } = { runningTasks: () => 0, quit: () => app.quit() },
   ) {
     const current = app.getVersion();
     // Development builds stay quiet unless a feed is set to exercise the UI.
@@ -99,6 +108,8 @@ export class Updater {
   private async lookUp() {
     const current = app.getVersion();
     if (this.state.status === "off" || this.busy) return this.state;
+    // The installer is already waiting to install the staged release.
+    if (this.staged?.handedOff) return this.state;
     // A download under way or a restart asked for shouldn't be reset by a timer.
     if (["downloading", "waiting", "installing"].includes(this.state.status))
       return this.state;
@@ -332,16 +343,19 @@ export class Updater {
     this.waiting = undefined;
     if (this.state.status === "installing") return this.state;
     const current = app.getVersion();
-    this.set({ status: "installing", current, version: staged.version });
+    const version = staged.version;
+    this.set({ status: "installing", current, version });
     try {
-      await apply(install.target, staged.path);
-      this.hooks.beforeQuit();
-      app.quit();
+      // A second installer would race the first over the same bundle.
+      if (!staged.handedOff) await apply(install.target, staged.path);
+      staged.handedOff = true;
+      // Keeping Relay open (unsaved edits, a failed save) offers Restart again.
+      this.hooks.quit(() => this.set({ status: "ready", current, version }));
     } catch (error) {
       this.set({
         status: "error",
         current,
-        version: staged.version,
+        version,
         message: error instanceof Error ? error.message : "Update failed.",
       });
     }

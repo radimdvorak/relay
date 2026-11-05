@@ -249,10 +249,7 @@ const updater = new Updater((state) => window.send("relay:update", state), {
   runningTasks: () =>
     agentHosts ? 0 : (projectChats?.runningTasks().length ?? 0),
   // Restarting for an update was the user's call, tasks or not.
-  beforeQuit: () => {
-    quit.confirmed = true;
-    quit.detaching = true;
-  },
+  quit: (cancelled) => quit.restart(cancelled),
 });
 
 const devBuild = new DevBuild(
