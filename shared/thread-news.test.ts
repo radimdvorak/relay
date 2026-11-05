@@ -218,7 +218,11 @@ describe("preview", () => {
   });
 
   it("reads a long answer of unmatched marks quickly", () => {
-    const bodies = ["`".repeat(30_000) + "!", "[a".repeat(15_000), "[a](".repeat(8_000)];
+    const bodies = [
+      "`".repeat(30_000) + "!",
+      "[a".repeat(15_000),
+      "[a](".repeat(8_000),
+    ];
     for (const body of bodies) {
       const started = performance.now();
       preview(body);
@@ -227,8 +231,20 @@ describe("preview", () => {
   });
 
   it("still drops fences and link targets", () => {
-    expect(preview("See [the docs](https://x.dev) and ![](a.png)\n```\ncode\n```")).toBe(
-      "See the docs and",
+    expect(
+      preview("See [the docs](https://x.dev) and ![](a.png)\n```\ncode\n```"),
+    ).toBe("See the docs and");
+  });
+
+  it("keeps parentheses in a link target out of the preview", () => {
+    expect(preview("See [Foo](https://en.wikipedia.org/wiki/Foo_(bar)).")).toBe(
+      "See Foo.",
+    );
+  });
+
+  it("drops a four-backtick fence with a fence inside", () => {
+    expect(preview("Try:\n\n````md\n```ts\nx\n```\n````\nDone")).toBe(
+      "Try: Done",
     );
   });
 });
