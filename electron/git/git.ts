@@ -7,6 +7,7 @@ import { promisify } from "node:util";
 import { NotText, textLimit, tooLarge } from "./working-files";
 import { findGit } from "../platform/executables";
 import { gitMissing, type GitInfo } from "../../shared/working-tree";
+import { filterOverride } from "./filter-guard";
 import { monitorOverride } from "./fsmonitor-guard";
 const exec = promisify(execFile);
 const missing = `${gitMissing} Install Git, or choose where it is in Settings → Integrations.`;
@@ -167,13 +168,27 @@ export function gitError(e: unknown) {
 export const exitCodeOf = (error: unknown) =>
   (error as { exitCode?: number }).exitCode;
 
-/** `args` run in `root`, without the repository's fsmonitor hook when they only read. */
-const gitArgs = (
+/**
+ * `args` run in `root`, without the repository's fsmonitor hook or filters
+ * when they only read. A promise only until `root`'s filters are known.
+ */
+function gitArgs(
   file: string,
   root: string,
   args: string[],
   env?: NodeJS.ProcessEnv,
-) => ["-C", root, ...monitorOverride(file, root, args, gitEnv(env)), ...args];
+): string[] | Promise<string[]> {
+  const monitor = monitorOverride(file, root, args, gitEnv(env));
+  const filters = filterOverride(file, root, args, gitEnv(env));
+  const full = (settings: string[]) => [
+    "-C",
+    root,
+    ...monitor,
+    ...settings,
+    ...args,
+  ];
+  return Array.isArray(filters) ? full(filters) : filters.then(full);
+}
 
 /** Runs Git in `root`; a timeout as a number is the common case. */
 export async function git(
@@ -189,9 +204,17 @@ export async function git(
     input,
   } = typeof options === "number" ? { timeout: options } : options;
   const file = resolved ?? (await gitExecutable());
+  let fullArgs: string[];
+  try {
+    // Awaited only while it's a promise, so Git starts before this returns.
+    const pending = gitArgs(file, root, args, env);
+    fullArgs = Array.isArray(pending) ? pending : await pending;
+  } catch (error) {
+    throw gitError(error);
+  }
   signal?.throwIfAborted();
   if (signal)
-    return cancellableGit(file, root, args, {
+    return cancellableGit(file, fullArgs, {
       timeout,
       maxBuffer,
       env,
@@ -199,7 +222,7 @@ export async function git(
       input,
     });
   try {
-    const running = exec(file, gitArgs(file, root, args, env), {
+    const running = exec(file, fullArgs, {
       timeout,
       maxBuffer,
       env: gitEnv(env),
@@ -215,14 +238,13 @@ export async function git(
 /** Keep pipes open until the entire cancelled Git command has stopped. */
 function cancellableGit(
   file: string,
-  root: string,
-  args: string[],
+  fullArgs: string[],
   options: Required<Pick<GitOptions, "timeout" | "maxBuffer" | "signal">> &
     Pick<GitOptions, "env" | "input">,
 ): Promise<string> {
   return new Promise((resolve, reject) => {
     const { signal, timeout, maxBuffer } = options;
-    const child = spawn(file, gitArgs(file, root, args, options.env), {
+    const child = spawn(file, fullArgs, {
       env: gitEnv(options.env),
       detached: process.platform !== "win32",
       windowsHide: true,
@@ -385,7 +407,7 @@ export async function gitBytes(
   const file = resolved ?? (await gitExecutable());
   try {
     return (
-      await exec(file, gitArgs(file, root, args), {
+      await exec(file, await gitArgs(file, root, args), {
         timeout: 15000,
         maxBuffer: limit + 4096,
         encoding: "buffer",

@@ -38,6 +38,10 @@ function subcommandOf(args: string[]) {
   }
 }
 
+/** Whether `args` is a read that refreshes the index, the kind Relay polls. */
+export const refreshesIndex = (args: string[]) =>
+  indexReads.has(subcommandOf(args) ?? "");
+
 /**
  * Whether `root`'s `core.fsmonitor` names a hook command. Git's builtin
  * daemon is a boolean (`true`) and stays on: it's safe, and what keeps
@@ -77,7 +81,7 @@ export function monitorOverride(
   args: string[],
   env: NodeJS.ProcessEnv,
 ): string[] {
-  if (!indexReads.has(subcommandOf(args) ?? "")) return [];
+  if (!refreshesIndex(args)) return [];
   void checkMonitor(file, root, env);
   const hook = checks.get(root)?.hook ?? true;
   return hook ? monitorOff : [];
