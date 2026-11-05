@@ -27,6 +27,7 @@ export function reviewHandlers(ctx: ApiContext) {
     requireClient,
     clientFor,
     prKey,
+    threadPrKey,
     projectChats,
     ci,
     login,
@@ -130,8 +131,7 @@ export function reviewHandlers(ctx: ApiContext) {
       });
       // An unused PR thread lists once its review begins; see listChats.
       for (const c of store.get().chats ?? [])
-        if (c.scope.kind === "pr" && prKey(c.scope.ref) === key)
-          projectChats.summariesChanged(c.projectId);
+        if (threadPrKey(c) === key) projectChats.summariesChanged(c.projectId);
     }),
     submitReview: takes(
       [

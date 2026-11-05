@@ -3,7 +3,7 @@ import { chatIsEmpty } from "../../shared/chat-activity";
 import type { ChatSummary } from "../../shared/projects";
 import { parseWorkspaceId, workspaceIdSchema } from "../../shared/workspaces";
 import { idSchema } from "../../shared/validation";
-import type { Api, ApiMethod, Repo } from "../../shared/types";
+import type { Api, ApiMethod, PullRef, Repo } from "../../shared/types";
 import type { AgentUpdates } from "../agents/agent-updates";
 import type { AppLinks } from "../app/links";
 import type { GiteaLogin } from "../app/login";
@@ -165,6 +165,17 @@ export function remoteProjects(ctx: Pick<ApiContext, "handoffs">) {
   return handoffs.remote;
 }
 
+/** The key of the pull request a thread reviews; none for other threads. */
+function pullKeyOf(chat: ChatSummary, prKey: (r: PullRef) => string) {
+  if (chat.scope.kind !== "pr") return undefined;
+  try {
+    return prKey(chat.scope.ref);
+  } catch {
+    // A Gitea PR while signed out of Gitea keys by an account it can't name.
+    return undefined;
+  }
+}
+
 /** The services, plus the lookups most handlers share. */
 export function apiContext(services: Services) {
   const { store, projects, projectChats, login, hosts } = services;
@@ -231,16 +242,11 @@ export function apiContext(services: Services) {
     };
   }
   const placeRoot = async (where: unknown) => (await place(where)).root;
+  const threadPrKey = (chat: ChatSummary) => pullKeyOf(chat, prKey);
   /** An unused PR thread is still a review in the making once files are viewed or drafted. */
   function reviewStarted(chat: ChatSummary) {
-    if (chat.scope.kind !== "pr") return false;
-    let key: string;
-    try {
-      key = prKey(chat.scope.ref);
-    } catch {
-      // A Gitea PR while signed out of Gitea keys by an account it can't name.
-      return false;
-    }
+    const key = threadPrKey(chat);
+    if (!key) return false;
     const p = store.get().progress[key];
     return (
       !!p &&
@@ -265,6 +271,7 @@ export function apiContext(services: Services) {
     clientFor,
     repoKey,
     prKey,
+    threadPrKey,
     linkedFolder,
     requireFolder,
     place,
