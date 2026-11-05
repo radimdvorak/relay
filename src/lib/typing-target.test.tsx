@@ -58,6 +58,13 @@ it("types € with AltGr+E in a field instead of opening the editor window", asy
   expect(press.defaultPrevented).toBe(false);
 });
 
+it("keeps Ctrl+Alt+E a shortcut in a field when AltGr types nothing on E", async () => {
+  const fired = await listenFor("editor-window");
+  const field = document.body.appendChild(document.createElement("textarea"));
+  field.dispatchEvent(altGr("KeyE", "e"));
+  expect(fired).toHaveBeenCalledOnce();
+});
+
 it("keeps ⌥⌘E a shortcut in a field on macOS, where Option is a modifier", async () => {
   Object.defineProperty(navigator, "platform", { value: "MacIntel" });
   const fired = await listenFor("editor-window");

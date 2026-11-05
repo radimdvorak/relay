@@ -22,6 +22,9 @@ export function isTypingTarget(e: Event) {
 export function typesWithAltGr(e: KeyboardEvent) {
   // On macOS, Option is a shortcut's modifier, whatever it types.
   if (mac) return false;
-  const typesCharacter = e.key.length === 1 && e.getModifierState("AltGraph");
+  if (!e.getModifierState("AltGraph")) return false;
+  // Chromium also reports a left Ctrl+Alt as AltGraph on such a layout; a
+  // key AltGr types nothing with keeps its plain letter, and stays a shortcut.
+  const typesCharacter = e.key.length === 1 && !/^[a-z0-9]$/i.test(e.key);
   return typesCharacter && isTypingTarget(e);
 }
