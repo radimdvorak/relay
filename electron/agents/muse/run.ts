@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { projectInstructions, sideInstructions } from "../instructions";
 import { renderPrompt } from "../../../shared/html-render";
-import { signedOutError, usageLimitError } from "../errors";
+import { isAgentError, signedOutError, usageLimitError } from "../errors";
 import { CANCEL_GRACE_MS, cancelledByYou, guardSteer } from "../turn-kit";
 import type { AgentOptions } from "../types";
 import { MuseRequestError } from "./connection";
@@ -248,8 +248,10 @@ export async function runMuse(options: AgentOptions): Promise<string> {
     if (options.interactionMode === "plan" && answer.trim()) options.onPlan?.(answer);
     return answer;
   } catch (error) {
-    if (error instanceof MuseRequestError && error.kind === "authRequired") throw signedOutError("muse");
-    throw error;
+    const thrown = error instanceof MuseRequestError && error.kind === "authRequired" ? signedOutError("muse") : error;
+    // Its process keeps the sign-in it started with; a login made since needs a new one.
+    if (isAgentError(thrown, "signedOut")) agent.close();
+    throw thrown;
   } finally {
     clearTimeout(cancelTimer);
     signal.removeEventListener("abort", interrupt);

@@ -277,6 +277,16 @@ describe("failures", () => {
     expect(isAgentError(error, "signedOut")).toBe(true);
   });
 
+  it("starts a fresh process after a refused sign-in, so a login made since is used", async () => {
+    await scenario({ signedOut: true });
+    const refused = await turn().answer().catch((e) => e);
+    expect(isAgentError(refused, "signedOut")).toBe(true);
+    // The fake reads its sign-in when it starts, as a running `muse serve` keeps its own.
+    await scenario({});
+    await expect(turn().answer()).resolves.toBe("Done.");
+    expect(await calls("initialize")).toHaveLength(2);
+  });
+
   it("reads a spent quota as a usage limit with its reset time", async () => {
     await scenario({ turn: [{ fail: { kind: "modelError", message: "Weekly limit reached.", quota: { limitKind: "tierLimit", resetsAtMs: 1_900_000_000_000 } } }] });
     const error = await turn().answer().catch((e) => e);
