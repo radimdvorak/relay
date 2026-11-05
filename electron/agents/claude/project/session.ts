@@ -210,7 +210,8 @@ export function closeClaudeSession(key: string) {
 /**
  * Moves a live session to new settings instead of restarting it, which
  * would end the background work and wake-ups it holds. False when it can't:
- * another folder, or full access for a session launched without it.
+ * another folder, Read only on or off, or full access for a session
+ * launched without it.
  */
 export async function retune(
   session: ClaudeSession,
@@ -225,6 +226,8 @@ export async function retune(
     options.contextWindow !== before.contextWindow ||
     // Folders it reaches are fixed when Claude Code starts.
     linksSignature(options.links) !== linksSignature(before.links) ||
+    // So are its tools, MCP servers and hooks, which Read only cuts down.
+    !!options.readOnly !== !!before.readOnly ||
     (mode === "bypassPermissions" && !session.skipsPermissions)
   )
     return false;
