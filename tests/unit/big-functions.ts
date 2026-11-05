@@ -66,7 +66,7 @@ export const bigFunctions: Record<string, number> = {
   "electron/html-renders/look.ts › lookAtPage": 124,
   "electron/media/index.ts › serveMedia": 83,
   "electron/perf/recording.ts › recordPerformance": 92,
-  "electron/preview/agent-tools.ts › answerPreviewTool": 95,
+  "electron/preview/agent-tools.ts › answerPreviewTool": 94,
   "electron/preview/element-pick.ts › pickElement": 87,
   "electron/preview/projects.ts › target": 143,
   "electron/project-chats/index.ts › constructor": 204,
