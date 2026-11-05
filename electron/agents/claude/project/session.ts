@@ -28,6 +28,7 @@ import { SideQueue } from "./side-queue";
 import {
   claudePermissionMode,
   linksSignature,
+  sessionSignature,
   type ClaudeRunOptions,
 } from "./config";
 import { readOnlyHook } from "../../../agent-host/read-only-tools";
@@ -427,7 +428,9 @@ function restoreSession(
         onUnprompted: show,
       },
     },
-    signature: meta.signature,
+    // Signed again: an older Relay left Read only out, so a read-only
+    // session would pass for a Supervised one.
+    signature: sessionSignature(meta.options as ClaudeRunOptions),
     relayPrompt: meta.relayPrompt,
     skipsPermissions: meta.skipsPermissions,
     account: meta.options.account,
