@@ -184,8 +184,10 @@ export const allowedFlags: Record<string, string> = {
     ),
   ].join("|"),
   // Not -o, which writes, nor -R, which writes a listing into each folder.
+  // tree reads on through a cluster after a letter taking a value, which
+  // takes the next word (-Io x out is -I x -o out), so that letter ends it.
   tree: [
-    shorts("acdfghilnpqstuvxACDFJNQSUX", "ILP"),
+    "-[acdfghilnpqstuvxACDFJNQSUX]*(?:[IP]|L\\d*)?",
     longs(
       ["noreport", "dirsfirst", "gitignore", "prune", "du", "si", "matchdirs",
         "ignore-case", "version", "help"],

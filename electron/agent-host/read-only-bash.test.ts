@@ -18,6 +18,7 @@ it("lets the commands a reviewer reads with through", () => {
     "sort -t, -k2,2 -rn data.csv",
     "find . -type f -mtime -1 -size +10k -print",
     "tree -L 2 -I node_modules",
+    "tree -aL3 --dirsfirst src",
     "rg --no-hidden --no-follow --no-multiline -uu TODO",
     "rg --type-add 'web:*.html' -t web --sort-files color",
     "rg --ignore-file .reviewignore --no-ignore-messages --context-separator=-- foo",
@@ -54,6 +55,10 @@ it("turns down anything that writes, runs or hides another command", () => {
     "sort --compress-program ./comp.sh big.txt",
     "sort --comp=./comp.sh big.txt",
     "tree -R -H . src",
+    // tree's -o hidden behind a letter taking a value.
+    "tree -Io node_modules out.txt .",
+    "tree -Lo 2 out.txt .",
+    "tree -L2o out.txt .",
     "find . -fls /tmp/x",
     "find . -name '*.tmp' -delete",
     "sed -i 's/a/b/' file.ts",
