@@ -42,7 +42,6 @@ export const bigFunctions: Record<string, number> = {
   "electron/api/terminals.ts › terminalHandlers": 81,
   "electron/app/menu.ts › setApplicationMenu": 104,
   "electron/app/window.ts › build": 121,
-  "electron/bug-report/service.ts › post": 101,
   "electron/checks/detect.ts › detectProject": 98,
   "electron/checks/service.ts › launch": 210,
   "electron/deep-review/scope.ts › resolveScope": 116,
