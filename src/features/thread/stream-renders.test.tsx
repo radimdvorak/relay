@@ -283,6 +283,12 @@ it("leaves the notes line under every message alone", async () => {
   expect(rendered.get("MessageNotes") ?? 0).toBe(0);
 });
 
+it("doesn't measure the timeline again while its turns read the same", async () => {
+  await streamThreePieces();
+  expect(watched.get("project-messages") ?? 0).toBe(0);
+  expect(watched.get("thread-message-column") ?? 0).toBe(0);
+});
+
 // The composer and the controls around it still render on every piece:
 // ProjectChat reads the whole thread and hands them fresh objects. This may
 // shrink, never grow; lower it when you cut renders.

@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { plainText, timelineTurns } from "./timeline";
+import { plainText, sameTimeline, timelineTurns } from "./timeline";
 import type { ChatMessage } from "../../../shared/projects";
 
 const message = (
@@ -183,4 +183,15 @@ it("says what an answer that wrote nothing did instead of no answer", () => {
     "The ping is late.",
     "Ran 1 command and edited 1 file",
   ]);
+});
+
+it("reads the same while a streamed answer grows past what the rail previews", () => {
+  const prompt = message("p1", "user", "Why?");
+  const answer = (body: string, status: ChatMessage["status"] = "streaming") =>
+    timelineTurns([prompt, message("a1", "assistant", body, { status })]);
+  const long = "Because. ".repeat(60);
+  expect(sameTimeline(answer(long), answer(`${long} more`))).toBe(true);
+  // Its opening, and whether it's still coming, show in the peek.
+  expect(sameTimeline(answer("Bec"), answer("Because"))).toBe(false);
+  expect(sameTimeline(answer(long), answer(long, "complete"))).toBe(false);
 });

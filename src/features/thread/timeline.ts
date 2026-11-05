@@ -153,3 +153,22 @@ export function timelineTurns(listed: ChatMessage[]) {
   settle();
   return { turns, turnOf };
 }
+
+export type Timeline = ReturnType<typeof timelineTurns>;
+
+/** Both say the same turns, from the same messages: most streamed pieces
+ * change nothing the rail shows once the answer's opening is written. */
+export function sameTimeline(a: Timeline, b: Timeline) {
+  const sameTurn = (x: TimelineTurn, y: TimelineTurn) =>
+    x.id === y.id &&
+    x.agent === y.agent &&
+    x.prompt === y.prompt &&
+    x.answer === y.answer &&
+    x.answering === y.answering;
+  return (
+    a.turns.length === b.turns.length &&
+    a.turns.every((turn, i) => sameTurn(turn, b.turns[i]!)) &&
+    a.turnOf.size === b.turnOf.size &&
+    [...a.turnOf].every(([id, turn]) => b.turnOf.get(id) === turn)
+  );
+}
