@@ -443,9 +443,15 @@ export async function placeRound(
   const checkout = opened ?? at;
   if (checkout) scope.checkout = checkout;
   else scope.folder = root;
+  // Git lists folders by their real paths, which an earlier round's needn't be.
+  const earlier = (chat.reviews ?? []).flatMap(
+    (r) => r.scope.checkout?.path ?? [],
+  );
   const kept =
     !!checkout &&
-    chat.reviews?.some((r) => r.scope.checkout?.path === checkout.path);
+    (await Promise.all(earlier.map((p) => sameFolder(p, checkout.path)))).some(
+      Boolean,
+    );
   return () =>
     !checkout
       ? undefined
