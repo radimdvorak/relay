@@ -266,7 +266,7 @@ export class TurnSends {
         chat.title = promptTitle(input.body);
       if (!answer) chat.lastInput = { ...input, images: undefined };
       this.core.storage.keep(chat);
-      await this.core.storage.save(chat);
+      await this.core.storage.checkpoint(chat); // the turn's end saves it whole
       this.core.emit({ chatId: id, message: user });
       for (const message of superseded)
         this.core.emit({ chatId: id, message: structuredClone(message) });
@@ -410,7 +410,7 @@ export class TurnSends {
       }));
       chat.lastInput = { ...input, images: undefined };
       chat.messages.push(answer);
-      await this.core.storage.save(chat);
+      await this.core.storage.checkpoint(chat);
       this.core.emit({ chatId: id, message: structuredClone(answer) });
       const promptInput = {
         chat,
