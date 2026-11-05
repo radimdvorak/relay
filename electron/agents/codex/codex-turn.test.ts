@@ -606,3 +606,26 @@ it("stops waiting when Codex never acknowledges the interrupt", async () => {
     vi.useRealTimers();
   }
 });
+
+it("fails a run whose app server can't be started instead of waiting forever", async () => {
+  // Like a `.cmd` Windows refuses to spawn: `spawn` throws rather than emitting `error`.
+  vi.mocked(findExecutable).mockResolvedValue("codex\0");
+  const answer = runCodex({
+    job: { kind: "prompt" },
+    cwd: tmpdir(),
+    prompt: "Hi",
+    choice: { model: "", reasoningEffort: "", fast: false },
+    runtimeMode: "full-access",
+    interactionMode: "default",
+    signal: new AbortController().signal,
+    onText() {},
+  });
+  const outcome = await Promise.race([
+    answer.then(
+      () => "answered",
+      () => "failed",
+    ),
+    new Promise((resolve) => setTimeout(() => resolve("still waiting"), 2000)),
+  ]);
+  expect(outcome).toBe("failed");
+});

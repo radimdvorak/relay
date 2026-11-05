@@ -51,6 +51,8 @@ class CodexConnection {
   /** Watch state for "Flag what I'd miss", made the first time a turn asks. */
   watch?: CodexWatch;
   private release!: () => void;
+  /** Fails `ready`; nothing once it is. */
+  private unready!: (error: Error) => void;
   /** Why its process went, once it's going. */
   private death?: Promise<Error>;
 
@@ -58,13 +60,18 @@ class CodexConnection {
     open: () => Promise<ChildProcessWithoutNullStreams | HostedChild>,
   ) {
     let ready!: (wire: CodexTransport) => void;
-    this.ready = new Promise((resolve) => {
+    this.ready = new Promise((resolve, reject) => {
       ready = resolve;
+      this.unready = reject;
     });
+    // Nobody may be waiting for it when it fails.
+    this.ready.catch(() => {});
     const lifetime = new Promise<void>((resolve) => {
       this.release = resolve;
     });
     const fail = (error: Error) => {
+      // A process that never started fails whoever waits to talk to it.
+      this.unready(error);
       this.onError?.(error);
       void this.close();
     };
@@ -197,6 +204,7 @@ class CodexConnection {
   close() {
     if (!this.closed) {
       this.closed = true;
+      this.unready(new Error("Codex was closed before it started."));
       this.release();
       this.stop();
     }
