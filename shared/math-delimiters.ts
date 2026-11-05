@@ -1,3 +1,5 @@
+import { codeSpans } from "./code-spans";
+
 /**
  * Agents write math four ways: `$$…$$`, `\[…\]`, `\(…\)` and `$…$`. The
  * Markdown parser only has to know one, so this rewrites the rest into it
@@ -118,15 +120,13 @@ function closingLineFinder(lines: string[]): ClosingLineFinder {
 
 const stripPrefix = (line: string) => line.replace(/^[ \t>]*/, "");
 
-const CODE_SPAN = /(`+)(?:[^`]|[^`].*?[^`])\1(?!`)/g;
-
 function inlineMath(line: string): string {
   if (!/\\[([]|\$/.test(line)) return line;
   let out = "",
     at = 0;
-  for (const span of line.matchAll(CODE_SPAN)) {
-    out += convertInline(line.slice(at, span.index)) + span[0];
-    at = span.index + span[0].length;
+  for (const span of codeSpans(line)) {
+    out += convertInline(line.slice(at, span.index)) + span.text;
+    at = span.index + span.text.length;
   }
   return out + convertInline(line.slice(at));
 }
