@@ -44,10 +44,12 @@ export function usePullThreads(
   const spotNow = useShellSpot(nav);
   /**
    * A PR from the Pull requests page opens on its project's thread with the
-   * Review beside it; opening it the first time makes that thread.
+   * Review beside it; opening it the first time makes that thread. Not once
+   * the user went elsewhere meanwhile.
    */
   async function openInProject(p: Project, ref: PullRef) {
     if (!p.repository || lock.blocked()) return;
+    const from = spotNow();
     // The project's spelling of its repository, which its threads use.
     const pr = {
       owner: p.repository.owner,
@@ -62,6 +64,7 @@ export function usePullThreads(
         thread = await api.createProjectChat(p.id, { kind: "pr", ref: pr });
         await chatsOf();
       }
+      if (!sameSpot(spotNow(), from)) return;
       nav.navigate(p, thread);
       panes.show("changes");
     } catch (e) {

@@ -32,7 +32,8 @@ type Nav = Parameters<typeof usePullThreads>[0];
 function setup(reviewOpen = false) {
   const openChat = vi.fn(),
     setChatId = vi.fn(),
-    show = vi.fn();
+    show = vi.fn(),
+    navigate = vi.fn();
   const navIn = (projectId: string, pull: typeof ref | null = null): Nav =>
     ({
       project: { id: projectId } as Project,
@@ -43,7 +44,7 @@ function setup(reviewOpen = false) {
       surface: "project",
       pull,
       panes: { show, layout: { open: { changes: reviewOpen } } },
-      navigate: vi.fn(),
+      navigate,
       openChat,
       setChatId,
     }) as unknown as Nav;
@@ -57,7 +58,7 @@ function setup(reviewOpen = false) {
     nav = navIn(projectId);
     result.rerender();
   };
-  return { result, moveTo, openChat, setChatId, show };
+  return { result, moveTo, openChat, setChatId, show, navigate };
 }
 
 it("doesn't open a PR thread made in a project the user has left", async () => {
@@ -97,4 +98,23 @@ it("doesn't switch to a review's thread once the user has left its project", asy
   await flush();
 
   expect(s.setChatId).not.toHaveBeenCalled();
+});
+
+it("doesn't open a PR from the Pull requests page once the user went elsewhere", async () => {
+  const made = deferred<ChatSummary>();
+  vi.mocked(api.createProjectChat).mockReturnValue(made.promise);
+  const s = setup();
+  const project = {
+    id: "a",
+    repository: { owner: "o", name: "r" },
+  } as Project;
+
+  const opening = s.result().openInProject(project, ref);
+  await flush();
+  s.moveTo("b");
+  made.resolve(thread);
+  await opening;
+
+  expect(s.navigate).not.toHaveBeenCalled();
+  expect(s.show).not.toHaveBeenCalled();
 });
