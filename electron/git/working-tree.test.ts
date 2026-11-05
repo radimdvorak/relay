@@ -857,3 +857,23 @@ it("sees what changed behind what the refresh keeps", async () => {
   git("push", "-q");
   expect(await workingTree(root)).toMatchObject({ ahead: 0, outgoing: [] });
 });
+
+it("sees a fetch run in a linked worktree, which writes its own FETCH_HEAD", async () => {
+  git("push", "-q", "origin", "review:team/other");
+  git("fetch", "-q");
+  const worktree = join(root, "..", `${basename(root)}-wt`);
+  git("worktree", "add", "-q", "-b", "relay/topic", worktree);
+  gitIn(worktree, "commit", "-q", "--allow-empty", "-m", "Two");
+  try {
+    expect((await workingTree(worktree)).ahead).toBe(1);
+    // Pushed from elsewhere under a name in a folder origin has already.
+    gitIn(worktree, "push", "-q", remote, "HEAD:refs/heads/team/topic");
+    gitIn(worktree, "fetch", "-q");
+    expect(await workingTree(worktree)).toMatchObject({
+      ahead: 0,
+      outgoing: [],
+    });
+  } finally {
+    await rm(worktree, { recursive: true, force: true });
+  }
+});
