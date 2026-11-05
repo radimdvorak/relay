@@ -11,7 +11,10 @@ const CMD_HINT_DELAY_MS = 500;
 /** How long a jump asked for from a thread's window waits for the cards. */
 const ASKED_JUMP_TTL_MS = 10_000;
 
-/** A dialog keeps its keys; Settings doesn't count, a jump leaves it. */
+/**
+ * Whether a dialog is open, which keeps the digit keys for itself. Settings
+ * is a page, not a dialog: a jump leaves it.
+ */
 const dialogOpen = () => keyboardPopups(false).length > 0;
 
 let askedJump: { index: number; at: number } | undefined;
