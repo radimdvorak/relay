@@ -41,15 +41,20 @@ export const devopsConnectionKey = ["devops-connection"];
 export const useDevOpsStatus = () =>
   useQuery({ queryKey: devopsKey, queryFn: () => api.devopsStatus() });
 
-/** The organization's work item fields, for sorting and team filters. */
-export const useDevOpsFields = (enabled: boolean) =>
-  useQuery({
-    queryKey: ["devops-fields"],
+/**
+ * The work item fields of the saved organization and project, for sorting
+ * and team filters; saving another one asks again.
+ */
+export function useDevOpsFields(enabled: boolean) {
+  const settings = useDevOpsStatus().data?.settings;
+  return useQuery({
+    queryKey: ["devops-fields", settings?.organization, settings?.project],
     queryFn: () => api.devopsFields(),
-    enabled,
+    enabled: enabled && !!settings,
     staleTime: 60 * 60_000,
     retry: false,
   });
+}
 
 /** Who Azure DevOps signs Relay in as, and where `az` is; once it has an organization. */
 export const useDevOpsConnection = (enabled: boolean) =>

@@ -4,12 +4,28 @@ import { createRoot, type Root } from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import type { ClockifyStatus } from "../../../shared/clockify";
-import { clockifyKey, useClockifyProjects } from "./plugins";
+import type { DevOpsStatus } from "../../../shared/devops";
+import {
+  clockifyKey,
+  devopsKey,
+  useClockifyProjects,
+  useDevOpsFields,
+} from "./plugins";
 
-const mocks = vi.hoisted(() => ({ projects: vi.fn(), status: vi.fn() }));
+const mocks = vi.hoisted(() => ({
+  projects: vi.fn(),
+  status: vi.fn(),
+  devopsStatus: vi.fn(),
+  fields: vi.fn(),
+}));
 
 vi.mock("../../lib/api", () => ({
-  api: { clockifyProjects: mocks.projects, clockifyStatus: mocks.status },
+  api: {
+    clockifyProjects: mocks.projects,
+    clockifyStatus: mocks.status,
+    devopsStatus: mocks.devopsStatus,
+    devopsFields: mocks.fields,
+  },
 }));
 
 const statusIn = (workspaceId: string) =>
@@ -75,4 +91,35 @@ it("lists the projects of the workspace now chosen", async () => {
   await act(async () => client.setQueryData(clockifyKey, statusIn("b")));
   await settle();
   expect(names).toEqual(["Project in b"]);
+});
+
+it("lists the fields of the organization now saved", async () => {
+  let fields: string[] | undefined;
+  const statusAt = (organization: string) =>
+    ({ settings: { organization, project: "Web" } }) as DevOpsStatus;
+  function Fields() {
+    fields = useDevOpsFields(true).data?.map((f) => f.name);
+    return null;
+  }
+  let organization = "contoso";
+  mocks.devopsStatus.mockImplementation(async () => statusAt(organization));
+  mocks.fields.mockImplementation(async () => [
+    { name: `Team of ${organization}` },
+  ]);
+  client.setQueryData(devopsKey, statusAt("contoso"));
+  await act(async () =>
+    root.render(
+      <QueryClientProvider client={client}>
+        <Fields />
+      </QueryClientProvider>,
+    ),
+  );
+  await settle();
+  expect(fields).toEqual(["Team of contoso"]);
+
+  // Settings saves another organization; the status shows it at once.
+  organization = "fabrikam";
+  await act(async () => client.setQueryData(devopsKey, statusAt("fabrikam")));
+  await settle();
+  expect(fields).toEqual(["Team of fabrikam"]);
 });
