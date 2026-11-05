@@ -176,15 +176,18 @@ class EachFolder extends EventEmitter implements FolderWatch {
 
   /** `rel` was made, moved or deleted. */
   private async appeared(rel: string) {
+    let folder;
     try {
       // Not through a link, as the first crawl doesn't: one back up the tree
       // would watch all of it again under its name.
-      if (!(await lstat(join(this.root, rel))).isDirectory()) return;
+      folder = (await lstat(join(this.root, rel))).isDirectory();
     } catch {
       this.drop(rel);
       if (!rel.includes("/")) await this.rootGone();
       return;
     }
+    // A file or link may have taken a watched folder's place.
+    if (!folder) return this.drop(rel);
     // Deleted and made again, or another moved over it: the old watch sees
     // the folder that went.
     this.drop(rel);

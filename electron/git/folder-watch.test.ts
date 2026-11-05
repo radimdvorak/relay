@@ -270,6 +270,20 @@ it("leaves a link to a folder that appears unwatched, as the first crawl does", 
   folders.close();
 });
 
+it("lets go of a watched folder a link took the place of", async () => {
+  await open();
+  const folders = await watchEachFolder(
+    temp,
+    { skip: () => false, skipLater: async () => false, budget: 100 },
+    () => {},
+  );
+  await rm(join(temp, "a"), { recursive: true });
+  await symlink(join(temp, "b"), join(temp, "a"));
+  watches.made.find((w) => w.dir === temp)!.change("rename", "a");
+  await vi.waitFor(() => expect(watching()).toEqual(["", "/b"]));
+  folders.close();
+});
+
 it("fails once its own folder goes, which Linux's watch won't see made again", async () => {
   await open();
   const folders = await watchEachFolder(
