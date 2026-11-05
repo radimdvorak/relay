@@ -1,4 +1,3 @@
-import { execFileSync } from "node:child_process";
 import { afterEach, expect, it, vi } from "vitest";
 import { recordedAlive, recordProcess } from "./process-identity";
 
