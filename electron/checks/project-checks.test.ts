@@ -326,6 +326,31 @@ describe("project language support", () => {
     }
   });
 
+  it("keeps checking when the editor opens a file inside node_modules", async () => {
+    const { root, head } = await languageProject(server);
+    roots.push(root);
+    const dependency = "packages/app/node_modules/thing/index.d.ts";
+    await mkdir(join(root, "packages/app/node_modules/thing"), {
+      recursive: true,
+    });
+    await writeFile(join(root, dependency), "export declare const a: 1;\n");
+    const service = new ProjectChecks(resolve("electron/checks/worker.mjs"));
+    services.push(service);
+    await service.start(
+      "pr",
+      root,
+      null,
+      null,
+      head,
+      "typescript:tsconfig.json",
+    );
+    await ready(service, head);
+    await service.update("pr", head, dependency, "export declare const a: 2;\n");
+    await ready(service, head);
+    await service.update("pr", head, dependency, null);
+    await ready(service, head);
+  });
+
   it("leaves a working tree's checkout to the window for 30 s before looking itself", async () => {
     const { root: made, head, git } = await languageProject(server);
     roots.push(made);
