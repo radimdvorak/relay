@@ -27,7 +27,7 @@ export function plainText(markdown: string, limit = 280) {
   // read again on every streamed piece.
   const text = markdown
     .slice(0, limit * 6)
-    .replace(/```[\s\S]*?(```|$)/g, " ")
+    .replace(/(```|~~~)[\s\S]*?(\1|$)/g, " ")
     // A tag, comment or <?xml?> declaration, not a comparison like `a < b and c > d`.
     .replace(/<(?:[!?][^<>\n]*|\/?[A-Za-z][\w:.-]*(?:\s[^<>\n]*)?\/?)>/g, " ")
     .replace(/!\[([^\]]*)\]\([^)]*\)/g, "$1")

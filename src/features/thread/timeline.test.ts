@@ -70,6 +70,12 @@ it("reads Markdown as the sentence it says", () => {
   expect(plainText("x".repeat(400), 10)).toBe("xxxxxxxxxx…");
 });
 
+it("leaves out a code block fenced with tildes too", () => {
+  expect(plainText("Run this:\n\n~~~sh\nnpm test\n~~~\n\nthen ~~stop~~")).toBe(
+    "Run this: then stop",
+  );
+});
+
 it.each([
   ["Keep `a < b` and `x > y`", "Keep a < b and x > y"],
   ["Is `i<n` or `n>0`?", "Is i<n or n>0?"],
