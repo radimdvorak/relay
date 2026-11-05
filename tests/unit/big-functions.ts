@@ -20,7 +20,7 @@ export const bigFunctions: Record<string, number> = {
   "electron/agents/codex/codex.ts › start": 127,
   "electron/agents/cursor/run.ts › runCursor": 178,
   "electron/agents/muse/activity.ts › museActivity": 91,
-  "electron/agents/muse/run.ts › runMuse": 149,
+  "electron/agents/muse/run.ts › runMuse": 148,
   "electron/agents/opencode/helper.ts › openCodeHelper": 86,
   "electron/agents/opencode/observer.ts › begin": 121,
   "electron/agents/opencode/observer.ts › hear": 164,

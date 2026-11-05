@@ -10,6 +10,7 @@ import {
   acquireMuse,
   openSession,
   signedIn,
+  type MuseAgent,
   type MuseMcpServer,
   type MuseSettings,
 } from "./sessions";
@@ -109,6 +110,14 @@ function failure(done: MuseTurnCompleted): Error {
   return new Error(
     error?.message ? `Muse Code: ${error.message}` : `Muse Code didn't finish this answer${done.reason ? ` (${done.reason})` : ""}.`,
   );
+}
+
+/** What a failed turn throws. A refused sign-in also ends the thread's process. */
+function turnFailure(error: unknown, agent: MuseAgent): unknown {
+  const thrown = error instanceof MuseRequestError && error.kind === "authRequired" ? signedOutError("muse") : error;
+  // Its process keeps the sign-in it started with; a login made since needs a new one.
+  if (isAgentError(thrown, "signedOut")) agent.close();
+  return thrown;
 }
 
 /** Runs one turn on Muse Code, starting or picking up the thread's session in its own `muse serve`. */
@@ -248,10 +257,7 @@ export async function runMuse(options: AgentOptions): Promise<string> {
     if (options.interactionMode === "plan" && answer.trim()) options.onPlan?.(answer);
     return answer;
   } catch (error) {
-    const thrown = error instanceof MuseRequestError && error.kind === "authRequired" ? signedOutError("muse") : error;
-    // Its process keeps the sign-in it started with; a login made since needs a new one.
-    if (isAgentError(thrown, "signedOut")) agent.close();
-    throw thrown;
+    throw turnFailure(error, agent);
   } finally {
     clearTimeout(cancelTimer);
     signal.removeEventListener("abort", interrupt);
