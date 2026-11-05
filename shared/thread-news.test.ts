@@ -210,4 +210,19 @@ describe("preview", () => {
     expect(preview("## Summary")).toBe("Summary");
     expect(preview("word ".repeat(100), 80)).toHaveLength(80);
   });
+
+  it("reads a long answer of unmatched marks quickly", () => {
+    const bodies = ["`".repeat(30_000) + "!", "[a".repeat(15_000), "[a](".repeat(8_000)];
+    for (const body of bodies) {
+      const started = performance.now();
+      preview(body);
+      expect(performance.now() - started).toBeLessThan(500);
+    }
+  });
+
+  it("still drops fences and link targets", () => {
+    expect(preview("See [the docs](https://x.dev) and ![](a.png)\n```\ncode\n```")).toBe(
+      "See the docs and",
+    );
+  });
 });

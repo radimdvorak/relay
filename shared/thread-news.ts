@@ -132,10 +132,12 @@ const read = (c: Pick<RemoteChatSummary, "seenAt" | "updated"> | undefined) =>
  * heading runs into what follows it, so it gets a colon.
  */
 export function preview(markdown: string, length = previewLength) {
+  // No bracket, paren or backtick inside what each pattern skips over, so an
+  // unclosed one stops at the next opener instead of rescanning the answer.
   const text = markdown
-    .replace(/```[^\n]*\n[\s\S]*?(```|$)/g, " ")
-    .replace(/!\[([^\]]*)\]\([^)]*\)/g, "$1")
-    .replace(/\[([^\]]+)\]\([^)]*\)/g, "$1")
+    .replace(/```[^\n`]*\n[\s\S]*?(```|$)/g, " ")
+    .replace(/!\[([^[\]]*)\]\([^()]*\)/g, "$1")
+    .replace(/\[([^[\]]+)\]\([^()]*\)/g, "$1")
     .replace(/^\s{0,3}#{1,6}\s+(.*?)\s*#*\s*$(?=\n\s*\S)/gm, (_, heading: string) =>
       /[.:!?]$/.test(heading) ? heading : `${heading}:`,
     )
