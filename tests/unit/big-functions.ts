@@ -54,7 +54,7 @@ export const bigFunctions: Record<string, number> = {
   "electron/handoff/setups.ts › setUp": 88,
   "electron/handoff/trips.ts › send": 96,
   "electron/headless/commands/args.ts › parse": 108,
-  "electron/headless/commands/install.ts › setup": 174,
+  "electron/headless/commands/install.ts › setup": 165,
   "electron/headless/commands/remote.ts › status": 126,
   "electron/headless/control-api.ts › controlApi": 138,
   "electron/headless/daemon.ts › runDaemon": 295,
