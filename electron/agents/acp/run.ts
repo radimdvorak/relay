@@ -394,17 +394,17 @@ async function runAcpTurn(
     void reply.catch(() => {});
     // The agent reports the cancel; if it doesn't, stop waiting anyway.
     const cancelled = new Promise<never>((_, reject) => {
-      turnAbort.signal.addEventListener(
-        "abort",
-        () => {
-          cancelTimer = setTimeout(
-            () => reject(cancelledByYou()),
-            CANCEL_GRACE_MS,
-          );
-          cancelTimer.unref();
-        },
-        { once: true },
-      );
+      const giveUpLater = () => {
+        cancelTimer = setTimeout(
+          () => reject(cancelledByYou()),
+          CANCEL_GRACE_MS,
+        );
+        cancelTimer.unref();
+      };
+      // Stopped while a picked-up turn's native events were caught up.
+      if (turnAbort.signal.aborted) giveUpLater();
+      else
+        turnAbort.signal.addEventListener("abort", giveUpLater, { once: true });
     });
     void cancelled.catch(() => {});
     if (signal.aborted) stop();
