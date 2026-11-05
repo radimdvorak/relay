@@ -12,10 +12,10 @@ vi.mock("../turn-snapshots", async (original) => {
   const real = await original<typeof import("../turn-snapshots")>();
   return {
     ...real,
-    snapshotTree: (root: string) =>
+    snapshotTree: (...args: Parameters<typeof real.snapshotTree>) =>
       snapshots.fail
         ? Promise.reject(new Error("index.lock exists"))
-        : real.snapshotTree(root),
+        : real.snapshotTree(...args),
   };
 });
 

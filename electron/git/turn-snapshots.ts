@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
-import { copyFile, rm, stat, utimes } from "node:fs/promises";
+import { copyFile, readdir, rm, stat, utimes } from "node:fs/promises";
+import { join } from "node:path";
 import { exitCodeOf, git, nulSeparated } from "./git";
 
 // Snapshots of a whole worktree as commits outside any branch, made without
@@ -47,10 +48,14 @@ export const checkOut = (
 
 /**
  * Writes the worktree's tree, untracked files included, without touching the
- * real index. A `polled` one is Relay's own look, which the repository's
- * filters stay out of.
+ * real index. A `whole` one fails rather than leave out anything that holds
+ * work; a `polled` one is Relay's own look, which the repository's filters
+ * stay out of.
  */
-export async function snapshotTree(root: string, { polled = false } = {}) {
+export async function snapshotTree(
+  root: string,
+  { whole = false, polled = false } = {},
+) {
   const index = (
     await run(root, [
       "rev-parse",
@@ -90,14 +95,19 @@ export async function snapshotTree(root: string, { polled = false } = {}) {
     }
     // A folder Git can't add, like a nested repository with no commits yet,
     // is left out (exit code 1) rather than failing the whole snapshot.
-    await run(
+    const leftOut = await run(
       root,
       [...noMonitor, ...durable, "add", "-A", "--ignore-errors", "--", "."],
       env,
       polled,
-    ).catch((error: unknown) => {
-      if (exitCodeOf(error) !== 1) throw error;
-    });
+    ).then(
+      () => false,
+      (error: unknown) => {
+        if (exitCodeOf(error) !== 1) throw error;
+        return true;
+      },
+    );
+    if (whole && leftOut) await assertNothingLeftOut(root, env);
     // write-tree may run the clean filter too.
     return (
       await run(root, [...noMonitor, ...durable, "write-tree"], env, polled)
@@ -106,6 +116,32 @@ export async function snapshotTree(root: string, { polled = false } = {}) {
     await rm(temp, { force: true });
     await rm(`${temp}.lock`, { force: true });
   }
+}
+
+/**
+ * Throws when what `add` left out of the index `env` points at holds work:
+ * a file, or a nested repository with more in it than its own `.git`.
+ */
+async function assertNothingLeftOut(root: string, env: NodeJS.ProcessEnv) {
+  const status = await run(
+    root,
+    ["status", "--porcelain", "-z", "--no-renames", "--untracked-files=all"],
+    env,
+  );
+  const lost: string[] = [];
+  for (const entry of status.split("\0").filter(Boolean)) {
+    // The second letter is the worktree against the index: blank once added.
+    const added = entry[1] === " ";
+    const path = entry.slice(3);
+    if (!added && (await holdsWork(join(root, path)))) lost.push(path);
+  }
+  if (lost.length) throw new Error(`Git couldn't copy ${lost.join(", ")}.`);
+}
+
+/** A file, or a folder with anything besides its own `.git`; one that can't be read counts. */
+async function holdsWork(path: string) {
+  const names = await readdir(path).catch(() => undefined);
+  return !names || names.some((name) => name !== ".git");
 }
 
 /** Commits a tree as Relay, outside any branch. */

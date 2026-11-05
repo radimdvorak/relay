@@ -135,7 +135,10 @@ export async function removeWorktree(
   // Never Relay's to take, whoever asks.
   if (worktree.adopted) return;
   if (worktree.path && (await exists(worktree.path))) {
-    const tree = await snapshotTree(worktree.path).catch(() => null);
+    // Whatever the copy can't hold stays, with the worktree.
+    const tree = await snapshotTree(worktree.path, { whole: true }).catch(
+      () => null,
+    );
     if (tree) {
       const kept = await commitTree(
         root,

@@ -158,6 +158,17 @@ it("keeps a snapshot of a worktree holding a nested repository with no commits",
   );
 });
 
+it("keeps a worktree whose nested repository holds files no snapshot can copy", async () => {
+  const worktree = await made();
+  await mkdir(join(worktree.path, "scratch"));
+  git(join(worktree.path, "scratch"), "init", "-q");
+  await writeFile(join(worktree.path, "scratch", "notes.md"), "keep me\n");
+  await expect(removeWorktree(root, randomUUID(), worktree)).rejects.toThrow(
+    "Couldn't save a copy of this worktree's changes",
+  );
+  expect(existsSync(join(worktree.path, "scratch", "notes.md"))).toBe(true);
+});
+
 /** A branch `name` one commit ahead of main, with the checkout back on main. */
 function branchAhead(name: string, file = "feature.ts") {
   git(root, "switch", "-qc", name);
