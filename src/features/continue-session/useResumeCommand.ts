@@ -11,13 +11,22 @@ import { api } from "../../lib/api";
 import { noteUsed } from "../../lib/used";
 import { forkThreadSettings } from "../agents/composer-settings";
 import { matchingSessions, sessionDetail, sessionKey } from "./rows";
-import { useSessionListing } from "./session-listing";
+import { UNLISTED, unlistedRow, useSessionListing } from "./session-listing";
 
-/** Options that only say why there's nothing to pick yet. */
-const LOOKING = ":looking";
+/** The option that says the project has no sessions to pick. */
 const NONE = ":none";
 const OFF_BRANCH =
   "A session from a terminal or an agent's app goes on from the project folder, not another branch: pick New worktree or Current checkout first";
+
+/** Where a picked session goes on, said before its details. */
+function continuesWhere(
+  offBranch: boolean,
+  workspace: "checkout" | "worktree",
+) {
+  if (offBranch) return `${OFF_BRANCH} · `;
+  if (workspace === "worktree") return "Continues in a new worktree · ";
+  return "";
+}
 
 /**
  * `/resume`: carries on a Claude Code or Codex session run in a terminal, or
@@ -48,7 +57,7 @@ export function useResumeCommand({
   onOpenThread: (chat: ChatSummary) => Promise<void>;
   onError: (error: unknown) => void;
 }) {
-  const listing = useSessionListing(project.id, onError);
+  const listing = useSessionListing(project, onError);
   // The session's files are the project folder's, so its worktree copies those.
   const offBranch = workspace === "worktree" && !!start;
 
@@ -75,9 +84,11 @@ export function useResumeCommand({
       if (project.scratch) return "Scratchpad has no sessions to resume.";
       if (offBranch) return `${OFF_BRANCH}.`;
       const typed = args.trim();
-      if (typed === LOOKING) return "Still looking for sessions.";
-      if (!typed || typed === NONE) return "Pick a session after /resume.";
-      const list = listing.listed();
+      const shown = listing.current();
+      if (shown.status !== "listed") return unlistedRow(shown).reply;
+      if (!typed || typed === NONE || typed === UNLISTED)
+        return "Pick a session after /resume.";
+      const list = shown.sessions;
       const session =
         list.find((s) => sessionKey(s) === typed) ??
         matchingSessions(list, typed)[0];
@@ -88,15 +99,10 @@ export function useResumeCommand({
     },
     options(command: RelayCommand, query: string): CommandOption[] | undefined {
       if (command !== "resume" || project.scratch) return undefined;
-      const list = listing.sessions();
-      if (!list)
-        return [{ value: LOOKING, label: "Looking for sessions…", source: "" }];
-      const where = offBranch
-        ? `${OFF_BRANCH} · `
-        : workspace === "worktree"
-          ? "Continues in a new worktree · "
-          : "";
-      const found = matchingSessions(list, query).map((s) => ({
+      const shown = listing.current();
+      if (shown.status !== "listed") return [unlistedRow(shown)];
+      const where = continuesWhere(offBranch, workspace);
+      const found = matchingSessions(shown.sessions, query).map((s) => ({
         value: sessionKey(s),
         label: s.title,
         description: where + sessionDetail(s),
