@@ -108,6 +108,10 @@ export class HostedSessions<Session> {
     return this.live.values();
   }
 
+  entries() {
+    return this.live.entries();
+  }
+
   /**
    * The session for a turn under `key`, started again if it closed. Without
    * a key, a session of the turn's own that nobody keeps.

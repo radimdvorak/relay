@@ -33,6 +33,7 @@ import { readAloudHandlers } from "./read-aloud";
 import { renderHandlers } from "./renders";
 import { reviewCheckoutHandlers } from "./review-checkout";
 import { reviewHandlers } from "./reviews";
+import { peerMessageHandlers } from "./peer-messages";
 import { phoneRemoteHandlers } from "./phone-remote";
 import { pluginHandlers } from "./plugins";
 import { settingsHandlers } from "./settings";
@@ -76,6 +77,7 @@ export function createDispatch(
     elsewhereHandlers(ctx),
     chatHandlers(ctx),
     chatMediaHandlers(ctx),
+    peerMessageHandlers(ctx),
     threadNoteHandlers(ctx),
     deepReviewHandlers(ctx),
     secondOpinionHandlers(ctx),

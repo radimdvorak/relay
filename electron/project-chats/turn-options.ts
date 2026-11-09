@@ -26,6 +26,7 @@ import {
 } from "./agent-worktrees";
 import { agentJob } from "./chat-turn";
 import type { ChatCore } from "./core";
+import { peerSendsOf } from "./peer-sends";
 import { sessionFor } from "./sessions";
 import { predictFor, watchFor } from "./turn-check";
 import type { TurnSnapshot } from "./turn-snapshot";
@@ -275,9 +276,11 @@ function goalOptions(
  */
 async function workCallbacks(
   core: ChatCore,
-  { chat, root, provider, answer }: TurnState,
+  { chat, root, provider, replyTo, answer }: TurnState,
   snapshot: TurnSnapshot,
-): Promise<Pick<AgentOptions, "onActivity" | "onEdit" | "onCommand">> {
+): Promise<
+  Pick<AgentOptions, "onActivity" | "onEdit" | "onCommand" | "onPeerSend">
+> {
   const workspace = turnWorkspace(chat, provider);
   const watchWorktrees = watchAgentWorktrees(
     await core.projects.root(chat.projectId),
@@ -298,6 +301,10 @@ async function workCallbacks(
     },
     onEdit: (paths) => snapshot.edits(paths),
     onCommand: (id, command) => snapshot.command(id, command),
+    onPeerSend: (send) =>
+      void peerSendsOf(core)
+        .sent(chat, provider, replyTo, send)
+        .catch((e) => console.warn("Could not keep a peer message:", e)),
   };
 }
 

@@ -124,6 +124,8 @@ export interface ChatSummary {
   queueMark?: string;
   /** Changes whenever its notes do, so windows and phones know to fetch them. */
   notesMark?: string;
+  /** Changes with each message its Claude session and another one sent each other, so windows know to fetch them. */
+  peerMark?: string;
   /** Changes whenever its setup's state does (`ProjectChat.setup`), so windows know to fetch it. */
   setupMark?: string;
   /** The answer a usage limit stopped, resumed once the limit lifts; see limit-resume. */

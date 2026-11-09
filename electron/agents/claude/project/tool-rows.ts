@@ -38,6 +38,15 @@ export function advisorCallId(block: { type: string }) {
   return asksAdvisor ? part.id : undefined;
 }
 
+/** Who a SendMessage call writes to and what it says; undefined for any other call. */
+function peerSendOf(name: string, input: unknown) {
+  if (name !== "SendMessage") return undefined;
+  const { to, message } = (input ?? {}) as { to?: unknown; message?: unknown };
+  if (typeof to !== "string" || typeof message !== "string" || !message)
+    return undefined;
+  return { to, message };
+}
+
 /** The rows a turn's tool calls show as, from the call to its result. */
 export class ToolRows {
   // A tool result only carries the call id; keep the call's label for the finished row.
@@ -47,6 +56,8 @@ export class ToolRows {
   private forks = new ForkParents();
   /** Forked skills' rows, by their task. */
   private forkRows = new Map<string, string>();
+  /** SendMessage calls waiting on their result, which says whether it went out. */
+  private peerSends = new Map<string, { to: string; message: string }>();
 
   constructor(private options: ClaudeRunOptions) {}
 
@@ -97,6 +108,8 @@ export class ToolRows {
     this.options.onActivity?.(activity);
     const edited = claudeEditedPaths(tool.name, tool.input);
     if (edited.length) this.options.onEdit?.(edited);
+    const send = peerSendOf(tool.name, tool.input);
+    if (send) this.peerSends.set(tool.id, send);
   }
 
   /**
@@ -147,7 +160,16 @@ export class ToolRows {
         };
         this.calls.set(result.tool_use_id, finished);
         this.options.onActivity?.(finished);
+        this.sent(result.tool_use_id, finished.status === "complete", output);
       }
+  }
+
+  private sent(id: string, complete: boolean, output: string) {
+    const send = this.peerSends.get(id);
+    if (!send) return;
+    this.peerSends.delete(id);
+    const refused = /"success"\s*:\s*false/.test(output);
+    if (complete && !refused) this.options.onPeerSend?.(send);
   }
 
   /** A running subagent's row says what it is doing now. */

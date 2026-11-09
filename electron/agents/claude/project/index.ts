@@ -9,6 +9,7 @@ export {
   claudeAgents,
   claudeLive,
   claudePending,
+  claudeSessionKey,
   claudeSubagents,
   claudeTaskCommand,
   readClaudeContext,

@@ -3,10 +3,12 @@ import type {
   ChatMessage,
   ProjectChat,
 } from "../../../shared/projects";
+import { wokenBy } from "../../../shared/peer-messages";
 import { agentRuntime, agentRuntimes } from "../../agents";
 import { streamingAnswer } from "../answer-recorder";
 import type { ChatCore } from "../core";
 import type { Councils } from "../councils";
+import { lastAnswerEnded } from "../peer-sends";
 import { holdQueueBack } from "../queue";
 import { interrupt } from "../revive";
 import { parseSessionKey, sessionInput } from "../sessions";
@@ -54,11 +56,15 @@ export class TurnRecovery {
       ? this.core.active.claim(chat.id, input, kind)
       : this.core.active.create(chat.id, input, kind, { rides: true });
     const { abort } = active;
+    const by = parentId
+      ? undefined
+      : wokenBy(chat.peerMessages, Date.now(), lastAnswerEnded(chat.messages));
     const message: ChatMessage =
       resumed ??
       streamingAnswer(provider, {
         unprompted: true,
         ...(parentId ? { parentId } : {}),
+        ...(by ? { wokenBy: by } : {}),
       });
     try {
       if (!resumed) {

@@ -78,6 +78,7 @@ import { NotesChip } from "../notes/NotesChip";
 import { useNoteKeeper, useThreadNotes } from "../notes/useThreadNotes";
 import { KeepBlock } from "../../ui/KeepBlock";
 import { useThreadFind } from "./find/useThreadFind";
+import { PeerStrip } from "../peer-messages/PeerStrip";
 import "./thread.css";
 
 /** What the thread's messages ask the shell's panes to show. */
@@ -507,6 +508,7 @@ export function ProjectChat({
             onRespond={pending.respond}
           />
         )}
+        {chat && !root && <PeerStrip chat={chat} messages={messages} />}
 
         {isEmpty && (
           <ThreadIntroduction
@@ -566,7 +568,8 @@ export function ProjectChat({
             }
             links={links}
             commandOptions={(command, query) =>
-              links.options(command, query) ?? terminalResume.options(command, query)
+              links.options(command, query) ??
+              terminalResume.options(command, query)
             }
             commandListings={links.listed + terminalResume.listed}
             onProjectSettings={onProjectSettings}
@@ -596,7 +599,8 @@ export function ProjectChat({
           onDecide={(proceed) => {
             agentSwitch.decide(proceed);
             // Back to the draft that was about to go out.
-            if (!proceed) requestAnimationFrame(() => composer.current?.focus());
+            if (!proceed)
+              requestAnimationFrame(() => composer.current?.focus());
           }}
         />
       )}

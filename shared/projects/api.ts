@@ -30,6 +30,7 @@ import type { DirListing, FileInfo, FilePreview } from "../project-files";
 import type { ChatMediaApi } from "./media-api";
 import type { ProjectFoldersApi } from "./folders-api";
 import type { ProjectSecretsApi } from "../secret-request";
+import type { PeerMessagesApi } from "../peer-messages";
 import type {
   BranchPull,
   CreatedPullRequest,
@@ -72,6 +73,7 @@ export interface ProjectApi
     ProjectSecretsApi,
     ProjectChatApi,
     ChatMediaApi,
+    PeerMessagesApi,
     ThreadNotesApi,
     ProjectCouncilApi,
     ProjectWorktreeApi,

@@ -24,6 +24,13 @@ export function claudeLive(key: string) {
   return !!session && !session.frames.ended;
 }
 
+/** The key of the live session Claude Code knows as `threadId`, when Relay runs it. */
+export function claudeSessionKey(threadId: string) {
+  for (const [key, session] of sessions.entries())
+    if (session.threadId === threadId && !session.frames.ended) return key;
+  return undefined;
+}
+
 /** Stops a background task; Claude hears it stopped and usually says so. */
 export async function stopClaudeTask(key: string, taskId: string) {
   const session = sessions.get(key);

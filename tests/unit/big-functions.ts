@@ -293,7 +293,7 @@ export const bigFunctions: Record<string, number> = {
   "src/features/thread-windows/ThreadElsewhere.tsx › ThreadElsewhere": 100,
   "src/features/thread/AgentQuestionForm.tsx › AgentQuestionForm": 179,
   "src/features/thread/AgentRequestCard.tsx › AgentRequestCard": 95,
-  "src/features/thread/AssistantMessage.tsx › AssistantMessage": 249,
+  "src/features/thread/AssistantMessage.tsx › AssistantMessage": 242,
   "src/features/thread/CompactionRow.tsx › CompactionRow": 99,
   "src/features/thread/HeldSends.tsx › HeldSends": 103,
   "src/features/thread/NewThreadBranch.tsx › NewThreadBranch": 117,

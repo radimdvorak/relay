@@ -1,0 +1,111 @@
+/* The conversation with another Claude session, above the composer. */
+.peer-strip {
+  max-width: var(--thread-width);
+  margin: 0 auto 8px;
+  padding: 6px 8px 6px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  font-size: 12.5px;
+  color: var(--text);
+}
+.peer-strip-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.peer-strip-head > svg {
+  flex: none;
+  color: var(--muted);
+}
+.peer-strip-who {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.peer-strip-peer {
+  font-weight: 500;
+  color: var(--accent);
+}
+button.peer-strip-peer {
+  border: 0;
+  padding: 0;
+  background: none;
+  box-shadow: none;
+  font: inherit;
+  font-weight: 500;
+  cursor: pointer;
+}
+button.peer-strip-peer:hover {
+  text-decoration: underline;
+}
+.peer-strip-state {
+  flex: none;
+  padding: 1px 8px;
+  border-radius: 99px;
+  font-size: 11px;
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.peer-strip-state[data-stalled] {
+  background: color-mix(in srgb, var(--danger) 16%, transparent);
+  color: var(--danger);
+}
+.peer-strip-space {
+  flex: 1;
+}
+.peer-strip-button {
+  flex: none;
+  padding: 2px 9px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--background);
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.peer-strip-button:hover {
+  background: var(--hover);
+}
+.peer-strip-log {
+  margin: 6px 0 0;
+  padding: 6px 0 0;
+  border-top: 1px solid var(--border);
+  list-style: none;
+  max-height: 180px;
+  overflow: auto;
+}
+.peer-strip-log li {
+  display: grid;
+  grid-template-columns: 52px 1fr;
+  gap: 8px;
+  padding: 2px 0;
+  color: var(--muted);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.peer-strip-log time {
+  font-variant-numeric: tabular-nums;
+}
+.peer-strip-log b {
+  font-weight: 500;
+  color: var(--text);
+}
+
+/* An answer's header: the thread whose message started the turn opens on a click. */
+.project-message > header .message-woken-by {
+  border: 0;
+  padding: 0;
+  background: none;
+  box-shadow: none;
+  font: inherit;
+  font-weight: 500;
+  color: var(--accent);
+  cursor: pointer;
+}
+.project-message > header .message-woken-by:hover {
+  text-decoration: underline;
+}

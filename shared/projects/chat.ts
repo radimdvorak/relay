@@ -3,6 +3,7 @@ import type { AgentProvider } from "../agents";
 import type { DeepReviewState } from "../deep-review";
 import type { ThreadFindings } from "../findings";
 import type { ThreadNote } from "../thread-notes";
+import type { PeerMessage } from "../peer-messages";
 import type { ChatHandover, HeldSend, ThreadSetup } from "../handoff";
 import type { ChatMessage } from "./messages";
 import type { ProjectChatSend } from "./send";
@@ -43,6 +44,8 @@ export interface ProjectChat extends ChatSummary {
   /** The agent its first message goes to, so it shows as that agent before one answers. */
   startingAgent?: AgentProvider;
   messages: ChatMessage[];
+  /** Local: what its Claude session and other sessions on this computer told each other. */
+  peerMessages?: PeerMessage[];
   /** Each agent's session on the main conversation. */
   sessions?: AgentSessions;
   /** Local: a forked thread's last copied answer, whose session its agent continues. */

@@ -120,6 +120,8 @@ export interface ChatMessage {
   worktreeCommand?: WorktreeCommandRun;
   /** Local marker: the agent started this turn itself, e.g. when a background task ended. */
   unprompted?: boolean;
+  /** Local: the other Claude session whose message started this unprompted turn. */
+  wokenBy?: import("../peer-messages").PeerRef;
   context?: ContextUsage;
   /** Local: dollars this answer cost, as its agent priced it. */
   cost?: number;

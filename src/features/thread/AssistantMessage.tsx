@@ -32,6 +32,7 @@ import { MessageAgentName } from "./MessageAgentName";
 import { SecondOpinionCards } from "../second-opinion/SecondOpinionCards";
 import { secondOpinionTarget } from "../second-opinion/second-opinion-ask";
 import { TipPeek } from "../tips/TipPeek";
+import { StartedOnItsOwn } from "../peer-messages/StartedOnItsOwn";
 import type { QuestionResponse } from "./question-responses";
 
 const hiddenImage = () => null;
@@ -236,14 +237,7 @@ export function AssistantMessage({
       <header hidden={continuation}>
         <MessageAgentName provider={m.provider} model={m.model} />
         {m.author && <span className="muted">via {m.author}</span>}
-        {m.unprompted && (
-          <span
-            className="muted"
-            title="Claude started this turn itself, for example when a background task finished."
-          >
-            started on its own
-          </span>
-        )}
+        {m.unprompted && <StartedOnItsOwn wokenBy={m.wokenBy} />}
       </header>
       <AgentTurn
         message={m}

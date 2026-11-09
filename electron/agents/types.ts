@@ -143,6 +143,8 @@ export interface AgentOptions {
    * `id` is reported; the activity's label is cut short for the trace.
    */
   onCommand?: (id: string, command: string) => void;
+  /** The agent messaged another session on this computer, and it went out. */
+  onPeerSend?: (send: { to: string; message: string }) => void;
   onTitle?: (title: string) => void;
   onPlan?: (text: string) => void;
   onContext?: (usage: ContextUsage) => void;
