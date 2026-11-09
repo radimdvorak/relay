@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { BlameQuery, LineBlame } from "./types";
+import type { BlameQuery, LineBlame } from "./blame";
 import { filePathSchema, shaSchema } from "./validation";
 
 export const fileAuthorsQuerySchema = z

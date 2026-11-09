@@ -7,7 +7,8 @@ import {
   type SyntheticEvent,
 } from "react";
 import { GitCommitHorizontal, UserRound } from "lucide-react";
-import type { LineBlame, PullRef, Side } from "../../../shared/types";
+import type { LineBlame } from "../../../shared/blame";
+import type { PullRef, Side } from "../../../shared/types";
 import { api } from "../../lib/api";
 
 interface Source {

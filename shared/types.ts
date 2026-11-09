@@ -1,4 +1,5 @@
 import type { AutoCompact } from "./context-usage";
+import type { BlameQuery, LineBlame } from "./blame";
 import type { MemesState } from "./memes";
 import type { ExtensionRef, ThemeSearchPage, VsCodeTheme } from "./open-vsx";
 import type { ProjectApi } from "./projects";
@@ -77,21 +78,6 @@ export interface Repo {
 
 export interface PullRef extends Repo {
   number: number;
-}
-
-export interface BlameQuery {
-  revision: string;
-  path: string;
-  line: number;
-}
-
-export interface LineBlame {
-  commit: string;
-  author: string;
-  email: string;
-  authoredAt: string;
-  summary: string;
-  shallow: boolean;
 }
 
 export interface Issue {

@@ -1,7 +1,8 @@
 import { inspectRepository } from "./repository";
 import { git as gitIn } from "./git";
 import { blameQuerySchema } from "../../shared/validation";
-import type { BlameQuery, LineBlame, Repo } from "../../shared/types";
+import type { BlameQuery, LineBlame } from "../../shared/blame";
+import type { Repo } from "../../shared/types";
 
 /** Immutable, single-line lookups. A new hover cancels obsolete Git work. */
 export class BlameService {
