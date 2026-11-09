@@ -17,6 +17,7 @@ import {
   type SavedMainWindow,
   type ThreadWindow,
 } from "../../shared/thread-windows";
+import { frostHere } from "../platform/frost";
 import { badgeDot } from "./badge-dot";
 import { isRelayPage, loadPage } from "./page";
 import { ThreadWindows } from "./thread-windows";
@@ -87,8 +88,9 @@ export class AppWindow {
   private helpers = new Set<BrowserWindow>();
   private place?: MainWindowStore;
   /**
-   * Frosted glass (macOS): windows are built clear, so the vibrancy shows from
-   * the first frame instead of once the page has loaded its appearance.
+   * Frosted glass (macOS, Windows 11): windows are built clear, so the frost
+   * shows from the first frame instead of once the page has loaded its
+   * appearance.
    */
   clear = false;
 
@@ -386,16 +388,13 @@ export class AppWindow {
     },
     unloadKept: () => void,
   ) {
+    const frosted = this.clear && frostHere();
+    const fill = nativeTheme.shouldUseDarkColors ? "#202124" : "#f6f6f6";
     const win = new BrowserWindow({
       ...size,
       show: false,
       title: "Relay",
-      backgroundColor:
-        this.clear && process.platform === "darwin"
-          ? "#00000000"
-          : nativeTheme.shouldUseDarkColors
-            ? "#202124"
-            : "#f6f6f6",
+      backgroundColor: frosted ? "#00000000" : fill,
       ...(process.platform === "darwin"
         ? {
             titleBarStyle: "hiddenInset" as const,
@@ -406,7 +405,10 @@ export class AppWindow {
         : process.platform === "win32"
           ? // The renderer draws the caption buttons (WindowControls), centred
             // in the header; Windows' own overlay only sits flush to the top.
-            { titleBarStyle: "hidden" as const }
+            {
+              titleBarStyle: "hidden" as const,
+              ...(frosted && { backgroundMaterial: "acrylic" as const }),
+            }
           : {
               titleBarStyle: "hidden" as const,
               titleBarOverlay: {

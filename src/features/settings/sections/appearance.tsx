@@ -1,12 +1,12 @@
 import { useMemo, useState } from "react";
 import {
+  frostAvailable,
   setGlass,
   setGlassChat,
   setGlassChatFrost,
   setGlassFrost,
   useAppearance,
 } from "../../../lib/appearance";
-import { mac } from "../../../lib/mod-key";
 import { GlassFrostSlider } from "../GlassFrostSlider";
 import {
   GLASS_CHAT_FROST,
@@ -117,7 +117,7 @@ export function useAppearanceEntries(): SettingEntry[] {
         />
       ),
     },
-    ...(mac
+    ...(frostAvailable
       ? [
           {
             id: "glass",

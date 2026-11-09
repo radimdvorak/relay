@@ -34,6 +34,9 @@ const store = fileSetting<Appearance>({
   },
 });
 
+/** Whether this computer can frost; a browser preview has no bridge to ask. */
+export const frostAvailable = window.relay?.frostAvailable ?? mac;
+
 let value: Appearance = store.get();
 
 store.subscribe(() => {
@@ -98,7 +101,7 @@ async function syncNative(current: ResolvedAppearance) {
 }
 
 function glassOn() {
-  return mac && value.glass;
+  return frostAvailable && value.glass;
 }
 
 function phonePalette(resolved: ResolvedAppearance): PhonePalette {

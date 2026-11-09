@@ -724,6 +724,8 @@ export interface Api
   onAutoCompact(callback: (value: AutoCompact) => void): () => void;
   /** settings.json as Relay last read it, answered at once so a window starts with it. */
   settingsFileAtStart(): import("./settings-file").SettingsFileState;
+  /** Whether this computer can blur the desktop behind the window (macOS, Windows 11). */
+  frostAvailable: boolean;
   /** Puts each value in settings.json, or removes its key; what the file holds then. */
   updateSettingsFile(
     edits: import("./settings-file").SettingsEdit[],
@@ -868,7 +870,7 @@ export interface Api
 /** What the page asks the main process for; the rest the preload answers itself. */
 export type ApiMethod = Exclude<
   keyof Api,
-  `on${string}` | "pathForFile" | "settingsFileAtStart"
+  `on${string}` | "pathForFile" | "settingsFileAtStart" | "frostAvailable"
 >;
 
 export const emptyProgress = (): Progress => ({

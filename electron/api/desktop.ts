@@ -12,6 +12,7 @@ import { fetchThemes, searchThemes } from "../../shared/open-vsx";
 import { textSchema } from "../../shared/validation";
 import { menuAcceleratorsSchema } from "../../shared/shortcuts";
 import { setApplicationMenu } from "../app/menu";
+import { frostHere, setFrost } from "../platform/frost";
 import { takes, type ApiContext, type Handlers } from "./context";
 
 /** A link from the window, opened by the OS: web and mail addresses only. */
@@ -47,7 +48,7 @@ export function desktopHandlers(ctx: ApiContext) {
           .strict(),
       ],
       (appearance) => {
-        // Native chrome (vibrancy, menus, scrollbars) follows the theme's mode.
+        // Native chrome (frost, menus, scrollbars) follows the theme's mode.
         // Pinning a resolved kind in system mode would also pin the renderer's
         // prefers-color-scheme, so it could never see the OS go dark again.
         nativeTheme.themeSource = appearance.mode;
@@ -62,13 +63,9 @@ export function desktopHandlers(ctx: ApiContext) {
               s.glass = appearance.glass;
             })
             .catch((e) => console.warn("Could not save frosted glass:", e));
+        const frosted = appearance.glass && frostHere();
         for (const win of window.all()) {
-          // A clear window lets its macOS vibrancy show through the page.
-          win.setBackgroundColor(
-            appearance.glass && process.platform === "darwin"
-              ? "#00000000"
-              : appearance.background,
-          );
+          setFrost(win, frosted, appearance.background);
           if (!icon.isEmpty() && process.platform !== "darwin")
             win.setIcon(icon);
         }

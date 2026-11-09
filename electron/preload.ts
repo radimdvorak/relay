@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer, webUtils } from "electron";
 import type { ApiMethod } from "../shared/types";
 import type { RelayEvents } from "../shared/events";
+import { frostHere } from "./platform/frost";
 
 /** Calls an Api method in the main process. */
 async function invoke(method: ApiMethod, args: unknown[]) {
@@ -83,6 +84,7 @@ contextBridge.exposeInMainWorld("relay", {
   // Synchronous, once as the page starts: its first frame already uses the
   // file's fonts and theme instead of switching to them a moment later.
   settingsFileAtStart: () => ipcRenderer.sendSync("relay:settings-file-now"),
+  frostAvailable: frostHere(),
 });
 
 // Ports can't cross the context bridge; a window message can carry one.
