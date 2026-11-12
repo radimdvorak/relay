@@ -17,6 +17,8 @@ struct ComposerSend {
     var sendAt: Int64?
     /// The draft to send from the computer's composer, which holds part of it.
     var throughDraft: String?
+    /// Compact first, or not, when the conversation's cache went cold; nil leaves it to the computer.
+    var compact: Bool?
 }
 
 /// A composer: one glass box with the text on top and its controls under
@@ -67,6 +69,8 @@ struct Composer: View {
     @State private var camera = false
     /// A send waiting on "Switch to …?".
     @State private var switching: (steer: Bool, sendAt: Int64?)?
+    /// A send waiting on "Compact … first?".
+    @State private var compacting: CompactFirstAsk?
     @State private var agentCommands: [ProviderCommand] = []
     @State private var loadingCommands = false
     @State private var commandsFailed = false
@@ -200,6 +204,9 @@ struct Composer: View {
                 "\(names.from) has been working in this thread. \(names.next) cannot see its session, tool results, or the files it read.\n\n"
                     + "\(names.from) will write a handoff note first. \(names.next) continues from that note and the recent messages, so expect some context to be lost."
             )
+        }
+        .compactFirstAlert($compacting) { pending, compact in
+            submit(steer: pending.steer, sendAt: pending.sendAt, confirmed: true, compact: compact)
         }
         // Background only: the microphone prompt, Control Center or a call banner leave it
         // inactive, and the first of those stopped the dictation it was asking for.
@@ -452,13 +459,19 @@ struct Composer: View {
         return SwitchNames(title: "Switch to \(next)?", from: agentName(holder ?? ""), next: next)
     }
 
-    private func submit(steer: Bool = false, sendAt: Int64? = nil, confirmed: Bool = false) {
+    private func submit(steer: Bool = false, sendAt: Int64? = nil, confirmed: Bool = false, compact: Bool? = nil) {
         guard loadingPhotos == 0 else { return }
         if !confirmed, startsWithCommand(text), !command(text) { return }
         // A `/btw` question goes beside the conversation; nobody takes over.
         let side = rootId == nil && text.range(of: "^/btw\\s", options: [.regularExpression, .caseInsensitive]) != nil
         if !confirmed, !side, let settings, takesOver(sendRecipient(text, picked: settings.provider), holder: holder) {
             switching = (steer, sendAt)
+            return
+        }
+        if compact == nil, !side, let chatId, let settings,
+            let tokens = connection.coldCompactTokens(text, to: chatId, with: settings, steer: steer, rootId: rootId, sendAt: sendAt)
+        {
+            compacting = CompactFirstAsk(steer: steer, sendAt: sendAt, provider: sendRecipient(text, picked: settings.provider), tokens: tokens)
             return
         }
         Task {
@@ -496,7 +509,7 @@ struct Composer: View {
                     ComposerSend(
                         id: attempt.id, text: body, images: sent.map(\.image), files: going, settings: settings,
                         steer: attempt.steer,
-                        sendAt: attempt.sendAt, throughDraft: through ? draftKey : nil))
+                        sendAt: attempt.sendAt, throughDraft: through ? draftKey : nil, compact: compact))
                 if let at { connection.drafts.went(at.computer, at.key, text: body, throughComputer: through) }
             } catch {
                 if let at { connection.drafts.release(at.computer, at.key) }

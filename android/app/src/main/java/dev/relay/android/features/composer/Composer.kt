@@ -13,6 +13,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import dev.relay.android.features.composer.logic.agentName
+import dev.relay.android.features.composer.logic.coldCompactTokens
 import dev.relay.android.features.composer.logic.composeSend
 import dev.relay.android.features.composer.logic.contextAgent
 import dev.relay.android.features.composer.logic.latestContext
@@ -23,11 +24,13 @@ import dev.relay.android.features.composer.logic.takesOver
 import dev.relay.android.features.composer.logic.threadCost
 import dev.relay.android.lib.navigation.LocalNavigator
 import dev.relay.android.lib.navigation.Route
+import dev.relay.android.remote.Bridge
 import dev.relay.android.remote.Remote
 import dev.relay.android.remote.drafts.Sends
 import dev.relay.android.remote.model.ChatMessage
 import dev.relay.android.remote.client.LinkState
 import dev.relay.android.remote.model.ModelChoice
+import dev.relay.android.remote.model.ProjectChatSend
 import dev.relay.android.remote.model.RemoteChat
 import dev.relay.android.remote.model.ResumeSettings
 import dev.relay.android.remote.outbox.outboxLink
@@ -104,6 +107,22 @@ fun Composer(
         return answer.await()
     }
 
+    var compacting by remember { mutableStateOf<Pair<Long, CompletableDeferred<Boolean?>>?>(null) }
+    /** `message` as it goes: compacting first or not when its cache went cold, null when the question was put away. */
+    suspend fun withCompactPick(message: ProjectChatSend): ProjectChatSend? {
+        if ((overview?.bridge ?: 0) < Bridge.COLD_COMPACT) return message
+        // A /btw thread's own session never compacts.
+        val sideThread = rootId != null && all.find { it.id == rootId }?.side == true
+        val queueWaiting = chat?.queue.orEmpty().isNotEmpty() || chat?.queuePaused == true ||
+            outgoing.any { it.send.parentId == rootId }
+        if (sideThread) return message
+        val tokens = coldCompactTokens(listed, holder, message, queueWaiting, System.currentTimeMillis()) ?: return message
+        val answer = CompletableDeferred<Boolean?>()
+        compacting = tokens to answer
+        val compact = answer.await() ?: return null
+        return message.copy(compact = compact)
+    }
+
     val handle = remember { ComposerHandle() }
     state.handle = handle
     SideEffect { state.settings = settings }
@@ -151,7 +170,7 @@ fun Composer(
             // `/btw` asks beside the conversation, as in the desktop's composer.
             val side = rootId == null && btw.containsMatchIn(composed.body)
             if (!side && !confirmSwitch(composed.settings.provider)) return@send false
-            val message = composeSend(
+            val drafted = composeSend(
                 composed.settings,
                 if (side) composed.body.replaceFirst(btwPrefix, "") else composed.body,
                 id = composed.attempt.id,
@@ -161,6 +180,7 @@ fun Composer(
                 sendAt = composed.attempt.sendAt,
                 images = composed.images.map { it.pasted() },
             )
+            val message = withCompactPick(drafted) ?: return@send false
             picks.noteSent(message.id)
             state.onSent()
             outbox.deliver(outboxLink(client), pc, chatId, message, if (composed.held) draftKey else null, composed.files)
@@ -184,6 +204,14 @@ fun Composer(
             onConfirm = { close(true) },
             onDismiss = { close(false) },
         )
+    }
+
+    compacting?.let { (tokens, answer) ->
+        fun close(compact: Boolean?) {
+            compacting = null
+            answer.complete(compact)
+        }
+        CompactFirstDialog(holder ?: using.provider, tokens, onPick = ::close, onDismiss = { close(null) })
     }
 }
 

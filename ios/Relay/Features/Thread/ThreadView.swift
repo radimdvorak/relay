@@ -189,7 +189,7 @@ struct ThreadView: View {
                         ) {
                             try await connection.send(
                                 $0.text, images: $0.images, files: $0.files, to: chatId, with: $0.settings, steer: $0.steer, rootId: rootId,
-                                sendAt: $0.sendAt, throughDraft: $0.throughDraft, id: $0.id)
+                                sendAt: $0.sendAt, throughDraft: $0.throughDraft, id: $0.id, compact: $0.compact)
                         }
                     }
                 }

@@ -27,6 +27,8 @@ public enum Bridge {
     public static let folderHandoff = 20
     public static let startHandoff = 20
     public static let skills = 21
+    /// Sends may say whether to compact a cold conversation first (`compact`).
+    public static let coldCompact = 25
     public static let preview = 22
     public static let notes = 22
     public static let workspaceMoves = 22

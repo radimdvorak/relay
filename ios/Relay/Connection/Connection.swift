@@ -480,20 +480,19 @@ final class Connection {
     /// Queued behind a running answer, or with `steer` into it. `rootId` makes it a reply in that
     /// side conversation; `/btw` on the main one asks beside it, as the desktop's composer does.
     /// `throughDraft` sends it from the computer's composer, which adds what it holds of that draft.
+    /// `compact` says whether a conversation whose cache went cold compacts first.
     func send(
         _ text: String, images: [PastedImage] = [], files: [FileAttachment] = [], to chatId: String,
         with picked: ResumeSettings? = nil, steer: Bool = false, rootId: String? = nil, sendAt: Int64? = nil,
-        throughDraft: String? = nil, id: String = UUID().uuidString.lowercased(), on computer: String? = nil
+        throughDraft: String? = nil, id: String = UUID().uuidString.lowercased(), on computer: String? = nil,
+        compact: Bool? = nil
     ) async throws {
         guard let client, let active else { throw PairingError("Not connected.") }
         guard computer == nil || computer == active else { throw PairingError("The computer changed. Send again on the computer you want.") }
         guard let settings = picked ?? settings(of: chatId, rootId: rootId)
         else { throw PairingError("Pick an agent for this thread first.") }
-        let delivery = sendAt != nil || !running(chatId, rootId: rootId) ? nil : steer ? "steer" : "queue"
-        let btw = rootId == nil ? text.range(of: "^/btw\\s+", options: [.regularExpression, .caseInsensitive]) : nil
-        let send = ProjectChatSend(
-            id: id, body: btw.map { String(text[$0.upperBound...]) } ?? text, settings: settings, delivery: delivery,
-            images: images, parentId: rootId, side: btw != nil, sendAt: sendAt)
+        var send = threadSend(text, images: images, to: chatId, with: settings, steer: steer, rootId: rootId, sendAt: sendAt, id: id)
+        send.compact = compact
         deliver(send, to: chatId, through: client, computer: active, draft: throughDraft, files: files)
     }
 

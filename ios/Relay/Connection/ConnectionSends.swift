@@ -11,6 +11,38 @@ extension Connection {
         outbox.deliver(ClientOutboxLink(client), computer: computer, chatId: chatId, send, draft: draft, files: files)
     }
 
+    /// The message `send` makes of a thread composer's text.
+    func threadSend(
+        _ text: String, images: [PastedImage] = [], to chatId: String, with settings: ResumeSettings, steer: Bool,
+        rootId: String?, sendAt: Int64?, id: String = UUID().uuidString.lowercased()
+    ) -> ProjectChatSend {
+        let delivery = sendAt != nil || !running(chatId, rootId: rootId) ? nil : steer ? "steer" : "queue"
+        let btw = rootId == nil ? text.range(of: "^/btw\\s+", options: [.regularExpression, .caseInsensitive]) : nil
+        return ProjectChatSend(
+            id: id, body: btw.map { String(text[$0.upperBound...]) } ?? text, settings: settings, delivery: delivery,
+            images: images, parentId: rootId, side: btw != nil, sendAt: sendAt)
+    }
+
+    /// The tokens a message would compact first, its conversation's cache gone cold, so the
+    /// composer asks before it goes; nil when there's nothing to ask.
+    func coldCompactTokens(
+        _ text: String, to chatId: String, with settings: ResumeSettings, steer: Bool, rootId: String?, sendAt: Int64?
+    ) -> Int64? {
+        guard (overview?.bridge ?? 0) >= Bridge.coldCompact, let thread = threads[chatId] else { return nil }
+        // A /btw thread's own session never compacts.
+        let sideThread = rootId.flatMap { root in thread.messages.first { $0.id == root } }?.side == true
+        if sideThread { return nil }
+        let held = heldIds(thread)
+        let outgoing = active.map { outbox.of(computer: $0, chatId: chatId) } ?? []
+        let queueWaiting = !(thread.queue ?? []).isEmpty || thread.queuePaused == true
+            || outgoing.contains { !held.contains($0.id) && $0.send.parentId == rootId }
+        let conversation = conversation(chatId, rootId: rootId)
+        let send = threadSend(text, to: chatId, with: settings, steer: steer, rootId: rootId, sendAt: sendAt)
+        return RelayRemote.coldCompactTokens(
+            conversation, holder: contextAgent(conversation, rootId: rootId), send: send, queueWaiting: queueWaiting,
+            now: Int64(Date().timeIntervalSince1970 * 1000))
+    }
+
     /// Why this computer can't take files, once it has said which bridge it speaks.
     var filesRefused: String? {
         guard let overview else { return nil }

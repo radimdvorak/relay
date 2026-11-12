@@ -20,6 +20,9 @@ public struct ProjectChatSend: Codable, Sendable, Equatable {
     /// Asks `/btw`: starts a side conversation instead of a turn of the main one.
     public var side: Bool?
     public var images: [PastedImage]?
+    /// Compacts first (true) or not (false) when the cache went cold; left out, the desktop's
+    /// Settings decide. From `Bridge.coldCompact`.
+    public var compact: Bool?
 
     /// A message to the agent `settings` name, Fast and Claude's window kept
     /// only where that agent has them. Like every composer's, the body starts
@@ -28,7 +31,7 @@ public struct ProjectChatSend: Codable, Sendable, Equatable {
     public init(
         id: String = UUID().uuidString.lowercased(), body: String, settings: ResumeSettings,
         delivery: String? = nil, images: [PastedImage] = [], parentId: String? = nil, side: Bool = false,
-        sendAt: Int64? = nil
+        sendAt: Int64? = nil, compact: Bool? = nil
     ) {
         let text = body.trimmingCharacters(in: .whitespacesAndNewlines)
         let to = sendRecipient(text, picked: settings.provider)
@@ -49,6 +52,7 @@ public struct ProjectChatSend: Codable, Sendable, Equatable {
         self.parentId = parentId
         self.side = side ? true : nil
         self.sendAt = sendAt
+        self.compact = compact
     }
 }
 

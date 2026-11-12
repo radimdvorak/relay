@@ -244,7 +244,8 @@ if (!seeded) {
     swift.summary.queueMark = "seed";
   }
   const trimmed = message("assistant", "Cut it by about a third. The table now leads with what each tool *can't* do, which is the honest bit people look for.", 45, {
-    context: { usedTokens: 142_000, maxTokens: 200_000, totalTokens: 1_240_000 },
+    // Its cache went cold 40 minutes ago, so the next message asks whether to compact first.
+    context: { usedTokens: 142_000, maxTokens: 200_000, totalTokens: 1_240_000, cache: { at: now - 45 * min, ttlMs: 5 * min } },
     cost: 0.86,
     model: { name: "Opus 5.5" },
     activity: [step("compare/index.html", "file"), step("npm run build:website")],
@@ -719,7 +720,7 @@ const host = {
     return { ...t.summary, ...queued, lastParentId: t.lastParentId ?? null, worktree, root, messages: t.messages, ...(t.requests?.length ? { requests: t.requests } : {}), ...(last ? { lastInput: last } : {}) };
   },
   dispatch: async (method: string, args: any[]) => {
-    console.error("dispatch", method, method === "sendProjectChat" ? JSON.stringify({ body: args[1].body, to: args[1].to, mode: args[1].interactionMode, runtime: args[1].runtimeMode, parentId: args[1].parentId, side: args[1].side, sendAt: args[1].sendAt, images: args[1].images?.map((i: any) => [i.name, i.dataUrl.length]) }) : JSON.stringify(args).slice(0, 300));
+    console.error("dispatch", method, method === "sendProjectChat" ? JSON.stringify({ body: args[1].body, to: args[1].to, mode: args[1].interactionMode, runtime: args[1].runtimeMode, parentId: args[1].parentId, side: args[1].side, sendAt: args[1].sendAt, compact: args[1].compact, images: args[1].images?.map((i: any) => [i.name, i.dataUrl.length]) }) : JSON.stringify(args).slice(0, 300));
     if (method === "sendProjectChat" && refusing) throw new Error("The selected worktree is unavailable. Choose another workspace.");
     if (method === "selectAgentWorktree") refusing = false;
     if (method === "sendProjectChat" && slowNew && threads.get(args[0])?.summary.empty) await pause(8000);
@@ -1021,9 +1022,9 @@ function usageOf(provider: string) {
   return { provider, windows: [], message: "No usage limits reported" };
 }
 
-function compacted(chatId: string) {
+function compacted(chatId: string, cold = false) {
   const t = threads.get(chatId)!;
-  const m = { ...message("assistant", "", 0), created: Date.now(), compaction: true, compactedFrom: 120_000, context: { usedTokens: 6_000, maxTokens: 200_000 }, compactSummary: "Compacted from the phone." };
+  const m = { ...message("assistant", "", 0), created: Date.now(), compaction: true, compactedFrom: cold ? 142_000 : 120_000, context: { usedTokens: 6_000, maxTokens: 200_000 }, compactSummary: "Compacted from the phone.", ...(cold && { compactedCold: true }) };
   t.messages.push(m);
   remote.chatEvent({ chatId, message: m });
 }
@@ -1122,6 +1123,7 @@ function sent(chatId: string, send: any) {
     if (end) end();
     else cutSeeded(chatId, t);
   }
+  if (send.compact) compacted(chatId, true);
   answer(chatId, send);
 }
 // Touching <pairing file>.ask does the same from outside, whatever the phone has open.

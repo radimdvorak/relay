@@ -41,6 +41,8 @@ object Bridge {
     const val FOLDER_HANDOFF = 20
     const val START_HANDOFF = 20
     const val SKILLS = 21
+    /** Sends may say whether to compact a cold conversation first (`compact`). */
+    const val COLD_COMPACT = 25
     const val PREVIEW = 22
     const val NOTES = 22
     const val WORKSPACE_MOVES = 22

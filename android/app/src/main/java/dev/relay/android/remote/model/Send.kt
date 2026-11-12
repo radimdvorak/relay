@@ -55,4 +55,6 @@ data class ProjectChatSend(
     /** Only for desktops from [dev.relay.android.remote.Bridge.SKILLS]. */
     val skills: List<SentSkill>? = null,
     val fixes: List<String>? = null,
+    /** Compacts first (true) or not (false) when the cache went cold; left out, the desktop's Settings decide. From [dev.relay.android.remote.Bridge.COLD_COMPACT]. */
+    val compact: Boolean? = null,
 )

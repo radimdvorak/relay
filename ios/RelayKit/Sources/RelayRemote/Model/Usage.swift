@@ -297,6 +297,33 @@ public func latestContext(_ messages: [ChatMessage]) -> ContextUsage? {
     return nil
 }
 
+/// `shared/context-usage.ts`: how big a conversation is before a cold cache is worth compacting.
+public let coldCompactThreshold: Int64 = 120_000
+
+/// The conversation is big enough, and its cache cold, to compact before the next message.
+public func worthCompactingCold(_ usage: ContextUsage, now: Int64) -> Bool {
+    guard let cache = usage.cache else { return false }
+    return now >= cache.at + cache.ttlMs && usage.usedTokens >= coldCompactThreshold
+}
+
+/// The tokens `send` would compact first, as the desktop's "Compact first" box by Send offers it
+/// (offerToCompact, firstIfCold); nil when there's nothing to ask. `holder` is the agent holding
+/// `conversation`'s context.
+public func coldCompactTokens(
+    _ conversation: [ChatMessage], holder: String?, send: ProjectChatSend, queueWaiting: Bool, now: Int64
+) -> Int64? {
+    // Compacting resumes the session of the agent that answered last.
+    let sameAgent = holder != nil && send.to == holder
+    let goesNow = send.delivery == nil && send.sendAt == nil
+    // A command means what it says, after an @mention too.
+    let command = withoutAgentMention(send.body).drop { $0.isWhitespace }.hasPrefix("/")
+    // Compacting first would jump ahead of messages already queued.
+    guard sameAgent, goesNow, send.side != true, !queueWaiting, !command,
+        let usage = latestContext(conversation), worthCompactingCold(usage, now: now)
+    else { return nil }
+    return usage.usedTokens
+}
+
 /// How full the context window is, whole percent; nil when its size isn't known.
 public func contextPercent(_ context: ContextUsage?) -> Int? {
     guard let context, let max = context.maxTokens, max > 0 else { return nil }

@@ -37,6 +37,38 @@ fun contextAgent(conversation: List<ChatMessage>, rootId: String? = null): Strin
             it.worktreeCommand == null && it.id != rootId
     }?.provider
 
+/** shared/context-usage.ts: how big a conversation is before a cold cache is worth compacting. */
+const val COLD_COMPACT_TOKENS = 120_000L
+
+/** The conversation is big enough, and its cache cold, to compact before the next message. */
+fun worthCompactingCold(usage: ContextUsage, now: Long): Boolean {
+    val cache = usage.cache ?: return false
+    return now >= cache.at + cache.ttlMs && usage.usedTokens >= COLD_COMPACT_TOKENS
+}
+
+/**
+ * The tokens `send` would compact first, as the desktop's "Compact first" box
+ * by Send offers it (offerToCompact, firstIfCold); null when there's nothing
+ * to ask. [holder] is the agent holding [conversation]'s context.
+ */
+fun coldCompactTokens(
+    conversation: List<ChatMessage>,
+    holder: String?,
+    send: ProjectChatSend,
+    queueWaiting: Boolean,
+    now: Long,
+): Long? {
+    // Compacting resumes the session of the agent that answered last.
+    val sameAgent = holder != null && recipient(send) == holder
+    val goesNow = send.delivery == null && send.sendAt == null
+    // A command means what it says, after an @mention too.
+    val command = send.body.replace(agentMentionPattern, "").trimStart().startsWith("/")
+    // Compacting first would jump ahead of messages already queued.
+    if (!sameAgent || !goesNow || send.side == true || queueWaiting || command) return null
+    val usage = latestContext(conversation) ?: return null
+    return usage.usedTokens.takeIf { worthCompactingCold(usage, now) }
+}
+
 /** Whether sending to `to` takes over from `holder`, losing its session. */
 fun takesOver(to: String?, holder: String?) = to != null && to != "message" && holder != null && to != holder
 
