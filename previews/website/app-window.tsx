@@ -343,45 +343,46 @@ const threadChanges = {
 
 /** The window's left edge, as the app draws it on the threads. */
 function ActivityBar() {
+  // The app sets its bar over the layout's padding; the cell gives it a place
+  // in the frame's grid however the app positions it.
   return (
-    <nav
-      className="activity-bar left rw-activity-bar"
-      aria-label="Activity bar"
-    >
-      <BarButton
-        label="Threads"
-        current
-        onClick={() => {}}
-        icon={<MessagesSquare size={19} />}
-      />
-      <BarButton
-        label="Search threads"
-        onClick={() => {}}
-        icon={<Search size={19} />}
-      />
-      <BarButton
-        label="Pull requests"
-        onClick={() => {}}
-        icon={<GitPullRequest size={19} />}
-      />
-      <BarButton
-        label="Schedules"
-        onClick={() => {}}
-        icon={<ScheduledThreadIcon size={19} />}
-      />
-      <span className="activity-bar-fill" />
-      <BarButton
-        label="Usage"
-        onClick={() => {}}
-        icon={<ChartColumn size={19} />}
-      />
-      <span className="activity-bar-line" aria-hidden="true" />
-      <BarButton
-        label="Open settings"
-        onClick={() => {}}
-        icon={<Settings2 size={19} />}
-      />
-    </nav>
+    <div className="rw-bar">
+      <nav className="activity-bar left" aria-label="Activity bar">
+        <BarButton
+          label="Threads"
+          current
+          onClick={() => {}}
+          icon={<MessagesSquare size={19} />}
+        />
+        <BarButton
+          label="Search threads"
+          onClick={() => {}}
+          icon={<Search size={19} />}
+        />
+        <BarButton
+          label="Pull requests"
+          onClick={() => {}}
+          icon={<GitPullRequest size={19} />}
+        />
+        <BarButton
+          label="Schedules"
+          onClick={() => {}}
+          icon={<ScheduledThreadIcon size={19} />}
+        />
+        <span className="activity-bar-fill" />
+        <BarButton
+          label="Usage"
+          onClick={() => {}}
+          icon={<ChartColumn size={19} />}
+        />
+        <span className="activity-bar-line" aria-hidden="true" />
+        <BarButton
+          label="Open settings"
+          onClick={() => {}}
+          icon={<Settings2 size={19} />}
+        />
+      </nav>
+    </div>
   );
 }
 

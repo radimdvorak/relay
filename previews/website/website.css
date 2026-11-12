@@ -530,11 +530,12 @@ body {
   grid-template-columns: var(--activity-bar-width) 264px minmax(0, 1fr);
   height: 640px;
 }
-/* In the frame's grid, not over the app's layout padding. */
-.rw .rw-activity-bar {
-  position: static;
+.rw-bar {
+  position: relative;
 }
-.rw-sidebar {
+/* Scoped to .rw to outrank the app's .projects-sidebar: the build puts this
+   file in a shared chunk that loads before the app's CSS. */
+.rw .rw-sidebar {
   width: auto;
   min-height: 0;
 }
@@ -2328,8 +2329,8 @@ body {
   .rw-body {
     grid-template-columns: minmax(0, 1fr);
   }
-  .rw-activity-bar,
-  .rw-sidebar,
+  .rw-bar,
+  .rw .rw-sidebar,
   .rw-brand,
   .rw-crumb,
   .rw-columns[data-split] > .rw-thread {
