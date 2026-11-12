@@ -140,7 +140,9 @@ export async function openCodexThread(
         }),
     developerInstructions: instructions,
     config: {
-      ...(ownTools ? {} : { web_search: "disabled" }),
+      // Searching the web is reading, so read-only threads keep it; their
+      // shell stays off the network, like Claude's Bash allowlist.
+      ...(policy ? {} : { web_search: "disabled" }),
       features: {
         apps: false,
         plugins: ownTools,

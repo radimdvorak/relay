@@ -209,11 +209,12 @@ it("starts a thread's app server again when it switches to Read only and back, w
     threads.map((t) => [
       t.config.features.plugins,
       !!t.config["mcp_servers.relay.url"],
+      t.config.web_search ?? "on",
     ]),
   ).toEqual([
-    [true, true],
-    [false, false],
-    [true, true],
+    [true, true, "on"],
+    [false, false, "on"],
+    [true, true, "on"],
   ]);
 });
 
