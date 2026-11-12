@@ -1,4 +1,6 @@
 import type { FilePair } from "../../../shared/types";
+import { api } from "../../lib/api";
+import type { ElsewherePick } from "../changes/elsewhere/useElsewhere";
 import type { FilesRequest } from "./file-link-target";
 import { mediaOf } from "./MediaChange";
 import { keepSnapshot } from "./snapshots";
@@ -29,6 +31,16 @@ export function workingChange(
     return { snapshot: snapshotId, path: file.path, outside: file.outside };
   }
   return { ...file, directory: false, changes: true, baseline: { label: before, text: old } };
+}
+
+/**
+ * What Files opens for a file the thread changed in another repository: the
+ * file on disk, with its changes since that repository's last commit.
+ */
+export async function elsewhereChange(chatId: string, pick: ElsewherePick) {
+  const pair = await api.threadElsewhereDiff(chatId, pick.root, pick.path);
+  const path = `${pick.root}/${pick.path}`;
+  return workingChange(pair, { path, outside: true }, "HEAD", `elsewhere:${path}`);
 }
 
 /**

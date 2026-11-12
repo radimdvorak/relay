@@ -7,7 +7,7 @@ import { ElsewhereOnly } from "../changes/elsewhere/ElsewhereOnly";
 import { useElsewhere, type ElsewherePick } from "../changes/elsewhere/useElsewhere";
 import { LocalChanges } from "../changes/LocalChanges";
 import { worktreeQuery } from "../changes/turn-diff";
-import { workingChange } from "./change-opens";
+import { elsewhereChange, workingChange } from "./change-opens";
 import type { SidebarView } from "./SidebarViews";
 import { useChangeOpens } from "./useChangeOpens";
 import type { EditorWorkspace } from "./useEditorWorkspace";
@@ -51,12 +51,7 @@ export function useChangeViews({
   // A folder without Git lists only what its agents changed in other repositories.
   const elsewhere = useElsewhere(plain ? chatId : undefined).data;
   const { openChange, error } = useChangeOpens(browsing.show);
-  const openElsewhere = (pick: ElsewherePick) =>
-    openChange(async () => {
-      const pair = await api.threadElsewhereDiff(chatId!, pick.root, pick.path);
-      const path = `${pick.root}/${pick.path}`;
-      return workingChange(pair, { path, outside: true }, "HEAD", `elsewhere:${path}`);
-    });
+  const openElsewhere = (pick: ElsewherePick) => openChange(() => elsewhereChange(chatId!, pick));
 
   const views: SidebarView[] = [];
   if (!plain)
