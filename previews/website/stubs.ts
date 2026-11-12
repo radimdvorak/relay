@@ -81,7 +81,7 @@ function reviewerChat(id: string): ProjectChat {
         ended: done ? started + reviewer.steps.length * 900 : undefined,
         provider: reviewer.provider,
         model: { name: "", byDefault: true, effort: "high" },
-        trace: trace(reviewer.steps.slice(0, shown), !done),
+        trace: trace(`${id}-answer`, reviewer.steps.slice(0, shown), !done),
         version: 1,
       },
     ],

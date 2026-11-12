@@ -73,10 +73,14 @@ export const chats: ChatSummary[] = [
 
 export type Step = { text: string } | { kind: AgentActivity["kind"]; label: string };
 
-let traceId = 0;
-export function trace(steps: Step[], runningLast = false): AgentTrace[] {
+/** Rows keep their ids from render to render, or the thread remounts them and they flash. */
+export function trace(
+  messageId: string,
+  steps: Step[],
+  runningLast = false,
+): AgentTrace[] {
   return steps.map((step, i) => {
-    const id = `t${++traceId}`;
+    const id = `${messageId}-step-${i}`;
     if ("text" in step) return { kind: "commentary", id, text: step.text };
     return {
       kind: "activity",
@@ -208,7 +212,7 @@ export function turnMessages(id: string, shown: number): ChatMessage[] {
       ended: done ? created + turn.seconds * 1000 : undefined,
       provider: turn.provider,
       model: turn.model,
-      trace: trace(turn.steps.slice(0, Math.max(1, shown)), !done),
+      trace: trace(`${id}-answer`, turn.steps.slice(0, Math.max(1, shown)), !done),
       changes: done ? turn.changes : undefined,
       version: 1,
     },

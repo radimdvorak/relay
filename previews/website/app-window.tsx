@@ -200,7 +200,7 @@ function ReviewThread() {
     ended: phase === 4 ? started + 52_000 : undefined,
     provider: "claude",
     model: { name: "Opus 5.5", effort: "high" },
-    trace: trace(leadSteps, phase !== 4),
+    trace: trace("r2", leadSteps, phase !== 4),
     version: 1,
   };
   return (
