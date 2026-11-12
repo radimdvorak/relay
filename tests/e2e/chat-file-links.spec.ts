@@ -8,6 +8,7 @@ import {
   realpath,
 } from "node:fs/promises";
 import { join, resolve } from "node:path";
+import { randomUUID } from "node:crypto";
 import { tmpdir } from "node:os";
 import { execFileSync } from "node:child_process";
 import { fixtureServer, oldCode, newCode } from "../fixtures/gitea";
@@ -193,6 +194,117 @@ test("a chat file link in a PR thread selects the file in the review", async () 
   } finally {
     await app.close();
     await fixture.close();
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("a chat file link to a file the thread changed in another repository opens with its changes", async () => {
+  const root = await realpath(
+    await mkdtemp(join(tmpdir(), "relay-chat-elsewhere-")),
+  );
+  const data = join(root, "data"),
+    repo = join(root, "project"),
+    other = join(root, "env-config");
+  for (const dir of [repo, other]) {
+    execFileSync("git", ["init", "-q", "-b", "main", dir]);
+    execFileSync("git", ["-C", dir, "config", "user.name", "Test"]);
+    execFileSync("git", ["-C", dir, "config", "user.email", "test@example.invalid"]);
+    await writeFile(join(dir, "README.md"), "# Base\n");
+    execFileSync("git", ["-C", dir, "add", "."]);
+    execFileSync("git", ["-C", dir, "commit", "-qm", "Base"]);
+  }
+  await writeFile(
+    join(other, "anydesk-omarchy.sh"),
+    "#!/usr/bin/env bash\nomarchy pkg aur add anydesk-bin\n",
+  );
+  const projectId = randomUUID(),
+    at = Date.now() - 60_000;
+  const thread = {
+    id: randomUUID(),
+    projectId,
+    title: "Install AnyDesk",
+    scope: { kind: "project" },
+    created: at,
+    updated: at,
+    messages: [
+      {
+        id: "ask",
+        role: "user",
+        provider: "codex",
+        status: "complete",
+        body: "Prepare an install script in my env-config repo",
+        created: at,
+        version: 1,
+      },
+      {
+        id: "answer",
+        role: "assistant",
+        provider: "codex",
+        status: "complete",
+        // Codex links what it wrote in another repository by a path from
+        // above it, which isn't one in this project.
+        body: "Added [anydesk-omarchy.sh](env-config/anydesk-omarchy.sh) in `env-config/`.",
+        elsewhere: [{ root: other, paths: ["anydesk-omarchy.sh"] }],
+        created: at,
+        ended: at,
+        version: 1,
+      },
+    ],
+  };
+  await mkdir(join(data, "project-chats"), { recursive: true });
+  await writeFile(
+    join(data, "project-chats", thread.id + ".json"),
+    JSON.stringify(thread),
+  );
+  await writeFile(
+    join(data, "state.json"),
+    JSON.stringify({
+      version: 1,
+      folders: {},
+      progress: {},
+      projects: [
+        { id: projectId, path: repo, name: "project", repository: null, added: 1 },
+      ],
+      chats: [{ ...thread, messages: undefined }],
+    }),
+  );
+  const app = await launch(root);
+  try {
+    const page = await app.firstWindow();
+    await app.evaluate(({ shell }) => {
+      const paths: string[] = [];
+      shell.openPath = async (path: string) => {
+        paths.push(path);
+        return "";
+      };
+      (globalThis as { openedPaths?: string[] }).openedPaths = paths;
+    });
+    await page.getByText("Install AnyDesk").first().click();
+    await page
+      .locator(".chat-file-link", { hasText: "anydesk-omarchy.sh" })
+      .click();
+    const editor = page.locator(".project-inline-editor");
+    await expect(editor.locator(".editor-bar-path")).toContainText(
+      join(other, "anydesk-omarchy.sh"),
+    );
+    await expect(editor.locator(".cm-content")).toContainText(
+      "omarchy pkg aur add anydesk-bin",
+    );
+    // A new file is all changes since the last commit.
+    await expect(editor.locator(".cm-changedLine").first()).toBeVisible();
+    // The repository's folder opens in the system's file manager.
+    await page
+      .locator(`.chat-file-link[title="${join(repo, "env-config")}"]`)
+      .click();
+    await expect
+      .poll(() =>
+        app.evaluate(
+          () => (globalThis as { openedPaths?: string[] }).openedPaths,
+        ),
+      )
+      .toEqual([other]);
+  } finally {
+    await app.close();
     await rm(root, { recursive: true, force: true });
   }
 });

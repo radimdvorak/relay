@@ -155,8 +155,8 @@ export function usePaneOpens(
   });
   const openChatFile = chatFileOpener({
     project,
-    where: folder.where,
-    tree: folder.tree,
+    folder,
+    chatId,
     inReview: !!pull,
     qc,
     openInEditor,
