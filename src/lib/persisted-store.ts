@@ -29,6 +29,20 @@ export function readJson(key: string): unknown {
   }
 }
 
+/** Every key saved that starts with `prefix`; none when storage is unavailable. */
+export function storedKeys(prefix: string): string[] {
+  const keys: string[] = [];
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key?.startsWith(prefix)) keys.push(key);
+    }
+  } catch {
+    // Storage that's unavailable holds nothing.
+  }
+  return keys;
+}
+
 /** Saves `value` under `key` as JSON; storage that's unavailable or full is no error. */
 export function writeJson(key: string, value: unknown) {
   try {

@@ -29,6 +29,7 @@ import { followEditorWindows } from "./features/editor-windows/editor-windows";
 import { threadWindowOf } from "../shared/thread-windows";
 import { editorWindowOf } from "../shared/editor-windows";
 import { startDraftSync } from "./features/composer/draft-sync";
+import { dropCarriedAdvisors } from "./features/agents/composer-settings";
 import { followHeldSends } from "./features/composer/held-sends";
 import { DragTray } from "./features/bug-report/DragTray";
 import { followMainSettings } from "./features/settings/follow-main-settings";
@@ -66,6 +67,7 @@ function startApp() {
   initFocusRing();
   initContextMenuKey();
   initShortcuts();
+  dropCarriedAdvisors();
   followWindowControlsOverlay();
   followFullScreen();
   const client = new QueryClient({

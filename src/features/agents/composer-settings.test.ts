@@ -2,6 +2,7 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import {
   composerProvider,
   cacheNewThreadModels,
+  dropCarriedAdvisors,
   followLastAgent,
   forkThreadSettings,
   type AgentFollow,
@@ -27,6 +28,10 @@ beforeEach(() => {
     getItem: (key: string) => store.get(key) ?? null,
     setItem: (key: string, value: string) => store.set(key, value),
     removeItem: (key: string) => store.delete(key),
+    get length() {
+      return store.size;
+    },
+    key: (i: number) => [...store.keys()][i] ?? null,
   });
 });
 
@@ -441,4 +446,32 @@ it("reads what an older build writes over the new shape", () => {
   expect(loadComposerSettings("chat").models).toEqual({
     claude: plain("sonnet", "low"),
   });
+});
+
+it("drops the advisors new drafts carried over, once", () => {
+  const fable = { provider: "claude" as const, model: "fable" };
+  const opus = { model: "opus", reasoningEffort: "" as const, fast: false };
+  const advised = {
+    provider: "claude" as const,
+    models: { claude: { choice: opus, advisor: fable } },
+    runtimeMode: "full-access" as const,
+    interactionMode: "default" as const,
+  };
+  saveComposerSettings("new:p:slot", advised);
+  saveComposerSettings("thread", advised);
+  dropCarriedAdvisors();
+  expect(
+    loadComposerSettings("new:p:slot").models.claude?.advisor,
+  ).toBeUndefined();
+  expect(loadComposerSettings("new:p:slot").models.claude?.choice.model).toBe(
+    "opus",
+  );
+  // A thread's own advisor is its own.
+  expect(loadComposerSettings("thread").models.claude?.advisor).toEqual(fable);
+  // A pick made after the sweep stays.
+  saveComposerSettings("new:p:slot", advised);
+  dropCarriedAdvisors();
+  expect(loadComposerSettings("new:p:slot").models.claude?.advisor).toEqual(
+    fable,
+  );
 });

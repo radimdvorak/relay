@@ -14,7 +14,7 @@ import {
   type NewThreadModels,
 } from "../../../shared/new-thread-models";
 import { isAgentProvider, type AgentProvider } from "../../../shared/agents";
-import { readJson, writeJson } from "../../lib/persisted-store";
+import { readJson, storedKeys, writeJson } from "../../lib/persisted-store";
 import {
   composerSettingsKey,
   saveUnsentAccountPicks,
@@ -80,6 +80,31 @@ export function cachedNewThreadModels(): NewThreadModels | undefined {
 
 export const cacheNewThreadModels = (models: NewThreadModels) =>
   writeJson(newThreadModelsKey, models);
+/**
+ * New drafts saved while starting a thread didn't let go of its advisor may
+ * still hold it; this drops them, once. An advisor picked in an unsent draft
+ * goes too: there's no telling the two apart.
+ */
+const carriedAdvisorsDropped = "composer-settings:carried-advisors-dropped";
+
+export function dropCarriedAdvisors() {
+  if (readJson(carriedAdvisorsDropped)) return;
+  for (const key of newDraftKeys()) {
+    const saved = read(key);
+    if (!saved?.models || typeof saved.models !== "object") continue;
+    writeJson(composerSettingsKey(key), {
+      ...saved,
+      models: withoutAdvisors(saved.models),
+    });
+  }
+  writeJson(carriedAdvisorsDropped, true);
+}
+
+const newDraftKeys = () =>
+  storedKeys(composerSettingsKey("new:")).map((key) =>
+    key.slice(composerSettingsKey("").length),
+  );
+
 /** The same for the access a new thread starts on. */
 const newThreadModeKey = "composer-mode:new-thread";
 export const cachedNewThreadRuntimeMode = (): RuntimeMode | undefined =>
