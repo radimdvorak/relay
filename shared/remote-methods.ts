@@ -178,6 +178,7 @@ export const remoteMethods = [
   "subagents",
   "subagentRun",
   "reportApp",
+  "setPush",
   "dictate",
   "readAloud",
   "activityDetail",

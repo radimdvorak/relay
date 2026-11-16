@@ -18,6 +18,7 @@ import type {
 import type { ComputerThreadList } from "./computer-threads";
 import type { ChatTriage } from "./projects";
 import type { PhoneAppReport } from "./phone-app";
+import type { PushRegistration } from "./push";
 import type {
   ChatMessage,
   KnownMessages,
@@ -98,6 +99,8 @@ export interface RemoteApi {
   ): Promise<Record<string, RemoteProjectIcon>>;
   /** What the phone's app runs, for the desktop's Settings. */
   reportApp(report: PhoneAppReport): Promise<void>;
+  /** Where to tell the phone while it's away, or null to stop; from `pushBridge`. */
+  setPush(registration: PushRegistration | null): Promise<void>;
   dictate(request: PhoneDictation): Promise<PhoneDictationHeard>;
   /** Missing before `readAloudBridge`. */
   readAloud(request: PhoneReadAloud): Promise<PhoneReadAloudAudio>;

@@ -24,6 +24,7 @@ import type { RemoteHost } from "./remote-host";
 import { RemoteDevices } from "./devices";
 import { PhoneDictations } from "./phone-dictation";
 import { PhoneReadings } from "./phone-read-aloud";
+import { PhonePush } from "./phone-push";
 import { lanAddresses } from "./lan";
 import { RemoteServer } from "./server";
 import { tailnetProbe, type TailnetProbe } from "./tailscale";
@@ -34,6 +35,7 @@ import {
   appReportSchema,
   dictationSchema,
   portSchema,
+  pushSchema,
   readAloudSchema,
 } from "./phone-call-args";
 
@@ -91,6 +93,23 @@ export class PhoneRemote {
   /** Listening only for `relay pipe`, on a free loopback port. */
   private pipesOnly = false;
   private tunnelPorts: TunnelPorts;
+
+  private push = new PhonePush({
+    phones: () =>
+      this.devices
+        .list()
+        .flatMap((d) =>
+          d.push && d.kind !== "computer" ? [{ id: d.id, push: d.push }] : [],
+        ),
+    onScreen: () => this.server.onScreen(),
+    present: () => this.host.present?.() ?? false,
+    chat: (projectId, chatId) =>
+      this.host.chats(projectId).find((c) => c.id === chatId),
+    forget: (phoneId) =>
+      void this.devices
+        .setPush(phoneId, null)
+        .catch((e) => console.warn("Phone push: couldn't forget a token:", e)),
+  });
 
   constructor(
     store: Store,
@@ -167,6 +186,8 @@ export class PhoneRemote {
       throw new Error("Computers can't do that.");
     if (method === "reportApp")
       return this.devices.setApp(deviceId, appReportSchema.parse(args[0]));
+    if (method === "setPush")
+      return this.devices.setPush(deviceId, pushSchema.parse(args[0]));
     if (method === "dictate") {
       if (!this.dictations)
         throw new Error("Dictation isn't available on this computer.");
@@ -232,6 +253,8 @@ export class PhoneRemote {
 
   /** News the computer decided; older phones read theirs off the thread lists. */
   news(item: NewsItem) {
+    // Phones away hear through their push, whether or not this computer is reachable.
+    if (this.devices.settings.enabled) this.push.news(item);
     if (!this.server.listening) return;
     this.server.broadcast(
       { kind: "news", item },
@@ -243,6 +266,7 @@ export class PhoneRemote {
 
   /** Someone may have come to the computer or left it. */
   presenceChanged() {
+    this.push.presenceChanged();
     if (this.server.listening) this.bridge.presenceChanged();
   }
 

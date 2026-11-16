@@ -22,6 +22,17 @@ if (signing.isEmpty() && shipsRelease) {
     throw GradleException(unsignedRelease)
 }
 
+// Relay's Firebase app, for notifications through push: from the environment on
+// the mini, else ~/.config/relay-android/firebase.properties. Without it the app
+// builds as before and stays connected in the background to hear the news.
+val firebase: Map<String, String> = run {
+    val file = File(System.getProperty("user.home"), ".config/relay-android/firebase.properties")
+    val fromFile = if (file.isFile) Properties().apply { file.reader().use { load(it) } }
+        .entries.associate { (k, v) -> k.toString() to v.toString().trim('"', '\'') } else emptyMap()
+    listOf("RELAY_FIREBASE_APP_ID", "RELAY_FIREBASE_API_KEY", "RELAY_FIREBASE_PROJECT_ID", "RELAY_FIREBASE_SENDER_ID")
+        .associateWith { key -> System.getenv(key) ?: fromFile[key] ?: "" }
+}
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
@@ -41,6 +52,7 @@ android {
         // The release's own version on the mini; versionCode grows as major*1e6+minor*1e3+patch.
         versionCode = System.getenv("RELAY_VERSION_CODE")?.toInt() ?: 1
         versionName = System.getenv("RELAY_VERSION") ?: "0.1.0"
+        for ((key, value) in firebase) buildConfigField("String", key.removePrefix("RELAY_"), "\"$value\"")
     }
 
     signingConfigs {
@@ -61,7 +73,10 @@ android {
             signingConfig = signingConfigs.findByName("relay")
         }
     }
-    buildFeatures { compose = true }
+    buildFeatures {
+        compose = true
+        buildConfig = true
+    }
     packaging { resources.excludes += "/META-INF/{AL2.0,LGPL2.1}" }
 }
 
@@ -106,6 +121,7 @@ dependencies {
     implementation(libs.qrcodegen)
     implementation(libs.androidx.webkit)
     implementation(libs.okhttp)
+    implementation(libs.firebase.messaging)
     implementation(libs.bouncycastle)
     implementation(libs.tabler.icons)
     implementation(libs.media3.transformer)

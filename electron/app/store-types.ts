@@ -1,3 +1,4 @@
+import type { PushRegistration } from "../../shared/push";
 import type { PhoneAppReport } from "../../shared/phone-app";
 import type { DeviceKind, PhoneAppearance } from "../../shared/remote";
 
@@ -14,6 +15,8 @@ export interface RemoteDevice {
   /** SHA-256 of the device's token; the token itself only lives on the phone. */
   tokenHash: string;
   app?: PhoneAppReport;
+  /** Where to tell the phone while it's away; see shared/push. */
+  push?: PushRegistration;
 }
 
 export interface RemoteSettings {

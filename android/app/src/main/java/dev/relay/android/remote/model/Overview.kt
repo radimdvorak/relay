@@ -155,6 +155,10 @@ data class PhoneAppearance(
     val dark: PhonePalette,
 )
 
+/** shared/push.ts: where the computer tells this phone while it's away. */
+@Serializable
+data class PushRegistration(val token: String, val computer: String, val hideTitles: Boolean)
+
 @Serializable
 data class PhoneAppReport(
     val version: String,

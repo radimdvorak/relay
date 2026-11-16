@@ -10,6 +10,7 @@ import {
   type KeyPair,
 } from "../../shared/remote-crypto";
 import type { PhoneAppReport } from "../../shared/phone-app";
+import type { PushRegistration } from "../../shared/push";
 import type { DeviceKind } from "../../shared/remote";
 
 export type { RemoteSettings };
@@ -202,6 +203,22 @@ export class RemoteDevices {
     await this.store.update((s) => {
       const device = s.phoneRemote?.devices?.find((d) => d.id === deviceId);
       if (device) device.app = app;
+    });
+  }
+
+  /** Null forgets it: the phone signed out of Firebase or turned notifications off. */
+  async setPush(deviceId: string, push: PushRegistration | null) {
+    const saved = this.list().find((d) => d.id === deviceId);
+    if (
+      !saved ||
+      JSON.stringify(saved.push) === JSON.stringify(push ?? undefined)
+    )
+      return;
+    await this.store.update((s) => {
+      const device = s.phoneRemote?.devices?.find((d) => d.id === deviceId);
+      if (!device) return;
+      if (push) device.push = push;
+      else delete device.push;
     });
   }
 

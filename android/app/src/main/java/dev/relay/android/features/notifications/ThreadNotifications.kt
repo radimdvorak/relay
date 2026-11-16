@@ -37,9 +37,16 @@ import java.lang.ref.WeakReference
  * mobile/src/remote/watch.ts: follows the computer with the app in your
  * pocket. The foreground service keeps the connection (and read aloud) going
  * with the screen off, and a thread that finishes, fails or needs you posts a
- * notification. Built once in the container; everything runs on the main thread.
+ * notification. A computer that pushes the news ([pushed], features/push)
+ * needs neither: it tells the phone itself. Built once in the container;
+ * everything runs on the main thread.
  */
-class ThreadNotifications(private val app: Application, private val remote: Remote, private val scope: CoroutineScope) {
+class ThreadNotifications(
+    private val app: Application,
+    private val remote: Remote,
+    private val scope: CoroutineScope,
+    private val pushed: StateFlow<Boolean>,
+) {
     enum class Reason { Watch, Read }
     private data class Notice(val title: String, val text: String)
 
@@ -69,6 +76,9 @@ class ThreadNotifications(private val app: Application, private val remote: Remo
      * reply read aloud. The idle watch on the connection doesn't count.
      */
     val busy get() = Reason.Read in holding || remote.overview.value?.chats?.any { it.running == true } == true
+
+    /** A reply is read aloud, which needs the link with the app away. */
+    val reading get() = Reason.Read in holding
 
     private fun notice() = notices.getValue(if (Reason.Read in holding) Reason.Read else Reason.Watch)
 
@@ -154,8 +164,9 @@ class ThreadNotifications(private val app: Application, private val remote: Remo
         // so a dropped link can come back in the background. Every try passes
         // through Connecting, so the notice says the same through both, or it
         // would be posted again on each try.
+        val watching = combine(enabled, pushed) { on, pushes -> on && !pushes }
         scope.launch {
-            combine(enabled, remote.status, remote.computers, remote.active, remote.overview) { on, status, computers, active, overview ->
+            combine(watching, remote.status, remote.computers, remote.active, remote.overview) { on, status, computers, active, overview ->
                 val name = computers.find { it.id == active }?.name ?: overview?.name ?: "your computer"
                 if (on) (status.state == LinkState.Online) to watchNotice(status, name) else null
             }.distinctUntilChanged().collect { watch ->
@@ -199,7 +210,7 @@ class ThreadNotifications(private val app: Application, private val remote: Remo
                 val news = if (foreground) emptyList() else threadNews(was, chats, answers.mapValues { it.value.first })
                 // Someone at the computer sees it there, unless they leave before reading it.
                 val due = held.next(before, present, news)
-                if (!foreground) due.forEach(::post)
+                if (!foreground && !pushed.value) due.forEach(::post)
             }
         }
 
@@ -219,7 +230,7 @@ class ThreadNotifications(private val app: Application, private val remote: Remo
                 if (network == null || !(network.validated || network.network == reachedOver)) return@collectLatest
                 delay(GONE_MS)
                 val due = held.next(before, present = false, news = emptyList())
-                if (enabled.value && !foreground) due.forEach(::post)
+                if (enabled.value && !foreground && !pushed.value) due.forEach(::post)
             }
         }
     }

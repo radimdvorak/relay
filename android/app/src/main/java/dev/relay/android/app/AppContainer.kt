@@ -3,6 +3,7 @@ package dev.relay.android.app
 import android.app.Application
 import android.content.Context
 import androidx.lifecycle.DefaultLifecycleObserver
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ProcessLifecycleOwner
 import dev.relay.android.features.applock.AppLock
@@ -12,6 +13,7 @@ import dev.relay.android.features.images.PendingImages
 import dev.relay.android.features.dictation.Dictation
 import dev.relay.android.features.notifications.ThreadNotifications
 import dev.relay.android.features.notifications.phoneNetwork
+import dev.relay.android.features.push.Push
 import dev.relay.android.features.readaloud.ReadAloud
 import dev.relay.android.features.updates.Updates
 import dev.relay.android.remote.OfflineCache
@@ -24,7 +26,9 @@ import dev.relay.android.remote.tunnel.TunnelListeners
 import dev.relay.android.remote.tunnel.TunnelPorts
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
@@ -65,14 +69,24 @@ class AppContainer(context: Context) {
     /** For work that outlives a screen: a switch or unpair that navigates away. */
     val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
-    val notifications = ThreadNotifications(app as Application, remote, scope).also { it.start() }
+    /** Closes the link soon after the app leaves; see [parkSoon]. Before the init blocks that start it. */
+    private var parking: Job? = null
+
+    val push = Push(app, remote, scope)
+    val notifications = ThreadNotifications(app as Application, remote, scope, push.delivering).also {
+        it.start()
+        push.start(it.on)
+    }
     val updates = Updates(app, remote, scope, busy = { notifications.busy }).also { it.start() }
 
     // One voice at a time: dictating stops a reading and the other way round.
     val dictation = Dictation.of(remote, app)
     val readAloud = ReadAloud.of(remote).also { r ->
         r.hold = { notifications.hold(ThreadNotifications.Reason.Read) }
-        r.release = { notifications.release(ThreadNotifications.Reason.Read) }
+        r.release = {
+            notifications.release(ThreadNotifications.Reason.Read)
+            if (!onScreen()) parkSoon()
+        }
         r.beforeStart = { dictation.stop() }
         dictation.beforeStart = { r.stop() }
     }
@@ -102,6 +116,7 @@ class AppContainer(context: Context) {
         ProcessLifecycleOwner.get().lifecycle.addObserver(object : DefaultLifecycleObserver {
             override fun onStart(owner: LifecycleOwner) {
                 lock.back()
+                parking?.cancel()
                 remote.setBackground(false)
                 remote.wake()
             }
@@ -109,7 +124,30 @@ class AppContainer(context: Context) {
             override fun onStop(owner: LifecycleOwner) {
                 lock.left()
                 remote.setBackground(true)
+                parkSoon()
             }
         })
+        // Started with nothing on screen, by a push say.
+        if (!onScreen()) parkSoon()
+    }
+
+    /**
+     * With the computer pushing its news, the link closes a little after the
+     * app leaves, which is what spares the battery. The wait lets a quick
+     * switch to another app and back, or a send just made, finish first; a
+     * reply read aloud keeps it until it ends.
+     */
+    private fun parkSoon() {
+        parking?.cancel()
+        parking = scope.launch {
+            delay(PARK_AFTER_MS)
+            if (push.delivering.value && !notifications.reading) remote.park()
+        }
+    }
+
+    private fun onScreen() = ProcessLifecycleOwner.get().lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)
+
+    private companion object {
+        const val PARK_AFTER_MS = 30_000L
     }
 }

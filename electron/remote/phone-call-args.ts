@@ -1,6 +1,7 @@
 // What a phone may pass to the calls phone-remote answers itself, rather
 // than the bridge's (./call-args).
 import { z } from "zod";
+import { pushLimits } from "../../shared/push";
 import { maxDictationChunk, maxReadAloudText } from "../../shared/remote";
 
 const version = z.string().regex(/^\d+\.\d+\.\d+(?:\.\d+)?$/);
@@ -54,3 +55,12 @@ export const readAloudSchema = z.discriminatedUnion("type", [
 ]);
 
 export const portSchema = z.number().int().min(1).max(65535);
+
+export const pushSchema = z
+  .object({
+    token: z.string().min(1).max(pushLimits.token),
+    computer: z.string().min(1).max(pushLimits.computer),
+    hideTitles: z.boolean(),
+  })
+  .strict()
+  .nullable();

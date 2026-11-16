@@ -151,6 +151,8 @@ class Remote(
     val stopped: StateFlow<Boolean> = _stopped.asStateFlow()
 
     private var live: RemoteClient? = null
+    /** Closed by [park] until the app comes back. */
+    @Volatile private var parked = false
     /** Starts true: the app may be opened by a notification's worker with nothing on screen. */
     private var background = true
     private var networkUp = true
@@ -250,7 +252,22 @@ class Remote(
 
     /** Back in the foreground: Android drops sockets in the background. */
     fun wake() {
+        if (parked && !_stopped.value) {
+            parked = false
+            scope.launch { live?.start() }
+            return
+        }
         live?.wake()
+    }
+
+    /**
+     * Closes the link while the app is away, as the computer pushes its news
+     * (features/push) and nothing else needs it; [wake] opens it again.
+     */
+    fun park() {
+        if (_stopped.value || parked) return
+        parked = true
+        scope.launch { live?.close() }
     }
 
     /** Whether the app is in the background, for the link to the active computer and the next. */
@@ -466,7 +483,7 @@ class Remote(
         _client.value = next
         _status.value = next.status.value
         if (start is RemoteStart.Pair) pairing?.client = next
-        if (!_stopped.value) next.start()
+        if (!_stopped.value && !parked) next.start()
         return next
     }
 }

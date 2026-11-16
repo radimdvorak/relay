@@ -21,6 +21,8 @@ object Bridge {
     const val STEPS_ON_OPEN = 38
     /** Phones may download a video an answer plays, a piece at a time (`projectChatVideoPart`). */
     const val VIDEO = 42
+    /** Phones hand over a Firebase token so the computer can tell them while away (`setPush`). */
+    const val PUSH = 43
     const val DEFAULT_PORT = 47821
 
     const val RECIPIENT = 11

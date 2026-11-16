@@ -177,6 +177,15 @@ export class RemoteServer {
     );
   }
 
+  /** Devices connected with their app on screen, which show news themselves. */
+  onScreen() {
+    return new Set(
+      [...this.connections].flatMap((c) =>
+        c.deviceId && !c.background ? [c.deviceId] : [],
+      ),
+    );
+  }
+
   /** The address it listens on: Tailscale's, or every one with the local network allowed. */
   get host() {
     return this.server ? this.bound : undefined;
@@ -369,7 +378,10 @@ export class RemoteServer {
       // Only persistence after a valid token is retryable. Invalid tokens
       // never reach it, and cryptographic failures terminate in accept().
       if (e instanceof SignInUnavailable) {
-        console.warn("Phone remote: couldn't check a phone's sign-in:", e.cause);
+        console.warn(
+          "Phone remote: couldn't check a phone's sign-in:",
+          e.cause,
+        );
         return c.socket.close();
       }
       this.send(c, { t: "denied", reason: denialFor(frame, e) });
@@ -389,7 +401,8 @@ export class RemoteServer {
       c.background = frame.on === true;
       c.link?.setBackground(c.background);
       // Back, a tick at once tells the phone the link survived its time away.
-      if (!c.background) this.send(c, { t: "tick", hosts: this.options.hosts?.() });
+      if (!c.background)
+        this.send(c, { t: "tick", hosts: this.options.hosts?.() });
       return;
     }
     if (
