@@ -28,6 +28,7 @@ import { assertHere } from "../handoff";
 import { supersedeQuestions } from "../async-questions";
 import { startFixing } from "../../findings";
 import { agentSession } from "../sessions";
+import { withThreadAdvisor } from "../send-advisor";
 import type { ThreadTitles } from "../titles";
 import type { TurnEndings } from "./end";
 import type { TurnHandoffs } from "./handoff-notes";
@@ -136,26 +137,25 @@ export class TurnSends {
         m.provider === provider &&
         (m.parentId ?? null) === (chat.lastInput!.parentId ?? null),
     );
-    await this.sendNow(
-      id,
-      {
-        ...chat.lastInput,
-        ...(settings && { contextWindow: undefined }),
-        ...settings,
-        id: randomUUID(),
-        to: provider,
-        body: missed
-          ? `@${provider} Your previous response ended before you read what I wrote above. Check what has already been done before repeating any actions.`
-          : `@${provider} Continue from where the previous response was stopped. Check what has already been done before repeating any actions.`,
-        asyncQuestionAnswer: undefined,
-        questionMessageId: undefined,
-        pageAnswer: undefined,
-        images: undefined,
-        selection: undefined,
-        delivery: undefined,
-      },
-      true,
-    );
+    // Settings picked here are the agent's own; its advisor is the thread's
+    // unless they name one.
+    const resumed: ProjectChatSend = {
+      ...chat.lastInput,
+      ...(settings && { contextWindow: undefined, advisor: undefined }),
+      ...settings,
+      id: randomUUID(),
+      to: provider,
+      body: missed
+        ? `@${provider} Your previous response ended before you read what I wrote above. Check what has already been done before repeating any actions.`
+        : `@${provider} Continue from where the previous response was stopped. Check what has already been done before repeating any actions.`,
+      asyncQuestionAnswer: undefined,
+      questionMessageId: undefined,
+      pageAnswer: undefined,
+      images: undefined,
+      selection: undefined,
+      delivery: undefined,
+    };
+    await this.sendNow(id, withThreadAdvisor(resumed, chat), true);
   }
 
   /** `answer` false keeps the message without a turn, for another computer to answer. */
