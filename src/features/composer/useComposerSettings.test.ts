@@ -266,6 +266,21 @@ it("keeps an advisor to the thread it was picked for", () => {
   expect(current().models.claude?.contextWindow).toBe("200k");
 });
 
+it("drops the advisor from the composer still open after it starts a thread", () => {
+  follow.lastModels = opus200k;
+  const fable = { provider: "claude" as const, model: "fable" };
+  const current = mount(() => useComposerSettings({ key: "new:p" }));
+  update(() =>
+    current().setModels((m) => ({
+      ...m,
+      claude: { ...m.claude!, advisor: fable },
+    })),
+  );
+  update(() => startThreadSettings("new:p", "thread", "claude"));
+  expect(current().models.claude?.advisor).toBeUndefined();
+  expect(loadComposerSettings("new:p").models.claude?.advisor).toBeUndefined();
+});
+
 it("lets go of its picks when it starts a thread before its own send renders", () => {
   follow.lastModels = opus200k;
   const draft = () => useComposerSettings({ key: "new:p" });

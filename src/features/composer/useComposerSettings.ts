@@ -3,6 +3,7 @@ import { runnableAgents, type AgentProvider } from "../../../shared/agents";
 import {
   sameModel,
   type NewThreadModels,
+  withoutAdvisors,
 } from "../../../shared/new-thread-models";
 import type { SentComposerSettings } from "../../../shared/projects";
 import type { Recipient } from "../../../shared/recipient";
@@ -96,6 +97,7 @@ export function useComposerSettings({
       onThreadStarted(key, () => {
         setFrozen(undefined);
         setInteractionMode("default");
+        setModels(withoutAdvisors);
       }),
     [key],
   );
