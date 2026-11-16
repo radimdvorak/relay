@@ -134,9 +134,17 @@ public struct QuestionOption: Codable, Sendable, Equatable {
     public var selectionValue: String { value ?? label }
 }
 
+/// What the agent calls the secret it asks for (request_secret), and why it needs it.
+public struct SecretRequest: Codable, Sendable, Equatable {
+    public var name: String
+    public var reason: String?
+}
+
 public struct AsyncAgentQuestions: Codable, Sendable, Equatable, Identifiable {
     public var id: String
     public var page: HtmlRender?
+    /// Asked for a secret: `answers` then holds how it ended, never the value.
+    public var secret: SecretRequest?
     public var questions: [AgentQuestion]
     public var answers: [String: [String]]?
     public var dismissed: Bool?

@@ -209,6 +209,7 @@ let relayToolLabels = [
     "show_html": "Showed a page",
     "preview_html": "Looked at a page",
     "ask_html": "Asked with a page",
+    "request_secret": "Asked for a secret",
     "open_preview": "Opened the preview",
     "screenshot": "Looked at the preview",
     "console_errors": "Read the preview's console",

@@ -29,7 +29,9 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.layout.heightIn
 import dev.relay.android.features.renders.AskPage
+import dev.relay.android.features.thread.logic.SECRET_QUESTION_ID
 import dev.relay.android.features.thread.logic.agentName
+import dev.relay.android.features.thread.logic.secretOutcome
 import dev.relay.android.remote.model.AsyncAgentQuestions
 import dev.relay.android.remote.model.ChatMessage
 import dev.relay.android.ui.Haptic
@@ -85,7 +87,16 @@ private fun Open(chatId: String, message: ChatMessage, group: AsyncAgentQuestion
     fun dismiss(dismissed: Boolean) =
         run({ remote.desktop("setProjectChatQuestionDismissed", chatId, message.id, group.id, dismissed) })
     val c = RelayTheme.colors
-    if (group.dismissed != true) Column(
+    val secret = group.secret
+    // Decline stands where the other cards have Dismiss.
+    if (secret != null && group.dismissed != true) SecretRequestCard(secret, agentName(message.provider), busy, error) { value ->
+        run({
+            remote.desktop(
+                "answerProjectChatQuestion", chatId, message.id, group.id,
+                mapOf("kind" to "secret", "value" to value),
+            )
+        }, sent)
+    } else if (group.dismissed != true) Column(
         Modifier.fillMaxWidth().border(1.dp, c.accent, RoundedCornerShape(14.dp)).background(c.card, RoundedCornerShape(14.dp)).padding(14.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
@@ -135,6 +146,10 @@ private fun Open(chatId: String, message: ChatMessage, group: AsyncAgentQuestion
 @Composable
 private fun Answered(group: AsyncAgentQuestions) {
     val answers = group.answers.orEmpty()
+    group.secret?.let {
+        SecretOutcomeRow(secretOutcome(it.name, answers[SECRET_QUESTION_ID]?.firstOrNull()))
+        return
+    }
     val page = group.page
     if (page != null) {
         val answer = answers[PAGE_QUESTION_ID]?.joinToString("\n")

@@ -57,6 +57,7 @@ internal val RELAY_TOOL_LABELS = mapOf(
     "show_html" to "Showed a page",
     "preview_html" to "Looked at a page",
     "ask_html" to "Asked with a page",
+    "request_secret" to "Asked for a secret",
     "open_preview" to "Opened the preview",
     "screenshot" to "Looked at the preview",
     "console_errors" to "Read the preview's console",

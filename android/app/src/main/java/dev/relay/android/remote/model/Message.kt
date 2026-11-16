@@ -126,10 +126,15 @@ data class AgentQuestion(
 
 @Serializable data class QuestionOption(val label: String, val description: String? = null, val value: String? = null)
 
+/** What the agent calls the secret it asks for, and why it needs it. */
+@Serializable data class SecretRequest(val name: String, val reason: String? = null)
+
 @Serializable
 data class AsyncAgentQuestions(
     val id: String,
     val page: HtmlRender? = null,
+    /** Asked for a secret (request_secret): [answers] then holds how it ended, never the value. */
+    val secret: SecretRequest? = null,
     val questions: List<AgentQuestion>,
     val answers: Map<String, List<String>>? = null,
     val dismissed: Boolean? = null,

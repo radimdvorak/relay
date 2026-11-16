@@ -294,6 +294,26 @@ So every exponent is $\le 0$ and the biggest term is exactly $1$. A ragged one s
       questions: [{ id: "toolu_sound", page: { id: "77777777-7777-4777-8777-0000000000a2", title: "Pick a finish sound", created: now - 20 * min, pages: [{}] }, questions: [] }],
     }),
   ], { waiting: true, asking: true });
+  // request_secret: one request each way it can end, and one still open to answer.
+  const asksFor = (id: string, name: string, reason: string | undefined, answers?: Record<string, string[]>) => ({
+    id,
+    secret: { name, ...(reason ? { reason } : {}) },
+    questions: [{ id: "secret", header: name, question: reason ?? name, isSecret: true }],
+    ...(answers ? { answers } : {}),
+  });
+  thread(relay, "Publish the cache guard to npm", 6, [
+    message("user", "Publish this to npm and check it on staging.", 12),
+    message("assistant", "Staging is checked with the password you saved for this project. I asked for the registry login twice and you took one of them.", 10, {
+      questions: [
+        asksFor("toolu_secret_used", "Staging password", undefined, { secret: ["Remembered"] }),
+        asksFor("toolu_secret_saved", "Registry user", "The account that owns @acme.", { secret: ["Saved"] }),
+        asksFor("toolu_secret_declined", "Registry password", undefined, {}),
+      ],
+    }),
+    message("assistant", "The last thing I need is a token to publish with.", 6, {
+      questions: [asksFor("toolu_secret_open", "npm publish token", "To publish 2.1.0. Make one at npmjs.com under Access Tokens.")],
+    }),
+  ], { waiting: true, asking: true });
   thread(relay, "Why is the menubar spinner eating CPU?", 180, [
     message("user", "Activity Monitor says Relay sits at 18% with one thread running.", 200),
     message("assistant", "", 195, {
@@ -720,7 +740,8 @@ const host = {
     return { ...t.summary, ...queued, lastParentId: t.lastParentId ?? null, worktree, root, messages: t.messages, ...(t.requests?.length ? { requests: t.requests } : {}), ...(last ? { lastInput: last } : {}) };
   },
   dispatch: async (method: string, args: any[]) => {
-    console.error("dispatch", method, method === "sendProjectChat" ? JSON.stringify({ body: args[1].body, to: args[1].to, mode: args[1].interactionMode, runtime: args[1].runtimeMode, parentId: args[1].parentId, side: args[1].side, sendAt: args[1].sendAt, compact: args[1].compact, images: args[1].images?.map((i: any) => [i.name, i.dataUrl.length]) }) : JSON.stringify(args).slice(0, 300));
+    // A secret request's answer carries its value; this log is read and shared like any other.
+    console.error("dispatch", method, method === "sendProjectChat" ? JSON.stringify({ body: args[1].body, to: args[1].to, mode: args[1].interactionMode, runtime: args[1].runtimeMode, parentId: args[1].parentId, side: args[1].side, sendAt: args[1].sendAt, compact: args[1].compact, images: args[1].images?.map((i: any) => [i.name, i.dataUrl.length]) }) : JSON.stringify(args, (key, value) => (key === "value" && typeof value === "string" ? "(hidden)" : value)).slice(0, 300));
     if (method === "sendProjectChat" && refusing) throw new Error("The selected worktree is unavailable. Choose another workspace.");
     if (method === "selectAgentWorktree") refusing = false;
     if (method === "sendProjectChat" && slowNew && threads.get(args[0])?.summary.empty) await pause(8000);
@@ -931,11 +952,19 @@ function answered(chatId: string, messageId: string, groupId: string, response: 
   const m = t.messages.find((x) => x.id === messageId);
   const group = m?.questions?.find((g: any) => g.id === groupId);
   if (!group || group.answers) throw new Error("This question is no longer available.");
-  group.answers = response.kind === "page" ? { page: [response.answer ?? ""] } : response.answers;
+  // A secret's value stays out of the thread, as on the real desktop: only how it ended is kept.
+  if (group.secret) {
+    if (response.kind !== "secret") throw new Error("Invalid response type.");
+    group.answers = response.value ? { secret: ["Saved"] } : {};
+    console.error("secret", group.secret.name, response.value ? `saved (${response.value.length} characters)` : "declined");
+  } else group.answers = response.kind === "page" ? { page: [response.answer ?? ""] } : response.answers;
   m.version += 1;
   remote.chatEvent({ chatId, message: m });
   Object.assign(t.summary, { asking: undefined, waiting: undefined });
-  answer(chatId, { id: crypto.randomUUID(), body: "Answer to your questions:\n" + Object.values(group.answers).flat().join(", ") });
+  const body = group.secret
+    ? group.answers.secret ? `The user saved "${group.secret.name}" for you.` : `The user declined to give "${group.secret.name}".`
+    : "Answer to your questions:\n" + Object.values(group.answers).flat().join(", ");
+  answer(chatId, { id: crypto.randomUUID(), body });
 }
 
 function dismissed(chatId: string, messageId: string, groupId: string, value: boolean) {

@@ -30,26 +30,11 @@ private struct Open: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                Label(group.page?.title ?? "\(agentName(message.provider)) has a question", systemImage: "questionmark.bubble")
-                    .font(.subheadline.weight(.semibold))
-                Spacer()
-                Button("Dismiss") { act { try await connection.dismissQuestion(chatId, message: message.id, group: group.id, true) } }
-                    .font(.subheadline)
-            }
-            // What the agent asks with its page, unless it's only the title again.
-            if let page = group.page, let ask = group.questions.first?.question, !ask.isEmpty, ask != page.title {
-                Text(ask).font(.subheadline).foregroundStyle(.secondary)
-            }
-            if let page = group.page, connection.canRender {
-                AskPage(chatId: chatId, page: page, busy: busy, share: 0.7) { send(.page($0)) }
-            } else if group.page != nil {
-                Text("Answer this page on your computer, or skip it.")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                Button("Skip") { send(.page(nil)) }.buttonStyle(.glass)
+            if let secret = group.secret {
+                // Decline stands where the other cards have Dismiss.
+                SecretRequestCard(secret: secret, agent: agentName(message.provider), busy: busy) { send(.secret($0)) }
             } else {
-                Questions(questions: group.questions, deferred: true, busy: busy) { send(.answers($0)) }
+                asked
             }
             if let error {
                 Text(error).font(.footnote).foregroundStyle(.red)
@@ -57,6 +42,31 @@ private struct Open: View {
         }
         .padding(14)
         .background(.card, in: .rect(cornerRadius: 18))
+    }
+
+    /// A page or questions, under a heading with Dismiss.
+    @ViewBuilder private var asked: some View {
+        HStack {
+            Label(group.page?.title ?? "\(agentName(message.provider)) has a question", systemImage: "questionmark.bubble")
+                .font(.subheadline.weight(.semibold))
+            Spacer()
+            Button("Dismiss") { act { try await connection.dismissQuestion(chatId, message: message.id, group: group.id, true) } }
+                .font(.subheadline)
+        }
+        // What the agent asks with its page, unless it's only the title again.
+        if let page = group.page, let ask = group.questions.first?.question, !ask.isEmpty, ask != page.title {
+            Text(ask).font(.subheadline).foregroundStyle(.secondary)
+        }
+        if let page = group.page, connection.canRender {
+            AskPage(chatId: chatId, page: page, busy: busy, share: 0.7) { send(.page($0)) }
+        } else if group.page != nil {
+            Text("Answer this page on your computer, or skip it.")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+            Button("Skip") { send(.page(nil)) }.buttonStyle(.glass)
+        } else {
+            Questions(questions: group.questions, deferred: true, busy: busy) { send(.answers($0)) }
+        }
     }
 
     private func send(_ response: AgentResponse) {
@@ -112,7 +122,9 @@ private struct Answered: View {
     @State private var open = false
 
     var body: some View {
-        if let page = group.page {
+        if let secret = group.secret {
+            SecretOutcomeRow(outcome: secretOutcome(name: secret.name, kept: group.answers?[secretQuestionId]?.first))
+        } else if let page = group.page {
             let answer = group.answers?["page"]?.joined(separator: "\n")
             DisclosureGroup(isExpanded: $open) {
                 if let answer {
