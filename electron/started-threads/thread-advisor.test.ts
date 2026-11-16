@@ -78,7 +78,25 @@ it("asks the thread's advisor with the conversation so far and the agent's quest
   expect(prompt).toMatch(/## The agent asks you\n\nIs it the TTL\?$/);
 });
 
-it("refuses a thread whose advisor isn't one Relay asks", async () => {
+it("reads the reply conversation the agent works in, after what it replies to", async () => {
+  const run = vi.fn(async () => "Advice.");
+  const replying = thread(fable);
+  replying.messages.push(
+    message("m3", "user", "@codex And the eviction?", { parentId: "m2" }),
+    message("m4", "assistant", "Looking at the LRU.", { parentId: "m3" }),
+    message("m5", "user", "@codex Something else", { created: 2 }),
+  );
+  replying.lastInput = { ...replying.lastInput!, id: "m3", parentId: "m2" };
+  await new ThreadAdvisor(run).ask(replying, { question: "?" }, signal);
+  const prompt = (run.mock.calls[0] as unknown as [unknown, string])[1];
+  expect(prompt).toContain("### User\n@codex Why does the cache miss?");
+  expect(prompt).toContain(
+    "### User\n@codex And the eviction?\n\n### Agent\nLooking at the LRU.",
+  );
+  expect(prompt).not.toContain("Something else");
+});
+
+it("refuses a thread without an advisor", async () => {
   const run = vi.fn(async () => "");
   const advisor = new ThreadAdvisor(run);
   for (const picked of [undefined, "off" as const]) {
