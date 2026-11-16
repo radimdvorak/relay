@@ -42,7 +42,7 @@ struct SecretRequestCard: View {
                     .buttonStyle(.glass)
                 Spacer()
                 Button("Save") { onAnswer(typed) }
-                    .buttonStyle(.glassProminent)
+                    .buttonStyle(.accentGlass)
                     .disabled(typed.isEmpty)
             }
         }
