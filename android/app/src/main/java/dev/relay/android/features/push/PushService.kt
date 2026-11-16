@@ -15,10 +15,8 @@ class PushService : FirebaseMessagingService() {
         val computer = data["computer"] ?: return
         val notice = pushNotice(data["kind"] ?: return, data["title"]) ?: return
         val push = (application as? HasPush)?.push ?: return
-        if (!push.shows(computer)) return
-        // On screen, the app shows it already.
         val onScreen = ProcessLifecycleOwner.get().lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)
-        if (onScreen) return
+        if (!push.shows(computer, onScreen)) return
         WatchService.post(this, chatId, notice.title, notice.body, threadLink(chatId, computer))
     }
 

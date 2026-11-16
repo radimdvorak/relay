@@ -61,10 +61,12 @@ class Push(private val app: Context, private val remote: Remote, private val sco
      * phone forgot, or told nothing of notifications going off or Relay
      * stopping while it was away, may still be pushing.
      */
-    fun shows(computer: String): Boolean {
+    fun shows(computer: String, onScreen: Boolean): Boolean {
         val registeredThere = prefs.getBoolean(pushedKey(computer), false)
         val wanted = notificationsOn.value && !remote.stopped.value
-        return registeredThere && wanted
+        // The app on screen shows the news of the computer it's connected to.
+        val shownInApp = onScreen && remote.active.value == computer
+        return registeredThere && wanted && !shownInApp
     }
 
     /** Registers with each computer the phone connects to, while [notificationsOn]. */
