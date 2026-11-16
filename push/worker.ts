@@ -2,7 +2,11 @@
 // Firebase, which only Relay's own key may do. It keeps and logs nothing it's
 // sent. Deploy: npm run deploy:push; the key goes in with
 // `wrangler secret put FIREBASE_SERVICE_ACCOUNT --config push/wrangler.jsonc`.
-import { firebaseRequest, pushMessageFrom } from "../shared/push";
+import {
+  firebaseRefusal,
+  firebaseRequest,
+  pushMessageFrom,
+} from "../shared/push";
 
 interface RateLimit {
   limit(options: { key: string }): Promise<{ success: boolean }>;
@@ -50,9 +54,17 @@ export default {
       },
     );
     if (sent.ok) return new Response(null, { status: 204 });
-    // The app was uninstalled or its token rotated: the computer forgets it.
-    if (await unregistered(sent)) return new Response("Gone", { status: 410 });
-    return new Response("Firebase refused", { status: 502 });
+    const body = await sent.text().catch(() => "");
+    switch (firebaseRefusal(sent.status, body)) {
+      // The app was uninstalled or its token rotated: the computer forgets it.
+      case "gone":
+        return new Response("Gone", { status: 410 });
+      // The computer tries again in a while.
+      case "busy":
+        return new Response("Firebase is busy", { status: 503 });
+      case "refused":
+        return new Response("Firebase refused", { status: 502 });
+    }
   },
 };
 
@@ -62,12 +74,6 @@ function parsed(text: string): unknown {
   } catch {
     return undefined;
   }
-}
-
-async function unregistered(response: Response) {
-  if (response.status === 404) return true;
-  const body = await response.text().catch(() => "");
-  return body.includes("UNREGISTERED");
 }
 
 let cached: { token: string; expiresAt: number } | undefined;

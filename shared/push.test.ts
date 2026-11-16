@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { firebaseRequest, pushMessageFrom, pushTitle } from "./push";
+import {
+  firebaseRefusal,
+  firebaseRequest,
+  pushMessageFrom,
+  pushTitle,
+} from "./push";
 
 const valid = { token: "t", computer: "mac", chatId: "c1", kind: "finished" };
 
@@ -38,5 +43,44 @@ describe("pushTitle", () => {
     const title = pushTitle("a".repeat(198) + "😀😀");
 
     expect(title).toBe("a".repeat(198) + "…");
+  });
+});
+
+describe("firebaseRefusal", () => {
+  const fcm = (code: number, details: unknown[]) =>
+    JSON.stringify({ error: { code, details } });
+  const errorCode = (code: string) => ({
+    "@type": "type.googleapis.com/google.firebase.fcm.v1.FcmError",
+    errorCode: code,
+  });
+
+  it("calls a token gone only when Firebase says it is", () => {
+    expect(firebaseRefusal(404, fcm(404, [errorCode("UNREGISTERED")]))).toBe(
+      "gone",
+    );
+    expect(
+      firebaseRefusal(403, fcm(403, [errorCode("SENDER_ID_MISMATCH")])),
+    ).toBe("gone");
+    const badToken = {
+      "@type": "type.googleapis.com/google.rpc.BadRequest",
+      fieldViolations: [{ field: "message.token" }],
+    };
+    expect(
+      firebaseRefusal(400, fcm(400, [errorCode("INVALID_ARGUMENT"), badToken])),
+    ).toBe("gone");
+  });
+
+  it("keeps the token through a wrong project or a bad message", () => {
+    expect(firebaseRefusal(404, "Not Found")).toBe("refused");
+    expect(
+      firebaseRefusal(400, fcm(400, [errorCode("INVALID_ARGUMENT")])),
+    ).toBe("refused");
+  });
+
+  it("says a quota or an outage may pass", () => {
+    expect(firebaseRefusal(429, fcm(429, [errorCode("QUOTA_EXCEEDED")]))).toBe(
+      "busy",
+    );
+    expect(firebaseRefusal(503, "")).toBe("busy");
   });
 });

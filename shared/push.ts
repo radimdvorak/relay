@@ -78,6 +78,40 @@ export function firebaseRequest(message: PushMessage) {
   };
 }
 
+/**
+ * What Firebase turning a push down says of its token: `gone` for one it will
+ * never take again, `busy` for a refusal that may pass, `refused` for the rest.
+ * Only the error codes count; a bare 404 may be a wrong project, not the phone.
+ */
+export function firebaseRefusal(
+  status: number,
+  body: string,
+): "gone" | "busy" | "refused" {
+  if (status === 429 || status >= 500) return "busy";
+  const details = errorDetails(body);
+  const code = details.find((d) => typeof d.errorCode === "string")?.errorCode;
+  if (code === "UNREGISTERED" || code === "SENDER_ID_MISMATCH") return "gone";
+  const badToken = details.some((d) =>
+    d.fieldViolations?.some((v) => v.field === "message.token"),
+  );
+  return badToken ? "gone" : "refused";
+}
+
+interface ErrorDetail {
+  errorCode?: unknown;
+  fieldViolations?: { field?: unknown }[];
+}
+
+function errorDetails(body: string): ErrorDetail[] {
+  try {
+    const details = (JSON.parse(body) as { error?: { details?: unknown } })
+      .error?.details;
+    return Array.isArray(details) ? (details as ErrorDetail[]) : [];
+  } catch {
+    return [];
+  }
+}
+
 /** A title cut to what a push carries, without half an emoji. */
 export function pushTitle(title: string) {
   if (title.length <= pushLimits.title) return title;
