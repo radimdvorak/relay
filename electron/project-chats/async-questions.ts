@@ -9,6 +9,7 @@ import {
   type AsyncAgentQuestions,
   type PageAnswer,
   type ChatMessage,
+  type ProjectChat,
   type ProjectChatSend,
 } from "../../shared/projects";
 import { agentAsked } from "../../shared/recipient";
@@ -121,57 +122,12 @@ export class AsyncQuestions {
         throw new Error(
           "These answers are too long. Shorten them before sending.",
         );
-      await this.core.active.finished(id);
-      const active = this.core.active.get(id);
       const answerMessageId = randomUUID();
-      if (
-        active?.steer &&
-        !this.core.active.stopping(active) &&
-        active.input &&
-        agentAsked(active.input)?.provider === message.provider &&
-        (active.input.parentId ?? null) === (message.parentId ?? null)
-      ) {
-        const sent: ChatMessage = {
-          id: answerMessageId,
-          role: "user",
-          provider: message.provider,
-          body,
-          status: "complete",
-          created: Date.now(),
-          version: 1,
-          steered: true,
-          asyncQuestionAnswer: true,
-          questionMessageId: message.id,
-          unread: true,
-          ...(message.parentId ? { parentId: message.parentId } : {}),
-          ...(pageAnswer ? { pageAnswer } : {}),
-        };
-        // In the transcript before Codex echoes the steer it read.
-        chat.messages.push(sent);
-        try {
-          await this.core.storage.save(chat);
-          await active.steer(body, sent.id);
-        } catch (error) {
-          chat.messages.splice(chat.messages.indexOf(sent), 1);
-          await this.core.storage.save(chat);
-          throw error;
-        }
-        this.core.emit({ chatId: id, message: structuredClone(sent) });
-      } else {
-        await this.send(id, {
-          ...sessionInput(
-            chat,
-            message.provider,
-            this.core.store,
-            message.parentId ?? undefined,
-          ),
-          id: answerMessageId,
-          body,
-          asyncQuestionAnswer: true,
-          questionMessageId: message.id,
-          ...(pageAnswer ? { pageAnswer } : {}),
-        });
-      }
+      await this.deliver(chat, message, {
+        id: answerMessageId,
+        body,
+        ...(pageAnswer ? { pageAnswer } : {}),
+      });
       group.answers = answers;
       group.answerMessageId = answerMessageId;
       delete group.dismissed;
@@ -179,6 +135,62 @@ export class AsyncQuestions {
       this.core.emit({ chatId: id, message: structuredClone(message) });
       await this.core.storage.save(chat);
     });
+  }
+
+  /** Says the answer to the agent that asked: into its running turn when that one reads steers, otherwise as the next turn. */
+  private async deliver(
+    chat: ProjectChat,
+    message: ChatMessage,
+    answer: { id: string; body: string; pageAnswer?: PageAnswer },
+  ) {
+    await this.core.active.finished(chat.id);
+    const active = this.core.active.get(chat.id);
+    const sameConversation =
+      active?.input &&
+      agentAsked(active.input)?.provider === message.provider &&
+      (active.input.parentId ?? null) === (message.parentId ?? null);
+    const steer =
+      active && sameConversation && !this.core.active.stopping(active)
+        ? active.steer
+        : undefined;
+    if (!steer) {
+      await this.send(chat.id, {
+        ...sessionInput(
+          chat,
+          message.provider,
+          this.core.store,
+          message.parentId ?? undefined,
+        ),
+        ...answer,
+        asyncQuestionAnswer: true,
+        questionMessageId: message.id,
+      });
+      return;
+    }
+    const sent: ChatMessage = {
+      ...answer,
+      role: "user",
+      provider: message.provider,
+      status: "complete",
+      created: Date.now(),
+      version: 1,
+      steered: true,
+      asyncQuestionAnswer: true,
+      questionMessageId: message.id,
+      unread: true,
+      ...(message.parentId ? { parentId: message.parentId } : {}),
+    };
+    // In the transcript before Codex echoes the steer it read.
+    chat.messages.push(sent);
+    try {
+      await this.core.storage.save(chat);
+      await steer(answer.body, sent.id);
+    } catch (error) {
+      chat.messages.splice(chat.messages.indexOf(sent), 1);
+      await this.core.storage.save(chat);
+      throw error;
+    }
+    this.core.emit({ chatId: chat.id, message: structuredClone(sent) });
   }
 
   setDismissed(
