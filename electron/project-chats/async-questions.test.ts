@@ -1,3 +1,12 @@
+import {
+  existsSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  statSync,
+} from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import { defaultAISettings } from "../../shared/settings";
 import {
@@ -49,6 +58,7 @@ function fixture() {
     messages: [message],
     lastInput: input,
   } as ProjectChat;
+  const dir = mkdtempSync(join(tmpdir(), "relay-async-questions-"));
   const active = new ActiveTurns(() => {});
   const run = active.claim(chat.id, input);
   run.steer = vi.fn().mockResolvedValue(undefined);
@@ -56,7 +66,7 @@ function fixture() {
   const emit = vi.fn();
   const core = {
     storage: { load: async () => chat, save },
-    store: { aiSettings: () => defaultAISettings },
+    store: { aiSettings: () => defaultAISettings, dir },
     active,
     control: threadControl(),
     closing: () => false,
@@ -65,6 +75,7 @@ function fixture() {
   const send = vi.fn().mockResolvedValue(undefined);
   return {
     questions: new AsyncQuestions(core, send),
+    secretsDir: join(dir, "secrets"),
     active,
     chat,
     message,
@@ -307,5 +318,108 @@ describe("answerOf, for a page the agent asked with", () => {
     expect(() =>
       answerOf(group, { kind: "approval", decision: "accept" }),
     ).toThrow("Invalid response type");
+  });
+});
+
+describe("a secret request", () => {
+  const VALUE = "ghp_s3cr3t-value";
+
+  /** A thread whose agent asked for a token and went on working. */
+  function asked() {
+    const f = fixture();
+    f.message.questions = [
+      {
+        id: "item",
+        secret: { name: "GitHub token", reason: "To publish the release." },
+        questions: [
+          { id: "secret", question: "To publish the release.", isSecret: true },
+        ],
+      },
+    ];
+    const savedFiles = () =>
+      existsSync(f.secretsDir)
+        ? readdirSync(f.secretsDir).map((name) => join(f.secretsDir, name))
+        : [];
+    /** Everything Relay keeps or says about the thread, as text. */
+    const kept = () =>
+      JSON.stringify([
+        f.chat,
+        f.emit.mock.calls,
+        vi.mocked(f.run.steer)?.mock.calls,
+      ]);
+    return { ...f, savedFiles, kept };
+  }
+
+  it("puts the value in a file only this user reads, and tells the agent the path", async () => {
+    const f = asked();
+    await f.questions.answer("chat", "message", "item", {
+      kind: "secret",
+      value: `  ${VALUE} `,
+    });
+    const [file] = f.savedFiles();
+    expect(readFileSync(file, "utf8")).toBe(VALUE);
+    if (process.platform !== "win32")
+      expect(statSync(file).mode & 0o777).toBe(0o600);
+    expect(f.run.steer).toHaveBeenCalledWith(
+      expect.stringContaining(file),
+      expect.any(String),
+    );
+    expect(f.message.questions![0].answers).toEqual({ secret: ["Saved"] });
+    expect(f.kept()).not.toContain(VALUE);
+  });
+
+  it("takes the value from a phone that answered the hidden question", async () => {
+    const f = asked();
+    await f.questions.answer("chat", "message", "item", {
+      kind: "question",
+      answers: { secret: [VALUE] },
+    });
+    expect(readFileSync(f.savedFiles()[0], "utf8")).toBe(VALUE);
+    expect(f.message.questions![0].answers).toEqual({ secret: ["Saved"] });
+    expect(f.kept()).not.toContain(VALUE);
+  });
+
+  it("tells the agent not to ask in chat when the user declines", async () => {
+    const f = asked();
+    await f.questions.answer("chat", "message", "item", {
+      kind: "secret",
+      value: null,
+    });
+    expect(f.run.steer).toHaveBeenCalledWith(
+      expect.stringMatching(/declined.*Don't ask for it in chat/),
+      expect.any(String),
+    );
+    expect(f.message.questions![0].answers).toEqual({});
+    expect(f.savedFiles()).toEqual([]);
+  });
+
+  it("removes the file when the agent never heard where it is", async () => {
+    const f = asked();
+    f.run.steer = vi.fn().mockRejectedValue(new Error("The turn ended."));
+    await expect(
+      f.questions.answer("chat", "message", "item", {
+        kind: "secret",
+        value: VALUE,
+      }),
+    ).rejects.toThrow("The turn ended.");
+    expect(f.savedFiles()).toEqual([]);
+    expect(f.message.questions![0].answers).toBeUndefined();
+    expect(f.kept()).not.toContain(VALUE);
+  });
+
+  it("refuses an answer that isn't a secret's", async () => {
+    const f = asked();
+    await expect(
+      f.questions.answer("chat", "message", "item", {
+        kind: "page",
+        answer: VALUE,
+      }),
+    ).rejects.toThrow("Invalid response type.");
+    await expect(
+      f.questions.answer("chat", "message", "item", {
+        kind: "secret",
+        value: "   ",
+      }),
+    ).rejects.toThrow("Type the secret");
   });
 });

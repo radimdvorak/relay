@@ -1,7 +1,7 @@
 import { expect, it, vi } from "vitest";
 import type { HtmlRender } from "../../shared/html-render";
 import type { ChatCore } from "./core";
-import { askWithPage, showRender } from "./running-answer";
+import { ask, showRender } from "./running-answer";
 
 const page: HtmlRender = { id: "r1", title: "Chart", created: 1, pages: [{}] };
 
@@ -24,7 +24,7 @@ it("shows no page once the user turned pages off", async () => {
     /pages off/,
   );
   await expect(
-    askWithPage(core, "chat-1", page, "<p>hi</p>", "Pick one"),
+    ask(core, "chat-1", { page, html: "<p>hi</p>", ask: "Pick one" }),
   ).rejects.toThrow(/pages off/);
   expect(save).not.toHaveBeenCalled();
   expect(active.render).not.toHaveBeenCalled();

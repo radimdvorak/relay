@@ -11,6 +11,7 @@ import type { Streamed, UsageTokens } from "../usage";
 import type { ResumeSettings } from "./send";
 import type { ElsewhereEdits } from "../elsewhere";
 import type { ImportOffer } from "../import-offer";
+import type { SecretRequest } from "../secret-request";
 
 export interface PageAnswer {
   title: string;
@@ -29,6 +30,12 @@ export interface AsyncAgentQuestions {
    * holds one plain question, for phones too old to show the page.
    */
   page?: HtmlRender;
+  /**
+   * Asked for a secret (request_secret): `answers` holds SECRET_SAVED under
+   * SECRET_QUESTION_ID once the user gave it, never the value; none there
+   * means declined. `questions` then holds one hidden question.
+   */
+  secret?: SecretRequest;
   questions: AgentQuestion[];
   answers?: Record<string, string[]>;
   /** The saved reply carrying these answers; its delivery status belongs here. */

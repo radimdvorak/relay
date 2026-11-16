@@ -8,6 +8,7 @@ import { ThreadReads } from "./thread-reads";
 import { LeadMessages } from "./lead-messages";
 import { ProjectAccess, type AgentProjects } from "./project-access";
 import { ThreadPages } from "./thread-pages";
+import { askForSecret } from "./thread-secrets";
 import { head, json, localTime } from "./tool-output";
 import {
   listReviewSetups,
@@ -67,7 +68,7 @@ type Chats = Pick<
   | "settleItself"
   | "showRender"
   | "showPreview"
-  | "askWithPage"
+  | "ask"
   | "notes"
 > & {
   worktrees: Pick<ProjectChats["worktrees"], "entry">;
@@ -295,6 +296,8 @@ export class StartedThreads {
         return this.pages.preview(lead, tool, input, signal);
       case "ask_html":
         return this.pages.ask(lead.id, input, signal);
+      case "request_secret":
+        return askForSecret(this.chats, lead.id, input);
       case "show_html":
       case "preview_html":
         return this.pages.render(lead.id, tool, input, signal);

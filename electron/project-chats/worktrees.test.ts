@@ -494,7 +494,10 @@ it("keeps a folder another thread joined while its removal waited for the reposi
   chat.archivedAt = 5;
   chats = [chat];
   let open!: () => void;
-  const held = worktrees.inRepo(root, () => new Promise<void>((r) => (open = r)));
+  const held = worktrees.inRepo(
+    root,
+    () => new Promise<void>((r) => (open = r)),
+  );
   projectRoot.mockClear();
   const dropping = worktrees.dropArchived(chat);
   // Waiting for the queue to claim the folder, where a new thread joins first.

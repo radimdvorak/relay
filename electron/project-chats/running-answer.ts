@@ -1,9 +1,14 @@
 // Reaching the answer a thread's running turn is writing, for what its
 // agent's tools add to it: pages, previews, questions.
+import { randomUUID } from "node:crypto";
 import type { AgentRequest } from "../../shared/agent-modes";
 import type { HtmlRender } from "../../shared/html-render";
 import type { TurnPreview } from "../../shared/preview";
 import { PAGE_QUESTION_ID } from "../../shared/projects";
+import {
+  SECRET_QUESTION_ID,
+  type SecretRequest,
+} from "../../shared/secret-request";
 import type { ChatCore } from "./core";
 
 /** Asks the user in the thread's running turn, as its agent would; see electron/started-threads. */
@@ -78,7 +83,7 @@ export async function showPreview(
  * through answerQuestion. `ask` is the plain question for phones too old to
  * show the page.
  */
-export async function askWithPage(
+async function askWithPage(
   core: ChatCore,
   id: string,
   page: HtmlRender,
@@ -94,5 +99,41 @@ export async function askWithPage(
     id: page.id,
     page,
     questions: [{ id: PAGE_QUESTION_ID, header: "Page", question: ask }],
+  });
+}
+
+/** What an agent leaves open in its answer: a page (ask_html) or a request for a secret. */
+export type Asked =
+  { page: HtmlRender; html: string; ask: string } | { secret: SecretRequest };
+
+/**
+ * Leaves what the thread's agent asks in the answer it is writing, as an open
+ * question the user answers later through answerQuestion.
+ */
+export function ask(core: ChatCore, id: string, asked: Asked) {
+  return "secret" in asked
+    ? askForSecret(core, id, asked.secret)
+    : askWithPage(core, id, asked.page, asked.html, asked.ask);
+}
+
+/**
+ * The card stands in every app as one hidden question, so one that doesn't
+ * know secret requests yet still shows a field that hides what is typed.
+ */
+function askForSecret(core: ChatCore, id: string, secret: SecretRequest) {
+  const active = core.active.get(id);
+  if (!active?.askPage || core.active.windingDown(active))
+    throw new Error("This thread has no running answer to ask in.");
+  active.askPage({
+    id: randomUUID(),
+    secret,
+    questions: [
+      {
+        id: SECRET_QUESTION_ID,
+        header: secret.name,
+        question: secret.reason ?? secret.name,
+        isSecret: true,
+      },
+    ],
   });
 }

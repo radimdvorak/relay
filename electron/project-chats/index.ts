@@ -882,9 +882,9 @@ export class ProjectChats {
     return running.showPreview(this.core, id, preview, jpeg);
   }
 
-  /** Leaves a page the thread's agent asks with (ask_html) in the answer it is writing, as an open question. */
-  askWithPage(id: string, page: HtmlRender, html: string, ask: string) {
-    return running.askWithPage(this.core, id, page, html, ask);
+  /** Leaves what the thread's agent asks, a page (ask_html) or a secret (request_secret), in the answer it is writing, as an open question. */
+  ask(id: string, asked: running.Asked) {
+    return running.ask(this.core, id, asked);
   }
 
   /** A page an answer showed, as its agent wrote it. */

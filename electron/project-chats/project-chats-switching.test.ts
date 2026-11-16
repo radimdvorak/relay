@@ -79,9 +79,7 @@ it("asks the outgoing agent for a note in a fork it hasn't answered in yet", asy
   const chat = await chats.create(projectId, { kind: "project" });
   await chats.send(chat.id, input("@codex Explain the cache guard"));
   await vi.waitFor(async () => {
-    expect((await chats.get(chat.id)).messages.at(-1)?.status).toBe(
-      "complete",
-    );
+    expect((await chats.get(chat.id)).messages.at(-1)?.status).toBe("complete");
     expect(chats.hasActiveProject(projectId)).toBe(false);
   });
   const fork = await chats.fork(chat.id);

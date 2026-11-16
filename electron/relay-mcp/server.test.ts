@@ -122,6 +122,7 @@ test("speaks enough MCP for a client to list and call the tools as its thread", 
     "show_html",
     "ask_html",
     "preview_html",
+    "request_secret",
     "report_relay_problem",
   ]);
   expect(list.result.tools[0].inputSchema.properties.threads.type).toBe(
@@ -217,6 +218,7 @@ test("a started thread's path lists and answers only the tools that drive no oth
     "show_html",
     "ask_html",
     "preview_html",
+    "request_secret",
     "report_relay_problem",
   ]);
   const refused = await (
@@ -465,4 +467,20 @@ test("a caller that hangs up stops its call", async () => {
   hangUp.abort();
   await request;
   await stopped;
+});
+
+// Claude Code keeps MCP tools behind its tool search, and an agent that
+// never loads request_secret asks for the secret in chat instead.
+test("lists only request_secret as loaded up front", async () => {
+  const url = await serve(async () => toolText("never"));
+  const list = await (
+    await post(url, { jsonrpc: "2.0", id: 1, method: "tools/list" })
+  ).json();
+  const upFront = list.result.tools.filter(
+    (t: { _meta?: Record<string, unknown> }) =>
+      t._meta?.["anthropic/alwaysLoad"],
+  );
+  expect(upFront.map((t: { name: string }) => t.name)).toEqual([
+    "request_secret",
+  ]);
 });

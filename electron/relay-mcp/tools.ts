@@ -14,11 +14,9 @@ import {
   REVIEW_SETUP_NAME_MAX,
   reviewTargetSchema,
 } from "../../shared/deep-review";
-import {
-  RENDER_MAX_CHARS,
-  RENDER_MAX_PAGES,
-} from "../../shared/html-render";
+import { RENDER_MAX_CHARS, RENDER_MAX_PAGES } from "../../shared/html-render";
 import { scheduleRepeats } from "../../shared/schedules";
+import { secretRequestSchema } from "../../shared/secret-request";
 
 /** How many threads one thread may have working at once. */
 export const STARTED_LIMIT = 6;
@@ -554,6 +552,7 @@ export const relayToolSchemas = {
         .describe("Frame width in px. Default 800."),
     })
     .strict(),
+  request_secret: secretRequestSchema,
   import_sources: z
     .object({
       project: z

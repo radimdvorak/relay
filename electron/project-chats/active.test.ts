@@ -57,7 +57,10 @@ describe("ActiveTurns", () => {
     });
     expect(turns.ledger.get(held.turnId)?.blocked).toBe(true);
     const [request] = held.requests.list();
-    held.requests.respond(request!.id, { kind: "approval", decision: "accept" });
+    held.requests.respond(request!.id, {
+      kind: "approval",
+      decision: "accept",
+    });
     await asked;
     expect(turns.ledger.get(held.turnId)?.blocked).toBeUndefined();
   });

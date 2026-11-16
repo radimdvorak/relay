@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { join } from "node:path";
 import {
   agentResponseSchema,
   type AgentResponse,
@@ -13,8 +14,16 @@ import {
   type ProjectChatSend,
 } from "../../shared/projects";
 import { agentAsked } from "../../shared/recipient";
+import {
+  SECRET_FILE_LIFE_HOURS,
+  SECRET_MAX_CHARS,
+  SECRET_QUESTION_ID,
+  SECRET_SAVED,
+  type SecretRequest,
+} from "../../shared/secret-request";
 import type { ChatCore } from "./core";
 import { assertHere } from "./handoff";
+import { SecretFiles } from "./secret-files";
 import { sessionInput } from "./sessions";
 
 /**
@@ -85,9 +94,7 @@ export function answerOf(
     )
   )
     throw new Error("Unknown question.");
-  if (
-    group.questions.some((q) => !answers[q.id]?.some((a) => a.trim()))
-  )
+  if (group.questions.some((q) => !answers[q.id]?.some((a) => a.trim())))
     throw new Error("Answer each question before sending.");
   return {
     body:
@@ -99,13 +106,55 @@ export function answerOf(
   };
 }
 
+/**
+ * The secret a response to a secret request carries; undefined when the user
+ * declined. A phone that shows the request as its hidden question answers
+ * with that question, or skips it.
+ */
+export function secretGiven(response: AgentResponse): string | undefined {
+  if (response.kind === "approval" || response.kind === "page")
+    throw new Error("Invalid response type.");
+  const typed =
+    response.kind === "secret"
+      ? response.value
+      : (response.answers?.[SECRET_QUESTION_ID]?.join("") ?? null);
+  if (typed === null) return undefined;
+  const value = typed.trim();
+  if (!value) throw new Error("Type the secret, or decline.");
+  if (value.length > SECRET_MAX_CHARS)
+    throw new Error("This is too long for a secret.");
+  return value;
+}
+
+/** What the agent reads once the secret is in `file`. */
+export const savedSecret = (secret: SecretRequest, file: string) => ({
+  body: [
+    `The user saved "${secret.name}" for you. It is in this private file, not in the chat:`,
+    file,
+    `Read it only inside the command that uses it, with the path quoted, like TOKEN="$(cat '${file}')" <command>. Never print it, copy it elsewhere or repeat it in your answer. Relay deletes the file in ${SECRET_FILE_LIFE_HOURS} hours.`,
+  ].join("\n"),
+  answers: { [SECRET_QUESTION_ID]: [SECRET_SAVED] },
+});
+
+/** What the agent reads when the user declined; without it agents ask again in chat. */
+export const declinedSecret = (secret: SecretRequest) => ({
+  body: `The user declined to give "${secret.name}". Don't ask for it in chat or any other way; say what is blocked and go on without it.`,
+  answers: {},
+});
+
 /** Answers message-based questions through the active turn, or a normal follow-up. */
 export class AsyncQuestions {
+  /** Beside state.json, so never inside a project or one of its worktrees. */
+  private secrets: SecretFiles;
+
   constructor(
     private core: ChatCore,
     /** Sends while already holding the thread's control. */
     private send: (id: string, input: ProjectChatSend) => Promise<void>,
-  ) {}
+  ) {
+    this.secrets = new SecretFiles(join(core.store.dir, "secrets"));
+    this.secrets.keepSwept();
+  }
 
   answer(id: string, messageId: string, itemId: string, value: AgentResponse) {
     return this.core.control(id, async () => {
@@ -114,20 +163,26 @@ export class AsyncQuestions {
         messageId,
         itemId,
       );
-      const { body, answers, pageAnswer } = answerOf(
-        group,
-        agentResponseSchema.parse(value),
-      );
+      const response = agentResponseSchema.parse(value);
+      const { body, answers, pageAnswer, file } = group.secret
+        ? await this.secretAnswer(group.secret, response)
+        : { ...answerOf(group, response), file: undefined };
       if (body.length > 32000)
         throw new Error(
           "These answers are too long. Shorten them before sending.",
         );
       const answerMessageId = randomUUID();
-      await this.deliver(chat, message, {
-        id: answerMessageId,
-        body,
-        ...(pageAnswer ? { pageAnswer } : {}),
-      });
+      try {
+        await this.deliver(chat, message, {
+          id: answerMessageId,
+          body,
+          ...(pageAnswer ? { pageAnswer } : {}),
+        });
+      } catch (error) {
+        // The agent never heard where it is, so nothing would read it.
+        if (file) await this.secrets.remove(file).catch(() => {});
+        throw error;
+      }
       group.answers = answers;
       group.answerMessageId = answerMessageId;
       delete group.dismissed;
@@ -135,6 +190,22 @@ export class AsyncQuestions {
       this.core.emit({ chatId: id, message: structuredClone(message) });
       await this.core.storage.save(chat);
     });
+  }
+
+  /**
+   * Puts the secret the user gave into a file and words the answer around its
+   * path, so the value reaches neither the agent's context nor the thread.
+   */
+  private async secretAnswer(secret: SecretRequest, response: AgentResponse) {
+    const value = secretGiven(response);
+    if (value === undefined)
+      return {
+        ...declinedSecret(secret),
+        pageAnswer: undefined,
+        file: undefined,
+      };
+    const file = await this.secrets.save(value);
+    return { ...savedSecret(secret, file), pageAnswer: undefined, file };
   }
 
   /** Says the answer to the agent that asked: into its running turn when that one reads steers, otherwise as the next turn. */

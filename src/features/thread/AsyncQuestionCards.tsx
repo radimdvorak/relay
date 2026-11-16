@@ -5,11 +5,13 @@ import {
   type AsyncAgentQuestions,
   type ChatMessage,
 } from "../../../shared/projects";
-import type { AgentRequest } from "../../../shared/agent-modes";
+import type { AgentRequest, AgentResponse } from "../../../shared/agent-modes";
+import { SECRET_QUESTION_ID } from "../../../shared/secret-request";
 import { questionAnswers } from "../../../shared/asked-questions";
 import { api } from "../../lib/api";
 import { AnsweredQuestions } from "../agent-turn/AnsweredQuestions";
 import { AgentRequestCard } from "./AgentRequestCard";
+import { SecretRequestCard } from "./SecretRequestCard";
 import { errorMessage } from "../../../shared/error-message";
 
 /** Saved questions stay usable even after the turn's live trace folds away. */
@@ -26,27 +28,11 @@ export function AsyncQuestionCards({
   return (
     <div className="async-question-cards">
       {message.questions.map((group) =>
-        group.answers && group.page ? (
-          <AnsweredQuestions
+        group.answers ? (
+          <AnsweredGroup
             key={group.id}
-            status={answerStatus(group, message.provider, answerMessages)}
-            label={
-              group.answers[PAGE_QUESTION_ID]
-                ? `Answered "${group.page.title}"`
-                : `Skipped "${group.page.title}"`
-            }
-            questions={[
-              {
-                question: group.questions[0]?.question ?? group.page.title,
-                answer:
-                  group.answers[PAGE_QUESTION_ID]?.join("\n") ?? "Skipped",
-              },
-            ]}
-          />
-        ) : group.answers ? (
-          <AnsweredQuestions
-            key={group.id}
-            questions={questionAnswers(group.questions, group.answers)}
+            group={group}
+            answers={group.answers}
             status={answerStatus(group, message.provider, answerMessages)}
           />
         ) : (
@@ -60,6 +46,54 @@ export function AsyncQuestionCards({
         ),
       )}
     </div>
+  );
+}
+
+/** The row an answered group folds into: what was asked and what the user said. */
+function AnsweredGroup({
+  group,
+  answers,
+  status,
+}: {
+  group: AsyncAgentQuestions;
+  answers: Record<string, string[]>;
+  status?: string;
+}) {
+  if (group.secret) {
+    const saved = !!answers[SECRET_QUESTION_ID];
+    return (
+      <AnsweredQuestions
+        status={status}
+        label={`${saved ? "Saved" : "Declined"} "${group.secret.name}"`}
+        questions={[
+          {
+            question: group.secret.reason ?? group.secret.name,
+            answer: saved ? "In a private file, not in the chat" : "Declined",
+          },
+        ]}
+      />
+    );
+  }
+  if (group.page) {
+    const answer = answers[PAGE_QUESTION_ID];
+    return (
+      <AnsweredQuestions
+        status={status}
+        label={`${answer ? "Answered" : "Skipped"} "${group.page.title}"`}
+        questions={[
+          {
+            question: group.questions[0]?.question ?? group.page.title,
+            answer: answer?.join("\n") ?? "Skipped",
+          },
+        ]}
+      />
+    );
+  }
+  return (
+    <AnsweredQuestions
+      questions={questionAnswers(group.questions, answers)}
+      status={status}
+    />
   );
 }
 
@@ -98,6 +132,39 @@ function requestOf(
   };
 }
 
+/** An open group's card: a secret's hidden field, or the page or questions asked. */
+function OpenCard({
+  group,
+  messageId,
+  provider,
+  chatId,
+}: {
+  group: AsyncAgentQuestions;
+  messageId: string;
+  provider: AgentProvider;
+  chatId: string;
+}) {
+  const answer = (response: AgentResponse) =>
+    api.answerProjectChatQuestion(chatId, messageId, group.id, response);
+  return group.secret ? (
+    <SecretRequestCard
+      secret={group.secret}
+      agent={agentName(provider)}
+      onRespond={answer}
+    />
+  ) : (
+    <AgentRequestCard
+      deferred
+      chatId={chatId}
+      request={requestOf(group, provider)}
+      onRespond={answer}
+      onDismiss={() =>
+        api.setProjectChatQuestionDismissed(chatId, messageId, group.id, true)
+      }
+    />
+  );
+}
+
 function AsyncQuestionCard({
   group,
   messageId,
@@ -131,21 +198,11 @@ function AsyncQuestionCard({
     <>
       {/* Keep a partly written answer when the user dismisses and reopens. */}
       <div hidden={!!group.dismissed}>
-        <AgentRequestCard
-          deferred
+        <OpenCard
+          group={group}
+          messageId={messageId}
+          provider={provider}
           chatId={chatId}
-          request={requestOf(group, provider)}
-          onRespond={(response) =>
-            api.answerProjectChatQuestion(chatId, messageId, group.id, response)
-          }
-          onDismiss={() =>
-            api.setProjectChatQuestionDismissed(
-              chatId,
-              messageId,
-              group.id,
-              true,
-            )
-          }
         />
       </div>
       {group.dismissed && (

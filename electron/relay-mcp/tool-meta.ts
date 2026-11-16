@@ -12,6 +12,11 @@ interface ToolMeta {
   group?: "pages" | "dev" | "import";
   /** Only reads or waits, so a call a restart cut off can run again. */
   replayable?: true;
+  /**
+   * Listed to Claude up front. Claude Code keeps MCP tools behind its tool
+   * search, and an agent that never loads this one does the job in chat.
+   */
+  alwaysLoaded?: true;
 }
 
 /** Every Relay tool has a row here; the compiler asks for one for a new tool. */
@@ -80,6 +85,11 @@ export const relayToolMeta: Record<RelayToolName, ToolMeta> = {
   show_html: { label: "Showed a page", started: true, group: "pages" },
   preview_html: { label: "Looked at a page", started: true, group: "pages" },
   ask_html: { label: "Asked with a page", started: true, group: "pages" },
+  request_secret: {
+    label: "Asked for a secret",
+    started: true,
+    alwaysLoaded: true,
+  },
   import_sources: { label: "Looked at what to import", group: "import" },
   offer_import: { label: "Offered what to import", group: "import" },
   restart_relay: { label: "Restarted Relay", group: "dev" },

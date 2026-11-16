@@ -10,7 +10,11 @@ import {
 } from "../agents/activity";
 import { museActivity, museCommand } from "../agents/muse/activity";
 import { gitIn, tempRepo } from "../../tests/fixtures/git-repo";
-import type { AgentActivity, ChatMessage, ProjectChat } from "../../shared/projects";
+import type {
+  AgentActivity,
+  ChatMessage,
+  ProjectChat,
+} from "../../shared/projects";
 
 let root: string;
 
@@ -35,7 +39,10 @@ const script = [
 ].join("\n");
 
 /** One shell call as each agent reports it: its trace row and its whole command. */
-const calls: Record<string, () => { activity: AgentActivity; command: string }> = {
+const calls: Record<
+  string,
+  () => { activity: AgentActivity; command: string }
+> = {
   claude: () => {
     const input = { command: script };
     return {
@@ -44,8 +51,16 @@ const calls: Record<string, () => { activity: AgentActivity; command: string }> 
     };
   },
   codex: () => {
-    const item = { type: "commandExecution", id: "call-1", command: script, status: "inProgress" };
-    return { activity: codexActivity("item/started", item)!, command: codexCommand(item) };
+    const item = {
+      type: "commandExecution",
+      id: "call-1",
+      command: script,
+      status: "inProgress",
+    };
+    return {
+      activity: codexActivity("item/started", item)!,
+      command: codexCommand(item),
+    };
   },
   muse: () => {
     const item = {
@@ -71,7 +86,14 @@ it.each(Object.keys(calls))(
     snapshot.command(activity.id, command);
     snapshot.activity(activity);
     const message = { id: "answer-1" } as ChatMessage;
-    await snapshot.finish({ title: "Split notes" } as ProjectChat, message, "claude");
-    expect(message.changes?.map((file) => file.path)).toEqual(["IDEAS.md", "RESEARCH.md"]);
+    await snapshot.finish(
+      { title: "Split notes" } as ProjectChat,
+      message,
+      "claude",
+    );
+    expect(message.changes?.map((file) => file.path)).toEqual([
+      "IDEAS.md",
+      "RESEARCH.md",
+    ]);
   },
 );

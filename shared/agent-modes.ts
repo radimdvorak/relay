@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { AgentProvider } from "./agents";
 import { ASK_ANSWER_MAX_CHARS, type HtmlRender } from "./html-render";
+import { SECRET_MAX_CHARS } from "./secret-request";
 
 export const runtimeModeSchema = z.enum([
   "read-only",
@@ -110,6 +111,13 @@ export const agentResponseSchema = z.discriminatedUnion("kind", [
       kind: z.literal("page"),
       /** What the page handed relay.answer(), as JSON; null when the user skipped it. */
       answer: z.string().max(ASK_ANSWER_MAX_CHARS).nullable(),
+    })
+    .strict(),
+  z
+    .object({
+      kind: z.literal("secret"),
+      /** What the user typed for request_secret; null when they declined. */
+      value: z.string().min(1).max(SECRET_MAX_CHARS).nullable(),
     })
     .strict(),
 ]);

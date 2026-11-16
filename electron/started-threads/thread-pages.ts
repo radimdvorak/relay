@@ -24,7 +24,7 @@ export class ThreadPages {
   constructor(
     private chats: Pick<
       ProjectChats,
-      "showRender" | "showPreview" | "askWithPage"
+      "showRender" | "showPreview" | "ask"
     >,
     private options: { previews?: ThreadPreviews; look?: RenderTools["look"] },
   ) {}
@@ -117,7 +117,7 @@ export class ThreadPages {
       created: Date.now(),
       pages: [look ? { heights: look.heights } : {}],
     };
-    await this.chats.askWithPage(chatId, page, html, detail ?? title);
+    await this.chats.ask(chatId, { page, html, ask: detail ?? title });
     return toolText(
       `Shown to the user as "${title}". Their answer comes as their next message, as the JSON the page handed back, or word that they skipped it. If you can't go on without it, end your turn now and wait.`,
     );
