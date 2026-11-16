@@ -290,6 +290,8 @@ class Remote(
 
     fun resume() {
         if (!_stopped.compareAndSet(true, false)) return
+        // Opened again, so a link parked before the stop comes back too.
+        parked = false
         scope.launch { live?.start() }
     }
 
