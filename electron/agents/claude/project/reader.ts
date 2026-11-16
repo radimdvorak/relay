@@ -13,7 +13,7 @@ import { answerLimitError } from "../../turn-kit";
 import { ContextMeter } from "./context";
 import type { SDKMessage } from "./sdk";
 import { askMeasured, watchOf, type ClaudeSession } from "./session";
-import { ToolRows } from "./tool-rows";
+import { advisorCallId, ToolRows } from "./tool-rows";
 import { forkStart } from "../forks";
 import { TurnWatcher } from "../../watch/watcher";
 import { TurnPredictor } from "../../predict/predictor";
@@ -147,6 +147,17 @@ export class ClaudeTurnReader {
     this.publish("");
   }
 
+  /**
+   * Claude asked its advisor: what it said before is a step, not the answer,
+   * which follows the advice in the same message. The row is named after the
+   * call, so hearing it from the stream and the message keeps one.
+   */
+  private beforeAdvice(callId: string) {
+    if (!this.answer.trim()) return;
+    this.options.onCommentary?.(`${callId}-before`, this.answer);
+    this.publish("");
+  }
+
   private publish(text: string) {
     // The limit is on the whole answer shown and saved, follow-ups included.
     const over = answerLimitError(this.before.length + text.length);
@@ -199,6 +210,13 @@ export class ClaudeTurnReader {
       this.currentText = "";
       this.publish("");
     }
+    const advisorCall =
+      event.type === "content_block_start" &&
+      advisorCallId(event.content_block);
+    if (advisorCall) {
+      this.beforeAdvice(advisorCall);
+      this.currentText = "";
+    }
     if (
       event.type === "content_block_delta" &&
       event.delta.type === "text_delta"
@@ -227,8 +245,12 @@ export class ClaudeTurnReader {
       this.commentary.add(message.message.id);
       this.options.onCommentary?.(message.message.id, text);
     }
-    for (const block of message.message.content)
+    for (const block of message.message.content) {
+      const advisorCall = advisorCallId(block);
+      // Claude Code writes each block as a message of its own.
+      if (advisorCall && !parent && !text) this.beforeAdvice(advisorCall);
       this.rows.advisor(block, parent);
+    }
     for (const tool of tools) {
       // A forked /code-review reports for the turn: its answer is the turn's.
       if (

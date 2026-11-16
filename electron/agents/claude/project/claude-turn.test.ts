@@ -255,6 +255,46 @@ it("shows Claude asking its advisor as a row, done when the advice comes back", 
   ]);
 });
 
+it.each([true, false])(
+  "keeps what Claude said before asking its advisor as a step, not the answer (streamed: %s)",
+  async (streamed) => {
+    claude(async function* ({ next }) {
+      const sent = await next();
+      yield lifecycle(sent.uuid, "started");
+      const call = { type: "server_tool_use", id: "srv1", name: "advisor" };
+      if (streamed) {
+        yield event({ type: "message_start", message: { id: "m1" } });
+        yield event({
+          type: "content_block_delta",
+          delta: { type: "text_delta", text: "Let me ask." },
+        });
+      }
+      yield says("m1", "Let me ask.");
+      if (streamed)
+        yield event({ type: "content_block_start", content_block: call });
+      yield assistant("m1", [{ ...call, input: {} }]);
+      yield assistant("m1", [
+        { type: "advisor_tool_result", tool_use_id: "srv1", content: {} },
+      ]);
+      if (streamed)
+        yield event({
+          type: "content_block_delta",
+          delta: { type: "text_delta", text: "Done." },
+        });
+      yield says("m1", "Done.");
+      yield result("Done.");
+    });
+    const { log, callbacks } = recorder();
+    await expect(
+      run({ ...callbacks, advisor: { provider: "claude", model: "opus" } }),
+    ).resolves.toBe("Done.");
+    expect(log.filter((l) => l.startsWith("commentary"))).toEqual([
+      'commentary srv1-before "Let me ask."',
+    ]);
+    expect(log.at(-1)).toBe('text "Done."');
+  },
+);
+
 it("lets running tools finish before a steer from another thread", async () => {
   let steer!: (
     text: string,

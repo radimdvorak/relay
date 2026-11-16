@@ -5,18 +5,37 @@ import type {
 } from "@anthropic-ai/claude-agent-sdk";
 import { foundNothing } from "../../../../shared/call-actions";
 import type { AgentActivity } from "../../../../shared/projects";
-import { claudeActivity, claudeCommand, claudeEditedPaths } from "../../activity";
+import {
+  claudeActivity,
+  claudeCommand,
+  claudeEditedPaths,
+} from "../../activity";
 import type { ClaudeRunOptions } from "./config";
 import { ForkParents, type ForkStart } from "../forks";
 
 type Results = Exclude<SDKUserMessage["message"]["content"], string>;
 
 /** Bash answers a non-zero exit as an error saying "Exit code N"; a search that found nothing isn't one. */
-function claudeCallFailed(call: AgentActivity | undefined, isError: boolean | undefined, output: string) {
+function claudeCallFailed(
+  call: AgentActivity | undefined,
+  isError: boolean | undefined,
+  output: string,
+) {
   if (!isError) return false;
   const exitCode = /^(?:Error: )?Exit code (\d+)$/m.exec(output)?.[1];
-  const searchedEmpty = call?.kind === "command" && exitCode !== undefined && foundNothing(call.label, Number(exitCode));
+  const searchedEmpty =
+    call?.kind === "command" &&
+    exitCode !== undefined &&
+    foundNothing(call.label, Number(exitCode));
   return !searchedEmpty;
+}
+
+/** The id of Claude's call to its advisor, a server-side tool, when `block` is one. */
+export function advisorCallId(block: { type: string }) {
+  const part = block as { type: string; id?: string; name?: string };
+  const asksAdvisor =
+    part.type === "server_tool_use" && part.name === "advisor";
+  return asksAdvisor ? part.id : undefined;
 }
 
 /** The rows a turn's tool calls show as, from the call to its result. */
@@ -87,13 +106,11 @@ export class ToolRows {
   advisor(block: { type: string }, parent: string | null) {
     const part = block as {
       type: string;
-      id?: string;
-      name?: string;
       tool_use_id?: string;
       content?: { type?: string };
     };
-    if (part.type === "server_tool_use" && part.name === "advisor" && part.id)
-      this.call({ id: part.id, name: "advisor", input: {} }, parent);
+    const callId = advisorCallId(block);
+    if (callId) this.call({ id: callId, name: "advisor", input: {} }, parent);
     if (part.type !== "advisor_tool_result" || !part.tool_use_id) return;
     const call = this.calls.get(part.tool_use_id);
     if (!call) return;
@@ -123,7 +140,9 @@ export class ToolRows {
           ...(call ?? claudeActivity(result.tool_use_id, "Tool", {})),
           progress: undefined,
           ...(!call && parent ? { parentId: parent.slice(0, 180) } : {}),
-          status: claudeCallFailed(call, result.is_error, output) ? "failed" : "complete",
+          status: claudeCallFailed(call, result.is_error, output)
+            ? "failed"
+            : "complete",
           ...(output ? { detail: output.slice(-8000) } : {}),
         };
         this.calls.set(result.tool_use_id, finished);
