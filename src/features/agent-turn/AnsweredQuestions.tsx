@@ -4,14 +4,29 @@ import "./answered-questions.css";
 
 /** The same saved question/answer row for native calls and async cards. */
 export function AnsweredQuestions({
-  questions,
+  questions = [],
   label = `Asked you ${questions.length} ${questions.length === 1 ? "question" : "questions"}`,
   status,
+  note,
 }: {
-  questions: AskedQuestion[];
+  /** Left out when the label already says all of it, like a declined secret. */
+  questions?: AskedQuestion[];
   label?: string;
   status?: string;
+  /** One line under the label, in place of questions and answers. */
+  note?: string;
 }) {
+  if (!questions.length)
+    return (
+      <div className="answered-questions">
+        <div className="answered-questions-heading">
+          <MessageCircleQuestion size={14} aria-hidden />
+          <span>{label}</span>
+          {status && <span role="status">{status}</span>}
+        </div>
+        {note && <div className="answered-questions-body">{note}</div>}
+      </div>
+    );
   return (
     <details className="answered-questions" open>
       <summary className="answered-questions-heading">

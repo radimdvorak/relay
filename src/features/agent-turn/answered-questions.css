@@ -60,3 +60,10 @@
 .answered-question-answer > span {
   min-width: 0;
 }
+/* A row with nothing to fold open, like a declined secret. */
+div.answered-questions-heading {
+  cursor: default;
+}
+div.answered-questions-heading:hover {
+  color: inherit;
+}

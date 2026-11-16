@@ -65,12 +65,7 @@ function AnsweredGroup({
       <AnsweredQuestions
         status={status}
         label={`${saved ? "Saved" : "Declined"} "${group.secret.name}"`}
-        questions={[
-          {
-            question: group.secret.reason ?? group.secret.name,
-            answer: saved ? "In a private file, not in the chat" : "Declined",
-          },
-        ]}
+        note={saved ? "In a private file, not in the chat" : undefined}
       />
     );
   }
