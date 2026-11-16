@@ -30,8 +30,10 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import java.io.File
 import dev.relay.android.features.thread.ReadAhead
 import dev.relay.android.features.thread.ThreadCache
@@ -134,13 +136,14 @@ class AppContainer(context: Context) {
     /**
      * With the computer pushing its news, the link closes a little after the
      * app leaves, which is what spares the battery. The wait lets a quick
-     * switch to another app and back, or a send just made, finish first; a
-     * reply read aloud keeps it until it ends.
+     * switch to another app and back finish first, and a send still going up
+     * gets a few minutes more; a reply read aloud keeps it until it ends.
      */
     private fun parkSoon() {
         parking?.cancel()
         parking = scope.launch {
             delay(PARK_AFTER_MS)
+            withTimeoutOrNull(SEND_WAIT_MS) { Sends.outbox(app.filesDir).sending.first { !it } }
             if (push.delivering.value && !notifications.reading) remote.park()
         }
     }
@@ -149,5 +152,6 @@ class AppContainer(context: Context) {
 
     private companion object {
         const val PARK_AFTER_MS = 30_000L
+        const val SEND_WAIT_MS = 5 * 60_000L
     }
 }

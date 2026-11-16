@@ -25,9 +25,11 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.map
 import kotlinx.serialization.json.Json
 import java.io.File
 
@@ -194,6 +196,9 @@ class Outbox(
 
     /** How far its files got, while they're going up; see [uploadPercent]. */
     fun uploadPercent(id: String) = current(id)?.let(::uploadPercent)
+
+    /** A send is on its way: neither taken by the desktop nor failed yet. */
+    val sending: Flow<Boolean> = _items.map { items -> items.any { it.sent == null && it.error == null } }
 
     /** Still waiting here, unsent or failed. */
     fun isOut(id: String) = _items.value.any { it.send.id == id }
