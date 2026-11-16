@@ -35,6 +35,19 @@ export type AgentRuns = ReturnType<typeof useAgentRuns>;
 
 const blankPick = { model: "", reasoningEffort: "" as const };
 
+/** What a quick-switch preset runs an agent other than Claude on. */
+function presetChoice(p: QuickPreset, catalogs: ModelCatalogs): ModelChoice {
+  const choice = {
+    model: p.model,
+    reasoningEffort: p.reasoningEffort,
+    fast: p.fast,
+  };
+  if (p.provider === "codex") return supportedChoice(choice, catalogs.codex);
+  const models = catalogs.picks[p.provider]?.models;
+  const efforts = models?.find((m) => m.id === p.model)?.efforts ?? [];
+  return onModel(p.provider, choice, p.model, efforts, models);
+}
+
 /**
  * What each agent runs from this composer: its model and effort as picked
  * here, against what its catalog lists and its Default runs.
@@ -230,28 +243,9 @@ export function useAgentRuns(
     },
     applyPreset(p: QuickPreset) {
       setProvider(p.provider);
-      const choice = {
-        model: p.model,
-        reasoningEffort: p.reasoningEffort,
-        fast: p.fast,
-      };
       if (p.provider === "claude")
         change("claude", (c) => claudeOn(c, p.model, p.reasoningEffort));
-      else
-        set(p.provider, {
-          choice:
-            p.provider === "codex"
-              ? supportedChoice(choice, codexModels)
-              : onModel(
-                  p.provider,
-                  choice,
-                  p.model,
-                  catalogs.picks[p.provider]?.models?.find(
-                    (m) => m.id === p.model,
-                  )?.efforts ?? [],
-                  catalogs.picks[p.provider]?.models,
-                ),
-        });
+      else set(p.provider, { choice: presetChoice(p, catalogs) });
       onPick();
     },
     /** Whether `to` has an effort to pick, or for Claude a context window. */

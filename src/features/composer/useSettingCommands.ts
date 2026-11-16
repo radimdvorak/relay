@@ -10,6 +10,7 @@ import {
   composerCommand,
   composerTargets,
   modelCommandOptions,
+  type ComposerTarget,
   modelEfforts,
   type CommandSettings,
 } from "../../../shared/composer-commands";
@@ -25,6 +26,29 @@ const toggles = (on: boolean): CommandOption[] => [
   { value: "on", label: "on", current: on },
   { value: "off", label: "off", current: !on },
 ];
+
+/** What /provider says `target` runs on. */
+function targetDescription(
+  target: ComposerTarget,
+  runs: AgentRuns,
+  catalogs: ModelCatalogs,
+) {
+  if (target === "message") return "Send without running an agent";
+  if (target === "codex") {
+    const model = runs.codex?.model;
+    const name = catalogs.codex.find((m) => m.id === model)?.name;
+    return `Codex · ${name ?? (model || "default model")}`;
+  }
+  if (target === "claude") {
+    const { claude, claudeListed } = runs;
+    if (!claudeListed) return `Claude · ${claude.model || "default model"}`;
+    const window = claude.contextWindow ? " · 200k" : "";
+    return `Claude · ${claudeListed.name}${window}`;
+  }
+  const { model } = runs.pickOf(target);
+  const listed = catalogs.picks[target]?.models?.find((m) => m.id === model);
+  return `${agentName(target)} · ${listed?.name ?? (model || "default model")}`;
+}
 
 /**
  * The slash commands that change what the composer sends with (/provider,
@@ -46,7 +70,7 @@ export function useSettingCommands({
   onCommand: (command: RelayCommand, args: string) => boolean | string;
 }) {
   const { interactionMode } = state;
-  const { codex, claude, claudeListed, levels, pickOf } = runs;
+  const { codex, claude, levels, pickOf } = runs;
   // /model lists the agents the picker does; one switched off only while it's `to`.
   const offered = useOfferedAgents(to === "message" ? undefined : to);
   /** Bumped by a bare /model, which opens the model picker. */
@@ -85,14 +109,7 @@ export function useSettingCommands({
         return composerTargets.map((value) => ({
           value,
           label: value,
-          description:
-            value === "codex"
-              ? `Codex · ${catalogs.codex.find((m) => m.id === codex?.model)?.name ?? (codex?.model || "default model")}`
-              : value === "claude"
-                ? `Claude · ${claudeListed ? claudeListed.name + (claude.contextWindow ? " · 200k" : "") : claude.model || "default model"}`
-                : value === "message"
-                  ? "Send without running an agent"
-                  : `${agentName(value)} · ${catalogs.picks[value]?.models?.find((m) => m.id === pickOf(value).model)?.name ?? (pickOf(value).model || "default model")}`,
+          description: targetDescription(value, runs, catalogs),
           current: value === to,
         }));
       if (command === "model") return modelOptions();
