@@ -606,6 +606,15 @@ it("moves a session with background work to new settings instead of ending it", 
   expect(live.setModel).toHaveBeenLastCalledWith("claude-fable-5-1[1m]");
   expect(live.applyFlagSettings).toHaveBeenCalledWith({ effortLevel: "xhigh" });
   expect(close).not.toHaveBeenCalled();
+  // The advisor goes to the live session too; off has to say so, or Claude
+  // Code's own setting would pick one.
+  await turn({ effort: "", interactionMode: "plan", advisor: "opus" });
+  expect(live.applyFlagSettings).toHaveBeenLastCalledWith({
+    advisorModel: "opus",
+  });
+  await turn({ effort: "", interactionMode: "plan", advisor: "off" });
+  expect(live.applyFlagSettings).toHaveBeenLastCalledWith({ advisorModel: "" });
+  expect(close).not.toHaveBeenCalled();
   // Full access needs a session launched with it: that one still restarts.
   await turn({ effort: "max", runtimeMode: "full-access" });
   expect(close).toHaveBeenCalledTimes(1);

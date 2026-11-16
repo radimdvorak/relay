@@ -247,7 +247,12 @@ export function saveSentSettings(
 
 type SentSettings = Pick<
   ProjectChatSend,
-  "provider" | "choice" | "contextWindow" | "runtimeMode" | "interactionMode"
+  | "provider"
+  | "choice"
+  | "contextWindow"
+  | "advisor"
+  | "runtimeMode"
+  | "interactionMode"
 >;
 
 const withSentModel = (
@@ -259,6 +264,7 @@ const withSentModel = (
     [sent.provider]: {
       choice: sent.choice,
       ...(sent.contextWindow ? { contextWindow: sent.contextWindow } : {}),
+      ...(sent.advisor ? { advisor: sent.advisor } : {}),
     },
   }),
   runtimeMode: sent.runtimeMode,

@@ -85,6 +85,7 @@ export function sessionInput(
     ...(same && previous.contextWindow
       ? { contextWindow: previous.contextWindow }
       : {}),
+    ...(same && previous.advisor ? { advisor: previous.advisor } : {}),
     runtimeMode: previous?.runtimeMode ?? defaultRuntimeMode,
     interactionMode: previous?.interactionMode ?? "default",
     ...(parentId ? { parentId } : {}),

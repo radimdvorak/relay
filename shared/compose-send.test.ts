@@ -51,6 +51,16 @@ it("sends a message that names another agent to it, on its Default model", () =>
   expect(sent).not.toHaveProperty("contextWindow");
 });
 
+it("sends Claude's advisor with a message to Claude, and with no other", () => {
+  const withAdvisor = { ...claude, advisor: "opus" };
+  expect(buildSend(withAdvisor, "plan retries")).toMatchObject({
+    advisor: "opus",
+  });
+  expect(buildSend(withAdvisor, "@codex look")).not.toHaveProperty("advisor");
+  const { send } = planGoAhead(withAdvisor, "claude");
+  expect(send).toMatchObject({ advisor: "opus" });
+});
+
 it("goes ahead with a plan in Build, on the planner's own model and context window", () => {
   const { send, nextSettings } = planGoAhead(
     { ...claude, interactionMode: "plan" },

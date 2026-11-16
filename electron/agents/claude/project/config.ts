@@ -7,6 +7,7 @@ import { withWorktreeEnv } from "../../worktree-env";
 import { pastesRoot } from "../../../drafts";
 import { chromeArgs } from "./sdk";
 import { RELAY_SERVER } from "../../../relay-mcp";
+import { advisorModelSetting } from "../../../../shared/claude-advisor";
 
 export type ClaudeRunOptions = AgentOptions & {
   model: string;
@@ -73,6 +74,19 @@ export function linkedFolders(
   };
 }
 
+/** `config` with the advisor the thread picked, if it picked one. */
+function withAdvisor(
+  config: Partial<Options>,
+  advisor: string | undefined,
+): Partial<Options> {
+  if (!advisor) return config;
+  const settings = typeof config.settings === "object" ? config.settings : {};
+  return {
+    ...config,
+    settings: { ...settings, advisorModel: advisorModelSetting(advisor) },
+  };
+}
+
 /** The settings a session started with; another signature means retuning it or starting a new one. */
 export const sessionSignature = (options: ClaudeRunOptions) =>
   JSON.stringify([
@@ -82,6 +96,8 @@ export const sessionSignature = (options: ClaudeRunOptions) =>
     options.model,
     options.effort,
     options.contextWindow,
+    // Sessions from before the advisor match too.
+    ...(options.advisor ? [`advisor:${options.advisor}`] : []),
     // The usual sign-in adds nothing, so sessions from before accounts match.
     ...(options.account && options.account !== SYSTEM_ACCOUNT
       ? [options.account]
@@ -126,7 +142,10 @@ export function sessionConfig(
         : {}),
     settingSources: ["user", "project", "local"],
     // Pastes too big for a message wait in Relay's data folder for it to read.
-    ...linkedFolders(options.links, pastes ? [pastes] : []),
+    ...withAdvisor(
+      linkedFolders(options.links, pastes ? [pastes] : []),
+      options.advisor,
+    ),
     // Allow rules in those settings skip canUseTool; this list they can't.
     ...(fewerTools
       ? { disallowedTools: ["Edit", "MultiEdit", "Write", "NotebookEdit"] }

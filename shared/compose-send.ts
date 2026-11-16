@@ -1,5 +1,5 @@
 import { agentMentionPattern, type AgentProvider } from "./agents";
-import { fastFor, windowFor } from "./model-fit";
+import { advisorFor, fastFor, windowFor } from "./model-fit";
 import type { ProjectChatSend } from "./projects";
 import { draftRecipient, type Recipient } from "./recipient";
 import type { ModelChoice } from "./settings";
@@ -14,6 +14,7 @@ export interface SendSettings {
   to: Recipient;
   choice: ModelChoice;
   contextWindow?: ProjectChatSend["contextWindow"];
+  advisor?: ProjectChatSend["advisor"];
   runtimeMode: ProjectChatSend["runtimeMode"];
   interactionMode: ProjectChatSend["interactionMode"];
 }
@@ -47,6 +48,7 @@ export function buildSend(
     ? settings.choice
     : { model: "", reasoningEffort: "", fast: false };
   const contextWindow = picked ? settings.contextWindow : undefined;
+  const advisor = picked ? settings.advisor : undefined;
   // A note to people keeps the choice as picked; nobody runs it.
   const fast = to === "message" ? choice.fast : fastFor(to, choice.fast);
   return {
@@ -61,6 +63,7 @@ export function buildSend(
     provider: to === "message" ? "codex" : to,
     choice: { ...choice, fast },
     ...windowFor(to, choice.model, contextWindow),
+    ...advisorFor(to, advisor),
     runtimeMode,
     interactionMode,
     ...(options.side ? { side: true } : {}),
@@ -101,7 +104,7 @@ export function planGoAhead(
   send: ComposedSend;
   nextSettings: SendSettings & { to: AgentProvider };
 } {
-  const { contextWindow, ...rest } = settings;
+  const { contextWindow, advisor, ...rest } = settings;
   const byDefault: ModelChoice = {
     model: "",
     reasoningEffort: "",
@@ -109,7 +112,11 @@ export function planGoAhead(
   };
   const onPlanner: Omit<SendSettings, "to"> =
     settings.to === planner
-      ? { ...rest, ...(contextWindow ? { contextWindow } : {}) }
+      ? {
+          ...rest,
+          ...(contextWindow ? { contextWindow } : {}),
+          ...(advisor ? { advisor } : {}),
+        }
       : { ...rest, choice: byDefault };
   const nextSettings = {
     ...onPlanner,

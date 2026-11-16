@@ -160,6 +160,9 @@ export function withComposerChange(
       return { ...settings, interactionMode: change.plan ? "plan" : "default" };
     case "fast":
       return { ...settings, choice: { ...choice, fast: change.fast } };
+    // Phones don't set the advisor; their sends keep the thread's.
+    case "advisor":
+      return settings;
   }
 }
 

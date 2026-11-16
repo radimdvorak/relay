@@ -2,6 +2,7 @@ import { useCallback, useMemo, useRef, type ReactNode, type Ref } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { X } from "lucide-react";
 import { agentName } from "../../../shared/agents";
+import { AdvisorPeek } from "../agents/AdvisorPeek";
 import type { CommandOption, RelayCommand } from "../../../shared/commands";
 import type { ComposedSend } from "../../../shared/compose-send";
 import { latestContextReport } from "../../../shared/context-report";
@@ -429,7 +430,7 @@ export function ThreadComposer({
               onError={setError}
               onGoal={sendGoal}
             />
-            {approval}
+            {approval || <AdvisorPeek settingsKey={keys.settings} />}
           </>
         ) : (
           <>

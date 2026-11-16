@@ -224,6 +224,34 @@ it("keeps commentary out of the answer and appends the findings Claude reported"
   `);
 });
 
+it("shows Claude asking its advisor as a row, done when the advice comes back", async () => {
+  claude(async function* ({ next }) {
+    const sent = await next();
+    yield lifecycle(sent.uuid, "started");
+    // As Claude Code writes them: each block an assistant message of its own.
+    yield assistant("m1", [
+      { type: "server_tool_use", id: "srv1", name: "advisor", input: {} },
+    ]);
+    yield assistant("m1", [
+      {
+        type: "advisor_tool_result",
+        tool_use_id: "srv1",
+        content: { type: "advisor_redacted_result", encrypted_content: "x" },
+      },
+    ]);
+    yield says("m1", "Yes.");
+    yield result("Yes.");
+  });
+  const activities: { id: string; label: string; status: string }[] = [];
+  await expect(
+    run({ advisor: "opus", onActivity: (a) => activities.push(a) }),
+  ).resolves.toBe("Yes.");
+  expect(activities).toMatchObject([
+    { id: "srv1", label: "Asked the advisor", status: "running" },
+    { id: "srv1", label: "Asked the advisor", status: "complete" },
+  ]);
+});
+
 it("lets running tools finish before a steer from another thread", async () => {
   let steer!: (
     text: string,

@@ -10,7 +10,13 @@ import type {
   NewThreadModel,
   NewThreadModels,
 } from "../../../shared/new-thread-models";
-import { fastFor, fitModel, windowFor } from "../../../shared/model-fit";
+import {
+  advisorFor,
+  fastFor,
+  fitModel,
+  windowFor,
+} from "../../../shared/model-fit";
+import { claudeAdvisorSchema } from "../../../shared/claude-advisor";
 import {
   claudeEfforts,
   modelSchema,
@@ -93,17 +99,18 @@ export function withNewThreadModels(
 
 /** Claude's model as the composer shows it, flat. */
 export const claudeOf = (models: ComposerModels) => {
-  const { choice, contextWindow } = modelOf(models, "claude");
+  const { choice, contextWindow, advisor } = modelOf(models, "claude");
   return {
     model: choice.model,
     reasoningEffort: choice.reasoningEffort,
     ...(contextWindow ? { contextWindow } : {}),
+    ...(advisor ? { advisor } : {}),
   };
 };
 
 /**
  * Claude on `model` at `reasoningEffort`. A 200k window picked before stays,
- * except on a `[1m]` model: picking one asks for 1M.
+ * except on a `[1m]` model: picking one asks for 1M. So does the advisor.
  */
 export const claudeOn = (
   current: NewThreadModel,
@@ -112,6 +119,7 @@ export const claudeOn = (
 ): NewThreadModel => ({
   choice: { model, reasoningEffort, fast: false },
   ...windowFor("claude", model, current.contextWindow),
+  ...advisorFor("claude", current.advisor),
 });
 
 /** The model and efforts an agent in `pickAgents()` runs; "" is its Default. */
@@ -165,9 +173,14 @@ export function messageChoice(
   return agentChoice(to, models, pick, selected);
 }
 
+/** Claude's own settings for a message to `to`: its window and advisor. */
 export const messageContext = (to: string, models: ComposerModels) => {
-  const { contextWindow } = modelOf(models, "claude");
-  return to === "claude" && contextWindow ? { contextWindow } : {};
+  if (to !== "claude") return {};
+  const { contextWindow, advisor } = modelOf(models, "claude");
+  return {
+    ...(contextWindow ? { contextWindow } : {}),
+    ...(advisor ? { advisor } : {}),
+  };
 };
 
 function readEffort(provider: AgentProvider, value: unknown): ReasoningEffort {
@@ -193,6 +206,7 @@ function readModel(
     ...(value.contextWindow === "200k"
       ? { contextWindow: "200k" as const }
       : {}),
+    ...advisorFor(provider, claudeAdvisorSchema.safeParse(value.advisor).data),
   });
 }
 

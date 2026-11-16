@@ -56,6 +56,11 @@ export const relayCommands = [
   },
   { name: "fast", description: "Toggle Fast mode", args: "[on|off]" },
   {
+    name: "advisor",
+    description: "Let a stronger Claude model guide this thread",
+    args: "<model|off>",
+  },
+  {
     name: "add-dir",
     description: "Let the agent reach another folder in this thread",
     args: "<folder>",
@@ -99,11 +104,12 @@ export const composerCommands: readonly RelayCommand[] = [
   "plan",
   "permissions",
   "fast",
+  "advisor",
 ];
 
 export type ComposerCommand = Extract<
   RelayCommand,
-  "provider" | "model" | "effort" | "plan" | "permissions" | "fast"
+  "provider" | "model" | "effort" | "plan" | "permissions" | "fast" | "advisor"
 >;
 
 export const isComposerCommand = (

@@ -289,6 +289,9 @@ export function claudeActivity(
       return call("agent", text("description"));
     case "TodoWrite":
       return call("tool", "Updated the plan");
+    // Claude's advisor runs server-side; its advice comes back encrypted.
+    case "advisor":
+      return call("tool", "Asked the advisor");
   }
   const mcp = /^mcp__(.+?)__(.+)$/.exec(name);
   return mcp

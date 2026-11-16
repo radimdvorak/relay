@@ -1,7 +1,7 @@
 import type { ProjectChat, ProjectChatSend } from "../../shared/projects";
 import { onComputerMessage, replyRoot } from "../../shared/projects";
 import { parseGoalCommand } from "../../shared/goal";
-import { agentAsked } from "../../shared/recipient";
+import { agentAsked, sentAgent } from "../../shared/recipient";
 import type { SideQuestions } from "./asides";
 import type { ChatCore } from "./core";
 import type { Councils } from "./councils";
@@ -30,6 +30,20 @@ interface SendFlows {
 }
 
 /**
+ * `input` with the advisor Claude ran with last in this thread, when it names
+ * none: phones, schedules and other threads send without one.
+ */
+export function withThreadAdvisor(
+  input: ProjectChatSend,
+  last: ProjectChatSend | undefined,
+): ProjectChatSend {
+  if (input.advisor || sentAgent(input) !== "claude") return input;
+  const threadAdvisor =
+    last && sentAgent(last) === "claude" ? last.advisor : undefined;
+  return threadAdvisor ? { ...input, advisor: threadAdvisor } : input;
+}
+
+/**
  * Where a message to a thread goes: a turn now, the queue, a schedule, a
  * /btw side answer, or another computer that starts the thread there.
  */
@@ -55,12 +69,13 @@ export class SendRouting {
   }
 
   /** A send whose caller already holds the thread's control. */
-  async held(id: string, input: ProjectChatSend, fromRelay = false) {
+  async held(id: string, sent: ProjectChatSend, fromRelay = false) {
     const { storage, active } = this.core;
     const { asides, councils, compactions, turns, queue } = this.flows;
     if (this.core.closing()) throw new Error("Relay is closing.");
     const chat = await storage.load(id);
     assertHere(chat);
+    const input = withThreadAdvisor(sent, chat.lastInput);
     // Sent again after its answer got lost: don't send it or pick a stopped queue back up.
     if (alreadyHolds(chat, input.id)) return;
     if (input.sendAt) return this.flows.schedule.add(id, input);

@@ -51,6 +51,8 @@ export function steers(
     next.interactionMode !== prior.interactionMode ||
     next.choice.model !== prior.choice.model ||
     next.contextWindow !== prior.contextWindow ||
+    // Phones send without an advisor; theirs is the thread's.
+    (!!next.advisor && next.advisor !== prior.advisor) ||
     next.selection ||
     (!skillSteers.has(asked.provider) && mayMentionSkill(asked.question)) ||
     /(?:^|\s)\/skill:/.test(asked.question) ||

@@ -240,7 +240,11 @@ export class TurnRunner {
     const { chat, turn, abort, provider, replyTo, fork } = t;
     const runtime = agentRuntime(provider);
     const run = () =>
-      runtime.run({ ...options, contextWindow: t.input.contextWindow });
+      runtime.run({
+        ...options,
+        contextWindow: t.input.contextWindow,
+        advisor: t.input.advisor,
+      });
     try {
       return await run();
     } catch (error) {

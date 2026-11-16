@@ -80,6 +80,32 @@ export class ToolRows {
     if (edited.length) this.options.onEdit?.(edited);
   }
 
+  /**
+   * Claude asking its advisor. Both the call and the advice are blocks of
+   * Claude's own message, not a tool call and a result.
+   */
+  advisor(block: { type: string }, parent: string | null) {
+    const part = block as {
+      type: string;
+      id?: string;
+      name?: string;
+      tool_use_id?: string;
+      content?: { type?: string };
+    };
+    if (part.type === "server_tool_use" && part.name === "advisor" && part.id)
+      this.call({ id: part.id, name: "advisor", input: {} }, parent);
+    if (part.type !== "advisor_tool_result" || !part.tool_use_id) return;
+    const call = this.calls.get(part.tool_use_id);
+    if (!call) return;
+    const failed = part.content?.type === "advisor_tool_result_error";
+    const finished: AgentActivity = {
+      ...call,
+      status: failed ? "failed" : "complete",
+    };
+    this.calls.set(finished.id, finished);
+    this.options.onActivity?.(finished);
+  }
+
   results(content: Results, parent: string | null) {
     parent = this.parentOf(parent);
     for (const result of content)

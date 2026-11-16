@@ -1,0 +1,43 @@
+/* Claude's advisor peeking over the composer's top edge. It takes no room:
+   the edge clips it, so only the top of its head and its raised finger show,
+   and the thread's end doesn't move when it comes or goes. */
+.advisor-peek {
+  position: relative;
+  height: 0;
+}
+.advisor-peek-edge {
+  position: absolute;
+  right: 64px;
+  bottom: 0;
+  display: block;
+  width: 26px;
+  height: 22px;
+  overflow: hidden;
+  color: var(--muted);
+}
+.advisor-peek-edge > svg {
+  display: block;
+  transform: translateY(8px);
+  transition: transform 220ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+.advisor-peek-edge:hover > svg {
+  transform: translateY(0);
+  color: var(--text);
+}
+.advisor-peek-say {
+  position: absolute;
+  right: 96px;
+  bottom: 6px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: var(--text);
+  color: var(--background);
+  font-size: 12px;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 160ms;
+}
+.advisor-peek:has(.advisor-peek-edge:hover) .advisor-peek-say {
+  opacity: 1;
+}

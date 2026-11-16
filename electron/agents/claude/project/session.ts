@@ -33,6 +33,10 @@ import {
 } from "./config";
 import { readOnlyHook } from "../../../agent-host/read-only-tools";
 import { relayPromptTokens } from "./context";
+import {
+  advisorModelSetting,
+  claudeAdvisorSchema,
+} from "../../../../shared/claude-advisor";
 import { ClaudeWork } from "./pending";
 import { hostedHandlers, sessionCallbacks } from "./requests";
 import { readSettings, sdk, type ClaudeInput, type ClaudeStream } from "./sdk";
@@ -50,6 +54,7 @@ export const hostedMetaSchema = z
         model: z.string(),
         effort: z.string(),
         contextWindow: z.literal("200k").optional().catch(undefined),
+        advisor: claudeAdvisorSchema.optional().catch(undefined),
         runtimeMode: runtimeModeSchema.optional(),
         interactionMode: interactionModeSchema.optional(),
         readOnly: z.boolean().optional(),
@@ -258,6 +263,12 @@ export async function retune(
     }
     if (mode !== claudePermissionMode(before))
       await session.stream.setPermissionMode(mode);
+    // Claude Code keeps a conversation's advisor until it compacts, so the
+    // prompt it already sent stays cached; the new one takes over from there.
+    if (options.advisor && options.advisor !== before.advisor)
+      await session.stream.applyFlagSettings({
+        advisorModel: advisorModelSetting(options.advisor),
+      });
     return true;
   } catch {
     return false;
@@ -355,6 +366,7 @@ function openHosted(holder: ClaudeSession, config: Options, key?: string) {
       model: options.model,
       effort: options.effort,
       contextWindow: options.contextWindow,
+      advisor: options.advisor,
       runtimeMode: options.runtimeMode,
       interactionMode: options.interactionMode,
       readOnly: options.readOnly,

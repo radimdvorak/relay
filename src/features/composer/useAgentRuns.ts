@@ -265,6 +265,10 @@ export function useAgentRuns(
     setContextWindow(size: "200k" | "1m") {
       change("claude", (current) => onWindow(current, size));
     },
+    /** Claude's advisor: a model alias, or NO_ADVISOR. */
+    setAdvisor(advisor: string) {
+      change("claude", (current) => ({ ...current, advisor }));
+    },
     fastOf: (to: AgentProvider) =>
       agentChoice(to, models, pickOf(to), codex).fast,
     /** Fast mode, for an agent that has it. */

@@ -6,9 +6,11 @@ import { lineQuestionSchema } from "../questions";
 import { aiSettingsSchema } from "../settings";
 import { filePathSchema, idSchema } from "../validation";
 import { recipient } from "../recipient";
+import { advisorFor } from "../model-fit";
 import { browserAnnotationSchema } from "../browser-annotations";
 import { scheduleMessageSchema } from "../schedules";
 import { secondOpinionAskedSchema } from "../second-opinion";
+import { claudeAdvisorSchema } from "../claude-advisor";
 
 const imageMimeSchema = z.enum(["image/png", "image/jpeg", "image/webp"]);
 const pastedImageSchema = z
@@ -40,6 +42,8 @@ export const projectChatSendSchema = z
     choice: aiSettingsSchema.shape.questions,
     /** Claude on a 200k window; left out, the CLI picks (1M on most models). */
     contextWindow: z.literal("200k").optional(),
+    /** Claude's advisor; see shared/claude-advisor. */
+    advisor: claudeAdvisorSchema.optional(),
     /** The account a new thread's agent starts on; a thread keeps its own after. */
     account: accountIdSchema.optional(),
     /**
@@ -120,6 +124,7 @@ export const resumeSettingsSchema = projectChatSendSchema
     provider: true,
     choice: true,
     contextWindow: true,
+    advisor: true,
     runtimeMode: true,
     interactionMode: true,
   })
@@ -136,6 +141,7 @@ export function sentSettingsOf(
     provider,
     choice: input.choice,
     ...(input.contextWindow ? { contextWindow: input.contextWindow } : {}),
+    ...advisorFor(provider, input.advisor),
     runtimeMode: input.runtimeMode,
     interactionMode: input.interactionMode,
   };

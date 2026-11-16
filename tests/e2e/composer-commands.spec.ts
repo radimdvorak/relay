@@ -39,8 +39,19 @@ const test = relayTest.extend<{ composer: Page }>({
           {
             value: "sonnet",
             displayName: "Claude Test",
+            resolvedModel: "claude-sonnet-5-5",
             supportsEffort: true,
             supportedEffortLevels: ["low", "medium", "high"],
+          },
+          {
+            value: "opus",
+            displayName: "Opus Test",
+            resolvedModel: "claude-opus-5-5",
+          },
+          {
+            value: "fable",
+            displayName: "Fable Test",
+            resolvedModel: "claude-fable-5-2",
           },
         ]),
       },
@@ -138,6 +149,38 @@ test("switches provider and model from commands without sending the draft", asyn
   await input.press("Enter");
   await expect(model).toContainText("GPT-6-Sol");
   await expect(input).toHaveText(/^Explain\s*$/);
+});
+
+test("gives Claude an advisor from /advisor, picked from its list or typed", async ({
+  composer: page,
+}) => {
+  const input = page.getByLabel("Message project");
+  const option = (name: RegExp) => page.getByRole("option", { name });
+  await input.fill("/provider cl");
+  await input.press("Enter");
+  await input.fill("/model sonnet");
+  await input.press("Enter");
+  // Picking the command opens what it takes, as Claude Code's /advisor does.
+  await input.fill("/advis");
+  await input.press("Enter");
+  await expect(input).toHaveText(/^\/advisor\s*$/);
+  for (const value of ["fable", "opus", "sonnet", "off"])
+    await expect(option(new RegExp(`/advisor ${value}`))).toBeVisible();
+  await screenshot(page, {
+    path: join(tmpdir(), "relay-advisor-command.png"),
+    animations: "disabled",
+  });
+  await input.pressSequentially("op");
+  await expect(option(/\/advisor/)).toHaveCount(1);
+  await input.press("Enter");
+  await expect(input).toHaveText("");
+  await input.fill("/advisor ");
+  await expect(option(/\/advisor opus.*Current/)).toBeVisible();
+  // On Opus, a Sonnet advisor would stay off; the list says so.
+  await input.fill("/model opus");
+  await input.press("Enter");
+  await input.fill("/advisor ");
+  await expect(option(/\/advisor sonnet.*weaker than Opus Test/)).toBeVisible();
 });
 
 test("restores a skill pill after undo and reload", async ({

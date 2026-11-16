@@ -1,12 +1,12 @@
 import { z } from "zod";
 import { recipient } from "./recipient";
 import { agentProviderSchema, type AgentProvider } from "./agents";
-import { windowFor } from "./model-fit";
+import { advisorFor, windowFor } from "./model-fit";
 import { projectChatSendSchema, type ProjectChatSend } from "./projects";
 
 /** The model an agent last ran with; a model of "" is its Default. */
 export const newThreadModelSchema = projectChatSendSchema
-  .pick({ choice: true, contextWindow: true })
+  .pick({ choice: true, contextWindow: true, advisor: true })
   .strict();
 export type NewThreadModel = z.infer<typeof newThreadModelSchema>;
 
@@ -25,7 +25,7 @@ export type NewThreadModels = z.infer<typeof newThreadModelsSchema>;
 export function sentModel(
   send: Pick<
     ProjectChatSend,
-    "body" | "to" | "provider" | "choice" | "contextWindow"
+    "body" | "to" | "provider" | "choice" | "contextWindow" | "advisor"
   >,
 ): [AgentProvider, NewThreadModel] | undefined {
   if (recipient(send) !== send.provider) return;
@@ -34,6 +34,7 @@ export function sentModel(
     {
       choice: send.choice,
       ...windowFor(send.provider, send.choice.model, send.contextWindow),
+      ...advisorFor(send.provider, send.advisor),
     },
   ];
 }
@@ -42,4 +43,5 @@ export const sameModel = (a?: NewThreadModel, b?: NewThreadModel) =>
   a?.choice.model === b?.choice.model &&
   a?.choice.reasoningEffort === b?.choice.reasoningEffort &&
   a?.choice.fast === b?.choice.fast &&
-  a?.contextWindow === b?.contextWindow;
+  a?.contextWindow === b?.contextWindow &&
+  a?.advisor === b?.advisor;

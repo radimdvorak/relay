@@ -6,8 +6,10 @@ import {
   type AgentProvider,
 } from "./agents";
 import type { ComposerCommand } from "./commands";
+import { advisorGuides, advisorModels, NO_ADVISOR } from "./claude-advisor";
 import {
   claudeEffortsFor,
+  findClaudeModel,
   modelSchema,
   reasoningEffortsFor,
   withClaudeContextWindow,
@@ -89,6 +91,35 @@ export function modelCommandOptions(
   ];
 }
 
+export interface AdvisorOption {
+  /** A model alias, or NO_ADVISOR. */
+  value: string;
+  description: string;
+}
+
+/**
+ * What /advisor offers Claude on `model` ("" for its Default, which runs
+ * `defaultName`): the advisors its catalog lists, then none.
+ */
+export function advisorCommandOptions(
+  catalog: ModelCatalogs["claude"],
+  model: string,
+  defaultName = "",
+): AdvisorOption[] {
+  const main = findClaudeModel(catalog, model);
+  const mainName = main?.name ?? (model || defaultName);
+  const mainId = main?.resolved ?? (model || defaultName);
+  return [
+    ...advisorModels(catalog).map((m) => ({
+      value: m.id,
+      description: advisorGuides(m.resolved ?? m.id, mainId)
+        ? m.name
+        : `${m.name} · weaker than ${mainName}, stays off`,
+    })),
+    { value: NO_ADVISOR, description: "No advisor" },
+  ];
+}
+
 /** A composer's settings as its commands see them. */
 export interface CommandSettings<T extends ComposerTarget = ComposerTarget> {
   recipient: T;
@@ -113,7 +144,8 @@ export type ComposerChange<T extends ComposerTarget = ComposerTarget> =
   | { command: "effort"; reasoningEffort: ReasoningEffort }
   | { command: "permissions"; runtimeMode: RuntimeMode }
   | { command: "plan"; plan: boolean }
-  | { command: "fast"; fast: boolean };
+  | { command: "fast"; fast: boolean }
+  | { command: "advisor"; advisor: string };
 
 const noAgent = "Choose an agent before changing agent settings.";
 
@@ -186,6 +218,7 @@ export function composerCommand<T extends ComposerTarget>(
     return { command, runtimeMode: mode.value };
   }
   if (command === "plan") return { command, plan: toggled(settings.plan) };
+  if (command === "advisor") return advisorChange(value, settings);
   const fast = toggled(settings.fast);
   if (
     !supportsFast(recipient, settings.model, settings.catalogs[recipient]) &&
@@ -195,4 +228,21 @@ export function composerCommand<T extends ComposerTarget>(
       ? "Fast mode is not available for this Cursor model."
       : "Fast mode is only available for Codex and supported Cursor models.";
   return { command, fast };
+}
+
+function advisorChange(
+  value: string,
+  settings: CommandSettings,
+): Extract<ComposerChange, { command: "advisor" }> | string {
+  if (settings.recipient !== "claude")
+    return "The advisor is Claude's. Switch to Claude to set one.";
+  const offered = advisorCommandOptions(
+    settings.catalogs.claude,
+    settings.model,
+  ).map((o) => o.value);
+  // Claude Code takes "unset" for off too.
+  const advisor = value === "unset" ? NO_ADVISOR : value;
+  if (!offered.includes(advisor))
+    return `Choose one of: ${offered.join(", ")}.`;
+  return { command: "advisor", advisor };
 }

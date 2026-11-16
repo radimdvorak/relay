@@ -7,6 +7,7 @@ import {
   type RelayCommand,
 } from "../../../shared/commands";
 import {
+  advisorCommandOptions,
   composerCommand,
   composerTargets,
   modelCommandOptions,
@@ -50,9 +51,24 @@ function targetDescription(
   return `${agentName(target)} · ${listed?.name ?? (model || "default model")}`;
 }
 
+/** What /advisor offers Claude as the composer runs it. */
+function advisorOptions(runs: AgentRuns, catalogs: ModelCatalogs) {
+  const { claude } = runs;
+  return advisorCommandOptions(
+    catalogs.claude,
+    claude.model,
+    catalogs.defaultNames.claude,
+  ).map((o) => ({
+    value: o.value,
+    label: o.value,
+    description: o.description,
+    current: o.value === claude.advisor,
+  }));
+}
+
 /**
  * The slash commands that change what the composer sends with (/provider,
- * /model, /effort, /permissions, /plan, /fast), for the draft's recipient
+ * /model, /effort, /permissions, /plan, /fast, /advisor), for the draft's recipient
  * `to`, and the values offered after them.
  */
 export function useSettingCommands({
@@ -154,6 +170,8 @@ export function useSettingCommands({
       if (command === "plan") return toggles(interactionMode === "plan");
       if (command === "fast" && runs.offersFast(to))
         return toggles(runs.fastOf(to));
+      if (command === "advisor" && to === "claude")
+        return advisorOptions(runs, catalogs);
       return undefined;
     },
     // Applies a settings command to this composer; anything else goes up.
@@ -174,6 +192,7 @@ export function useSettingCommands({
         state.setRuntimeMode(change.runtimeMode);
       else if (change.command === "plan")
         state.setInteractionMode(change.plan ? "plan" : "default");
+      else if (change.command === "advisor") runs.setAdvisor(change.advisor);
       else if (to !== "message") runs.setFast(to, change.fast);
       return true;
     },

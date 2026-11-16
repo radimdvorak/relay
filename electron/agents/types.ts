@@ -122,6 +122,8 @@ export interface AgentOptions {
   account?: string;
   /** Claude on a 200k window; left out, the CLI picks. Other agents ignore it. */
   contextWindow?: "200k";
+  /** Claude's advisor; see shared/claude-advisor. Other agents ignore it. */
+  advisor?: string;
   signal: AbortSignal;
   onText: (text: string) => void;
   onCommentary?: (id: string, text: string | null) => void;

@@ -227,6 +227,8 @@ export class ClaudeTurnReader {
       this.commentary.add(message.message.id);
       this.options.onCommentary?.(message.message.id, text);
     }
+    for (const block of message.message.content)
+      this.rows.advisor(block, parent);
     for (const tool of tools) {
       // A forked /code-review reports for the turn: its answer is the turn's.
       if (

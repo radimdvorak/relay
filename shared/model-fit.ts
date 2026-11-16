@@ -35,13 +35,21 @@ export const windowFor = (
     ? { contextWindow }
     : {};
 
+/** The advisor is Claude's. */
+export const advisorFor = (
+  provider: string,
+  advisor: NewThreadModel["advisor"],
+): Pick<NewThreadModel, "advisor"> =>
+  provider === "claude" && advisor ? { advisor } : {};
+
 /** `model` with only what `provider` offers. */
 export const fitModel = (
   provider: AgentProvider,
-  { choice, contextWindow }: NewThreadModel,
+  { choice, contextWindow, advisor }: NewThreadModel,
 ): NewThreadModel => ({
   choice: { ...choice, fast: fastFor(provider, choice.fast) },
   ...windowFor(provider, choice.model, contextWindow),
+  ...advisorFor(provider, advisor),
 });
 
 /** `choice` moved to `model`, which takes `efforts`: one it lacks goes back to Default. */
