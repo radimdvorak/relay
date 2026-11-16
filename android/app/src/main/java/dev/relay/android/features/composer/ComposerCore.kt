@@ -192,6 +192,7 @@ internal fun ComposerCore(
     var error by unsent.error
     var failedSend by unsent.failedSend
     var busy by remember { mutableStateOf(false) }
+    var drawingOn by remember { mutableStateOf<Attachment?>(null) }
     var sheet by remember { mutableStateOf<Sheet?>(null) }
     var dismissed by remember { mutableStateOf<String?>(null) }
     val provider = settings.provider
@@ -508,6 +509,14 @@ internal fun ComposerCore(
             UsageRings(provider, usage.usage, onClick = { sheet = Sheet.Usage })
         }
         if (items != null) CommandMenu(items, commands.loading, commands.failed, ::pick)
+        drawingOn?.let { image ->
+            DrawOnImage(
+                image,
+                onDrawn = { drawn -> images = images.map { if (it === image) drawn else it } },
+                onError = { error = it },
+                onClose = { drawingOn = null },
+            )
+        }
         val pc = computer
         if (pc != null && draftKey != null) DraftNotes(drafts, pc, draftKey, shared)
         (error ?: dictationError)?.let { e ->
@@ -528,6 +537,7 @@ internal fun ComposerCore(
             if (images.isNotEmpty() || computerShots.isNotEmpty() || files.isNotEmpty()) {
                 ImageStrip(
                     images, computerShots, onRemove = { i -> images = images.filterIndexed { j, _ -> j != i } },
+                    onEdit = { i -> drawingOn = images.getOrNull(i) },
                     files = files.mapNotNull { picked[it] },
                     onRemoveFile = { key ->
                         FileUploads.remove(key)

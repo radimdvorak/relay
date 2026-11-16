@@ -46,12 +46,13 @@ import io.github.lyxnx.compose.ui.tablericons.outline.X
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-/** The photos, videos and files going with the message and the computer's screenshots in this draft. */
+/** The photos (a tap draws on one), videos and files going with the message and the computer's screenshots in this draft. */
 @Composable
 internal fun ImageStrip(
     images: List<Attachment>,
     computerShots: List<Int>,
     onRemove: (Int) -> Unit,
+    onEdit: (Int) -> Unit = {},
     files: List<PickedFile> = emptyList(),
     onRemoveFile: (String) -> Unit = {},
     onRetryFile: (String) -> Unit = {},
@@ -71,7 +72,7 @@ internal fun ImageStrip(
         }
         images.forEachIndexed { i, image ->
             Box {
-                Thumb(image.dataUrl)
+                Thumb(image.dataUrl, Modifier.pressable(onClick = { onEdit(i) }).semantics { contentDescription = "Draw on ${image.name}" })
                 Box(
                     Modifier.align(Alignment.TopEnd).offset(6.dp, (-6).dp).size(20.dp).background(c.background, CircleShape)
                         .pressable(onClick = { onRemove(i) })
@@ -126,7 +127,7 @@ private fun Tile(label: String, modifier: Modifier = Modifier, content: @Composa
 
 /** Drawn from the prepared data URL: a camera shot's gallery copy is gone once it's read. */
 @Composable
-private fun Thumb(dataUrl: String) {
+private fun Thumb(dataUrl: String, modifier: Modifier = Modifier) {
     val bitmap by produceState<ImageBitmap?>(null, dataUrl) {
         value = withContext(Dispatchers.Default) {
             runCatching {
@@ -140,7 +141,7 @@ private fun Thumb(dataUrl: String) {
         }
     }
     val shape = Radii.mdShape
-    Box(Modifier.size(56.dp).clip(shape).background(RelayTheme.colors.muted).ring(RelayTheme.colors.border, shape)) {
+    Box(Modifier.size(56.dp).clip(shape).background(RelayTheme.colors.muted).ring(RelayTheme.colors.border, shape).then(modifier)) {
         bitmap?.let { Image(it, null, Modifier.size(56.dp), contentScale = ContentScale.Crop) }
     }
 }

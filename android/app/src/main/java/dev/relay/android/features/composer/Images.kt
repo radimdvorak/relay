@@ -26,6 +26,7 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import dev.relay.android.features.sketch.Sketched
 import dev.relay.android.remote.model.PastedImage
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -37,7 +38,15 @@ import kotlin.math.roundToInt
 // mobile/src/remote/images.ts and ui/clipboard-image.ts.
 
 /** A photo ready to send: the desktop takes JPEG, PNG or WebP data URLs up to 1.1 MB. */
-data class Attachment(val uri: String, val name: String, val mimeType: String, val dataUrl: String, val id: String? = null) {
+data class Attachment(
+    val uri: String,
+    val name: String,
+    val mimeType: String,
+    val dataUrl: String,
+    val id: String? = null,
+    /** Drawn on in the composer: the photo before the ink, and the strokes burned into [dataUrl]. */
+    val sketch: Sketched? = null,
+) {
     fun pasted() = PastedImage(name, mimeType, dataUrl)
 }
 
@@ -70,6 +79,23 @@ suspend fun prepareImage(context: Context, uri: Uri, fallbackName: String = "pho
         bitmap.recycle()
         val dataUrl = "data:image/jpeg;base64," + Base64.encodeToString(out.toByteArray(), Base64.NO_WRAP)
         if (dataUrl.length <= MAX_CHARS) return@withContext Attachment(uri.toString(), name, "image/jpeg", dataUrl)
+    }
+    throw IllegalStateException("That photo is too large to send.")
+}
+
+/** A drawn-on photo as a JPEG data URL the desktop takes, shrunk like a picked one until it fits. */
+suspend fun jpegDataUrl(bitmap: Bitmap): String = withContext(Dispatchers.Default) {
+    for ((side, quality) in steps) {
+        val long = max(bitmap.width, bitmap.height)
+        val scaled = if (long > side) {
+            val scale = side.toFloat() / long
+            Bitmap.createScaledBitmap(bitmap, (bitmap.width * scale).roundToInt().coerceAtLeast(1), (bitmap.height * scale).roundToInt().coerceAtLeast(1), true)
+        } else bitmap
+        val out = ByteArrayOutputStream()
+        scaled.compress(Bitmap.CompressFormat.JPEG, quality, out)
+        if (scaled !== bitmap) scaled.recycle()
+        val dataUrl = "data:image/jpeg;base64," + Base64.encodeToString(out.toByteArray(), Base64.NO_WRAP)
+        if (dataUrl.length <= MAX_CHARS) return@withContext dataUrl
     }
     throw IllegalStateException("That photo is too large to send.")
 }
