@@ -61,13 +61,15 @@ function useAdvisorName(advisor: Advisor | undefined) {
 
 /**
  * The thread's advisor, peeking over the composer's top edge while its agent
- * has one. Hovered, it comes up to say who it is. Memoized: the composer
+ * has one. Hovered, it comes up to say who it is, with a way to turn it off. Memoized: the composer
  * renders on every streamed piece, and the advisor doesn't change with them.
  */
 export const AdvisorPeek = memo(function AdvisorPeek({
   settingsKey,
+  onStop,
 }: {
   settingsKey: string;
+  onStop: () => void;
 }) {
   const advisor = usePickedAdvisor(settingsKey);
   const name = useAdvisorName(advisor);
@@ -76,6 +78,9 @@ export const AdvisorPeek = memo(function AdvisorPeek({
     <div className="advisor-peek">
       <span className="advisor-peek-say">
         Erm, actually… {name} advises. /advisor to change
+        <button type="button" className="advisor-peek-stop" onClick={onStop}>
+          Turn off
+        </button>
       </span>
       <span className="advisor-peek-edge" aria-label={`${name} advises`}>
         <AdvisorIcon />

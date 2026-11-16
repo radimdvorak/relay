@@ -7,6 +7,8 @@ import type { NextGuess } from "./useNextGuess";
 /** What the strips above the input may send through the composer. */
 export interface ComposerNoticeActions {
   sendGoal: ReturnType<typeof useComposerSend>["sendGoal"];
+  /** Turns off the advisor of the agent the composer runs. */
+  stopAdvisor: () => void;
 }
 
 /** What the conversation the composer writes to is doing, and allows. */

@@ -56,6 +56,31 @@
   pointer-events: none;
   transition: opacity 160ms;
 }
-.advisor-peek:has(.advisor-peek-edge:hover) .advisor-peek-say {
+/* The bubble stays up while the pointer crosses to it, so its button can be
+   reached; the ::after bridges the gap to the head. */
+.advisor-peek-say::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: -6px;
+  left: 100%;
+  width: 8px;
+}
+.advisor-peek:has(.advisor-peek-edge:hover, .advisor-peek-say:hover)
+  .advisor-peek-say,
+.advisor-peek-say:focus-within {
   opacity: 1;
+  pointer-events: auto;
+}
+.advisor-peek-stop {
+  margin-left: 8px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
 }

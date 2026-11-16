@@ -68,6 +68,7 @@ import type { ComposerConversation } from "./composer-conversation";
 import {
   ComposerBelow,
   ComposerNotice,
+  noticeActions,
   ComposerSlot,
   ComposerSlotsProvider,
   type ComposerSlots,
@@ -350,7 +351,7 @@ const ComposerBody = memo(function ComposerBody({
       <div className="thread-context-controls">
         <ComposerSlot name="context" />
       </div>
-      <ComposerNotice sendGoal={sending.sendGoal} />
+      <ComposerNotice {...noticeActions(sending, runs, composer.provider)} />
       <OtherDraftNotice draftKey={keys.draft} />
       <QuickSwitchHud
         style={quick.style}

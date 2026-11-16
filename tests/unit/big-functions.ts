@@ -302,7 +302,7 @@ export const bigFunctions: Record<string, number> = {
   "src/features/thread/QueuedMessages.tsx › QueuedMessages": 256,
   "src/features/thread/QueuedMessages.tsx › QueuedRow": 81,
   "src/features/thread/SelectionQuote.tsx › SelectionQuote": 155,
-  "src/features/thread/ThreadComposer.tsx › ThreadComposer": 285,
+  "src/features/thread/ThreadComposer.tsx › ThreadComposer": 283,
   "src/features/thread/ThreadMessages.tsx › ThreadMessages": 365,
   "src/features/thread/ThreadScope.tsx › ScopeButtons": 82,
   "src/features/thread/ThreadTimeline.tsx › ThreadTimeline": 120,

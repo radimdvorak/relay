@@ -1,5 +1,8 @@
 import { createContext, use, type ReactNode } from "react";
 import type { ComposerNoticeActions } from "./composer-conversation";
+import type { useAgentRuns } from "./useAgentRuns";
+import type { Recipient } from "../../../shared/recipient";
+import { NO_ADVISOR } from "../../../shared/advisor";
 
 /**
  * What the composer shows around the draft about the conversation: it
@@ -31,6 +34,16 @@ export function ComposerSlot({
 }) {
   return use(Slots)[name];
 }
+
+/** The notice's actions, for the composer that sends with `sending` and runs `provider`. */
+export const noticeActions = (
+  sending: Pick<ComposerNoticeActions, "sendGoal">,
+  runs: Pick<ReturnType<typeof useAgentRuns>, "setAdvisor">,
+  provider: Recipient,
+): ComposerNoticeActions => ({
+  sendGoal: sending.sendGoal,
+  stopAdvisor: () => runs.setAdvisor(provider, NO_ADVISOR),
+});
 
 export function ComposerNotice(actions: ComposerNoticeActions) {
   const { notice } = use(Slots);

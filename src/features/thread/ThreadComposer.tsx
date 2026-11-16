@@ -420,9 +420,9 @@ export function ThreadComposer({
           <HomeComputerLine project={project} />
         ) : undefined
       }
-      notice={({ sendGoal }) =>
-        chat ? (
-          <>
+      notice={({ sendGoal, stopAdvisor }) => (
+        <>
+          {chat && (
             <ThreadNotice
               chat={chat}
               stopped={stopped}
@@ -430,16 +430,14 @@ export function ThreadComposer({
               onError={setError}
               onGoal={sendGoal}
             />
-            {approval || <AdvisorPeek settingsKey={keys.settings} />}
-          </>
-        ) : (
-          <>
-            <StartOnNote project={project} worktree={worktree} />
-            <DetourNote project={project} worktree={worktree} />
-            <AdvisorPeek settingsKey={keys.settings} />
-          </>
-        )
-      }
+          )}
+          {!chat && <StartOnNote project={project} worktree={worktree} />}
+          {!chat && <DetourNote project={project} worktree={worktree} />}
+          {(chat && approval) || (
+            <AdvisorPeek settingsKey={keys.settings} onStop={stopAdvisor} />
+          )}
+        </>
+      )}
       meter={
         chat &&
         context && (
