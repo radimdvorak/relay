@@ -1,4 +1,4 @@
-import { useCallback, useId, useSyncExternalStore } from "react";
+import { memo, useCallback, useId, useSyncExternalStore } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { NO_ADVISOR, type Advisor } from "../../../shared/advisor";
 import type { AgentModel, AgentProvider } from "../../../shared/agents";
@@ -114,9 +114,14 @@ function useAdvisorName(advisor: Advisor | undefined) {
 
 /**
  * The thread's advisor, peeking over the composer's top edge while its agent
- * has one. Hovered, it comes up to say who it is.
+ * has one. Hovered, it comes up to say who it is. Memoized: the composer
+ * renders on every streamed piece, and the advisor doesn't change with them.
  */
-export function AdvisorPeek({ settingsKey }: { settingsKey: string }) {
+export const AdvisorPeek = memo(function AdvisorPeek({
+  settingsKey,
+}: {
+  settingsKey: string;
+}) {
   const advisor = usePickedAdvisor(settingsKey);
   const name = useAdvisorName(advisor);
   if (!advisor) return null;
@@ -130,4 +135,4 @@ export function AdvisorPeek({ settingsKey }: { settingsKey: string }) {
       </span>
     </div>
   );
-}
+});
