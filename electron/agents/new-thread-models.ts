@@ -3,16 +3,24 @@ import type { AgentProvider } from "../../shared/agents";
 import {
   sameModel,
   sentModel,
+  withoutAdvisor,
+  withoutAdvisors,
   type NewThreadModel,
+  type NewThreadModels,
 } from "../../shared/new-thread-models";
 import type { ProjectChatSend } from "../../shared/projects";
 import type { Store } from "../app/store";
 
+/** The models new threads start on; ones kept before advisors stopped carrying over lose theirs. */
+export const newThreadModels = (store: Store): NewThreadModels =>
+  withoutAdvisors(store.get().newThreadModels ?? {});
+
 export async function saveNewThreadModel(
   store: Store,
   provider: AgentProvider,
-  model: NewThreadModel,
+  picked: NewThreadModel,
 ) {
+  const model = withoutAdvisor(picked);
   if (sameModel(store.get().newThreadModels?.[provider], model)) return;
   await store.update((s) => {
     s.newThreadModels = { ...s.newThreadModels, [provider]: model };

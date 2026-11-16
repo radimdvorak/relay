@@ -20,6 +20,7 @@ import { defaultAutoCompact } from "../../shared/context-usage";
 import { renderModes } from "../../shared/html-render";
 import { newThreadModelSchema } from "../../shared/new-thread-models";
 import {
+  newThreadModels,
   saveNewThreadModel,
   saveNewThreadRuntimeMode,
 } from "../agents/new-thread-models";
@@ -173,7 +174,7 @@ export function settingsHandlers(ctx: ApiContext) {
         s.newThreadAgent = provider;
       });
     }),
-    newThreadModels: () => store.get().newThreadModels ?? {},
+    newThreadModels: () => newThreadModels(store),
     saveNewThreadModel: takes(
       [agentProviderSchema, newThreadModelSchema],
       (provider, model) => saveNewThreadModel(store, provider, model),

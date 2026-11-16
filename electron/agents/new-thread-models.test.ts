@@ -4,7 +4,11 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { randomUUID } from "node:crypto";
 import { Store } from "../app/store";
-import { rememberSent } from "./new-thread-models";
+import {
+  newThreadModels,
+  rememberSent,
+  saveNewThreadModel,
+} from "./new-thread-models";
 import type { ProjectChatSend } from "../../shared/projects";
 
 const dirs: string[] = [];
@@ -43,4 +47,25 @@ it("makes a send's model and access the next new thread's, but not a note's", as
     send({ body: "for later", to: "message", runtimeMode: "full-access" }),
   );
   expect(s.get().newThreadRuntimeMode).toBe("read-only");
+});
+
+it("never hands an advisor on to new threads, here or on the phone", async () => {
+  const s = await store();
+  const fable = { provider: "claude" as const, model: "fable" };
+  await rememberSent(s, send({ advisor: fable }));
+  expect(s.get().newThreadModels?.claude).toEqual({
+    choice: send({}).choice,
+  });
+  await saveNewThreadModel(s, "codex", {
+    choice: { model: "", fast: false, reasoningEffort: "" },
+    advisor: fable,
+  });
+  expect(s.get().newThreadModels?.codex?.advisor).toBeUndefined();
+  // Kept before advisors stopped carrying over.
+  await s.update((state) => {
+    state.newThreadModels = {
+      claude: { choice: send({}).choice, advisor: fable },
+    };
+  });
+  expect(newThreadModels(s).claude?.advisor).toBeUndefined();
 });

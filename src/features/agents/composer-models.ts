@@ -6,9 +6,10 @@ import {
   type AgentModel,
   type AgentProvider,
 } from "../../../shared/agents";
-import type {
-  NewThreadModel,
-  NewThreadModels,
+import {
+  withoutAdvisor,
+  type NewThreadModel,
+  type NewThreadModels,
 } from "../../../shared/new-thread-models";
 import {
   advisorFor,
@@ -93,9 +94,11 @@ export function withAdvisor(
   return withModel(models, to, next);
 }
 
-/** Every agent's entry, filling in the Default for those with none. */
+/** Every agent's entry for new threads, filling in the Default for those with none. */
 export const newThreadModelsOf = (models: ComposerModels): NewThreadModels =>
-  Object.fromEntries(runnableAgents().map((p) => [p, modelOf(models, p)]));
+  Object.fromEntries(
+    runnableAgents().map((p) => [p, withoutAdvisor(modelOf(models, p))]),
+  );
 
 /** `models` with each agent in `remembered` on its model there; the others keep theirs. */
 export function withNewThreadModels(
@@ -113,7 +116,8 @@ export function withNewThreadModels(
       !choice.model &&
       !choice.reasoningEffort &&
       !choice.fast &&
-      !entry.advisor
+      !entry.advisor &&
+      !next.codex?.advisor
     ) {
       const { codex: _, ...rest } = next;
       next = rest;

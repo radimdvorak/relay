@@ -10,6 +10,7 @@ import type {
 } from "../../../shared/projects";
 import {
   newThreadModelsSchema,
+  withoutAdvisors,
   type NewThreadModels,
 } from "../../../shared/new-thread-models";
 import { isAgentProvider, type AgentProvider } from "../../../shared/agents";
@@ -71,8 +72,12 @@ export const composerProvider = (
  */
 const newThreadModelsKey = "composer-models:new-thread";
 const isNewThread = (key: string) => key.startsWith("new:");
-export const cachedNewThreadModels = (): NewThreadModels | undefined =>
-  newThreadModelsSchema.safeParse(readJson(newThreadModelsKey)).data;
+
+export function cachedNewThreadModels(): NewThreadModels | undefined {
+  const cached = newThreadModelsSchema.safeParse(readJson(newThreadModelsKey));
+  return cached.data && withoutAdvisors(cached.data);
+}
+
 export const cacheNewThreadModels = (models: NewThreadModels) =>
   writeJson(newThreadModelsKey, models);
 /** The same for the access a new thread starts on. */
@@ -175,8 +180,8 @@ export function onComposerSettingsChanged(key: string, listener: () => void) {
 /**
  * Hands a new thread's composer settings to the thread it started, on the
  * agent the first message went to. The new-thread composer keeps its models
- * and runtime mode, but Plan and the accounts picked were for that thread:
- * the next one starts in Build, on the accounts in use.
+ * and runtime mode, but Plan, the advisor and the accounts picked were for
+ * that thread: the next one starts in Build, unadvised, on the accounts in use.
  */
 export function startThreadSettings(
   from: string,
@@ -188,6 +193,7 @@ export function startThreadSettings(
   // The next draft here is a new one, created on the shared picks.
   saveComposerSettings(from, {
     ...settings,
+    models: withoutAdvisors(settings.models),
     interactionMode: "default",
   });
   saveUnsentAccountPicks(from, null);

@@ -244,6 +244,28 @@ it("creates the next draft on the shared picks after one starts a thread", () =>
   expect(current().models.claude?.contextWindow).toBe("200k");
 });
 
+it("keeps an advisor to the thread it was picked for", () => {
+  follow.lastModels = opus200k;
+  const fable = { provider: "claude" as const, model: "fable" };
+  const draft = () => useComposerSettings({ key: "new:p" });
+  let current = mount(draft);
+  update(() =>
+    current().setModels((m) => ({
+      ...m,
+      claude: { ...m.claude!, advisor: fable },
+    })),
+  );
+  expect(current().models.claude?.advisor).toEqual(fable);
+  // Picking one isn't a pick for every new thread.
+  expect(follow.saveModel).not.toHaveBeenCalled();
+  startThreadSettings("new:p", "thread", "claude");
+  expect(loadComposerSettings("thread").models.claude?.advisor).toEqual(fable);
+  current.unmount();
+  current = mount(draft);
+  expect(current().models.claude?.advisor).toBeUndefined();
+  expect(current().models.claude?.contextWindow).toBe("200k");
+});
+
 it("lets go of its picks when it starts a thread before its own send renders", () => {
   follow.lastModels = opus200k;
   const draft = () => useComposerSettings({ key: "new:p" });

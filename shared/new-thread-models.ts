@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { recipient } from "./recipient";
 import { agentProviderSchema, type AgentProvider } from "./agents";
-import { advisorFor, windowFor } from "./model-fit";
+import { windowFor } from "./model-fit";
 import { sameAdvisor } from "./advisor";
 import { projectChatSendSchema, type ProjectChatSend } from "./projects";
 
@@ -22,11 +22,23 @@ export const newThreadModelsSchema = z.partialRecord(
 
 export type NewThreadModels = z.infer<typeof newThreadModelsSchema>;
 
+/** `model` as a new thread takes it up: an advisor stays with the thread it was picked in. */
+export const withoutAdvisor = ({
+  advisor: _,
+  ...model
+}: NewThreadModel): NewThreadModel => model;
+
+/** Every agent's model in `models`, without an advisor. */
+export const withoutAdvisors = (models: NewThreadModels): NewThreadModels =>
+  Object.fromEntries(
+    Object.entries(models).map(([p, m]) => [p, m && withoutAdvisor(m)]),
+  );
+
 /** The agent a sent message went to and its model; none when it went to people. */
 export function sentModel(
   send: Pick<
     ProjectChatSend,
-    "body" | "to" | "provider" | "choice" | "contextWindow" | "advisor"
+    "body" | "to" | "provider" | "choice" | "contextWindow"
   >,
 ): [AgentProvider, NewThreadModel] | undefined {
   if (recipient(send) !== send.provider) return;
@@ -35,7 +47,6 @@ export function sentModel(
     {
       choice: send.choice,
       ...windowFor(send.provider, send.choice.model, send.contextWindow),
-      ...advisorFor(send.provider, send.advisor),
     },
   ];
 }
