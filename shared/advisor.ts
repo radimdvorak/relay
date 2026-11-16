@@ -2,7 +2,11 @@
 // asks a Claude advisor itself, server-side (Claude Code calls the setting
 // `advisorModel`); every other pair goes through Relay's ask_advisor tool.
 import { z } from "zod";
-import { agentProviderSchema, type AgentModel } from "./agents";
+import {
+  agentProviderSchema,
+  type AgentModel,
+  type AgentProvider,
+} from "./agents";
 
 /** No advisor, even when Claude Code's own settings name one. */
 export const NO_ADVISOR = "off";
@@ -64,6 +68,25 @@ export function advisorGuides(advisor: string, main: string) {
   const mainRank = familyRank(main);
   if (advisorRank === undefined || mainRank === undefined) return true;
   return advisorRank >= mainRank;
+}
+
+/**
+ * Whether `advisor` brings something `provider` running `model` lacks. The
+ * same model only rereads the thread at full price, and a weaker Claude
+ * shares a stronger one's blind spots; another vendor's model is worth
+ * hearing at any strength.
+ */
+export function advisorWorthAsking(
+  advisor: Advisor,
+  provider: AgentProvider,
+  model: string,
+) {
+  const sameModel = advisor.provider === provider && advisor.model === model;
+  if (sameModel) return false;
+  const advisorRank = familyRank(advisor.model);
+  const mainRank = familyRank(model);
+  if (advisorRank === undefined || mainRank === undefined) return true;
+  return advisorRank > mainRank;
 }
 
 /** How a thread's agent hears its advisor: Claude asks it itself, or Relay does. */

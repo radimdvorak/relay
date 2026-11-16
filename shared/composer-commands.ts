@@ -8,9 +8,10 @@ import {
 } from "./agents";
 import type { ComposerCommand } from "./commands";
 import {
-  advisorRoute,
+  advisorWorthAsking,
   claudeAdvisorModels,
   NO_ADVISOR,
+  type Advisor,
   type ThreadAdvisor,
 } from "./advisor";
 import {
@@ -108,10 +109,26 @@ export interface AdvisorOption {
 const advisingAgents = () =>
   agentProviders.filter((p) => p !== "claude" && agentInfo(p)?.helper);
 
+/** The model `recipient` runs on `model`, by id where its catalog lists it. */
+function runningModel(
+  recipient: AgentProvider,
+  catalogs: ModelCatalogs,
+  model: string,
+  defaultName: string,
+) {
+  if (recipient === "claude") {
+    const listed = findClaudeModel(catalogs.claude, model);
+    return listed?.resolved ?? (model || defaultName);
+  }
+  if (model) return model;
+  const listed = catalogs[recipient]?.find((m) => m.name === defaultName);
+  return listed?.id ?? defaultName;
+}
+
 /**
  * What /advisor offers `recipient` on `model` ("" for its Default, which runs
  * `defaultName`): Claude's own advisors, then every other advising agent's
- * models, then none.
+ * models, then none. Its own model and weaker Claudes aren't offered.
  */
 export function advisorCommandOptions(
   recipient: AgentProvider,
@@ -119,23 +136,21 @@ export function advisorCommandOptions(
   model: string,
   defaultName = "",
 ): AdvisorOption[] {
-  const main = findClaudeModel(catalogs.claude, model);
-  const mainId = main?.resolved ?? (model || defaultName);
-  const claude = claudeAdvisorModels(catalogs.claude).map((m) => {
-    const advisor = { provider: "claude" as const, model: m.id };
-    // A Claude advisor too weak to guide Claude's model natively.
-    const relayAsks =
-      recipient === "claude" &&
-      advisorRoute(recipient, mainId, advisor)?.via === "relay";
-    return {
+  const running = runningModel(recipient, catalogs, model, defaultName);
+  const worthAsking = (advisor: Advisor) =>
+    advisorWorthAsking(advisor, recipient, running);
+  const claude = claudeAdvisorModels(catalogs.claude)
+    .map((m) => ({
       value: m.id,
-      advisor,
-      description: relayAsks ? `${m.name} · through Relay` : m.name,
-    };
-  });
-  const listed = advisingAgents().flatMap((provider) =>
-    (catalogs[provider] ?? []).map((m) => ({ provider, model: m })),
-  );
+      advisor: { provider: "claude" as const, model: m.id },
+      description: m.name,
+    }))
+    .filter((o) => worthAsking(o.advisor));
+  const listed = advisingAgents()
+    .flatMap((provider) =>
+      (catalogs[provider] ?? []).map((m) => ({ provider, model: m })),
+    )
+    .filter((l) => worthAsking({ provider: l.provider, model: l.model.id }));
   // Claude Code's /advisor takes Claude's aliases; another agent's model of
   // the same id, or one two agents list, is told apart by its agent.
   const taken = (id: string) =>

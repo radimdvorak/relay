@@ -250,16 +250,34 @@ describe("/advisor", () => {
       advisorCommandOptions(recipient, withClaude, model).map(
         (o) => `${o.value} ${o.description}`,
       );
-    expect(offered("claude", "opus")).toEqual([
+    expect(offered("claude", "sonnet")).toEqual([
       "fable Fable 5.2",
       "opus Opus 5.5",
       "gpt-6-luna GPT-6-Luna · Codex",
+      "off No advisor",
+    ]);
+    expect(offered("codex", "gpt-6-luna")).toEqual([
+      "fable Fable 5.2",
+      "opus Opus 5.5",
       "anthropic/sonnet Sonnet · OpenCode",
       "off No advisor",
     ]);
-    // On Fable, Claude can't ask a weaker Opus itself; Relay asks it.
-    expect(offered("claude", "fable")[1]).toBe("opus Opus 5.5 · through Relay");
-    expect(offered("codex", "gpt-6-luna")[1]).toBe("opus Opus 5.5");
+  });
+
+  it("leaves out the agent's own model and weaker Claudes", () => {
+    const values = (recipient: "claude" | "codex", model: string, name = "") =>
+      advisorCommandOptions(recipient, withClaude, model, name).map(
+        (o) => o.value,
+      );
+    expect(values("claude", "opus")).toEqual(["fable", "gpt-6-luna", "off"]);
+    expect(values("claude", "fable")).toEqual(["gpt-6-luna", "off"]);
+    // Default, by the name the catalog lists for what it runs.
+    expect(values("claude", "", "Opus 5.5")).toEqual([
+      "fable",
+      "gpt-6-luna",
+      "off",
+    ]);
+    expect(values("codex", "", "GPT-6-Luna")).not.toContain("gpt-6-luna");
   });
 
   it("tells apart a model id two agents list by its agent", () => {
@@ -270,7 +288,7 @@ describe("/advisor", () => {
         { id: "opus", name: "Opus", description: "", efforts: [] },
       ],
     };
-    const values = advisorCommandOptions("claude", shared, "opus").map(
+    const values = advisorCommandOptions("claude", shared, "sonnet").map(
       (o) => o.value,
     );
     expect(values).toEqual([

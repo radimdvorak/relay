@@ -1,5 +1,9 @@
 import { expect, it } from "vitest";
-import { advisorRoute, claudeAdvisorSetting } from "./advisor";
+import {
+  advisorRoute,
+  advisorWorthAsking,
+  claudeAdvisorSetting,
+} from "./advisor";
 
 const claude = (model: string) => ({ provider: "claude" as const, model });
 const luna = { provider: "codex" as const, model: "gpt-6-luna" };
@@ -33,4 +37,24 @@ it("switches Claude's own advisor off while Relay asks another", () => {
   expect(claudeAdvisorSetting("off", "sonnet")).toBe("");
   // Not picked here: Claude Code's own setting stands.
   expect(claudeAdvisorSetting(undefined, "sonnet")).toBeUndefined();
+});
+
+it("is worth asking only when it isn't the same model or a weaker Claude", () => {
+  expect(advisorWorthAsking(claude("opus"), "claude", "claude-opus-5-5")).toBe(
+    false,
+  );
+  expect(advisorWorthAsking(claude("opus"), "claude", "fable")).toBe(false);
+  expect(advisorWorthAsking(claude("fable"), "claude", "opus")).toBe(true);
+  expect(advisorWorthAsking(luna, "codex", "gpt-6-luna")).toBe(false);
+  // Another vendor brings other blind spots, whatever its strength.
+  expect(advisorWorthAsking(luna, "claude", "fable")).toBe(true);
+  expect(advisorWorthAsking(claude("sonnet"), "codex", "gpt-6-luna")).toBe(
+    true,
+  );
+  // The same Claude through another agent is still the same model.
+  const openCodeOpus = {
+    provider: "opencode" as const,
+    model: "anthropic/opus",
+  };
+  expect(advisorWorthAsking(openCodeOpus, "claude", "opus")).toBe(false);
 });
