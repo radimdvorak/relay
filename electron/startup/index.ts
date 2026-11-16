@@ -15,7 +15,8 @@ import {
 import { configureCursor } from "../agents/cursor/sdk";
 import { keepUsageHistory } from "../agents/usage-history";
 import type { KeepAwake } from "../app/keep-awake";
-import { GiteaLogin, seal, unseal } from "../app/login";
+import { GiteaLogin } from "../app/login";
+import { seal, unseal } from "../platform/seal";
 import { BACKUP_FILE, type Store } from "../app/store";
 import { rearmOnWake } from "../app/wake";
 import { setPastesRoot, sweepPastesSoon, writeUploadChunk } from "../drafts";

@@ -1,22 +1,9 @@
-import { net, safeStorage } from "electron";
+import { net } from "electron";
+import { unseal } from "../platform/seal";
 import { Gitea } from "../pull-requests/gitea";
 import type { Store } from "./store";
 import type { SourceControlSettings } from "../../shared/source-control";
 import type { Account } from "../../shared/types";
-
-/** Linux's basic_text backend stores plaintext; secrets then stay in memory. */
-const canEncrypt = async () =>
-  process.platform === "linux"
-    ? safeStorage.isEncryptionAvailable() &&
-      safeStorage.getSelectedStorageBackend() !== "basic_text"
-    : await safeStorage.isAsyncEncryptionAvailable();
-/** Encrypts with the OS credential store; null when it can't persist safely. */
-export const seal = async (value: string) =>
-  (await canEncrypt())
-    ? (await safeStorage.encryptStringAsync(value)).toString("base64")
-    : null;
-export const unseal = async (value: string) =>
-  (await safeStorage.decryptStringAsync(Buffer.from(value, "base64"))).result;
 
 /**
  * Whether Gitea is on in Settings → Integrations. Off, Relay doesn't sign in
