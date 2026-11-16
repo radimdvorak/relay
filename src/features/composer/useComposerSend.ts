@@ -61,12 +61,10 @@ export function useComposerSend({
     (!draft.text.trim() && !draft.attached.length && !complete) ||
     // A note to the thread has no agent to show a screenshot to.
     (to === "message" && !draft.text.trim()) ||
-    draft.preparing ||
     !settings;
-  const whenReady = useSendWhenReady(send);
+  const whenReady = useSendWhenReady(draft, send);
   async function send(options: ComposerSendOptions = {}) {
     const { steer = false, sendAt, after, compact } = options;
-    if (draft.isPreparing()) return;
     if (whenReady.heldBack(options)) return;
     // `/btw` goes to the agent picked here, beside whatever the thread runs;
     // one that can't take it is told so by the command menu.

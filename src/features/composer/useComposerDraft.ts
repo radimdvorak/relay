@@ -40,6 +40,7 @@ export function useComposerDraft(
     queuePreparation,
   });
   return {
+    key,
     text,
     set,
     images: screenshots.images,

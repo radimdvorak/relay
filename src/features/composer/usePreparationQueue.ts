@@ -31,6 +31,10 @@ export function usePreparationQueue(
     incoming,
     /** Also catches a send in the same event turn, before React rerenders. */
     isPreparing: () => batches.current > 0,
+    /** Resolves once nothing is left to prepare, including batches queued while it waited. */
+    async settled() {
+      while (batches.current > 0) await preparation.current;
+    },
     queuePreparation(attach: () => Promise<void>, screenshots = 0) {
       batches.current++;
       setPreparing(true);

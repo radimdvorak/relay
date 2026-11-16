@@ -1,5 +1,7 @@
+// @vitest-environment happy-dom
 import { describe, expect, it, vi } from "vitest";
-import { afterPrevious } from "./usePreparationQueue";
+import { flush, mount, update } from "../../../tests/unit/hook-harness";
+import { afterPrevious, usePreparationQueue } from "./usePreparationQueue";
 
 describe("afterPrevious", () => {
   it("runs the next attachment after one that failed, and reports the failure", async () => {
@@ -22,4 +24,23 @@ describe("afterPrevious", () => {
     expect(failures).toEqual([broken]);
     expect(pending).toBe(0);
   });
+});
+
+it("settles only after batches queued while it waited", async () => {
+  const queue = mount(() => usePreparationQueue(() => {}));
+  const finish: (() => void)[] = [];
+  const attach = () => new Promise<void>((resolve) => finish.push(resolve));
+  update(() => queue().queuePreparation(attach, 1));
+  let settled = false;
+  void queue()
+    .settled()
+    .then(() => (settled = true));
+  update(() => queue().queuePreparation(attach, 1));
+  await flush();
+  finish[0]!();
+  await flush();
+  expect(settled).toBe(false);
+  finish[1]!();
+  await flush();
+  expect(settled).toBe(true);
 });

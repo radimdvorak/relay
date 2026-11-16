@@ -146,7 +146,7 @@ it("sends a meme's line once while the first send is on its way", async () => {
 });
 
 it.each(["Read this", "/btw Read this"])(
-  "blocks sending %s while a paste is saving, before rerender",
+  "holds %s while a paste is saving, before rerender",
   async (text) => {
     const onSend = vi.fn();
     const take = vi.fn();
@@ -158,6 +158,7 @@ it.each(["Read this", "/btw Read this"])(
           images: [],
           preparing: false,
           isPreparing: () => true,
+          settled: () => new Promise(() => {}),
           take,
         } as never,
         state: {} as never,
@@ -311,4 +312,90 @@ it("retains scheduling, compaction and the completion callback while dictation f
     outgoing.dispatch,
   );
   expect(after).toHaveBeenCalledOnce();
+});
+
+function preparingSender() {
+  const onSend = vi.fn(async (_value: unknown, _dispatch?: () => void) => true);
+  const choice = { model: "", reasoningEffort: "" as const, fast: false };
+  const outgoing = {
+    dispatch: vi.fn(),
+    restore: vi.fn(),
+    forget: vi.fn(async () => {}),
+  };
+  let ready!: () => void;
+  const draft = {
+    key: "thread-a",
+    text: "What's wrong here?",
+    error: undefined as string | undefined,
+    preparing: true,
+    settled: () => new Promise<void>((resolve) => (ready = resolve)),
+  };
+  const sending = mount(() =>
+    useComposerSend({
+      draft: {
+        ...draft,
+        attached: [],
+        images: [],
+        isPreparing: () => draft.preparing,
+        skills: () => [],
+        take: () => outgoing,
+      } as never,
+      state: { saveLastModel: vi.fn() } as never,
+      runs: {
+        sendSettings: () => ({
+          to: "codex",
+          choice,
+          runtimeMode: "full-access",
+          interactionMode: "default",
+        }),
+        choiceFor: () => choice,
+        contextFor: () => ({}),
+      } as never,
+      to: "codex",
+      conversation: { busy: false, running: false },
+      complete: false,
+      intercept: () => false,
+      onSend,
+    }),
+  );
+  /** Preparation ends, leaving the draft as `after` says. */
+  async function prepared(after: Partial<typeof draft> = {}) {
+    Object.assign(draft, { preparing: false }, after);
+    sending.rerender();
+    ready();
+    await flush();
+  }
+  return { sending, onSend, outgoing, prepared };
+}
+
+it("sends once a screenshot pasted just before Send is prepared", async () => {
+  const { sending, onSend, outgoing, prepared } = preparingSender();
+  const after = vi.fn();
+  const sendAt = Date.now() + 60_000;
+  await sending().send({ sendAt, compact: false, after });
+  expect(onSend).not.toHaveBeenCalled();
+  await prepared();
+  expect(onSend).toHaveBeenCalledExactlyOnceWith(
+    expect.objectContaining({
+      body: "@codex What's wrong here?",
+      sendAt,
+      compact: false,
+    }),
+    outgoing.dispatch,
+  );
+  expect(after).toHaveBeenCalledOnce();
+});
+
+it("keeps the message in the composer when its screenshot fails to attach", async () => {
+  const { sending, onSend, prepared } = preparingSender();
+  await sending().send();
+  await prepared({ error: "Screenshot is empty." });
+  expect(onSend).not.toHaveBeenCalled();
+});
+
+it("doesn't send another thread's draft when the thread changed while preparing", async () => {
+  const { sending, onSend, prepared } = preparingSender();
+  await sending().send();
+  await prepared({ key: "thread-b", text: "Unrelated draft" });
+  expect(onSend).not.toHaveBeenCalled();
 });
