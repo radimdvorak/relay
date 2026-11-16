@@ -290,12 +290,7 @@ export class StartedThreads {
         );
       }
       case "report_relay_problem":
-        if (!this.reportProblem)
-          return toolText("This Relay has no window to report from.", true);
-        await this.reportProblem({ kind: "bug", ...input });
-        return toolText(
-          "Relay's Report a problem page is open with your write-up, its version, system, agents and anonymized log. The user looks it over, can add screenshots, and sends it to GitHub themselves; tell them that. Nothing was sent.",
-        );
+        return this.draftReport(input);
       case "open_preview":
       case "screenshot":
       case "console_errors":
@@ -310,6 +305,16 @@ export class StartedThreads {
         throw new Error(`There is no handler for tool ${unhandled}.`);
       }
     }
+  }
+
+  /** Opens Relay's Report a problem page with the agent's write-up; the user sends it. */
+  private async draftReport(input: RelayToolArgs<"report_relay_problem">) {
+    if (!this.reportProblem)
+      return toolText("This Relay has no window to report from.", true);
+    await this.reportProblem({ kind: "bug", ...input });
+    return toolText(
+      "Relay's Report a problem page is open with your write-up, its version, system, agents and anonymized log. The user looks it over, can add screenshots, and sends it to GitHub themselves; tell them that. Nothing was sent.",
+    );
   }
 
   /** Moves the lead's own thread to another project, once the user says so. */

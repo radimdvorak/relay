@@ -4,7 +4,8 @@
 import { createServer, type IncomingMessage, type Server } from "node:http";
 import { RENDER_MAX_CHARS, RENDER_MAX_PAGES } from "../../shared/html-render";
 import { relayPrompt, relayPromptList } from "./prompts";
-import { relayToolList, toolText, type ToolResult } from "./tools";
+import { relayToolList } from "./listed-tools";
+import { toolText, type ToolResult } from "./tools";
 import {
   DEV_PARAM,
   IMPORT_PARAM,

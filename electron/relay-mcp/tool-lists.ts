@@ -1,7 +1,7 @@
 // Which of Relay's tools each caller gets, by the path and query of the URL
 // it reaches them at.
 import { relayToolsWhere } from "./tool-meta";
-import { relayToolList } from "./tools";
+import { relayToolList } from "./listed-tools";
 
 /** Where a thread started by another reaches the tools: none that drive other threads. */
 export const STARTED_PATH = "/mcp/started";
