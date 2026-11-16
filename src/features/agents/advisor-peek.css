@@ -46,10 +46,13 @@
   position: absolute;
   right: 100px;
   bottom: 6px;
-  padding: 3px 8px;
+  padding: 3px 4px 3px 8px;
   border-radius: 6px;
   background: var(--text);
   color: var(--background);
+  display: flex;
+  align-items: center;
+  gap: 6px;
   font-size: 12px;
   white-space: nowrap;
   opacity: 0;
@@ -72,23 +75,18 @@
   opacity: 1;
   pointer-events: auto;
 }
-/* A quiet action inside the bubble, set off by a hairline; the app's own
-   button look (border, surface, hover fill) doesn't belong in a speech bubble. */
+/* The dismiss × Clip's tips have, in the bubble's inverted colours. */
 .advisor-peek-stop,
 .advisor-peek-stop:hover,
 .advisor-peek-stop:active {
-  margin-left: 8px;
-  padding: 0 0 0 8px;
+  display: flex;
+  padding: 2px;
   border: 0;
-  border-left: 1px solid color-mix(in srgb, currentColor 25%, transparent);
-  border-radius: 0;
+  border-radius: 4px;
   background: none;
-  color: inherit;
-  font-weight: 600;
-  line-height: inherit;
+  color: color-mix(in srgb, var(--background) 55%, transparent);
   filter: none;
 }
 .advisor-peek-stop:hover {
-  text-decoration: underline;
-  text-underline-offset: 2px;
+  color: var(--background);
 }

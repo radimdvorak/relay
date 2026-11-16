@@ -1,5 +1,6 @@
 import { memo, useCallback, useSyncExternalStore } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { X } from "lucide-react";
 import { NO_ADVISOR, type Advisor } from "../../../shared/advisor";
 import type { AgentModel, AgentProvider } from "../../../shared/agents";
 import { composerSettingsKey } from "../../lib/thread-storage";
@@ -78,8 +79,14 @@ export const AdvisorPeek = memo(function AdvisorPeek({
     <div className="advisor-peek">
       <span className="advisor-peek-say">
         Erm, actually… {name} advises. /advisor to change
-        <button type="button" className="advisor-peek-stop" onClick={onStop}>
-          Turn off
+        <button
+          type="button"
+          className="advisor-peek-stop"
+          aria-label="Turn off the advisor"
+          title="Turn off the advisor"
+          onClick={onStop}
+        >
+          <X size={12} />
         </button>
       </span>
       <span className="advisor-peek-edge" aria-label={`${name} advises`}>
