@@ -3,6 +3,7 @@
 import { z } from "zod";
 import { ASK_ANSWER_MAX_CHARS, RENDER_GUIDE } from "../../shared/html-render";
 import {
+  ADVISOR_CALLS_PER_TURN,
   MESSAGE_CHARS,
   relayToolSchemas,
   STARTED_LIMIT,
@@ -35,6 +36,7 @@ const descriptions: Record<RelayToolName, string> = {
   message_main:
     "Message the main thread this side conversation was forked from, as the user would: it starts a turn there, or reaches it mid-answer if it's working. Use it when the user wants something passed on, like a conclusion you reached here. Write it so it stands on its own: the main thread hasn't seen this conversation.",
   settle_thread: `Settle a thread once its work is finished and taken in, the way the user settles one: it leaves their Activity and they can bring it back. Not while it works or needs the user. For your own thread, settle_this_thread.\n\n${DRIVE_NOTE}`,
+  ask_advisor: `Ask your advisor, a stronger model the user picked for this thread, for guidance: before you commit to a plan for a complex task, when a failure is ambiguous, or when you've tried a problem twice without progress. It reads this thread's conversation, what you've done this turn included, but not the files: put what you found that matters in \`question\`, with the decision you face. Its answer is advice, not orders; weigh it against what you know. At most ${ADVISOR_CALLS_PER_TURN} times per turn.`,
   settle_this_thread:
     "Settle this thread once this answer ends, the way the user settles one: it leaves their Activity and they can bring it back. Only when the user asked you to, or when your work here is finished and needs nothing more from them. It settles once the answer ends cleanly with nothing queued, and after the user has read it; a thread another thread started settles without, as its lead reads it. An open question, a failure, a stop or the user's next message keeps it in Activity.",
   wake_this_thread:

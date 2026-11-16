@@ -2,6 +2,7 @@ import { z } from "zod";
 import { recipient } from "./recipient";
 import { agentProviderSchema, type AgentProvider } from "./agents";
 import { advisorFor, windowFor } from "./model-fit";
+import { sameAdvisor } from "./advisor";
 import { projectChatSendSchema, type ProjectChatSend } from "./projects";
 
 /** The model an agent last ran with; a model of "" is its Default. */
@@ -44,4 +45,4 @@ export const sameModel = (a?: NewThreadModel, b?: NewThreadModel) =>
   a?.choice.reasoningEffort === b?.choice.reasoningEffort &&
   a?.choice.fast === b?.choice.fast &&
   a?.contextWindow === b?.contextWindow &&
-  a?.advisor === b?.advisor;
+  sameAdvisor(a?.advisor, b?.advisor);

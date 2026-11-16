@@ -151,7 +151,7 @@ test("switches provider and model from commands without sending the draft", asyn
   await expect(input).toHaveText(/^Explain\s*$/);
 });
 
-test("gives Claude an advisor from /advisor, picked from its list or typed", async ({
+test("gives an agent an advisor from /advisor, picked from its list or typed", async ({
   composer: page,
 }) => {
   const input = page.getByLabel("Message project");
@@ -176,11 +176,19 @@ test("gives Claude an advisor from /advisor, picked from its list or typed", asy
   await expect(input).toHaveText("");
   await input.fill("/advisor ");
   await expect(option(/\/advisor opus.*Current/)).toBeVisible();
-  // On Opus, a Sonnet advisor would stay off; the list says so.
+  // On Opus, Claude can't ask a weaker Sonnet itself; Relay asks it.
   await input.fill("/model opus");
   await input.press("Enter");
   await input.fill("/advisor ");
-  await expect(option(/\/advisor sonnet.*weaker than Opus Test/)).toBeVisible();
+  await expect(option(/\/advisor sonnet.*through Relay/)).toBeVisible();
+  // Any agent can have one: Codex, advised by Claude.
+  await input.fill("/provider co");
+  await input.press("Enter");
+  await input.fill("/advisor fab");
+  await input.press("Enter");
+  await expect(input).toHaveText("");
+  await input.fill("/advisor ");
+  await expect(option(/\/advisor fable.*Current/)).toBeVisible();
 });
 
 test("restores a skill pill after undo and reload", async ({

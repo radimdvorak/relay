@@ -244,7 +244,10 @@ it("shows Claude asking its advisor as a row, done when the advice comes back", 
   });
   const activities: { id: string; label: string; status: string }[] = [];
   await expect(
-    run({ advisor: "opus", onActivity: (a) => activities.push(a) }),
+    run({
+      advisor: { provider: "claude", model: "opus" },
+      onActivity: (a) => activities.push(a),
+    }),
   ).resolves.toBe("Yes.");
   expect(activities).toMatchObject([
     { id: "srv1", label: "Asked the advisor", status: "running" },

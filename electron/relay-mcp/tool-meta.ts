@@ -9,7 +9,7 @@ interface ToolMeta {
   /** Also served at SIDE_PATH, to a thread's side conversations; "only": just there. */
   side?: true | "only";
   /** Left out unless the URL's query turns its group on, or `pages` off. */
-  group?: "pages" | "dev" | "import";
+  group?: "pages" | "dev" | "import" | "advisor";
   /** Only reads or waits, so a call a restart cut off can run again. */
   replayable?: true;
   /**
@@ -52,6 +52,7 @@ export const relayToolMeta: Record<RelayToolName, ToolMeta> = {
   settle_thread: { label: "Settled a started thread" },
   settle_this_thread: { label: "Settles this thread when done", started: true },
   wake_this_thread: { label: "Set a wake-up", started: true },
+  ask_advisor: { label: "Asked the advisor", started: true, group: "advisor" },
   usage_limits: { label: "Checked usage limits", started: true },
   list_agents: { label: "Listed agents" },
   move_to_worktree: {

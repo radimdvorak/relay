@@ -31,6 +31,12 @@ const importTools = relayToolsWhere((t) => t.group === "import");
 export const withoutImports = <T extends { name: string }>(list: T[]) =>
   list.filter((t) => !importTools.has(t.name));
 
+/** In a URL's query, `advisor=on` adds ask_advisor; only a thread whose agent has an advisor Relay asks sets it. */
+export const ADVISOR_PARAM = "advisor";
+const advisorTools = relayToolsWhere((t) => t.group === "advisor");
+export const withoutAdvisor = <T extends { name: string }>(list: T[]) =>
+  list.filter((t) => !advisorTools.has(t.name));
+
 /** What tools/list returns to a thread nothing started. */
 export const leadToolList = relayToolList.filter(
   (t) => !startedOnly.has(t.name) && !sideOnly.has(t.name),

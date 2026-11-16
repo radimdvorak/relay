@@ -608,7 +608,8 @@ it("moves a session with background work to new settings instead of ending it", 
   expect(close).not.toHaveBeenCalled();
   // The advisor goes to the live session too; off has to say so, or Claude
   // Code's own setting would pick one.
-  await turn({ effort: "", interactionMode: "plan", advisor: "opus" });
+  const opus = { provider: "claude" as const, model: "opus" };
+  await turn({ effort: "", interactionMode: "plan", advisor: opus });
   expect(live.applyFlagSettings).toHaveBeenLastCalledWith({
     advisorModel: "opus",
   });

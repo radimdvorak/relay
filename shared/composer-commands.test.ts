@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { agentProviders } from "./agents";
 import {
+  advisorCommandOptions,
   composerCommand,
   composerTargets,
   modelCommandOptions,
@@ -216,6 +217,66 @@ describe("composer commands", () => {
     });
     expect(composerCommand("permissions", "yolo", phone())).toMatch(
       /^Choose one of: read-only, approval-required/,
+    );
+  });
+});
+
+describe("/advisor", () => {
+  const withClaude: ModelCatalogs = {
+    ...catalogs,
+    claude: [
+      {
+        id: "fable",
+        name: "Fable 5.2",
+        description: "",
+        resolved: "claude-fable-5-2",
+        efforts: [],
+      },
+      {
+        id: "opus",
+        name: "Opus 5.5",
+        description: "",
+        resolved: "claude-opus-5-5",
+        efforts: [],
+      },
+      { id: "haiku", name: "Haiku 5.5", description: "", efforts: [] },
+    ],
+  };
+  const on = (recipient: "claude" | "codex", model: string) =>
+    phone({ recipient, model, catalogs: withClaude });
+
+  it("offers Claude's own advisors, then every advising agent's models", () => {
+    const offered = (recipient: "claude" | "codex", model: string) =>
+      advisorCommandOptions(recipient, withClaude, model).map(
+        (o) => `${o.value} ${o.description}`,
+      );
+    expect(offered("claude", "opus")).toEqual([
+      "fable Fable 5.2",
+      "opus Opus 5.5",
+      "gpt-6-luna GPT-6-Luna · Codex",
+      "anthropic/sonnet Sonnet · OpenCode",
+      "off No advisor",
+    ]);
+    // On Fable, Claude can't ask a weaker Opus itself; Relay asks it.
+    expect(offered("claude", "fable")[1]).toBe("opus Opus 5.5 · through Relay");
+    expect(offered("codex", "gpt-6-luna")[1]).toBe("opus Opus 5.5");
+  });
+
+  it("sets one for the agent the draft goes to, or none", () => {
+    expect(composerCommand("advisor", "Fable", on("codex", ""))).toEqual({
+      command: "advisor",
+      advisor: { provider: "claude", model: "fable" },
+    });
+    expect(composerCommand("advisor", "gpt-6-luna", on("claude", ""))).toEqual({
+      command: "advisor",
+      advisor: { provider: "codex", model: "gpt-6-luna" },
+    });
+    expect(composerCommand("advisor", "unset", on("claude", ""))).toEqual({
+      command: "advisor",
+      advisor: "off",
+    });
+    expect(composerCommand("advisor", "haiku", on("claude", ""))).toMatch(
+      /^Choose one of: fable, opus, gpt-6-luna/,
     );
   });
 });

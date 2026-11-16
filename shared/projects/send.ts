@@ -10,7 +10,7 @@ import { advisorFor } from "../model-fit";
 import { browserAnnotationSchema } from "../browser-annotations";
 import { scheduleMessageSchema } from "../schedules";
 import { secondOpinionAskedSchema } from "../second-opinion";
-import { claudeAdvisorSchema } from "../claude-advisor";
+import { threadAdvisorSchema } from "../advisor";
 
 const imageMimeSchema = z.enum(["image/png", "image/jpeg", "image/webp"]);
 const pastedImageSchema = z
@@ -42,8 +42,8 @@ export const projectChatSendSchema = z
     choice: aiSettingsSchema.shape.questions,
     /** Claude on a 200k window; left out, the CLI picks (1M on most models). */
     contextWindow: z.literal("200k").optional(),
-    /** Claude's advisor; see shared/claude-advisor. */
-    advisor: claudeAdvisorSchema.optional(),
+    /** The agent's advisor; see shared/advisor. */
+    advisor: threadAdvisorSchema.optional(),
     /** The account a new thread's agent starts on; a thread keeps its own after. */
     account: accountIdSchema.optional(),
     /**

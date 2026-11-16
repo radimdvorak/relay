@@ -7,6 +7,7 @@ import { relayPrompt, relayPromptList } from "./prompts";
 import { relayToolList } from "./listed-tools";
 import { toolText, type ToolResult } from "./tools";
 import {
+  ADVISOR_PARAM,
   DEV_PARAM,
   IMPORT_PARAM,
   PAGES_PARAM,
@@ -15,6 +16,7 @@ import {
   SIDE_PATH,
   startedToolList,
   STARTED_PATH,
+  withoutAdvisor,
   withoutDev,
   withoutImports,
   withoutPages,
@@ -40,6 +42,8 @@ const toolsFor = (url: URL, path: ToolList, caller: RelayIdentity) => {
   if (url.searchParams.get(DEV_PARAM) !== "on") tools = withoutDev(tools);
   if (url.searchParams.get(IMPORT_PARAM) !== "on")
     tools = withoutImports(tools);
+  if (url.searchParams.get(ADVISOR_PARAM) !== "on")
+    tools = withoutAdvisor(tools);
   return tools;
 };
 

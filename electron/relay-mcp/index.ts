@@ -9,6 +9,7 @@ import { join } from "node:path";
 import { z } from "zod";
 import type { RenderMode } from "../../shared/html-render";
 import {
+  ADVISOR_PARAM,
   DEV_PARAM,
   IMPORT_PARAM,
   PAGES_PARAM,
@@ -35,6 +36,7 @@ export {
   relayToolSchemas,
   toolText,
   resultText,
+  ADVISOR_CALLS_PER_TURN,
   MESSAGE_CHARS,
   STARTED_LIMIT,
   WAIT_LIMIT_SECONDS,
@@ -177,17 +179,25 @@ const pathOf: Record<RelayCaller, string> = {
   side: SIDE_PATH,
 };
 
+/** Which of the tools that only some threads get a thread gets. */
+export interface RelayToolGroups {
+  renders?: RenderMode;
+  /** The thread was opened to import another app's history. */
+  imports?: boolean;
+  /** Its agent has an advisor Relay asks; see shared/advisor. */
+  advisor?: boolean;
+}
+
 /** What an agent session needs to reach the tools as `chatId`. */
 export function relayToolsFor(
   chatId: string,
   caller: RelayCaller,
-  renders: RenderMode = "auto",
-  /** The thread was opened to import another app's history. */
-  imports = false,
+  { renders = "auto", imports = false, advisor = false }: RelayToolGroups,
 ) {
   const query = new URLSearchParams();
   if (renders === "off") query.set(PAGES_PARAM, "off");
   if (imports) query.set(IMPORT_PARAM, "on");
+  if (advisor) query.set(ADVISOR_PARAM, "on");
   // scripts/dev.mjs sets it; electron/app/dev-build.ts restarts through it.
   if (process.env.RELAY_DEV_STALE) query.set(DEV_PARAM, "on");
   return current

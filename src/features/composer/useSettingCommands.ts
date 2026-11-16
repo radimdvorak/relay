@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { runtimeModes } from "../../../shared/agent-modes";
-import { agentName } from "../../../shared/agents";
+import { agentName, type AgentProvider } from "../../../shared/agents";
+import { sameAdvisor } from "../../../shared/advisor";
 import {
   isComposerCommand,
   type CommandOption,
@@ -17,7 +18,7 @@ import {
 } from "../../../shared/composer-commands";
 import type { Recipient } from "../../../shared/recipient";
 import { effortLabels } from "../../../shared/settings";
-import { isPickAgent } from "../agents/composer-models";
+import { isPickAgent, modelOf } from "../agents/composer-models";
 import { useOfferedAgents } from "../agents/registry-agents";
 import type { AgentRuns } from "./useAgentRuns";
 import type { ComposerState } from "./useComposerSettings";
@@ -51,18 +52,23 @@ function targetDescription(
   return `${agentName(target)} · ${listed?.name ?? (model || "default model")}`;
 }
 
-/** What /advisor offers Claude as the composer runs it. */
-function advisorOptions(runs: AgentRuns, catalogs: ModelCatalogs) {
-  const { claude } = runs;
+/** What /advisor offers `to`, which `state` keeps an advisor for. */
+function advisorOptions(
+  to: AgentProvider,
+  state: ComposerState,
+  settings: CommandSettings,
+): CommandOption[] {
+  const current = modelOf(state.models, to).advisor;
   return advisorCommandOptions(
-    catalogs.claude,
-    claude.model,
-    catalogs.defaultNames.claude,
+    to,
+    settings.catalogs,
+    settings.model,
+    settings.defaultNames?.[to],
   ).map((o) => ({
     value: o.value,
     label: o.value,
     description: o.description,
-    current: o.value === claude.advisor,
+    current: sameAdvisor(o.advisor, current),
   }));
 }
 
@@ -170,8 +176,8 @@ export function useSettingCommands({
       if (command === "plan") return toggles(interactionMode === "plan");
       if (command === "fast" && runs.offersFast(to))
         return toggles(runs.fastOf(to));
-      if (command === "advisor" && to === "claude")
-        return advisorOptions(runs, catalogs);
+      if (command === "advisor")
+        return advisorOptions(to, state, commandSettings());
       return undefined;
     },
     // Applies a settings command to this composer; anything else goes up.
@@ -192,7 +198,7 @@ export function useSettingCommands({
         state.setRuntimeMode(change.runtimeMode);
       else if (change.command === "plan")
         state.setInteractionMode(change.plan ? "plan" : "default");
-      else if (change.command === "advisor") runs.setAdvisor(change.advisor);
+      else if (change.command === "advisor") runs.setAdvisor(to, change.advisor);
       else if (to !== "message") runs.setFast(to, change.fast);
       return true;
     },

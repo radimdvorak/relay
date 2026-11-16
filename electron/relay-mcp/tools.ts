@@ -26,6 +26,10 @@ export const MESSAGE_CHARS = 20_000;
 const FIND_LIMIT = 50;
 /** The longest wait_for_threads holds its call. */
 export const WAIT_LIMIT_SECONDS = 600;
+/** How many times one turn may ask its advisor. */
+export const ADVISOR_CALLS_PER_TURN = 3;
+/** The longest question ask_advisor takes. */
+const ADVISOR_QUESTION_CHARS = 8_000;
 /** The furthest ahead wake_this_thread sets a wake-up: a week. */
 const WAKE_LIMIT_MINUTES = 7 * 24 * 60;
 
@@ -218,6 +222,9 @@ export const relayToolSchemas = {
     .strict(),
   settle_thread: z.object({ id: threadId }).strict(),
   settle_this_thread: z.object({}).strict(),
+  ask_advisor: z
+    .object({ question: z.string().trim().min(1).max(ADVISOR_QUESTION_CHARS) })
+    .strict(),
   wake_this_thread: z
     .object({
       minutes: z

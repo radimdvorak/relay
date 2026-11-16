@@ -105,3 +105,33 @@ it("sets a side conversation up as its thread, so its fork reads the thread's ca
   expect(threadMode).toBe("bypassPermissions");
   expect(sideMode).toBe("default");
 });
+
+it("starts Claude Code with its own advisor, or with none while Relay asks another", () => {
+  const options = {
+    job: { kind: "prompt" },
+    cwd: "/project",
+    prompt: "",
+    choice: {} as never,
+    model: "sonnet",
+    effort: "",
+    signal: new AbortController().signal,
+    onText() {},
+    runtimeMode: "auto",
+    interactionMode: "default",
+    links: [{ path: "/w/api", access: "read" }],
+  } satisfies ClaudeRunOptions;
+  const settingsFor = (advisor?: ClaudeRunOptions["advisor"]) =>
+    sessionConfig({ ...options, advisor }, "/usr/bin/claude", false, {})
+      .settings as { advisorModel?: string; permissions?: unknown };
+  expect(settingsFor({ provider: "claude", model: "opus" })).toMatchObject({
+    advisorModel: "opus",
+    permissions: { allow: expect.arrayContaining(["Read(//w/api/**)"]) },
+  });
+  // Off says so, or Claude Code's own setting would pick one; so does an
+  // advisor Relay asks, or Claude would have two.
+  expect(settingsFor("off")?.advisorModel).toBe("");
+  expect(
+    settingsFor({ provider: "codex", model: "gpt-6-luna" })?.advisorModel,
+  ).toBe("");
+  expect(settingsFor()).not.toHaveProperty("advisorModel");
+});

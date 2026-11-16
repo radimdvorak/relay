@@ -34,6 +34,7 @@ export const usageJobs = [
   "triage",
   "plugin",
   "helper",
+  "advisor",
 ] as const;
 
 export type UsageJob = (typeof usageJobs)[number];
@@ -47,6 +48,7 @@ export const relayJobLabels: Record<Exclude<UsageJob, "thread">, string> = {
   triage: "PR triage",
   plugin: "Plugins",
   helper: "Other helpers",
+  advisor: "Advisors",
 };
 
 /**

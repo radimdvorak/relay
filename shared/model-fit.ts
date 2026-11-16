@@ -35,12 +35,12 @@ export const windowFor = (
     ? { contextWindow }
     : {};
 
-/** The advisor is Claude's. */
+/** An agent's advisor; a note to people has no agent to advise. */
 export const advisorFor = (
   provider: string,
   advisor: NewThreadModel["advisor"],
 ): Pick<NewThreadModel, "advisor"> =>
-  provider === "claude" && advisor ? { advisor } : {};
+  provider !== "message" && advisor ? { advisor } : {};
 
 /** `model` with only what `provider` offers. */
 export const fitModel = (

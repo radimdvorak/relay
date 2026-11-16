@@ -57,7 +57,7 @@ export const relayCommands = [
   { name: "fast", description: "Toggle Fast mode", args: "[on|off]" },
   {
     name: "advisor",
-    description: "Let a stronger Claude model guide this thread",
+    description: "Let a stronger model guide this thread",
     args: "<model|off>",
   },
   {

@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { type AgentProvider } from "../../../shared/agents";
+import type { ThreadAdvisor } from "../../../shared/advisor";
 import type { NewThreadModel } from "../../../shared/new-thread-models";
 import type { SendSettings } from "../../../shared/compose-send";
 import type { ResumeSettings } from "../../../shared/projects";
@@ -22,6 +23,7 @@ import {
   messageContext,
   modelOf,
   pickAgents,
+  withAdvisor,
   withModel,
 } from "../agents/composer-models";
 import { onModel, onWindow, supportsFast } from "../../../shared/model-fit";
@@ -265,9 +267,9 @@ export function useAgentRuns(
     setContextWindow(size: "200k" | "1m") {
       change("claude", (current) => onWindow(current, size));
     },
-    /** Claude's advisor: a model alias, or NO_ADVISOR. */
-    setAdvisor(advisor: string) {
-      change("claude", (current) => ({ ...current, advisor }));
+    /** `to`'s advisor, on the model it runs now. */
+    setAdvisor(to: Recipient, advisor: ThreadAdvisor) {
+      setModels((all) => withAdvisor(all, to, choiceFor(to), advisor));
     },
     fastOf: (to: AgentProvider) =>
       agentChoice(to, models, pickOf(to), codex).fast,

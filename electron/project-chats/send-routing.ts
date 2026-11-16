@@ -1,7 +1,7 @@
 import type { ProjectChat, ProjectChatSend } from "../../shared/projects";
 import { onComputerMessage, replyRoot } from "../../shared/projects";
 import { parseGoalCommand } from "../../shared/goal";
-import { agentAsked, sentAgent } from "../../shared/recipient";
+import { agentAsked, recipient, sentAgent } from "../../shared/recipient";
 import type { SideQuestions } from "./asides";
 import type { ChatCore } from "./core";
 import type { Councils } from "./councils";
@@ -30,16 +30,16 @@ interface SendFlows {
 }
 
 /**
- * `input` with the advisor Claude ran with last in this thread, when it names
- * none: phones, schedules and other threads send without one.
+ * `input` with the advisor its agent ran with last in this thread, when it
+ * names none: phones, schedules and other threads send without one.
  */
 export function withThreadAdvisor(
   input: ProjectChatSend,
   last: ProjectChatSend | undefined,
 ): ProjectChatSend {
-  if (input.advisor || sentAgent(input) !== "claude") return input;
-  const threadAdvisor =
-    last && sentAgent(last) === "claude" ? last.advisor : undefined;
+  if (input.advisor || recipient(input) === "message") return input;
+  const sameAgent = !!last && sentAgent(last) === sentAgent(input);
+  const threadAdvisor = sameAgent ? last.advisor : undefined;
   return threadAdvisor ? { ...input, advisor: threadAdvisor } : input;
 }
 

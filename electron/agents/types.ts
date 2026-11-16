@@ -19,6 +19,7 @@ import type { ProviderCommand } from "../../shared/commands";
 import type { AgentDefaults, AgentModel } from "../../shared/agents";
 import type { ModelChoice } from "../../shared/settings";
 import type { Streamed, UsageJob, UsageTokens } from "../../shared/usage";
+import type { ThreadAdvisor } from "../../shared/advisor";
 import type { RenderMode } from "../../shared/html-render";
 import type { SubagentDetail, SubagentRun } from "../../shared/subagents";
 import type { ContextReport } from "../../shared/context-report";
@@ -122,8 +123,8 @@ export interface AgentOptions {
   account?: string;
   /** Claude on a 200k window; left out, the CLI picks. Other agents ignore it. */
   contextWindow?: "200k";
-  /** Claude's advisor; see shared/claude-advisor. Other agents ignore it. */
-  advisor?: string;
+  /** The agent's advisor; see shared/advisor. Claude asks its own itself. */
+  advisor?: ThreadAdvisor;
   signal: AbortSignal;
   onText: (text: string) => void;
   onCommentary?: (id: string, text: string | null) => void;

@@ -1,11 +1,13 @@
 import { useCallback, useId, useSyncExternalStore } from "react";
-import { NO_ADVISOR } from "../../../shared/claude-advisor";
+import { useQuery } from "@tanstack/react-query";
+import { NO_ADVISOR, type Advisor } from "../../../shared/advisor";
+import type { AgentModel, AgentProvider } from "../../../shared/agents";
 import { composerSettingsKey } from "../../lib/thread-storage";
 import {
   loadComposerSettings,
   onComposerSettingsChanged,
 } from "./composer-settings";
-import { useClaudeModels } from "./useClaudeModels";
+import { agentModelsQuery } from "./useAgentPicks";
 import "./advisor-peek.css";
 
 /** A nerd raising a finger: the advisor, about to say "well, actually". */
@@ -62,8 +64,12 @@ export function AdvisorIcon({ size = 15 }: { size?: number }) {
   );
 }
 
-/** The advisor the conversation under `settingsKey` picked for Claude, as its composer keeps it. */
-function usePickedAdvisor(settingsKey: string) {
+/**
+ * The advisor of the agent the conversation under `settingsKey` runs, as its
+ * composer keeps it: "provider model", a string so the store's snapshot
+ * stays the same between changes.
+ */
+function usePickedAdvisor(settingsKey: string): Advisor | undefined {
   const subscribe = useCallback(
     (listener: () => void) => {
       const unsubscribe = onComposerSettingsChanged(settingsKey, listener);
@@ -83,24 +89,31 @@ function usePickedAdvisor(settingsKey: string) {
     [settingsKey],
   );
   const snapshot = () => {
-    const settings = loadComposerSettings(settingsKey);
-    if (settings.provider !== "claude") return undefined;
-    const advisor = settings.models.claude?.advisor;
-    return advisor === NO_ADVISOR ? undefined : advisor;
+    const { provider, models } = loadComposerSettings(settingsKey);
+    if (!provider || provider === "message") return undefined;
+    const advisor = models[provider]?.advisor;
+    if (!advisor || advisor === NO_ADVISOR) return undefined;
+    return `${advisor.provider} ${advisor.model}`;
   };
-  return useSyncExternalStore(subscribe, snapshot, snapshot);
+  const picked = useSyncExternalStore(subscribe, snapshot, snapshot);
+  if (!picked) return undefined;
+  const [provider, ...model] = picked.split(" ");
+  return { provider: provider as AgentProvider, model: model.join(" ") };
 }
 
-/** "Opus 5.5" as Claude lists it; "Opus" before its list loads. */
-function useAdvisorName(alias: string | undefined) {
-  const { models } = useClaudeModels();
-  if (!alias) return "";
-  const listed = models?.find((m) => m.id === alias);
-  return listed?.name ?? alias.charAt(0).toUpperCase() + alias.slice(1);
+/** "Opus 5.5" as its agent lists it; the model's id before the list loads. */
+function useAdvisorName(advisor: Advisor | undefined) {
+  const listed = useQuery({
+    ...agentModelsQuery(advisor?.provider ?? "claude"),
+    enabled: !!advisor,
+  }).data as readonly AgentModel[] | undefined;
+  if (!advisor) return "";
+  const model = listed?.find((m) => m.id === advisor.model);
+  return model?.name ?? advisor.model;
 }
 
 /**
- * Claude's advisor, peeking over the composer's top edge while the thread
+ * The thread's advisor, peeking over the composer's top edge while its agent
  * has one. Hovered, it comes up to say who it is.
  */
 export function AdvisorPeek({ settingsKey }: { settingsKey: string }) {

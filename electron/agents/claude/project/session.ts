@@ -34,9 +34,10 @@ import {
 import { readOnlyHook } from "../../../agent-host/read-only-tools";
 import { relayPromptTokens } from "./context";
 import {
-  advisorModelSetting,
-  claudeAdvisorSchema,
-} from "../../../../shared/claude-advisor";
+  advisorRoute,
+  claudeAdvisorSetting,
+  threadAdvisorSchema,
+} from "../../../../shared/advisor";
 import { ClaudeWork } from "./pending";
 import { hostedHandlers, sessionCallbacks } from "./requests";
 import { readSettings, sdk, type ClaudeInput, type ClaudeStream } from "./sdk";
@@ -54,7 +55,7 @@ export const hostedMetaSchema = z
         model: z.string(),
         effort: z.string(),
         contextWindow: z.literal("200k").optional().catch(undefined),
-        advisor: claudeAdvisorSchema.optional().catch(undefined),
+        advisor: threadAdvisorSchema.optional().catch(undefined),
         runtimeMode: runtimeModeSchema.optional(),
         interactionMode: interactionModeSchema.optional(),
         readOnly: z.boolean().optional(),
@@ -219,6 +220,9 @@ export function closeClaudeSession(key: string) {
  * another folder, Read only on or off, or full access for a session
  * launched without it.
  */
+const relayAsksAdvisor = (options: ClaudeRunOptions) =>
+  advisorRoute("claude", options.model, options.advisor)?.via === "relay";
+
 export async function retune(
   session: ClaudeSession,
   options: ClaudeRunOptions,
@@ -234,6 +238,8 @@ export async function retune(
     linksSignature(options.links) !== linksSignature(before.links) ||
     // So are its tools, MCP servers and hooks, which Read only cuts down.
     !!options.readOnly !== !!before.readOnly ||
+    // An advisor Relay asks comes as one more of Relay's tools.
+    relayAsksAdvisor(options) !== relayAsksAdvisor(before) ||
     (mode === "bypassPermissions" && !session.skipsPermissions)
   )
     return false;
@@ -265,10 +271,10 @@ export async function retune(
       await session.stream.setPermissionMode(mode);
     // Claude Code keeps a conversation's advisor until it compacts, so the
     // prompt it already sent stays cached; the new one takes over from there.
-    if (options.advisor && options.advisor !== before.advisor)
-      await session.stream.applyFlagSettings({
-        advisorModel: advisorModelSetting(options.advisor),
-      });
+    const advisorModel = claudeAdvisorSetting(options.advisor, options.model);
+    const advisedBefore = claudeAdvisorSetting(before.advisor, before.model);
+    if (advisorModel !== undefined && advisorModel !== advisedBefore)
+      await session.stream.applyFlagSettings({ advisorModel });
     return true;
   } catch {
     return false;

@@ -1,12 +1,18 @@
 import { runtimeModes, type RuntimeMode } from "./agent-modes";
 import {
+  agentInfo,
   agentName,
   agentProviders,
   type AgentModel,
   type AgentProvider,
 } from "./agents";
 import type { ComposerCommand } from "./commands";
-import { advisorGuides, advisorModels, NO_ADVISOR } from "./claude-advisor";
+import {
+  advisorRoute,
+  claudeAdvisorModels,
+  NO_ADVISOR,
+  type ThreadAdvisor,
+} from "./advisor";
 import {
   claudeEffortsFor,
   findClaudeModel,
@@ -92,31 +98,52 @@ export function modelCommandOptions(
 }
 
 export interface AdvisorOption {
-  /** A model alias, or NO_ADVISOR. */
+  /** What /advisor takes for it: a model id, or NO_ADVISOR. */
   value: string;
+  advisor: ThreadAdvisor;
   description: string;
 }
 
+/** The agents that can advise: they answer Relay's one-off questions. */
+const advisingAgents = () =>
+  agentProviders.filter((p) => p !== "claude" && agentInfo(p)?.helper);
+
 /**
- * What /advisor offers Claude on `model` ("" for its Default, which runs
- * `defaultName`): the advisors its catalog lists, then none.
+ * What /advisor offers `recipient` on `model` ("" for its Default, which runs
+ * `defaultName`): Claude's own advisors, then every other advising agent's
+ * models, then none.
  */
 export function advisorCommandOptions(
-  catalog: ModelCatalogs["claude"],
+  recipient: AgentProvider,
+  catalogs: ModelCatalogs,
   model: string,
   defaultName = "",
 ): AdvisorOption[] {
-  const main = findClaudeModel(catalog, model);
-  const mainName = main?.name ?? (model || defaultName);
+  const main = findClaudeModel(catalogs.claude, model);
   const mainId = main?.resolved ?? (model || defaultName);
-  return [
-    ...advisorModels(catalog).map((m) => ({
+  const claude = claudeAdvisorModels(catalogs.claude).map((m) => {
+    const advisor = { provider: "claude" as const, model: m.id };
+    // A Claude advisor too weak to guide Claude's model natively.
+    const relayAsks =
+      recipient === "claude" &&
+      advisorRoute(recipient, mainId, advisor)?.via === "relay";
+    return {
       value: m.id,
-      description: advisorGuides(m.resolved ?? m.id, mainId)
-        ? m.name
-        : `${m.name} · weaker than ${mainName}, stays off`,
+      advisor,
+      description: relayAsks ? `${m.name} · through Relay` : m.name,
+    };
+  });
+  const others = advisingAgents().flatMap((provider) =>
+    (catalogs[provider] ?? []).map((m) => ({
+      value: m.id,
+      advisor: { provider, model: m.id },
+      description: `${m.name} · ${agentName(provider)}`,
     })),
-    { value: NO_ADVISOR, description: "No advisor" },
+  );
+  return [
+    ...claude,
+    ...others,
+    { value: NO_ADVISOR, advisor: NO_ADVISOR, description: "No advisor" },
   ];
 }
 
@@ -145,7 +172,7 @@ export type ComposerChange<T extends ComposerTarget = ComposerTarget> =
   | { command: "permissions"; runtimeMode: RuntimeMode }
   | { command: "plan"; plan: boolean }
   | { command: "fast"; fast: boolean }
-  | { command: "advisor"; advisor: string };
+  | { command: "advisor"; advisor: ThreadAdvisor };
 
 const noAgent = "Choose an agent before changing agent settings.";
 
@@ -234,15 +261,22 @@ function advisorChange(
   value: string,
   settings: CommandSettings,
 ): Extract<ComposerChange, { command: "advisor" }> | string {
-  if (settings.recipient !== "claude")
-    return "The advisor is Claude's. Switch to Claude to set one.";
-  const offered = advisorCommandOptions(
-    settings.catalogs.claude,
+  const { recipient } = settings;
+  if (recipient === "message") return noAgent;
+  const options = advisorCommandOptions(
+    recipient,
+    settings.catalogs,
     settings.model,
-  ).map((o) => o.value);
+    settings.defaultNames?.[recipient],
+  );
   // Claude Code takes "unset" for off too.
-  const advisor = value === "unset" ? NO_ADVISOR : value;
-  if (!offered.includes(advisor))
-    return `Choose one of: ${offered.join(", ")}.`;
-  return { command: "advisor", advisor };
+  const asked = value === "unset" ? NO_ADVISOR : value;
+  const option = options.find(
+    (o) =>
+      o.value.toLowerCase() === asked ||
+      o.description.toLowerCase() === asked,
+  );
+  if (!option)
+    return `Choose one of: ${options.map((o) => o.value).join(", ")}.`;
+  return { command: "advisor", advisor: option.advisor };
 }

@@ -7,6 +7,7 @@ import type {
 } from "../../shared/projects";
 import { linksInstructions, threadLinks } from "../../shared/projects";
 import { goalChanged } from "../../shared/goal";
+import { advisorRoute } from "../../shared/advisor";
 import { readOnlyGitEnvIn } from "../agents/read-only-git";
 import type { AgentOptions } from "../agents/types";
 import { projectTasks } from "../terminal/tasks";
@@ -122,13 +123,14 @@ function callerOf(chat: ProjectChat, rules: TurnState["rules"]): RelayCaller {
 }
 
 /** What the turn may do: its mode, and which of Relay's tools it gets. */
-function accessOf(core: ChatCore, { chat, input, rules }: TurnState) {
-  const relayTools = relayToolsFor(
-    chat.id,
-    callerOf(chat, rules),
-    core.store.get().renderMode,
-    !!chat.importFrom,
-  );
+function accessOf(core: ChatCore, t: TurnState) {
+  const { chat, input, rules } = t;
+  const advisor = advisorRoute(t.provider, input.choice.model, input.advisor);
+  const relayTools = relayToolsFor(chat.id, callerOf(chat, rules), {
+    renders: core.store.get().renderMode,
+    imports: !!chat.importFrom,
+    advisor: advisor?.via === "relay",
+  });
   const threadReadOnly = !!chat.reviewer || input.runtimeMode === "read-only";
   const readOnly = threadReadOnly || !!rules.side;
   const options: Pick<

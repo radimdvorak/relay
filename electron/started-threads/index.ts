@@ -38,6 +38,7 @@ import {
   type RelayToolArgs,
 } from "../relay-mcp";
 import { checkedCall, type ToolCall } from "./tool-call";
+import { ThreadAdvisor } from "./thread-advisor";
 import { errorMessage } from "../../shared/error-message";
 
 export { localTime } from "./tool-output";
@@ -104,6 +105,7 @@ export class StartedThreads {
   private reviews: ThreadReviews | undefined;
   private schedules: ThreadSchedules | undefined;
   private agentChoices: AgentChoices;
+  private advisor = new ThreadAdvisor();
 
   constructor(
     private chats: Chats,
@@ -233,6 +235,8 @@ export class StartedThreads {
         return this.driving.settleSelf(lead);
       case "wake_this_thread":
         return this.driving.wakeLater(lead, input);
+      case "ask_advisor":
+        return this.advisor.ask(lead, input, signal);
       case "usage_limits":
         return json(await usageLimits(lead, this.readUsage));
       case "list_agents":

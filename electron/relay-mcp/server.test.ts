@@ -307,6 +307,21 @@ test("dev=on adds restart_relay, and never for a started thread", async () => {
   ).not.toContain("restart_relay");
 });
 
+test("advisor=on adds ask_advisor, for started threads too", async () => {
+  const url = await serve(async () => toolText("ok"));
+  const names = async (path: string) =>
+    (
+      await (
+        await post(path, { jsonrpc: "2.0", id: 1, method: "tools/list" })
+      ).json()
+    ).result.tools.map((t: { name: string }) => t.name);
+  expect(await names(url)).not.toContain("ask_advisor");
+  expect(await names(`${url}?advisor=on`)).toContain("ask_advisor");
+  expect(
+    await names(`${url.replace(/\/mcp$/, STARTED_PATH)}?advisor=on`),
+  ).toContain("ask_advisor");
+});
+
 test("a side conversation gets the tools that read, and message_main, which only it gets", async () => {
   const url = await serve(async () => toolText("ok"));
   const names = async (path: string) =>

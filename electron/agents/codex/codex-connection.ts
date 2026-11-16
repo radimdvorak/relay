@@ -24,6 +24,7 @@ export const codexMetaSchema = z
     started: threadStartedSchema.optional(),
     account: z.string().optional(),
     readOnly: z.boolean().optional(),
+    relayUrl: z.string().optional(),
   })
   .loose();
 type CodexMeta = z.infer<typeof codexMetaSchema>;
@@ -38,6 +39,8 @@ class CodexConnection {
   account?: string;
   /** Started for a Read only thread: its thread has no MCP servers, plugins or Relay's tools. */
   readOnly = false;
+  /** Where its thread reaches Relay's tools, "" for nowhere; unknown for one a Relay before this kept. */
+  relayUrl?: string;
   busy = false;
   closed = false;
   onNotification?: (method: string, params: unknown) => void;
@@ -192,6 +195,7 @@ class CodexConnection {
         started,
         account: this.account,
         readOnly: this.readOnly,
+        relayUrl: this.relayUrl,
       } satisfies CodexMeta);
   }
 
@@ -241,11 +245,17 @@ export async function acquireCodexConnection(
   key: string | undefined,
   executable: string,
   args: string[],
-  turn: { cwd: string; readOnly?: boolean; job?: { kind: string } },
+  turn: {
+    cwd: string;
+    readOnly?: boolean;
+    job?: { kind: string };
+    relayTools?: { url: string };
+  },
   account: { id: string; env: Record<string, string> },
 ) {
   const { cwd } = turn;
   const readOnly = !!turn.readOnly;
+  const relayUrl = turn.relayTools?.url ?? "";
   // Another account needs an app server signed in as it, and Read only on or
   // off a thread with other tools; the thread resumes there. Picking up a
   // turn a restart cut off gives it nothing new, so it stays where it runs.
@@ -253,7 +263,10 @@ export async function acquireCodexConnection(
   const otherAccount = (live?.account ?? SYSTEM_ACCOUNT) !== account.id;
   const adopting = turn.job?.kind === "adopt";
   const otherMode = !adopting && live?.readOnly !== readOnly;
-  if (live && !live.busy && (otherAccount || otherMode))
+  // So do other Relay tools: an advisor Relay asks comes as one more.
+  const otherTools =
+    !adopting && live?.relayUrl !== undefined && live.relayUrl !== relayUrl;
+  if (live && !live.busy && (otherAccount || otherMode || otherTools))
     await sessions.close(key!);
   // A thread's session runs in the host; helper jobs end with their turn.
   return sessions.acquire(key, async () => {
@@ -277,6 +290,7 @@ export async function acquireCodexConnection(
     );
     connection.account = account.id;
     connection.readOnly = readOnly;
+    connection.relayUrl = relayUrl;
     return connection;
   });
 }
@@ -320,6 +334,7 @@ export function reattachCodexSessions(owns: (key: string) => boolean) {
     connection.started = meta.started;
     connection.account = meta.account;
     connection.readOnly = !!meta.readOnly;
+    connection.relayUrl = meta.relayUrl;
     if (!info.open) child.release();
     return connection;
   });

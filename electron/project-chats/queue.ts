@@ -6,6 +6,7 @@ import type {
   ProjectChatSend,
 } from "../../shared/projects";
 import { replyRoot, sentBy, sentSettingsOf } from "../../shared/projects";
+import { sameAdvisor } from "../../shared/advisor";
 import { agentAsked } from "../../shared/recipient";
 import { browserAnnotationPrompt } from "../../shared/browser-annotations";
 import type { ModelChoice } from "../../shared/settings";
@@ -52,7 +53,7 @@ export function steers(
     next.choice.model !== prior.choice.model ||
     next.contextWindow !== prior.contextWindow ||
     // Phones send without an advisor; theirs is the thread's.
-    (!!next.advisor && next.advisor !== prior.advisor) ||
+    (!!next.advisor && !sameAdvisor(next.advisor, prior.advisor)) ||
     next.selection ||
     (!skillSteers.has(asked.provider) && mayMentionSkill(asked.question)) ||
     /(?:^|\s)\/skill:/.test(asked.question) ||

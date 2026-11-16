@@ -16,7 +16,10 @@ import {
   fitModel,
   windowFor,
 } from "../../../shared/model-fit";
-import { claudeAdvisorSchema } from "../../../shared/claude-advisor";
+import {
+  threadAdvisorSchema,
+  type ThreadAdvisor,
+} from "../../../shared/advisor";
 import {
   claudeEfforts,
   modelSchema,
@@ -63,11 +66,32 @@ export const modelOf = (
   provider: AgentProvider,
 ): NewThreadModel => models[provider] ?? blank;
 
-export const withModel = (
+/**
+ * `models` with `provider` on `next`. Its advisor stays unless `next` names
+ * one: another model doesn't change who advises the agent.
+ */
+export function withModel(
   models: ComposerModels,
   provider: AgentProvider,
   next: NewThreadModel,
-): ComposerModels => ({ ...models, [provider]: fitModel(provider, next) });
+): ComposerModels {
+  const advisor = next.advisor ?? models[provider]?.advisor;
+  const entry = { ...next, ...(advisor ? { advisor } : {}) };
+  return { ...models, [provider]: fitModel(provider, entry) };
+}
+
+/** `models` with `to`'s agent advised by `advisor`, keeping `choice`, the model it runs now. */
+export function withAdvisor(
+  models: ComposerModels,
+  to: string,
+  choice: ModelChoice | undefined,
+  advisor: ThreadAdvisor,
+): ComposerModels {
+  if (!isAgentProvider(to)) return models;
+  const current = modelOf(models, to);
+  const next = { ...current, choice: choice ?? current.choice, advisor };
+  return withModel(models, to, next);
+}
 
 /** Every agent's entry, filling in the Default for those with none. */
 export const newThreadModelsOf = (models: ComposerModels): NewThreadModels =>
@@ -173,15 +197,15 @@ export function messageChoice(
   return agentChoice(to, models, pick, selected);
 }
 
-/** Claude's own settings for a message to `to`: its window and advisor. */
-export const messageContext = (to: string, models: ComposerModels) => {
-  if (to !== "claude") return {};
-  const { contextWindow, advisor } = modelOf(models, "claude");
+/** What goes with a message to `to` besides its model: Claude's window, and the agent's advisor. */
+export function messageContext(to: string, models: ComposerModels) {
+  if (!isAgentProvider(to)) return {};
+  const { contextWindow, advisor } = modelOf(models, to);
   return {
-    ...(contextWindow ? { contextWindow } : {}),
+    ...(to === "claude" && contextWindow ? { contextWindow } : {}),
     ...(advisor ? { advisor } : {}),
   };
-};
+}
 
 function readEffort(provider: AgentProvider, value: unknown): ReasoningEffort {
   // Claude only takes its own levels; the rest are Codex's.
@@ -206,7 +230,7 @@ function readModel(
     ...(value.contextWindow === "200k"
       ? { contextWindow: "200k" as const }
       : {}),
-    ...advisorFor(provider, claudeAdvisorSchema.safeParse(value.advisor).data),
+    ...advisorFor(provider, threadAdvisorSchema.safeParse(value.advisor).data),
   });
 }
 
