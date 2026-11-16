@@ -436,6 +436,7 @@ export function ThreadComposer({
           <>
             <StartOnNote project={project} worktree={worktree} />
             <DetourNote project={project} worktree={worktree} />
+            <AdvisorPeek settingsKey={keys.settings} />
           </>
         )
       }
