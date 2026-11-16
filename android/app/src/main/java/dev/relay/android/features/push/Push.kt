@@ -22,6 +22,11 @@ import kotlinx.coroutines.launch
 import kotlin.coroutines.resume
 import kotlin.coroutines.suspendCoroutine
 
+/** The Application, which hands [PushService] the app's one [Push]. */
+interface HasPush {
+    val push: Push
+}
+
 /**
  * Notifications through Firebase (shared/push.ts): the phone hands its token
  * to the computer it's connected to, which then tells it of a thread's news
@@ -44,14 +49,28 @@ class Push(private val app: Context, private val remote: Remote, private val sco
     /** A computer took this phone's registration, so the link may close again with the app away. */
     var registered: () -> Unit = {}
 
+    private var notificationsOn: StateFlow<Boolean> = MutableStateFlow(false)
+
     fun setHideTitles(on: Boolean) {
         _hideTitles.value = on
         prefs.edit().putBoolean(HIDE_TITLES_KEY, on).apply()
     }
 
+    /**
+     * Whether a push from [computer] becomes a notification. A computer the
+     * phone forgot, or told nothing of notifications going off or Relay
+     * stopping while it was away, may still be pushing.
+     */
+    fun shows(computer: String): Boolean {
+        val registeredThere = prefs.getBoolean(pushedKey(computer), false)
+        val wanted = notificationsOn.value && !remote.stopped.value
+        return registeredThere && wanted
+    }
+
     /** Registers with each computer the phone connects to, while [notificationsOn]. */
     fun start(notificationsOn: StateFlow<Boolean>) {
         if (!available) return
+        this.notificationsOn = notificationsOn
         scope.launch { remote.active.collect { _delivering.value = it != null && prefs.getBoolean(pushedKey(it), false) } }
         scope.launch { tokens.value = tokens.value ?: currentToken() }
         // A token Firebase rotated with the link parked: open it to hand the new one over.
@@ -61,6 +80,9 @@ class Push(private val app: Context, private val remote: Remote, private val sco
         // A computer that went back to a Relay without pushes no longer sends them.
         scope.launch {
             remote.fresh.collect { fresh -> if ((fresh.overview.bridge ?: 0) < Bridge.PUSH) remember(fresh.computer, false) }
+        }
+        scope.launch {
+            remote.forgotten.collect { computer -> prefs.edit().remove(pushedKey(computer)).apply() }
         }
         scope.launch {
             combine(remote.status, remote.client, remote.overview, notificationsOn, _hideTitles) { status, client, overview, on, hide ->

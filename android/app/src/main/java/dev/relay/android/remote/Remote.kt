@@ -223,6 +223,10 @@ class Remote(
         throw PairingFailed(failure)
     }
 
+    private val _forgotten = MutableSharedFlow<String>(extraBufferCapacity = 8)
+    /** Each computer forgotten, by id. */
+    val forgotten: SharedFlow<String> = _forgotten.asSharedFlow()
+
     /** Forgets one computer, the active one by default, and moves on to the next. */
     suspend fun forget(id: String? = _active.value) {
         if (id == null) return
@@ -238,6 +242,7 @@ class Remote(
         cache.forget(id)
         seen.forget(id)
         store.clearCredentials(id)
+        _forgotten.tryEmit(id)
     }
 
     /** Forgets every computer, the saved ones too: forgotten before they're read, they'd come back. */
