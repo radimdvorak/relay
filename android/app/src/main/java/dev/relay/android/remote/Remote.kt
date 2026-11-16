@@ -151,6 +151,8 @@ class Remote(
     val stopped: StateFlow<Boolean> = _stopped.asStateFlow()
 
     private var live: RemoteClient? = null
+    /** Closed by [park] until the app comes back. */
+    @Volatile private var parked = false
     /** Starts true: the app may be opened by a notification's worker with nothing on screen. */
     private var background = true
     private var networkUp = true
@@ -221,6 +223,10 @@ class Remote(
         throw PairingFailed(failure)
     }
 
+    private val _forgotten = MutableSharedFlow<String>(extraBufferCapacity = 8)
+    /** Each computer forgotten, by id. */
+    val forgotten: SharedFlow<String> = _forgotten.asSharedFlow()
+
     /** Forgets one computer, the active one by default, and moves on to the next. */
     suspend fun forget(id: String? = _active.value) {
         if (id == null) return
@@ -236,6 +242,7 @@ class Remote(
         cache.forget(id)
         seen.forget(id)
         store.clearCredentials(id)
+        _forgotten.tryEmit(id)
     }
 
     /** Forgets every computer, the saved ones too: forgotten before they're read, they'd come back. */
@@ -250,7 +257,25 @@ class Remote(
 
     /** Back in the foreground: Android drops sockets in the background. */
     fun wake() {
-        live?.wake()
+        if (!unpark()) live?.wake()
+    }
+
+    /**
+     * Closes the link while the app is away, as the computer pushes its news
+     * (features/push) and nothing else needs it; [wake] opens it again.
+     */
+    fun park() {
+        if (_stopped.value || parked) return
+        parked = true
+        scope.launch { live?.close() }
+    }
+
+    /** Opens the link [park] closed, for something that needs it with the app away; false with none parked. */
+    fun unpark(): Boolean {
+        if (!parked || _stopped.value) return false
+        parked = false
+        scope.launch { live?.start() }
+        return true
     }
 
     /** Whether the app is in the background, for the link to the active computer and the next. */
@@ -273,6 +298,8 @@ class Remote(
 
     fun resume() {
         if (!_stopped.compareAndSet(true, false)) return
+        // Opened again, so a link parked before the stop comes back too.
+        parked = false
         scope.launch { live?.start() }
     }
 
@@ -466,7 +493,7 @@ class Remote(
         _client.value = next
         _status.value = next.status.value
         if (start is RemoteStart.Pair) pairing?.client = next
-        if (!_stopped.value) next.start()
+        if (!_stopped.value && !parked) next.start()
         return next
     }
 }

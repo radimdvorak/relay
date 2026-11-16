@@ -23,6 +23,8 @@ object Bridge {
     const val VIDEO = 42
     /** A secret card may offer Always: `threadSecrets` says what the thread's project has saved, and the answer takes `remember`. */
     const val SECRET_ALWAYS = 43
+    /** Phones hand over a Firebase token so the computer can tell them while away (`setPush`). */
+    const val PUSH = 44
     const val DEFAULT_PORT = 47821
 
     const val RECIPIENT = 11

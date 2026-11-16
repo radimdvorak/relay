@@ -83,7 +83,6 @@ export const bigFunctions: Record<string, number> = {
   "electron/pull-requests/pull-request-create.ts › create": 103,
   "electron/read-aloud/engines/pocket/model.ts › loadPocket": 210,
   "electron/read-aloud/engines/supertonic.ts › loadSupertonic": 159,
-  "electron/remote/phone-remote.ts › constructor": 86,
   "electron/started-threads/index.ts › answer": 113,
   "electron/started-threads/project-folder.ts › folderVerdict": 93,
   "electron/startup/index.ts › threadServices": 96,

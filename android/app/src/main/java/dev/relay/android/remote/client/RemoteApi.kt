@@ -10,6 +10,7 @@ import dev.relay.android.remote.model.DraftWrite
 import dev.relay.android.remote.model.MessageSteps
 import dev.relay.android.remote.model.PhoneAppReport
 import dev.relay.android.remote.model.ProjectChatSend
+import dev.relay.android.remote.model.PushRegistration
 import dev.relay.android.remote.model.ReadAloudAudio
 import dev.relay.android.remote.model.ReadAloudRequest
 import dev.relay.android.remote.model.RemoteChat
@@ -129,6 +130,11 @@ suspend fun RemoteClient.updateNow(): JsonElement = call("updateNow")
 
 suspend fun RemoteClient.reportApp(report: PhoneAppReport) {
     call("reportApp", args(j(report)))
+}
+
+/** From Bridge.PUSH; null stops the pushes. */
+suspend fun RemoteClient.setPush(registration: PushRegistration?) {
+    call("setPush", args(j(registration)))
 }
 
 /** `desktop("sendProjectChat", [chatId, send])`, with `to` dropped for desktops before Bridge.RECIPIENT. */

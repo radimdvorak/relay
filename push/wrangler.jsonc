@@ -1,0 +1,14 @@
+// Relay's push service on Cloudflare: npm run deploy:push
+{
+  "name": "relay-push",
+  "main": "worker.ts",
+  "compatibility_date": "2026-11-16",
+  "routes": [{ "pattern": "push.relaycode.io", "custom_domain": true }],
+  // It keeps nothing it's sent: no request logs, no traces.
+  "observability": { "enabled": false },
+  "ratelimits": [
+    // A computer tells one phone a few times a minute at most.
+    { "name": "PER_PHONE", "namespace_id": "1001", "simple": { "limit": 30, "period": 60 } },
+    { "name": "PER_ADDRESS", "namespace_id": "1002", "simple": { "limit": 120, "period": 60 } },
+  ],
+}

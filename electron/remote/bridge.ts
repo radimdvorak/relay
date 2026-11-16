@@ -66,6 +66,7 @@ export class RemoteBridge {
   private api: Omit<
     RemoteApi,
     | "reportApp"
+    | "setPush"
     | "dictate"
     | "readAloud"
     | "saveDraft"

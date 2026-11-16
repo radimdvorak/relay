@@ -4,8 +4,9 @@ import android.app.Application
 import dev.relay.android.app.AppContainer
 import dev.relay.android.app.CrashRecovery
 import dev.relay.android.features.notifications.StopsRelay
+import dev.relay.android.features.push.HasPush
 
-class RelayApp : Application(), StopsRelay {
+class RelayApp : Application(), StopsRelay, HasPush {
     lateinit var container: AppContainer
         private set
 
@@ -16,4 +17,6 @@ class RelayApp : Application(), StopsRelay {
     }
 
     override fun stopRelay() = container.relayStop.stop()
+
+    override val push get() = container.push
 }

@@ -13,6 +13,7 @@ import androidx.compose.ui.unit.dp
 import dev.relay.android.features.applock.AppLock
 import dev.relay.android.features.notifications.NotificationSwitchRow
 import dev.relay.android.features.notifications.ThreadNotifications
+import dev.relay.android.features.push.Push
 import dev.relay.android.features.updates.LatestAppRows
 import dev.relay.android.features.updates.Updates
 import dev.relay.android.features.updates.computerName
@@ -49,6 +50,7 @@ fun SettingsScreen(
     remote: Remote,
     updates: Updates,
     notifications: ThreadNotifications,
+    push: Push,
     lock: AppLock,
     theme: ThemeSettings,
     /** Outlives this screen, for a switch or unpair that navigates away. */
@@ -57,7 +59,7 @@ fun SettingsScreen(
 ) {
     val nav = LocalNavigator.current
     Screen("Settings", onBack = nav.backAction) {
-        SettingsList(remote, updates, notifications, lock, theme, scope, stopRelay)
+        SettingsList(remote, updates, notifications, push, lock, theme, scope, stopRelay)
     }
 }
 
@@ -67,6 +69,7 @@ fun SettingsList(
     remote: Remote,
     updates: Updates,
     notifications: ThreadNotifications,
+    push: Push,
     lock: AppLock,
     theme: ThemeSettings,
     scope: CoroutineScope,
@@ -91,7 +94,7 @@ fun SettingsList(
         }
 
         item(key = "notifications-title") { SectionHeader("Notifications") }
-        item(key = "notifications") { ListGroup { NotificationSwitchRow(notifications, name) } }
+        item(key = "notifications") { ListGroup { NotificationSwitchRow(notifications, push, name) } }
 
         item(key = "lock") { LockSection(lock) }
         item(key = "dictation") { DictationSection(name) }

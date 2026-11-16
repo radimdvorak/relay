@@ -242,6 +242,7 @@ toServer = okm[0..32), toClient = okm[32..64)
 | 38 | `stepsOnOpenBridge` | `chat`'s `steps:"latest"` folds finished turns (`stepsLeftOut`); `messageSteps` fetches one's steps |
 | 42 | `videoBridge` | `desktop("projectChatVideoPart", [chatId, messageId, path, offset])` → `{size, data}`: an answer's video, 1MB (`videoPartBytes`) of base64 at a time, for the phone to download and play |
 | 43 | `secretAlwaysBridge` | `desktop("threadSecrets", [chatId])` → `{secrets:[{name,saved}], sessionOnly?, computer?}`: what the thread's project has saved with Always; `answerProjectChatQuestion`'s `{kind:"secret", value, remember:true}` saves one. Before, a secret card offers Decline and Save only |
+| 44 | `pushBridge` | `setPush(registration \| null)` with `{token, computer, hideTitles}`: the computer tells this phone of a thread's news through Relay's push service and Firebase while it's away (shared/push.ts); null stops it. Before, the phone stays connected in the background to hear the news |
 
 ### ClientFrame (phone → desktop)
 - `{t:"pair", code, device, kind?:"computer", bridge?}`. Phones omit `kind`.

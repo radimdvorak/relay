@@ -29,6 +29,7 @@ import {
 import { inWsl } from "../platform/wsl";
 import { SignInUnavailable, type RemoteDevices } from "./devices";
 import { LinkSender } from "./link-sender";
+import { makeRoom } from "./room";
 import { MessageBatches } from "./message-batches";
 import { lanPeer } from "./lan";
 import { tailnetPeer } from "./tailscale";
@@ -46,6 +47,8 @@ export interface RemoteServerOptions {
   ) => Promise<unknown>;
   /** A phone came online or went away. */
   onPresence?: () => void;
+  /** A device's link died with its app on screen, rather than closing or going to the background. */
+  screenLost?: (deviceId: string) => void;
   /** A signed-in device's port tunnel, made at its first tunnel frame; none refuses it. See ../tunnel. */
   tunnel?: (
     deviceId: string,
@@ -82,42 +85,10 @@ interface Connection {
 
 /** Unauthenticated sockets get this long to finish the handshake. */
 const handshakeMs = 10_000;
-export const maxConnections = 24;
-/** A phone has one in the handshake, two while a dead one times out. */
-export const handshakesPerAddress = 4;
+/** A socket's close code when it ended without a closing frame. */
+const abnormalClosure = 1006;
 /** A phone in the background is ticked and pinged only every this many ticks: a minute, with the usual 15s. */
 export const backgroundTickEvery = 4;
-
-interface Place {
-  from: string;
-  deviceId?: string;
-  authenticating?: boolean;
-  socket: { terminate(): void };
-}
-
-/**
- * Makes room for a socket from `from`; false when there's none. Sockets still
- * in the handshake give way to newer ones, oldest first: a phone gets through
- * in milliseconds, so idle ones someone else holds open can't lock it out.
- * Signed-in sockets, and those signing in under the pinned key, stay.
- */
-export function makeRoom<T extends Place>(connections: Set<T>, from: string) {
-  const waiting = [...connections].filter(
-    (c) => !c.deviceId && !c.authenticating,
-  );
-  const fromHere = waiting.filter((c) => c.from === from);
-  const evict =
-    fromHere.length >= handshakesPerAddress
-      ? fromHere[0]
-      : connections.size >= maxConnections
-        ? waiting[0]
-        : undefined;
-  if (evict) {
-    connections.delete(evict);
-    evict.socket.terminate();
-  }
-  return connections.size < maxConnections;
-}
 
 /** An object naming its kind; each kind's fields are checked where they're read. */
 const looksLikeFrame = (opened: unknown): opened is ClientFrame =>
@@ -174,6 +145,19 @@ export class RemoteServer {
   online() {
     return new Set(
       [...this.connections].flatMap((c) => (c.deviceId ? [c.deviceId] : [])),
+    );
+  }
+
+  /**
+   * Devices connected with their app on screen, which show news themselves.
+   * A device's newest connection says where it is; an older one may be a
+   * dead link that hasn't timed out yet.
+   */
+  onScreen() {
+    const newest = new Map<string, Connection>();
+    for (const c of this.connections) if (c.deviceId) newest.set(c.deviceId, c);
+    return new Set(
+      [...newest].flatMap(([id, c]) => (c.background ? [] : [id])),
     );
   }
 
@@ -279,13 +263,17 @@ export class RemoteServer {
       if (!c.deviceId) socket.terminate();
     }, handshakeMs);
     socket.on("pong", () => (c.alive = true));
-    socket.on("close", () => {
+    socket.on("close", (code) => {
       clearTimeout(unauthenticated);
       c.tunnel?.close();
       c.link?.close();
       c.batches?.close();
       this.connections.delete(c);
-      if (c.deviceId) this.options.onPresence?.();
+      if (!c.deviceId) return;
+      this.options.onPresence?.();
+      // No closing frame: the phone stopped answering, or its network went.
+      const died = code === abnormalClosure && this.listening;
+      if (died && !c.background) this.options.screenLost?.(c.deviceId);
     });
     socket.on("error", () => socket.terminate());
     socket.on("message", (data, binary) => {
@@ -369,7 +357,10 @@ export class RemoteServer {
       // Only persistence after a valid token is retryable. Invalid tokens
       // never reach it, and cryptographic failures terminate in accept().
       if (e instanceof SignInUnavailable) {
-        console.warn("Phone remote: couldn't check a phone's sign-in:", e.cause);
+        console.warn(
+          "Phone remote: couldn't check a phone's sign-in:",
+          e.cause,
+        );
         return c.socket.close();
       }
       this.send(c, { t: "denied", reason: denialFor(frame, e) });
@@ -389,7 +380,8 @@ export class RemoteServer {
       c.background = frame.on === true;
       c.link?.setBackground(c.background);
       // Back, a tick at once tells the phone the link survived its time away.
-      if (!c.background) this.send(c, { t: "tick", hosts: this.options.hosts?.() });
+      if (!c.background)
+        this.send(c, { t: "tick", hosts: this.options.hosts?.() });
       return;
     }
     if (

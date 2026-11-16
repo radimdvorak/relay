@@ -11,12 +11,11 @@ import {
   defaultRemotePort,
   draftsBridge,
   newsBridge,
-  maxDictationChunk,
-  maxReadAloudText,
   pairingUrl,
   type PhoneAppearance,
   type PhonePairing,
   type PhoneRemoteState,
+  type RemoteMethod,
   updateMethods,
 } from "../../shared/remote";
 import { maxHosts } from "../../shared/remote-routes";
@@ -25,62 +24,20 @@ import type { RemoteHost } from "./remote-host";
 import { RemoteDevices } from "./devices";
 import { PhoneDictations } from "./phone-dictation";
 import { PhoneReadings } from "./phone-read-aloud";
+import { PhonePush } from "./phone-push";
 import { lanAddresses } from "./lan";
 import { RemoteServer } from "./server";
 import { tailnetProbe, type TailnetProbe } from "./tailscale";
 import { computerName } from "../platform/computer-name";
 import { listSites, Tunnel, TunnelPorts } from "../tunnel";
 import { errorMessage } from "../../shared/error-message";
-
-const version = z.string().regex(/^\d+\.\d+\.\d+(?:\.\d+)?$/);
-const appReportSchema = z
-  .object({
-    version,
-    updated: z.boolean(),
-    apk: version,
-    updates: z.boolean(),
-    update: z
-      .object({
-        kind: z.enum(["downloading", "ready", "apk"]),
-        version,
-      })
-      .strict()
-      .optional(),
-    failed: version.optional(),
-  })
-  .strict();
-
-const dictationId = z.number().int().nonnegative();
-
-const dictationSchema = z.discriminatedUnion("type", [
-  z.object({ type: z.literal("start"), id: dictationId }).strict(),
-  z
-    .object({
-      type: z.literal("audio"),
-      id: dictationId,
-      pcm: z
-        .string()
-        .max(maxDictationChunk)
-        .regex(/^[A-Za-z0-9+/]*={0,2}$/),
-    })
-    .strict(),
-  z.object({ type: z.literal("stop"), id: dictationId }).strict(),
-  z.object({ type: z.literal("cancel"), id: dictationId }).strict(),
-]);
-
-const readingId = z.number().int().nonnegative();
-
-const readAloudSchema = z.discriminatedUnion("type", [
-  z
-    .object({
-      type: z.literal("start"),
-      id: readingId,
-      markdown: z.string().max(maxReadAloudText),
-    })
-    .strict(),
-  z.object({ type: z.literal("pull"), id: readingId }).strict(),
-  z.object({ type: z.literal("stop"), id: readingId }).strict(),
-]);
+import {
+  appReportSchema,
+  dictationSchema,
+  portSchema,
+  pushSchema,
+  readAloudSchema,
+} from "./phone-call-args";
 
 const color = z.string().regex(/^#[0-9a-f]{6}$/i);
 const paletteSchema = z
@@ -119,8 +76,6 @@ export const phoneAppearanceSchema = z
  * listens everywhere and lets in the tailnet and private addresses. Either
  * way a device needs the pinned key and its token to get anything.
  */
-const portSchema = z.number().int().min(1).max(65535);
-
 const loopback = "127.0.0.1";
 const everyAddress = "0.0.0.0";
 
@@ -138,6 +93,24 @@ export class PhoneRemote {
   /** Listening only for `relay pipe`, on a free loopback port. */
   private pipesOnly = false;
   private tunnelPorts: TunnelPorts;
+
+  private push = new PhonePush({
+    on: () => !!this.devices.settings.enabled,
+    phones: () =>
+      this.devices
+        .list()
+        .flatMap((d) =>
+          d.push && d.kind !== "computer" ? [{ id: d.id, push: d.push }] : [],
+        ),
+    onScreen: () => this.server.onScreen(),
+    present: () => this.host.present?.() ?? false,
+    chat: (projectId, chatId) =>
+      this.host.chats(projectId).find((c) => c.id === chatId),
+    forget: (phoneId, token) =>
+      void this.devices
+        .forgetPush(phoneId, token)
+        .catch((e) => console.warn("Phone push: couldn't forget a token:", e)),
+  });
 
   constructor(
     store: Store,
@@ -171,42 +144,7 @@ export class PhoneRemote {
       port,
       name,
       hosts: () => this.hosts,
-      handle: async (method, args, deviceId) => {
-        const device = this.devices.list().find((d) => d.id === deviceId);
-        const computer = device?.kind === "computer";
-        if ((computerMethods as readonly string[]).includes(method)) {
-          const either = (updateMethods as readonly string[]).includes(method);
-          if (!(computer || either) || !device || !host.handoffs)
-            throw new Error("Only a paired computer can do that.");
-          return host.handoffs.handle(
-            method as (typeof computerMethods)[number],
-            args,
-            device,
-          );
-        }
-        // A computer handing a thread over brings the files its messages name.
-        if (computer && method !== "uploadFile")
-          throw new Error("Computers can't do that.");
-        if (method === "reportApp")
-          return this.devices.setApp(deviceId, appReportSchema.parse(args[0]));
-        if (method === "dictate") {
-          if (!this.dictations)
-            throw new Error("Dictation isn't available on this computer.");
-          return this.dictations.handle(
-            deviceId,
-            dictationSchema.parse(args[0]),
-          );
-        }
-        if (method === "readAloud") {
-          if (!this.readings)
-            throw new Error("Read aloud isn't available on this computer.");
-          return this.readings.handle(deviceId, readAloudSchema.parse(args[0]));
-        }
-        if (method === "sites") return this.tunnelPorts.sites();
-        if (method === "tunnelAllow")
-          return this.tunnelPorts.type(deviceId, portSchema.parse(args[0]));
-        return this.bridge.handle(method, args, deviceId);
-      },
+      handle: (method, args, deviceId) => this.handle(method, args, deviceId),
       tunnel: (deviceId, send) =>
         this.isComputer(deviceId)
           ? undefined
@@ -219,11 +157,53 @@ export class PhoneRemote {
         this.bridge.setWatching(
           [...this.server.online()].some((id) => !this.isComputer(id)),
         ),
+      screenLost: (deviceId) => this.push.screenLost(deviceId),
     });
     host.handoffs?.connect?.({
       send: (deviceId, event) =>
         this.server.broadcast(event, (id) => id === deviceId),
     });
+  }
+
+  /** A call from a paired phone, or a computer's handoff call. */
+  private async handle(
+    method: RemoteMethod,
+    args: unknown[],
+    deviceId: string,
+  ) {
+    const device = this.devices.list().find((d) => d.id === deviceId);
+    const computer = device?.kind === "computer";
+    if ((computerMethods as readonly string[]).includes(method)) {
+      const either = (updateMethods as readonly string[]).includes(method);
+      if (!(computer || either) || !device || !this.host.handoffs)
+        throw new Error("Only a paired computer can do that.");
+      return this.host.handoffs.handle(
+        method as (typeof computerMethods)[number],
+        args,
+        device,
+      );
+    }
+    // A computer handing a thread over brings the files its messages name.
+    if (computer && method !== "uploadFile")
+      throw new Error("Computers can't do that.");
+    if (method === "reportApp")
+      return this.devices.setApp(deviceId, appReportSchema.parse(args[0]));
+    if (method === "setPush")
+      return this.devices.setPush(deviceId, pushSchema.parse(args[0]));
+    if (method === "dictate") {
+      if (!this.dictations)
+        throw new Error("Dictation isn't available on this computer.");
+      return this.dictations.handle(deviceId, dictationSchema.parse(args[0]));
+    }
+    if (method === "readAloud") {
+      if (!this.readings)
+        throw new Error("Read aloud isn't available on this computer.");
+      return this.readings.handle(deviceId, readAloudSchema.parse(args[0]));
+    }
+    if (method === "sites") return this.tunnelPorts.sites();
+    if (method === "tunnelAllow")
+      return this.tunnelPorts.type(deviceId, portSchema.parse(args[0]));
+    return this.bridge.handle(method, args, deviceId);
   }
 
   private isComputer(deviceId: string) {
@@ -275,6 +255,8 @@ export class PhoneRemote {
 
   /** News the computer decided; older phones read theirs off the thread lists. */
   news(item: NewsItem) {
+    // Phones away hear through their push, whether or not this computer is reachable.
+    this.push.news(item);
     if (!this.server.listening) return;
     this.server.broadcast(
       { kind: "news", item },
@@ -286,6 +268,7 @@ export class PhoneRemote {
 
   /** Someone may have come to the computer or left it. */
   presenceChanged() {
+    this.push.presenceChanged();
     if (this.server.listening) this.bridge.presenceChanged();
   }
 

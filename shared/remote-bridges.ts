@@ -2,7 +2,9 @@
 // version may use it. Bump `remoteBridgeVersion` when the bridge gains calls.
 
 /** Bumped when the bridge gains calls; a phone asks for an update of an older desktop. */
-export const remoteBridgeVersion = 43;
+export const remoteBridgeVersion = 44;
+/** Phones hand over a Firebase token so the computer can tell them while away (`setPush`). */
+export const pushBridge = 44;
 /** Phones may download a video an answer plays, a piece at a time (`projectChatVideoPart`). */
 export const videoBridge = 42;
 /**
