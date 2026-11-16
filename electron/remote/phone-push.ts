@@ -33,8 +33,8 @@ export type PushOutcome = "sent" | "unregistered" | "failed";
 
 interface Held {
   item: NewsItem;
-  /** The thread as it was when the news came. */
-  then: ChatSummary;
+  /** The thread's snooze when the news came; one set since makes it old news. */
+  snoozedUntil?: number;
 }
 
 /**
@@ -53,18 +53,22 @@ export class PhonePush {
     if (item.kind === "finished" && item.byAgent) return;
     if (!this.host.phones().length) return;
     if (!this.host.present()) return this.send(item);
-    const then = this.host.chat(item.projectId, item.chatId);
-    if (then) this.held.set(item.chatId, { item, then });
+    this.held.set(item.chatId, this.heldNews(item));
   }
 
   /** Someone may have left the computer: what's still news goes out. */
   presenceChanged() {
     if (!this.held.size || this.host.present()) return;
-    const due = [...this.held.values()].filter(({ item, then }) =>
-      stillNews(item, then, this.host.chat(item.projectId, item.chatId)),
-    );
+    const due = [...this.held.values()].filter((held) => this.stillNews(held));
     this.held.clear();
     for (const { item } of due) this.send(item);
+  }
+
+  private heldNews(item: NewsItem): Held {
+    const thread = this.host.chat(item.projectId, item.chatId);
+    return thread?.snoozedUntil === undefined
+      ? { item }
+      : { item, snoozedUntil: thread.snoozedUntil };
   }
 
   private send(item: NewsItem) {
@@ -84,28 +88,25 @@ export class PhonePush {
       });
     }
   }
-}
 
-/**
- * Unread, and neither snoozed, settled nor answered since: a turn since makes
- * the held answer an old one.
- */
-function stillNews(
-  item: NewsItem,
-  then: ChatSummary,
-  now: ChatSummary | undefined,
-  at = Date.now(),
-) {
-  if (!now) return false;
-  const read = !!now.seenAt && now.seenAt >= now.updated;
-  if (read) return false;
-  const snoozedSince =
-    (now.snoozedUntil ?? 0) > at && now.snoozedUntil !== then.snoozedUntil;
-  if (snoozedSince) return false;
-  if (item.kind === "waiting") return !!now.waiting;
-  const answeredSince = now.updated !== then.updated;
-  if (item.kind === "failed") return !answeredSince;
-  return !answeredSince && !chatSettled(now);
+  /**
+   * Unread, and neither snoozed, settled nor answered since. The list hears
+   * of a finished answer only after its news, so `updated` past the news is
+   * a turn since, which makes the held answer an old one.
+   */
+  private stillNews({ item, snoozedUntil }: Held, at = Date.now()) {
+    const now = this.host.chat(item.projectId, item.chatId);
+    if (!now) return false;
+    const read = !!now.seenAt && now.seenAt >= now.updated;
+    if (read) return false;
+    const snoozedSince =
+      (now.snoozedUntil ?? 0) > at && now.snoozedUntil !== snoozedUntil;
+    if (snoozedSince) return false;
+    if (item.kind === "waiting") return !!now.waiting;
+    const answeredSince = now.updated > item.at;
+    if (item.kind === "failed") return !answeredSince;
+    return !answeredSince && !chatSettled(now);
+  }
 }
 
 async function postPush(message: PushMessage): Promise<PushOutcome> {

@@ -19,7 +19,7 @@ function chat(patch: Partial<ChatSummary> = {}): ChatSummary {
 function news(patch: Partial<NewsItem> = {}): NewsItem {
   return {
     seq: 1,
-    at: 100,
+    at: Date.now(),
     projectId: "p1",
     chatId: "c1",
     kind: "finished",
@@ -128,10 +128,24 @@ describe("PhonePush", () => {
     state.present = true;
     state.chat = chat();
     push.news(news());
-    state.chat = chat({ updated: 200 });
+    state.chat = chat({ updated: Date.now() + 1000 });
     state.present = false;
     push.presenceChanged();
     expect(sent).toEqual([]);
+  });
+
+  it("sends a held answer the thread list heard of only after its news", () => {
+    const { push, sent, state } = setup();
+    state.present = true;
+    state.chat = chat({ updated: 50 });
+    const finished = news();
+
+    push.news(finished);
+    state.chat = chat({ updated: finished.at - 5 });
+    state.present = false;
+    push.presenceChanged();
+
+    expect(sent.map((m) => m.chatId)).toEqual(["c1"]);
   });
 
   it("forgets only the token Firebase no longer knows", async () => {
