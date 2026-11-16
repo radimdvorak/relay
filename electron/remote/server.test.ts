@@ -7,12 +7,8 @@ import {
   type KeyPair,
 } from "../../shared/remote-crypto";
 import type { RemoteDevices } from "./devices";
-import {
-  handshakesPerAddress,
-  makeRoom,
-  maxConnections,
-  RemoteServer,
-} from "./server";
+import { handshakesPerAddress, makeRoom, maxConnections } from "./room";
+import { RemoteServer } from "./server";
 
 const cleanup: (() => Promise<void>)[] = [];
 
