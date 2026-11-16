@@ -107,12 +107,13 @@ export function withNewThreadModels(
     const entry = remembered[provider];
     if (!entry) continue;
     const { choice } = entry;
-    // Codex's Default follows the line-question setting.
+    // Codex's Default follows the line-question setting; an advisor keeps the entry.
     if (
       provider === "codex" &&
       !choice.model &&
       !choice.reasoningEffort &&
-      !choice.fast
+      !choice.fast &&
+      !entry.advisor
     ) {
       const { codex: _, ...rest } = next;
       next = rest;

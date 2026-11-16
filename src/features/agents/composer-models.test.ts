@@ -188,6 +188,15 @@ describe("models shared with new threads and the phone", () => {
     expect(pickAgents()).not.toContain("acp:goose");
   });
 
+  it("keeps Codex's advisor on its Default", () => {
+    const fable = { provider: "claude" as const, model: "fable" };
+    for (const advisor of [fable, "off" as const])
+      expect(
+        withNewThreadModels({}, { codex: { choice: choice(""), advisor } })
+          .codex?.advisor,
+      ).toEqual(advisor);
+  });
+
   it("keeps the agents it hasn't a model for", () => {
     const models = { claude: { choice: choice("opus") } };
     expect(
