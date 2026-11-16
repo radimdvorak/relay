@@ -40,6 +40,8 @@ interface Held {
   snoozedUntil?: number;
 }
 
+/** A phone whose link dies on screen is told of what it skipped this long before. */
+const screenLostWithin = 60_000;
 /** Waits before trying a busy push again; the news is gone past these. */
 const retryDelays = [10_000, 60_000];
 
@@ -51,6 +53,8 @@ const retryDelays = [10_000, 60_000];
  */
 export class PhonePush {
   private held = new Map<string, Held>();
+  /** News each phone skipped as its app was on screen, should that turn out to be a dead link. */
+  private skipped = new Map<string, Held[]>();
 
   constructor(private host: PushHost) {}
 
@@ -72,6 +76,23 @@ export class PhonePush {
     for (const held of due) this.send(held);
   }
 
+  /**
+   * A phone's link went quiet with its app on screen, so the news it skipped
+   * as shown there may never have reached it.
+   */
+  screenLost(phoneId: string) {
+    const skipped = this.skipped.get(phoneId) ?? [];
+    this.skipped.delete(phoneId);
+    // Back on another link already.
+    if (this.host.onScreen().has(phoneId)) return;
+    const phone = this.host.phones().find((p) => p.id === phoneId);
+    if (!phone) return;
+    const since = Date.now() - screenLostWithin;
+    for (const held of skipped)
+      if (held.item.at >= since && this.stillNews(held))
+        void this.deliver(phone, held.item);
+  }
+
   private heldNews(item: NewsItem): Held {
     const thread = this.host.chat(item.projectId, item.chatId);
     return thread?.snoozedUntil === undefined
@@ -81,8 +102,18 @@ export class PhonePush {
 
   private send(held: Held) {
     const onScreen = this.host.onScreen();
-    for (const phone of this.host.phones())
-      if (!onScreen.has(phone.id)) void this.deliver(phone, held.item);
+    for (const phone of this.host.phones()) {
+      if (onScreen.has(phone.id)) this.skip(phone.id, held);
+      else void this.deliver(phone, held.item);
+    }
+  }
+
+  private skip(phoneId: string, held: Held) {
+    const since = Date.now() - screenLostWithin;
+    const recent = (this.skipped.get(phoneId) ?? []).filter(
+      (h) => h.item.at >= since,
+    );
+    this.skipped.set(phoneId, [...recent, held]);
   }
 
   /** Posts the push, and tries a busy one again a couple of times while the phone still wants it. */

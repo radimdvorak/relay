@@ -157,6 +157,7 @@ export class PhoneRemote {
         this.bridge.setWatching(
           [...this.server.online()].some((id) => !this.isComputer(id)),
         ),
+      screenLost: (deviceId) => this.push.screenLost(deviceId),
     });
     host.handoffs?.connect?.({
       send: (deviceId, event) =>

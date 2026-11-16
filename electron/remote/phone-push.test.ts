@@ -206,4 +206,26 @@ describe("PhonePush", () => {
 
     expect(sent).toHaveLength(1);
   });
+
+  it("sends what a phone skipped on screen once its link turns out dead", () => {
+    const { push, sent, state } = setup();
+    state.onScreen.add("phone");
+    push.news(news());
+
+    state.onScreen.clear();
+    push.screenLost("phone");
+    push.screenLost("phone");
+
+    expect(sent.map((m) => m.chatId)).toEqual(["c1"]);
+  });
+
+  it("sends nothing it skipped when the phone is back on screen over another link", () => {
+    const { push, sent, state } = setup();
+    state.onScreen.add("phone");
+    push.news(news());
+
+    push.screenLost("phone");
+
+    expect(sent).toEqual([]);
+  });
 });

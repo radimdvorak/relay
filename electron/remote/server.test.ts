@@ -8,7 +8,7 @@ import {
 } from "../../shared/remote-crypto";
 import type { RemoteDevices } from "./devices";
 import { handshakesPerAddress, makeRoom, maxConnections } from "./room";
-import { RemoteServer } from "./server";
+import { RemoteServer, type RemoteServerOptions } from "./server";
 
 const cleanup: (() => Promise<void>)[] = [];
 
@@ -16,9 +16,13 @@ afterEach(async () => {
   while (cleanup.length) await cleanup.pop()!();
 });
 
-async function server(devices: Partial<RemoteDevices> = {}) {
+async function server(
+  devices: Partial<RemoteDevices> = {},
+  options: Partial<RemoteServerOptions> = {},
+) {
   const key = generateKeyPair();
   const remote = new RemoteServer({
+    ...options,
     devices: {
       key: async () => key,
       verify: async () => undefined,
@@ -135,4 +139,23 @@ it("lets a phone in past refused sign-ins whose sockets never finish closing", a
     token: "good",
   });
   await vi.waitFor(() => expect(remote.online()).toEqual(new Set(["phone"])));
+});
+
+it("tells of a phone whose link died with its app on screen, not of one that closed it", async () => {
+  const lost: string[] = [];
+  const { remote, key } = await server(
+    { verify: async (deviceId: string) => ({ id: deviceId }) as never },
+    { screenLost: (deviceId) => lost.push(deviceId) },
+  );
+  const auth = (deviceId: string) =>
+    signIn(remote.port, key, { t: "auth", deviceId, token: "good" });
+  const closes = await auth("closes");
+  const dies = await auth("dies");
+  await vi.waitFor(() => expect(remote.online().size).toBe(2));
+
+  closes.close();
+  dies.terminate();
+  await vi.waitFor(() => expect(remote.online().size).toBe(0));
+
+  expect(lost).toEqual(["dies"]);
 });

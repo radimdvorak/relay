@@ -47,6 +47,8 @@ export interface RemoteServerOptions {
   ) => Promise<unknown>;
   /** A phone came online or went away. */
   onPresence?: () => void;
+  /** A device's link died with its app on screen, rather than closing or going to the background. */
+  screenLost?: (deviceId: string) => void;
   /** A signed-in device's port tunnel, made at its first tunnel frame; none refuses it. See ../tunnel. */
   tunnel?: (
     deviceId: string,
@@ -83,6 +85,8 @@ interface Connection {
 
 /** Unauthenticated sockets get this long to finish the handshake. */
 const handshakeMs = 10_000;
+/** A socket's close code when it ended without a closing frame. */
+const abnormalClosure = 1006;
 /** A phone in the background is ticked and pinged only every this many ticks: a minute, with the usual 15s. */
 export const backgroundTickEvery = 4;
 
@@ -144,12 +148,16 @@ export class RemoteServer {
     );
   }
 
-  /** Devices connected with their app on screen, which show news themselves. */
+  /**
+   * Devices connected with their app on screen, which show news themselves.
+   * A device's newest connection says where it is; an older one may be a
+   * dead link that hasn't timed out yet.
+   */
   onScreen() {
+    const newest = new Map<string, Connection>();
+    for (const c of this.connections) if (c.deviceId) newest.set(c.deviceId, c);
     return new Set(
-      [...this.connections].flatMap((c) =>
-        c.deviceId && !c.background ? [c.deviceId] : [],
-      ),
+      [...newest].flatMap(([id, c]) => (c.background ? [] : [id])),
     );
   }
 
@@ -255,13 +263,17 @@ export class RemoteServer {
       if (!c.deviceId) socket.terminate();
     }, handshakeMs);
     socket.on("pong", () => (c.alive = true));
-    socket.on("close", () => {
+    socket.on("close", (code) => {
       clearTimeout(unauthenticated);
       c.tunnel?.close();
       c.link?.close();
       c.batches?.close();
       this.connections.delete(c);
-      if (c.deviceId) this.options.onPresence?.();
+      if (!c.deviceId) return;
+      this.options.onPresence?.();
+      // No closing frame: the phone stopped answering, or its network went.
+      const died = code === abnormalClosure && this.listening;
+      if (died && !c.background) this.options.screenLost?.(c.deviceId);
     });
     socket.on("error", () => socket.terminate());
     socket.on("message", (data, binary) => {
