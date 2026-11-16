@@ -13,10 +13,12 @@ class PushService : FirebaseMessagingService() {
         val data = message.data
         val chatId = data["chatId"] ?: return
         val computer = data["computer"] ?: return
-        val notice = pushNotice(data["kind"] ?: return, data["title"]) ?: return
         val push = (application as? HasPush)?.push ?: return
         val onScreen = ProcessLifecycleOwner.get().lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)
         if (!push.shows(computer, onScreen)) return
+        // One sent before titles were hidden there.
+        val title = data["title"].takeUnless { push.hidesTitles(computer) }
+        val notice = pushNotice(data["kind"] ?: return, title) ?: return
         WatchService.post(this, chatId, notice.title, notice.body, threadLink(chatId, computer))
     }
 

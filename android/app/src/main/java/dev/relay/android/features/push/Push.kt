@@ -38,8 +38,12 @@ class Push(private val app: Context, private val remote: Remote, private val sco
     /** This build has Relay's Firebase app; builds without it stay connected instead. */
     val available = startFirebase(app)
 
-    private val _hideTitles = MutableStateFlow(prefs.getBoolean(HIDE_TITLES_KEY, false))
-    /** Pushes say only that a thread finished or needs you, not which. */
+    private val _hideTitles = MutableStateFlow(false)
+    /**
+     * The active computer's pushes say only that a thread finished or needs
+     * you, not which. Each computer keeps its own: one the phone isn't
+     * connected to can't hear of a change, and would send titles meanwhile.
+     */
     val hideTitles: StateFlow<Boolean> = _hideTitles.asStateFlow()
 
     private val _delivering = MutableStateFlow(false)
@@ -52,8 +56,9 @@ class Push(private val app: Context, private val remote: Remote, private val sco
     private var notificationsOn: StateFlow<Boolean> = MutableStateFlow(false)
 
     fun setHideTitles(on: Boolean) {
+        val computer = remote.active.value ?: return
+        prefs.edit().putBoolean(hideTitlesKey(computer), on).apply()
         _hideTitles.value = on
-        prefs.edit().putBoolean(HIDE_TITLES_KEY, on).apply()
     }
 
     /**
@@ -69,11 +74,18 @@ class Push(private val app: Context, private val remote: Remote, private val sco
         return registeredThere && wanted && !shownInApp
     }
 
+    fun hidesTitles(computer: String) = prefs.getBoolean(hideTitlesKey(computer), false)
+
     /** Registers with each computer the phone connects to, while [notificationsOn]. */
     fun start(notificationsOn: StateFlow<Boolean>) {
         if (!available) return
         this.notificationsOn = notificationsOn
-        scope.launch { remote.active.collect { _delivering.value = it != null && prefs.getBoolean(pushedKey(it), false) } }
+        scope.launch {
+            remote.active.collect { computer ->
+                _delivering.value = computer != null && prefs.getBoolean(pushedKey(computer), false)
+                _hideTitles.value = computer != null && hidesTitles(computer)
+            }
+        }
         scope.launch { tokens.value = tokens.value ?: currentToken() }
         // A token Firebase rotated with the link parked: open it to hand the new one over.
         scope.launch {
@@ -84,7 +96,9 @@ class Push(private val app: Context, private val remote: Remote, private val sco
             remote.fresh.collect { fresh -> if ((fresh.overview.bridge ?: 0) < Bridge.PUSH) remember(fresh.computer, false) }
         }
         scope.launch {
-            remote.forgotten.collect { computer -> prefs.edit().remove(pushedKey(computer)).apply() }
+            remote.forgotten.collect { computer ->
+                prefs.edit().remove(pushedKey(computer)).remove(hideTitlesKey(computer)).apply()
+            }
         }
         scope.launch {
             combine(remote.status, remote.client, remote.overview, notificationsOn, _hideTitles) { status, client, overview, on, hide ->
@@ -134,8 +148,8 @@ class Push(private val app: Context, private val remote: Remote, private val sco
 
     companion object {
         private const val TAG = "Push"
-        private const val HIDE_TITLES_KEY = "hide-titles"
         private fun pushedKey(computer: String) = "pushed:$computer"
+        private fun hideTitlesKey(computer: String) = "hide-titles:$computer"
 
         /** The phone's Firebase token, renewed by PushService when Firebase rotates it. */
         internal val tokens = MutableStateFlow<String?>(null)
