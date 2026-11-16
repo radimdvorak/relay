@@ -5,6 +5,7 @@ import android.graphics.drawable.ColorDrawable
 import android.text.Editable
 import android.text.InputType
 import android.text.TextWatcher
+import android.text.method.PasswordTransformationMethod
 import android.util.TypedValue
 import android.view.View
 import android.view.inputmethod.EditorInfo
@@ -67,6 +68,8 @@ fun SecretInput(
                 field.hint = placeholder
                 field.contentDescription = label
                 field.setTextColor(text)
+                // The app's own cursor colour, not the system's accent.
+                field.textCursorDrawable?.setTint(text)
                 field.setHintTextColor(hint)
                 field.setTextSize(TypedValue.COMPLEX_UNIT_SP, size)
             },
@@ -78,15 +81,18 @@ private class SecretEditText(context: Context) : EditText(context) {
     var changed: (String) -> Unit = {}
 
     init {
+        // Before the input type: making a field single-line swaps in its own
+        // transformation, and a password set earlier would show as typed.
+        isSingleLine = true
+        maxLines = 1
         inputType = InputType.TYPE_CLASS_TEXT or
             InputType.TYPE_TEXT_VARIATION_PASSWORD or
             InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
+        transformationMethod = PasswordTransformationMethod.getInstance()
         imeOptions = EditorInfo.IME_ACTION_DONE or
             EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING or
             EditorInfo.IME_FLAG_NO_EXTRACT_UI
         importantForAutofill = View.IMPORTANT_FOR_AUTOFILL_NO
-        isSingleLine = true
-        maxLines = 1
         background = ColorDrawable(android.graphics.Color.TRANSPARENT)
         setPadding(0, paddingTop, 0, paddingBottom)
         // Nothing typed here comes back after the app is killed and restored.
