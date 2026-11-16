@@ -9,7 +9,7 @@ import { LeadMessages } from "./lead-messages";
 import { ProjectAccess, type AgentProjects } from "./project-access";
 import { ThreadPages } from "./thread-pages";
 import { askForSecret } from "./thread-secrets";
-import { head, json, localTime } from "./tool-output";
+import { head, json } from "./tool-output";
 import {
   listReviewSetups,
   reviewRound,
@@ -21,15 +21,10 @@ import { leadSide } from "./lead-side";
 import { NoteTools } from "./note-tools";
 import { ThreadDriving } from "./thread-driving";
 import { ThreadStarts } from "./thread-starts";
-import {
-  agentName,
-  usageProviders,
-  type UsageProvider,
-} from "../../shared/agents";
-import { pinnedAccount } from "../../shared/agent-accounts";
+import { usageLimits, type ReadUsage } from "./usage-limits";
+import { agentName } from "../../shared/agents";
 import { AgentChoices, type ThreadAgents } from "./thread-agents";
 import { ThreadSchedules, type ScheduleTools } from "./thread-schedules";
-import { resetsIn, type ProviderUsage } from "../../shared/provider-usage";
 import type { ProjectChat } from "../../shared/projects";
 import type { ToolHandler } from "../agent-host/client";
 import { readProviderUsage } from "../agents/provider-usage";
@@ -85,12 +80,6 @@ type Chats = Pick<
 
 /** Only a side conversation is served these, so only one calls them. */
 const sideOnlyTools = relayToolsWhere((t) => t.side === "only");
-
-type ReadUsage = (
-  provider: UsageProvider,
-  force: boolean,
-  account?: string,
-) => Promise<ProviderUsage>;
 
 export type ReportProblem = (
   fields: Required<RelayToolArgs<"report_relay_problem">>,
@@ -245,7 +234,7 @@ export class StartedThreads {
       case "wake_this_thread":
         return this.driving.wakeLater(lead, input);
       case "usage_limits":
-        return json(await this.usage(lead));
+        return json(await usageLimits(lead, this.readUsage));
       case "list_agents":
         return json(
           await this.agentChoices.list(leadSide(lead).agent, input.agent),
@@ -462,37 +451,6 @@ export class StartedThreads {
     setTimeout(restart, RESTART_DELAY_MS);
     return toolText(
       "Relay is restarting. Its tools answer again in a few seconds; a call before then may fail.",
-    );
-  }
-
-  /** Each agent's limits on the accounts the calling thread uses. */
-  private usage(caller: ProjectChat) {
-    const now = Date.now();
-    return Promise.all(
-      usageProviders.map(async (agent) => {
-        const account = pinnedAccount(caller.accounts, agent);
-        const usage = await this.readUsage(agent, false, account);
-        return {
-          agent,
-          ...(account ? { account } : {}),
-          ...Object.fromEntries(
-            usage.windows.map((w) => [
-              w.id ?? w.kind,
-              {
-                ...(w.label ? { label: w.label } : {}),
-                usedPercent: Math.round(w.usedPercent),
-                ...(w.resetsAt
-                  ? {
-                      resetsAt: localTime(w.resetsAt),
-                      resetsIn: resetsIn(w.resetsAt, now),
-                    }
-                  : {}),
-              },
-            ]),
-          ),
-          ...(usage.message ? { note: usage.message } : {}),
-        };
-      }),
     );
   }
 }

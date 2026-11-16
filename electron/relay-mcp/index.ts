@@ -38,11 +38,11 @@ export {
   MESSAGE_CHARS,
   STARTED_LIMIT,
   WAIT_LIMIT_SECONDS,
-  scheduleWeekdays,
   type RelayToolName,
   type RelayToolArgs,
   type ToolResult,
 } from "./tools";
+export { scheduleWeekdays } from "./tool-args";
 export {
   SIDE_PATH,
   startedToolList,
@@ -93,7 +93,9 @@ export async function takenByAnother(port: number) {
       method: "POST",
       signal: AbortSignal.timeout(2000),
     });
-    return !(res.status === 401 && (await res.text()).includes("Not a Relay thread."));
+    return !(
+      res.status === 401 && (await res.text()).includes("Not a Relay thread.")
+    );
   } catch (error) {
     // Something that doesn't speak HTTP; nobody there, a reset or a timeout
     // could be a host coming or going.
