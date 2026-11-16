@@ -31,13 +31,17 @@ export interface PushHost {
   post?(message: PushMessage): Promise<PushOutcome>;
 }
 
-export type PushOutcome = "sent" | "unregistered" | "failed";
+/** `busy` may pass: the push service or Firebase couldn't take it just now. */
+export type PushOutcome = "sent" | "unregistered" | "busy" | "failed";
 
 interface Held {
   item: NewsItem;
   /** The thread's snooze when the news came; one set since makes it old news. */
   snoozedUntil?: number;
 }
+
+/** Waits before trying a busy push again; the news is gone past these. */
+const retryDelays = [10_000, 60_000];
 
 /**
  * Tells phones that aren't looking of a thread that finished, failed or
@@ -55,8 +59,9 @@ export class PhonePush {
     // The agent that started the thread is the one waiting for it.
     if (item.kind === "finished" && item.byAgent) return;
     if (!this.host.phones().length) return;
-    if (!this.host.present()) return this.send(item);
-    this.held.set(item.chatId, this.heldNews(item));
+    const held = this.heldNews(item);
+    if (!this.host.present()) return this.send(held);
+    this.held.set(item.chatId, held);
   }
 
   /** Someone may have left the computer: what's still news goes out. */
@@ -64,7 +69,7 @@ export class PhonePush {
     if (!this.held.size || this.host.present()) return;
     const due = [...this.held.values()].filter((held) => this.stillNews(held));
     this.held.clear();
-    for (const { item } of due) this.send(item);
+    for (const held of due) this.send(held);
   }
 
   private heldNews(item: NewsItem): Held {
@@ -74,22 +79,27 @@ export class PhonePush {
       : { item, snoozedUntil: thread.snoozedUntil };
   }
 
-  private send(item: NewsItem) {
-    if (!this.host.on()) return;
+  private send(held: Held) {
     const onScreen = this.host.onScreen();
-    for (const phone of this.host.phones()) {
-      if (onScreen.has(phone.id)) continue;
-      const { token, computer, hideTitles } = phone.push;
-      const message: PushMessage = {
-        token,
-        computer,
-        chatId: item.chatId,
-        kind: item.kind,
-        ...(hideTitles ? {} : { title: pushTitle(item.title) }),
-      };
-      void (this.host.post ?? postPush)(message).then((outcome) => {
-        if (outcome === "unregistered") this.host.forget(phone.id, token);
-      });
+    for (const phone of this.host.phones())
+      if (!onScreen.has(phone.id)) void this.deliver(phone, held.item);
+  }
+
+  /** Posts the push, and tries a busy one again a couple of times while the phone still wants it. */
+  private async deliver(phone: PushPhone, item: NewsItem) {
+    for (let attempt = 0; ; attempt++) {
+      if (!this.host.on()) return;
+      const outcome = await (this.host.post ?? postPush)(message(phone, item));
+      if (outcome === "unregistered")
+        return this.host.forget(phone.id, phone.push.token);
+      if (outcome !== "busy" || attempt >= retryDelays.length) return;
+      await wait(retryDelays[attempt]);
+      const again = this.host
+        .phones()
+        .find((p) => p.id === phone.id && p.push.token === phone.push.token);
+      // It forgot this token, or opened the app meanwhile.
+      if (!again || this.host.onScreen().has(phone.id)) return;
+      phone = again;
     }
   }
 
@@ -113,6 +123,21 @@ export class PhonePush {
   }
 }
 
+function message({ push }: PushPhone, item: NewsItem): PushMessage {
+  return {
+    token: push.token,
+    computer: push.computer,
+    chatId: item.chatId,
+    kind: item.kind,
+    ...(push.hideTitles ? {} : { title: pushTitle(item.title) }),
+  };
+}
+
+function wait(ms: number) {
+  // Doesn't keep a quitting Relay up.
+  return new Promise<void>((resolve) => setTimeout(resolve, ms).unref?.());
+}
+
 async function postPush(message: PushMessage): Promise<PushOutcome> {
   try {
     const response = await fetch(pushUrl, {
@@ -124,10 +149,15 @@ async function postPush(message: PushMessage): Promise<PushOutcome> {
     if (response.ok) return "sent";
     if (response.status === 410) return "unregistered";
     console.warn(`Phone push: the push service answered ${response.status}.`);
-    return "failed";
+    return mayPass(response.status) ? "busy" : "failed";
   } catch (e) {
     // Not the message: it holds the thread's title.
     console.warn("Phone push: couldn't reach the push service:", String(e));
-    return "failed";
+    return "busy";
   }
+}
+
+/** Too many at once, or the service or Firebase having a moment; 502 is Firebase refusing it. */
+function mayPass(status: number) {
+  return status === 429 || (status >= 500 && status !== 502);
 }

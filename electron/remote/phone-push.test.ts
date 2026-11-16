@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ChatSummary } from "../../shared/projects";
 import type { PushMessage } from "../../shared/push";
 import type { NewsItem } from "../../shared/thread-news";
@@ -37,21 +37,21 @@ function setup({ hideTitles = false } = {}) {
     present: false,
     onScreen: new Set<string>(),
     chat: chat(),
-    outcome: "sent" as PushOutcome,
+    outcomes: [] as PushOutcome[],
+    phones: [
+      { id: "phone", push: { token: "t1", computer: "mac", hideTitles } },
+    ] as PushPhone[],
   };
-  const phones: PushPhone[] = [
-    { id: "phone", push: { token: "t1", computer: "mac", hideTitles } },
-  ];
   const push = new PhonePush({
     on: () => state.on,
-    phones: () => phones,
+    phones: () => state.phones,
     onScreen: () => state.onScreen,
     present: () => state.present,
     chat: () => state.chat,
     forget: (id, token) => forgotten.push(`${id} ${token}`),
     post: async (message) => {
       sent.push(message);
-      return state.outcome;
+      return state.outcomes.shift() ?? "sent";
     },
   });
   return { push, sent, forgotten, state };
@@ -60,6 +60,8 @@ function setup({ hideTitles = false } = {}) {
 const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
 
 describe("PhonePush", () => {
+  afterEach(() => vi.useRealTimers());
+
   it("sends the title and how it ended, never the answer", () => {
     const { push, sent } = setup();
 
@@ -165,11 +167,43 @@ describe("PhonePush", () => {
 
   it("forgets only the token Firebase no longer knows", async () => {
     const { push, forgotten, state } = setup();
-    state.outcome = "unregistered";
+    state.outcomes = ["unregistered"];
 
     push.news(news());
     await settle();
 
     expect(forgotten).toEqual(["phone t1"]);
+  });
+
+  it("tries a busy push again while the phone still wants it", async () => {
+    vi.useFakeTimers();
+    const { push, sent, state } = setup();
+    state.outcomes = ["busy", "busy", "busy"];
+
+    push.news(news());
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(sent).toHaveLength(2);
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(sent).toHaveLength(3);
+    await vi.advanceTimersByTimeAsync(600_000);
+    expect(sent).toHaveLength(3);
+  });
+
+  it("gives up on a busy push once the phone has a new token", async () => {
+    vi.useFakeTimers();
+    const { push, sent, state } = setup();
+    state.outcomes = ["busy"];
+
+    push.news(news());
+    await vi.advanceTimersByTimeAsync(0);
+    state.phones = [
+      {
+        id: "phone",
+        push: { token: "t2", computer: "mac", hideTitles: false },
+      },
+    ];
+    await vi.advanceTimersByTimeAsync(10_000);
+
+    expect(sent).toHaveLength(1);
   });
 });
