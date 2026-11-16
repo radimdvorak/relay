@@ -74,12 +74,19 @@ export function linkedFolders(
   };
 }
 
+/** The model an advisor would guide: the one picked, or the one Default runs. */
+export const advisedModel = (options: ClaudeRunOptions) =>
+  options.model || options.defaultModel || "";
+
 /** `config` with Claude Code's own advisor as the thread wants it, if it said. */
 function withAdvisor(
   config: Partial<Options>,
   options: ClaudeRunOptions,
 ): Partial<Options> {
-  const advisorModel = claudeAdvisorSetting(options.advisor, options.model);
+  const advisorModel = claudeAdvisorSetting(
+    options.advisor,
+    advisedModel(options),
+  );
   if (advisorModel === undefined) return config;
   const settings = typeof config.settings === "object" ? config.settings : {};
   return { ...config, settings: { ...settings, advisorModel } };

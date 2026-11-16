@@ -125,6 +125,11 @@ export interface AgentOptions {
   contextWindow?: "200k";
   /** The agent's advisor; see shared/advisor. Claude asks its own itself. */
   advisor?: ThreadAdvisor;
+  /**
+   * The listed model Claude's Default runs, when a Claude advisor's route
+   * depends on it: Claude Code keeps an advisor weaker than its model off.
+   */
+  defaultModel?: string;
   signal: AbortSignal;
   onText: (text: string) => void;
   onCommentary?: (id: string, text: string | null) => void;

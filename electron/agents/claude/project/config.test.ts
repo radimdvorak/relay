@@ -135,3 +135,29 @@ it("starts Claude Code with its own advisor, or with none while Relay asks anoth
   ).toBe("");
   expect(settingsFor()).not.toHaveProperty("advisorModel");
 });
+
+it("places Default as the model it runs: Claude Code keeps a weaker advisor off", () => {
+  const options = {
+    job: { kind: "prompt" },
+    cwd: "/project",
+    prompt: "",
+    choice: {} as never,
+    model: "",
+    effort: "",
+    signal: new AbortController().signal,
+    onText() {},
+    runtimeMode: "auto",
+    interactionMode: "default",
+    advisor: { provider: "claude", model: "sonnet" },
+  } satisfies ClaudeRunOptions;
+  const advisorModel = (defaultModel?: string) =>
+    (
+      sessionConfig({ ...options, defaultModel }, "/usr/bin/claude", false, {})
+        .settings as { advisorModel?: string }
+    ).advisorModel;
+  // On Opus, Relay asks Sonnet.
+  expect(advisorModel("opus")).toBe("");
+  expect(advisorModel("sonnet")).toBe("sonnet");
+  // Not known, Claude Code gets the benefit of the doubt.
+  expect(advisorModel()).toBe("sonnet");
+});

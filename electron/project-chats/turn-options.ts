@@ -8,9 +8,11 @@ import type {
 import { linksInstructions, threadLinks } from "../../shared/projects";
 import { goalChanged } from "../../shared/goal";
 import { advisorRoute } from "../../shared/advisor";
+import { agentRuntime } from "../agents";
 import { readOnlyGitEnvIn } from "../agents/read-only-git";
 import type { AgentOptions } from "../agents/types";
 import { projectTasks } from "../terminal/tasks";
+import { withTimeout } from "../util/timeout";
 import {
   peerNote,
   relayToolsFor,
@@ -47,7 +49,7 @@ export async function turnOptions(
   // Each agent session hears about running processes on its own.
   const noteKey = JSON.stringify([t.sessionKey, t.provider]);
   if (!sessionId) projectTasks.forgetNote(noteKey);
-  const access = accessOf(core, t);
+  const access = accessOf(core, t, await claudeDefaultFor(t, root));
   const env = {
     ...(await host.env(chat)),
     ...(access.options.readOnly
@@ -122,10 +124,39 @@ function callerOf(chat: ProjectChat, rules: TurnState["rules"]): RelayCaller {
   return chat.startedBy ? "started" : "thread";
 }
 
-/** What the turn may do: its mode, and which of Relay's tools it gets. */
-function accessOf(core: ChatCore, t: TurnState) {
+/** How long a turn waits to learn what Claude's Default runs before it guesses. */
+const DEFAULT_MODEL_WAIT_MS = 5000;
+
+/**
+ * What Claude's Default runs, when the thread's Claude advisor depends on it:
+ * Claude asks one at least as strong as its model itself, and Relay the rest.
+ */
+async function claudeDefaultFor({ provider, input }: TurnState, root: string) {
+  const { advisor } = input;
+  const claudeAdvisesClaude =
+    provider === "claude" &&
+    typeof advisor === "object" &&
+    advisor.provider === "claude";
+  if (!claudeAdvisesClaude || input.choice.model) return undefined;
+  const defaults = await withTimeout(
+    agentRuntime("claude").defaults(root),
+    DEFAULT_MODEL_WAIT_MS,
+    "Claude didn't say what its Default runs.",
+  ).catch(() => null);
+  return defaults?.model || undefined;
+}
+
+/**
+ * What the turn may do: its mode, and which of Relay's tools it gets.
+ * `defaultModel` is what Claude's Default runs, when the advisor needs it.
+ */
+function accessOf(core: ChatCore, t: TurnState, defaultModel?: string) {
   const { chat, input, rules } = t;
-  const advisor = advisorRoute(t.provider, input.choice.model, input.advisor);
+  const advisor = advisorRoute(
+    t.provider,
+    input.choice.model || defaultModel || "",
+    input.advisor,
+  );
   const relayTools = relayToolsFor(chat.id, callerOf(chat, rules), {
     renders: core.store.get().renderMode,
     imports: !!chat.importFrom,
@@ -135,7 +166,12 @@ function accessOf(core: ChatCore, t: TurnState) {
   const readOnly = threadReadOnly || !!rules.side;
   const options: Pick<
     AgentOptions,
-    "runtimeMode" | "interactionMode" | "readOnly" | "relayTools" | "onRequest"
+    | "runtimeMode"
+    | "interactionMode"
+    | "readOnly"
+    | "relayTools"
+    | "onRequest"
+    | "defaultModel"
   > = {
     runtimeMode:
       input.runtimeMode === "read-only"
@@ -150,6 +186,7 @@ function accessOf(core: ChatCore, t: TurnState) {
     ...(relayTools && !threadReadOnly ? { relayTools } : {}),
     // The thread's running answer owns its requests; a side turn asks none.
     onRequest: rules.side ? undefined : core.active.get(chat.id)?.requests.ask,
+    ...(defaultModel ? { defaultModel } : {}),
   };
   const canMessageLead = !!relayTools && !readOnly;
   // A started thread only reads other threads; it can't send to them.

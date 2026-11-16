@@ -26,6 +26,7 @@ import { RequestUsage } from "../request-usage";
 import { askLive, sessionTotals } from "./side";
 import { SideQueue } from "./side-queue";
 import {
+  advisedModel,
   claudePermissionMode,
   linksSignature,
   sessionSignature,
@@ -56,6 +57,7 @@ export const hostedMetaSchema = z
         effort: z.string(),
         contextWindow: z.literal("200k").optional().catch(undefined),
         advisor: threadAdvisorSchema.optional().catch(undefined),
+        defaultModel: z.string().optional().catch(undefined),
         runtimeMode: runtimeModeSchema.optional(),
         interactionMode: interactionModeSchema.optional(),
         readOnly: z.boolean().optional(),
@@ -214,15 +216,16 @@ export function closeClaudeSession(key: string) {
   if (session) closeSession(session);
 }
 
+const relayAsksAdvisor = (options: ClaudeRunOptions) =>
+  advisorRoute("claude", advisedModel(options), options.advisor)?.via ===
+  "relay";
+
 /**
  * Moves a live session to new settings instead of restarting it, which
  * would end the background work and wake-ups it holds. False when it can't:
  * another folder, Read only on or off, or full access for a session
  * launched without it.
  */
-const relayAsksAdvisor = (options: ClaudeRunOptions) =>
-  advisorRoute("claude", options.model, options.advisor)?.via === "relay";
-
 export async function retune(
   session: ClaudeSession,
   options: ClaudeRunOptions,
@@ -271,8 +274,14 @@ export async function retune(
       await session.stream.setPermissionMode(mode);
     // Claude Code keeps a conversation's advisor until it compacts, so the
     // prompt it already sent stays cached; the new one takes over from there.
-    const advisorModel = claudeAdvisorSetting(options.advisor, options.model);
-    const advisedBefore = claudeAdvisorSetting(before.advisor, before.model);
+    const advisorModel = claudeAdvisorSetting(
+      options.advisor,
+      advisedModel(options),
+    );
+    const advisedBefore = claudeAdvisorSetting(
+      before.advisor,
+      advisedModel(before),
+    );
     if (advisorModel !== undefined && advisorModel !== advisedBefore)
       await session.stream.applyFlagSettings({ advisorModel });
     return true;
@@ -373,6 +382,7 @@ function openHosted(holder: ClaudeSession, config: Options, key?: string) {
       effort: options.effort,
       contextWindow: options.contextWindow,
       advisor: options.advisor,
+      defaultModel: options.defaultModel,
       runtimeMode: options.runtimeMode,
       interactionMode: options.interactionMode,
       readOnly: options.readOnly,
