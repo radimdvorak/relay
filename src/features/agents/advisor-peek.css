@@ -72,15 +72,23 @@
   opacity: 1;
   pointer-events: auto;
 }
-.advisor-peek-stop {
+/* A quiet action inside the bubble, set off by a hairline; the app's own
+   button look (border, surface, hover fill) doesn't belong in a speech bubble. */
+.advisor-peek-stop,
+.advisor-peek-stop:hover,
+.advisor-peek-stop:active {
   margin-left: 8px;
-  padding: 0;
+  padding: 0 0 0 8px;
   border: 0;
+  border-left: 1px solid color-mix(in srgb, currentColor 25%, transparent);
+  border-radius: 0;
   background: none;
   color: inherit;
-  font: inherit;
   font-weight: 600;
+  line-height: inherit;
+  filter: none;
+}
+.advisor-peek-stop:hover {
   text-decoration: underline;
   text-underline-offset: 2px;
-  cursor: pointer;
 }
