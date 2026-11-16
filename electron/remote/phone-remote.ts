@@ -11,8 +11,6 @@ import {
   defaultRemotePort,
   draftsBridge,
   newsBridge,
-  maxDictationChunk,
-  maxReadAloudText,
   pairingUrl,
   type PhoneAppearance,
   type PhonePairing,
@@ -32,56 +30,12 @@ import { tailnetProbe, type TailnetProbe } from "./tailscale";
 import { computerName } from "../platform/computer-name";
 import { listSites, Tunnel, TunnelPorts } from "../tunnel";
 import { errorMessage } from "../../shared/error-message";
-
-const version = z.string().regex(/^\d+\.\d+\.\d+(?:\.\d+)?$/);
-const appReportSchema = z
-  .object({
-    version,
-    updated: z.boolean(),
-    apk: version,
-    updates: z.boolean(),
-    update: z
-      .object({
-        kind: z.enum(["downloading", "ready", "apk"]),
-        version,
-      })
-      .strict()
-      .optional(),
-    failed: version.optional(),
-  })
-  .strict();
-
-const dictationId = z.number().int().nonnegative();
-
-const dictationSchema = z.discriminatedUnion("type", [
-  z.object({ type: z.literal("start"), id: dictationId }).strict(),
-  z
-    .object({
-      type: z.literal("audio"),
-      id: dictationId,
-      pcm: z
-        .string()
-        .max(maxDictationChunk)
-        .regex(/^[A-Za-z0-9+/]*={0,2}$/),
-    })
-    .strict(),
-  z.object({ type: z.literal("stop"), id: dictationId }).strict(),
-  z.object({ type: z.literal("cancel"), id: dictationId }).strict(),
-]);
-
-const readingId = z.number().int().nonnegative();
-
-const readAloudSchema = z.discriminatedUnion("type", [
-  z
-    .object({
-      type: z.literal("start"),
-      id: readingId,
-      markdown: z.string().max(maxReadAloudText),
-    })
-    .strict(),
-  z.object({ type: z.literal("pull"), id: readingId }).strict(),
-  z.object({ type: z.literal("stop"), id: readingId }).strict(),
-]);
+import {
+  appReportSchema,
+  dictationSchema,
+  portSchema,
+  readAloudSchema,
+} from "./phone-call-args";
 
 const color = z.string().regex(/^#[0-9a-f]{6}$/i);
 const paletteSchema = z
@@ -120,8 +74,6 @@ export const phoneAppearanceSchema = z
  * listens everywhere and lets in the tailnet and private addresses. Either
  * way a device needs the pinned key and its token to get anything.
  */
-const portSchema = z.number().int().min(1).max(65535);
-
 const loopback = "127.0.0.1";
 const everyAddress = "0.0.0.0";
 
