@@ -6,6 +6,7 @@ import {
   handoffWorktreeMethods,
   inSetup,
   liveAway,
+  type ChatSentTo,
   type HandoffChatMethod,
   type HandoffHereOnlyMethod,
   type HandoffMethod,
@@ -207,7 +208,11 @@ export class HandoffForwarding {
     }
   }
 
-  /** Shelf actions run on the thread's computer; undo never changes its local archive mark. */
+  /**
+   * Shelf actions run on the thread's computer; undo never changes its local
+   * archive mark. A snooze kept here alone stays here, and so does waking or
+   * undoing it.
+   */
   private async triage(chat: ChatSummary, action: ChatTriage) {
     if (action.kind === "restore") {
       if (chat.archivedAt !== action.from.archivedAt)
@@ -219,6 +224,16 @@ export class HandoffForwarding {
       action = { kind: "restore", from, to };
     }
     const sentTo = chat.sentTo!;
+    if (action.kind === "snooze" && action.here) {
+      if (action.until <= Date.now())
+        throw new Error("Choose a future wake time.");
+      await this.setSnoozeHere(chat, { at: Date.now(), until: action.until });
+      return this.mirrored(chat);
+    }
+    if (this.endsSnoozeHere(sentTo, action)) {
+      await this.setSnoozeHere(chat, undefined);
+      return this.mirrored(chat);
+    }
     const summary = (await this.callThere(
       sentTo.computerId,
       sentTo.id,
@@ -226,6 +241,32 @@ export class HandoffForwarding {
       [chat.id, action],
     )) as ChatSummary;
     this.chats.liveHandoff.triaged(chat.id, summary);
+    // Moved over there too, so the snooze kept here is behind it.
+    if (sentTo.snoozedHere) await this.setSnoozeHere(chat, undefined);
+    return this.mirrored(chat);
+  }
+
+  /** Waking the thread, or undoing its snooze, when the snooze was kept here alone. */
+  private endsSnoozeHere(sentTo: ChatSentTo, action: ChatTriage) {
+    const snoozedHere = sentTo.snoozedHere;
+    if (!snoozedHere) return false;
+    if (action.kind === "wake") return true;
+    return (
+      action.kind === "restore" && action.from.snoozedAt === snoozedHere.at
+    );
+  }
+
+  private setSnoozeHere(
+    chat: ChatSummary,
+    snoozedHere: ChatSentTo["snoozedHere"],
+  ) {
+    return this.chats.handoffs.updateSentTo(chat.id, chat.sentTo!.id, {
+      snoozedHere,
+    });
+  }
+
+  /** The thread as this computer lists it now. */
+  private mirrored(chat: ChatSummary) {
     const mirrored = this.chats
       .list(chat.projectId)
       .find((c) => c.id === chat.id);

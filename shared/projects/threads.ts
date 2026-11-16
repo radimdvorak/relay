@@ -246,6 +246,8 @@ export const chatTriageSchema = z.discriminatedUnion("kind", [
     .object({
       kind: z.literal("snooze"),
       until: z.number().int().positive(),
+      /** A thread on another computer snoozes on this one alone. */
+      here: z.literal(true).optional(),
     })
     .strict(),
   z.object({ kind: z.literal("wake") }).strict(),

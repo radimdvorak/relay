@@ -1,3 +1,4 @@
+import type { ChatSentTo } from "./handoff";
 import type { ChatSummary, ChatTriage } from "./projects";
 
 export type HandoffTriage = Pick<
@@ -37,5 +38,27 @@ export function handoffTriage(chat: HandoffTriage): HandoffTriage {
     snoozedAt: chat.snoozedAt,
     snoozedUntil: chat.snoozedUntil,
     autoSettled: chat.autoSettled,
+  };
+}
+
+/**
+ * The marks a thread on another computer shows here: a snooze kept here
+ * alone, until it's settled, moved back or snoozed over there after it.
+ */
+export function withSnoozeHere(
+  triage: HandoffTriage,
+  snoozedHere: ChatSentTo["snoozedHere"],
+): HandoffTriage {
+  if (!snoozedHere) return triage;
+  const marksThere = [triage.settledAt, triage.unsettledAt, triage.snoozedAt];
+  const changedThereSince = marksThere.some((at) => (at ?? 0) > snoozedHere.at);
+  if (changedThereSince) return triage;
+  return {
+    ...triage,
+    settledAt: undefined,
+    settleWhenDone: undefined,
+    autoSettled: undefined,
+    snoozedAt: snoozedHere.at,
+    snoozedUntil: snoozedHere.until,
   };
 }

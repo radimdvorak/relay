@@ -90,6 +90,11 @@ export interface ChatSentTo {
    * written in from here yet: Threads doesn't list it until it is.
    */
   peek?: true;
+  /**
+   * Snoozed on this computer alone, so it keeps quiet here while that
+   * computer and its phones still show it. See `withSnoozeHere`.
+   */
+  snoozedHere?: { at: number; until: number };
 }
 
 /**

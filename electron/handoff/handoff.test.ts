@@ -20,7 +20,11 @@ import { PhoneRemote } from "../remote/phone-remote";
 import { Computers } from "./computers";
 import { ProjectAdding } from "../project-add";
 import { savePaste, setPastesRoot, writeUploadChunk } from "../drafts";
-import type { ChatMessage, ChatSummary } from "../../shared/projects";
+import type {
+  ChatMessage,
+  ChatSummary,
+  ChatTriage,
+} from "../../shared/projects";
 import type { NewsItem } from "../../shared/thread-news";
 
 type ChatEvent = Parameters<ConstructorParameters<typeof ProjectChats>[3]>[0];
@@ -2742,6 +2746,48 @@ it.each(["handed-off", "remote-owned"] as const)(
       );
   },
 );
+
+it("snoozes a thread on another computer here alone, until it moves over there", async () => {
+  const { laptop, mini, sender, here, there } =
+    await controlledRemoteThread("remote-owned");
+  const summary = () =>
+    laptop.chats.list(here.projectId).find((c) => c.id === here.chatId)!;
+  const section = () => chatActivitySection(summary(), Date.now());
+  const remoteSection = () =>
+    chatActivitySection(
+      mini.chats.list(mini.projectId).find((c) => c.id === there)!,
+      Date.now(),
+    );
+  const triage = (action: ChatTriage) => {
+    expect(sender.forwards("triageProjectChat", [here.chatId, action])).toBe(
+      true,
+    );
+    return sender.forward("triageProjectChat", [
+      here.chatId,
+      action,
+    ]) as Promise<ChatSummary>;
+  };
+  const until = Date.now() + 3_600_000;
+
+  const before = triageState(summary());
+  const snoozed = await triage({ kind: "snooze", until, here: true });
+  expect(section()).toBe("snoozed");
+  expect(remoteSection()).toBe("active");
+  // Undo takes back only the snooze kept here.
+  await triage({ kind: "restore", from: triageState(snoozed), to: before });
+  expect(section()).toBe("active");
+
+  await triage({ kind: "snooze", until, here: true });
+  await triage({ kind: "wake" });
+  expect(section()).toBe("active");
+  expect(remoteSection()).toBe("active");
+
+  // Settled over there afterwards, the snooze here is behind it.
+  await triage({ kind: "snooze", until, here: true });
+  await new Promise((resolve) => setTimeout(resolve, 2));
+  await mini.chats.triage(there, { kind: "settle" });
+  await vi.waitFor(() => expect(section()).toBe("settled"));
+});
 
 it("shows a page the other computer's thread showed, fetched from there and kept here", async () => {
   const { laptop, mini, sender, computerId, computers } =

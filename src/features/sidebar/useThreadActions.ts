@@ -186,8 +186,9 @@ export function useThreadActions({
       refresh(c);
     }
   };
-  const snoozing = useSnoozeDialogs();
+  const snoozing = useSnoozeDialogs(apply);
   const triage = async (c: ChatSummary, action: ChatTriage) => {
+    if (snoozing.asksWhere(c, action)) return;
     if (action.kind === "archive" && !action.dropWorktree) {
       const files = await worktreeWork(qc, c);
       if (files) return setArchiving({ chat: c, files });

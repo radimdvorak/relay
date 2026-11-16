@@ -1,6 +1,7 @@
 import { MoveToWorktreeDialog } from "../changes/MoveToWorktreeDialog";
 import { ArchiveWorktreeDialog } from "./ArchiveWorktreeDialog";
 import { DeleteThreadDialog } from "./DeleteThreadDialog";
+import { SnoozeAwayDialog } from "./SnoozeAwayDialog";
 import { SnoozePickDialog } from "./SnoozeMenu";
 import type { ThreadActions } from "./useThreadActions";
 
@@ -18,6 +19,13 @@ export function ThreadDialogs({ actions }: { actions: ThreadActions }) {
             })
           }
           onClose={() => snoozing.setPicking(undefined)}
+        />
+      )}
+      {snoozing.away && (
+        <SnoozeAwayDialog
+          chat={snoozing.away.chat}
+          onSnooze={snoozing.snoozeAway}
+          onCancel={snoozing.cancelAway}
         />
       )}
       {actions.archiving && (

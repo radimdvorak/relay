@@ -5,7 +5,7 @@ import type {
   ProjectSettings,
 } from "../../shared/projects";
 import { inSetup, liveAway } from "../../shared/handoff";
-import { handoffTriage } from "../../shared/handoff-triage";
+import { handoffTriage, withSnoozeHere } from "../../shared/handoff-triage";
 import { working, type Turn } from "../../shared/turns";
 import type { AwayLive, ChatCore } from "./core";
 import { ListeningWork } from "./listening-work";
@@ -34,7 +34,9 @@ function awaySummary(
   const { asking: _a, stopped: _s, limitResume: _l, goal: _g, ...rest } = c;
   return {
     ...rest,
-    ...(liveAway(c) && triage ? handoffTriage(triage) : {}),
+    ...(liveAway(c)
+      ? withSnoozeHere(handoffTriage(triage ?? c), c.sentTo?.snoozedHere)
+      : {}),
     ...(running
       ? { running, runningSince, runningAgents, waiting: !!waiting }
       : {}),

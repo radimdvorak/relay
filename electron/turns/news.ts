@@ -118,7 +118,11 @@ export class TurnNews {
     { byAgent, ...news }: ThreadNews & Pick<NewsItem, "byAgent">,
     projectId: string,
   ) {
-    if (!this.disposed) this.tell(news, projectId, byAgent ? { byAgent } : {});
+    if (this.disposed) return;
+    // Snoozed here alone, that computer doesn't know to keep quiet about it.
+    const snoozedUntil = this.threads.summary(news.chatId)?.snoozedUntil ?? 0;
+    if (news.kind !== "waiting" && snoozedUntil > Date.now()) return;
+    this.tell(news, projectId, byAgent ? { byAgent } : {});
   }
 
   dispose() {

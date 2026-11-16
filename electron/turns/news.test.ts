@@ -189,3 +189,16 @@ it("goes on telling the others when one listener fails", () => {
   answer("a1")("completed");
   expect([told.length, later.length]).toEqual([1, 1]);
 });
+
+it("keeps another computer's answers quiet while snoozed here, but tells when it needs you", () => {
+  const { news, told } = setup();
+  listed = { snoozedUntil: Date.now() + 60_000 };
+  const from = (kind: "finished" | "failed" | "waiting") =>
+    news.retell({ chatId: "t1", kind, title: "Thread", body: kind }, "p1");
+  from("finished");
+  from("failed");
+  from("waiting");
+  listed = { snoozedUntil: Date.now() - 1 };
+  from("finished");
+  expect(told.map((i) => i.kind)).toEqual(["waiting", "finished"]);
+});
