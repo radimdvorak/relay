@@ -52,6 +52,11 @@ export type { ThreadHandoffs } from "./handoff-tool";
 export type { ThreadReviews } from "./thread-reviews";
 export type { ScheduleTools } from "./thread-schedules";
 
+type ImportCall = Extract<
+  ToolCall,
+  { name: "import_sources" | "offer_import" }
+>;
+
 type Chats = Pick<
   ProjectChats,
   | "list"
@@ -275,19 +280,8 @@ export class StartedThreads {
       case "restart_relay":
         return this.restartRelay(lead, input, signal);
       case "import_sources":
-      case "offer_import": {
-        const offers = this.chats.importOffers;
-        if (!lead.importFrom || !offers)
-          return toolText(
-            "Only a thread opened to import another app's history can.",
-            true,
-          );
-        return toolText(
-          tool === "import_sources"
-            ? await offers.sources(lead.importFrom, input.project)
-            : await offers.offer(lead.id, lead.importFrom, input),
-        );
-      }
+      case "offer_import":
+        return this.importCall(lead, { name: tool, input } as ImportCall);
       case "report_relay_problem":
         return this.draftReport(input);
       case "open_preview":
@@ -353,6 +347,21 @@ export class StartedThreads {
         true,
       );
     return json(await moves.move(lead.id, target.id));
+  }
+
+  /** The tools a thread opened to import another app's history uses. */
+  private async importCall(lead: ProjectChat, call: ImportCall) {
+    const offers = this.chats.importOffers;
+    if (!lead.importFrom || !offers)
+      return toolText(
+        "Only a thread opened to import another app's history can.",
+        true,
+      );
+    return toolText(
+      call.name === "import_sources"
+        ? await offers.sources(lead.importFrom, call.input.project)
+        : await offers.offer(lead.id, lead.importFrom, call.input),
+    );
   }
 
   /**
