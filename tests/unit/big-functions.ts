@@ -175,7 +175,7 @@ export const bigFunctions: Record<string, number> = {
   "src/features/composer/useAgentRuns.ts › useAgentRuns": 258,
   "src/features/composer/useComposerDraft.ts › useComposerDraft": 85,
   "src/features/composer/useComposerSend.ts › useComposerSend": 159,
-  "src/features/composer/useComposerSettings.ts › useComposerSettings": 120,
+  "src/features/composer/useComposerSettings.ts › useComposerSettings": 117,
   "src/features/composer/useDraftImages.ts › useDraftImages": 160,
   "src/features/composer/useSettingCommands.ts › useSettingCommands": 127,
   "src/features/deep-review/Council.tsx › DeepReviewCouncil": 105,

@@ -92,15 +92,11 @@ export function useComposerSettings({
   );
   const [interactionMode, setInteractionMode] = useState(saved.interactionMode);
   // Started a thread: the draft left here is a new one, on the shared picks.
-  useEffect(
-    () =>
-      onThreadStarted(key, () => {
-        setFrozen(undefined);
-        setInteractionMode("default");
-        setModels(withoutAdvisors);
-      }),
-    [key],
-  );
+  useOnThreadStarted(key, () => {
+    setFrozen(undefined);
+    setInteractionMode("default");
+    setModels(withoutAdvisors);
+  });
   const [sent, setSent] = useState(saved.sent);
   const sentHere = useRef(new Set<string>());
   const settings: ComposerSettings = {
@@ -157,6 +153,13 @@ export function useComposerSettings({
       saveComposerSettings(key, { ...currentSettings.current, sent: id });
     },
   };
+}
+
+/** Calls `then` each time a thread starts from the composer under `key`. */
+function useOnThreadStarted(key: string, then: () => void) {
+  const latest = useRef(then);
+  latest.current = then;
+  useEffect(() => onThreadStarted(key, () => latest.current()), [key]);
 }
 
 function useFollowLastAgent(
