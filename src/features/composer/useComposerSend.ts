@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useRef } from "react";
 import { agentInfo, type AgentProvider } from "../../../shared/agents";
 import { relayCommand } from "../../../shared/commands";
 import {
@@ -7,13 +7,13 @@ import {
   type ComposedSend,
 } from "../../../shared/compose-send";
 import type { Recipient } from "../../../shared/recipient";
-import { dictationSnapshot, stopDictation } from "../dictation/audio/session";
 import type { DraftImage } from "../images/draft-images";
 import { numberImages } from "../../../shared/image-refs";
 import { flattenSketch } from "../images/sketch";
 import type { AgentRuns } from "./useAgentRuns";
 import type { ComposerDraft } from "./useComposerDraft";
 import type { ComposerState } from "./useComposerSettings";
+import { useSendWhenReady } from "./useSendWhenReady";
 import { noteUsed } from "../../lib/used";
 import { parseGoalCommand } from "../../../shared/goal";
 
@@ -55,7 +55,6 @@ export function useComposerSend({
   onSend: (value: ComposedSend, dispatch?: () => void) => Promise<boolean>;
 }) {
   const sending = useRef(false);
-  const [dictation] = useState(() => ({}));
   const settings = runs.sendSettings(to);
   const disabled =
     busy ||
@@ -64,28 +63,11 @@ export function useComposerSend({
     (to === "message" && !draft.text.trim()) ||
     draft.preparing ||
     !settings;
-  // Sending mid-dictation waits for the last words to land in the draft.
-  const [sendAfterDictation, setSendAfterDictation] =
-    useState<ComposerSendOptions | null>(null);
-  useEffect(() => {
-    if (!sendAfterDictation) return;
-    setSendAfterDictation(null);
-    void send(sendAfterDictation);
-  }, [sendAfterDictation]);
-  async function send({
-    steer = false,
-    sendAt,
-    after,
-    compact,
-  }: ComposerSendOptions = {}) {
+  const whenReady = useSendWhenReady(send);
+  async function send(options: ComposerSendOptions = {}) {
+    const { steer = false, sendAt, after, compact } = options;
     if (draft.isPreparing()) return;
-    const now = dictationSnapshot();
-    if (now.owner === dictation && now.phase !== "idle") {
-      void stopDictation().then((finished) => {
-        if (finished) setSendAfterDictation({ steer, sendAt, after, compact });
-      });
-      return;
-    }
+    if (whenReady.heldBack(options)) return;
     // `/btw` goes to the agent picked here, beside whatever the thread runs;
     // one that can't take it is told so by the command menu.
     const btw = relayCommand(draft.text);
@@ -156,7 +138,7 @@ export function useComposerSend({
     /** Sending is off: nothing to send, or not yet. */
     disabled,
     /** Owns the dictation a send waits for. */
-    dictation,
+    dictation: whenReady.dictation,
     /** Tells `planner` to build the plan it proposed, in Build. */
     async implementPlan(planner: AgentProvider) {
       const settings = runs.sendSettings(planner);

@@ -22,7 +22,7 @@ export function useComposerDraft(
   const text = useDraft(key);
   const set = (value: string) => writeDraft(key, value);
   const [error, setError] = useState<string>();
-  const queue = usePreparationQueue(setError);
+  const { queuePreparation, ...preparation } = usePreparationQueue(setError);
   const screenshots = useDraftImages(key, text, setError);
   const imagePills = useImagePills();
   // Paste pills live in the draft text; their cards mirror them in order.
@@ -37,7 +37,7 @@ export function useComposerDraft(
     screenshots,
     imagePills,
     setError,
-    queuePreparation: queue.queuePreparation,
+    queuePreparation,
   });
   return {
     text,
@@ -50,9 +50,7 @@ export function useComposerDraft(
     error,
     setError,
     ...intake,
-    preparing: queue.preparing,
-    incoming: queue.incoming,
-    isPreparing: queue.isPreparing,
+    ...preparation,
     sketching: screenshots.sketching,
     sketch: screenshots.sketch,
     historyOf: screenshots.historyOf,
