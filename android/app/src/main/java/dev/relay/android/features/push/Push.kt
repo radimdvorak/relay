@@ -17,6 +17,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.launch
 import kotlin.coroutines.resume
 import kotlin.coroutines.suspendCoroutine
@@ -53,6 +54,14 @@ class Push(private val app: Context, private val remote: Remote, private val sco
         if (!available) return
         scope.launch { remote.active.collect { _delivering.value = it != null && prefs.getBoolean(pushedKey(it), false) } }
         scope.launch { tokens.value = tokens.value ?: currentToken() }
+        // A token Firebase rotated with the link parked: open it to hand the new one over.
+        scope.launch {
+            tokens.filterNotNull().distinctUntilChanged().collect { if (_delivering.value) remote.unpark() }
+        }
+        // A computer that went back to a Relay without pushes no longer sends them.
+        scope.launch {
+            remote.fresh.collect { fresh -> if ((fresh.overview.bridge ?: 0) < Bridge.PUSH) remember(fresh.computer, false) }
+        }
         scope.launch {
             combine(remote.status, remote.client, remote.overview, notificationsOn, _hideTitles) { status, client, overview, on, hide ->
                 val online = status.state == LinkState.Online && client != null

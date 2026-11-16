@@ -252,12 +252,7 @@ class Remote(
 
     /** Back in the foreground: Android drops sockets in the background. */
     fun wake() {
-        if (parked && !_stopped.value) {
-            parked = false
-            scope.launch { live?.start() }
-            return
-        }
-        live?.wake()
+        if (!unpark()) live?.wake()
     }
 
     /**
@@ -268,6 +263,14 @@ class Remote(
         if (_stopped.value || parked) return
         parked = true
         scope.launch { live?.close() }
+    }
+
+    /** Opens the link [park] closed, for something that needs it with the app away; false with none parked. */
+    fun unpark(): Boolean {
+        if (!parked || _stopped.value) return false
+        parked = false
+        scope.launch { live?.start() }
+        return true
     }
 
     /** Whether the app is in the background, for the link to the active computer and the next. */
