@@ -25,6 +25,7 @@ organization, and the computers and phones you pair.
 | Host | What, and when |
 | --- | --- |
 | `api.github.com` | Pull requests and CI checks, with your `gh` sign-in; the changelog in Settings → About. Also looks up the latest rust-analyzer or clangd release, the first time you open a Rust or C++ file without it installed; the program itself downloads from `github.com`. The TypeScript, PHP and Python language servers are installed by your own `npm`, from whatever registry it is set to. |
+| `push.relaycode.io` | Notifications for a paired Android phone while its app isn't open: the phone's Firebase token, the thread's title and how it ended, never the answer. The [Worker](../push/worker.ts) hands it to Firebase and keeps nothing. **Hide thread titles** in the phone app leaves the title out; with phone access off in Settings → Phone, nothing is sent. |
 | `huggingface.co` | Dictation and read-aloud models, downloaded when you turn either on. Dictation's voice detector comes from `github.com`. |
 | `chatgpt.com`, `auth.openai.com` | Codex usage limits on the Usage page and in the picker, with your Codex ChatGPT sign-in. |
 | `cloudcode-pa.googleapis.com`, `daily-cloudcode-pa.googleapis.com`, `oauth2.googleapis.com` | Antigravity usage limits, with your Antigravity sign-in. |
