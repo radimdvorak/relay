@@ -17,6 +17,7 @@ import { errorMessage } from "../../../shared/error-message";
 import { forkThreadSettings } from "../agents/composer-settings";
 import { fetchChat } from "../../lib/chat-events";
 import { useThreadDelete } from "./DeleteThreadDialog";
+import { useSnoozeDialogs } from "./useSnoozeDialogs";
 import type { StartedFamilies } from "../../../shared/started-families";
 
 export type ThreadMenuAction =
@@ -118,8 +119,6 @@ export function useThreadActions({
     chat: ChatSummary;
     files: number;
   }>();
-  /** The thread whose snooze time is being picked. */
-  const [pickingSnooze, setPickingSnooze] = useState<ChatSummary>();
   /** Threads whose title is being generated again. */
   const [regenerating, setRegenerating] = useState<ReadonlySet<string>>(
     new Set(),
@@ -187,6 +186,7 @@ export function useThreadActions({
       refresh(c);
     }
   };
+  const snoozing = useSnoozeDialogs();
   const triage = async (c: ChatSummary, action: ChatTriage) => {
     if (action.kind === "archive" && !action.dropWorktree) {
       const files = await worktreeWork(qc, c);
@@ -306,8 +306,7 @@ export function useThreadActions({
     rename,
     moving,
     setMoving,
-    pickingSnooze,
-    setPickingSnooze,
+    snoozing,
     archiving,
     /** Archives the thread the question was for, its worktree's folder going too or not. */
     archive(dropWorktree: boolean) {
@@ -344,7 +343,7 @@ export function useThreadActions({
         case "move-worktree":
           return setMoving(c.id);
         case "snooze-pick":
-          return setPickingSnooze(c);
+          return snoozing.setPicking(c);
         case "project-settings":
           return onProjectSettings(c.projectId);
         case "own-window":

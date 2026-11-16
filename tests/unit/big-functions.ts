@@ -285,7 +285,7 @@ export const bigFunctions: Record<string, number> = {
   "src/features/sidebar/ThreadMenu.tsx › ThreadMenuItems": 219,
   "src/features/sidebar/useActivityKeys.ts › useActivityKeys": 95,
   "src/features/sidebar/useProjectGroups.ts › useProjectGroups": 82,
-  "src/features/sidebar/useThreadActions.ts › useThreadActions": 275,
+  "src/features/sidebar/useThreadActions.ts › useThreadActions": 274,
   "src/features/sign-in/OpenCodeSignIn.tsx › OpenCodeSignIn": 269,
   "src/features/sign-in/useOpenCodeSignIn.ts › useOpenCodeSignIn": 224,
   "src/features/sounds/SoundSettings.tsx › CustomSoundsSetting": 84,

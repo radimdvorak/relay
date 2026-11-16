@@ -6,17 +6,18 @@ import type { ThreadActions } from "./useThreadActions";
 
 /** What a thread's menu asks before it acts on the thread. */
 export function ThreadDialogs({ actions }: { actions: ThreadActions }) {
+  const { snoozing } = actions;
   return (
     <>
-      {actions.pickingSnooze && (
+      {snoozing.picking && (
         <SnoozePickDialog
           onSnooze={(until) =>
-            void actions.triage(actions.pickingSnooze!, {
+            void actions.triage(snoozing.picking!, {
               kind: "snooze",
               until,
             })
           }
-          onClose={() => actions.setPickingSnooze(undefined)}
+          onClose={() => snoozing.setPicking(undefined)}
         />
       )}
       {actions.archiving && (
