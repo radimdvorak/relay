@@ -262,6 +262,36 @@ describe("/advisor", () => {
     expect(offered("codex", "gpt-6-luna")[1]).toBe("opus Opus 5.5");
   });
 
+  it("tells apart a model id two agents list by its agent", () => {
+    const shared: ModelCatalogs = {
+      ...withClaude,
+      opencode: [
+        { id: "gpt-6-luna", name: "GPT-6-Luna", description: "", efforts: [] },
+        { id: "opus", name: "Opus", description: "", efforts: [] },
+      ],
+    };
+    const values = advisorCommandOptions("claude", shared, "opus").map(
+      (o) => o.value,
+    );
+    expect(values).toEqual([
+      "fable",
+      "opus",
+      "codex:gpt-6-luna",
+      "opencode:gpt-6-luna",
+      "opencode:opus",
+      "off",
+    ]);
+    expect(
+      composerCommand("advisor", "opencode:gpt-6-luna", {
+        ...on("claude", ""),
+        catalogs: shared,
+      }),
+    ).toEqual({
+      command: "advisor",
+      advisor: { provider: "opencode", model: "gpt-6-luna" },
+    });
+  });
+
   it("sets one for the agent the draft goes to, or none", () => {
     expect(composerCommand("advisor", "Fable", on("codex", ""))).toEqual({
       command: "advisor",

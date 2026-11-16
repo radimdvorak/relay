@@ -98,7 +98,7 @@ export function modelCommandOptions(
 }
 
 export interface AdvisorOption {
-  /** What /advisor takes for it: a model id, or NO_ADVISOR. */
+  /** What /advisor takes for it: a model id, "agent:id" where two agents list it, or NO_ADVISOR. */
   value: string;
   advisor: ThreadAdvisor;
   description: string;
@@ -133,13 +133,19 @@ export function advisorCommandOptions(
       description: relayAsks ? `${m.name} · through Relay` : m.name,
     };
   });
-  const others = advisingAgents().flatMap((provider) =>
-    (catalogs[provider] ?? []).map((m) => ({
-      value: m.id,
-      advisor: { provider, model: m.id },
-      description: `${m.name} · ${agentName(provider)}`,
-    })),
+  const listed = advisingAgents().flatMap((provider) =>
+    (catalogs[provider] ?? []).map((m) => ({ provider, model: m })),
   );
+  // Claude Code's /advisor takes Claude's aliases; another agent's model of
+  // the same id, or one two agents list, is told apart by its agent.
+  const taken = (id: string) =>
+    claude.some((o) => o.value === id) ||
+    listed.filter((l) => l.model.id === id).length > 1;
+  const others = listed.map(({ provider, model: m }) => ({
+    value: taken(m.id) ? `${provider}:${m.id}` : m.id,
+    advisor: { provider, model: m.id },
+    description: `${m.name} · ${agentName(provider)}`,
+  }));
   return [
     ...claude,
     ...others,
@@ -273,8 +279,7 @@ function advisorChange(
   const asked = value === "unset" ? NO_ADVISOR : value;
   const option = options.find(
     (o) =>
-      o.value.toLowerCase() === asked ||
-      o.description.toLowerCase() === asked,
+      o.value.toLowerCase() === asked || o.description.toLowerCase() === asked,
   );
   if (!option)
     return `Choose one of: ${options.map((o) => o.value).join(", ")}.`;
