@@ -72,6 +72,7 @@ import {
   ComposerSlotsProvider,
   type ComposerSlots,
 } from "./composer-slots";
+import { ComposerAlerts } from "./ComposerAlerts";
 import "./composer.css";
 
 export interface ComposerHandle {
@@ -345,16 +346,7 @@ const ComposerBody = memo(function ComposerBody({
       ) : (
         commands.menu
       )}
-      {commands.error && (
-        <p role="alert" className="composer-image-error">
-          {commands.error}
-        </p>
-      )}
-      {accounts.error && (
-        <p role="alert" className="composer-image-error">
-          {accounts.error}
-        </p>
-      )}
+      <ComposerAlerts errors={[commands.error, accounts.error]} />
       <div className="thread-context-controls">
         <ComposerSlot name="context" />
       </div>
