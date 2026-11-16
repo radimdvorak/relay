@@ -33,6 +33,7 @@ function setup({ hideTitles = false } = {}) {
   const sent: PushMessage[] = [];
   const forgotten: string[] = [];
   const state = {
+    on: true,
     present: false,
     onScreen: new Set<string>(),
     chat: chat(),
@@ -42,6 +43,7 @@ function setup({ hideTitles = false } = {}) {
     { id: "phone", push: { token: "t1", computer: "mac", hideTitles } },
   ];
   const push = new PhonePush({
+    on: () => state.on,
     phones: () => phones,
     onScreen: () => state.onScreen,
     present: () => state.present,
@@ -146,6 +148,19 @@ describe("PhonePush", () => {
     push.presenceChanged();
 
     expect(sent.map((m) => m.chatId)).toEqual(["c1"]);
+  });
+
+  it("sends nothing while phone access is off, held news included", () => {
+    const { push, sent, state } = setup();
+    state.present = true;
+    push.news(news());
+
+    state.on = false;
+    state.present = false;
+    push.presenceChanged();
+    push.news(news({ chatId: "c2" }));
+
+    expect(sent).toEqual([]);
   });
 
   it("forgets only the token Firebase no longer knows", async () => {

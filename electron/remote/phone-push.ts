@@ -15,6 +15,8 @@ export interface PushPhone {
 }
 
 export interface PushHost {
+  /** Phone access is on; while it's off nothing goes out, held news included. */
+  on(): boolean;
   phones(): PushPhone[];
   /** Phones connected with the app on screen, which show news themselves. */
   onScreen(): ReadonlySet<string>;
@@ -49,6 +51,7 @@ export class PhonePush {
   constructor(private host: PushHost) {}
 
   news(item: NewsItem) {
+    if (!this.host.on()) return;
     // The agent that started the thread is the one waiting for it.
     if (item.kind === "finished" && item.byAgent) return;
     if (!this.host.phones().length) return;
@@ -72,6 +75,7 @@ export class PhonePush {
   }
 
   private send(item: NewsItem) {
+    if (!this.host.on()) return;
     const onScreen = this.host.onScreen();
     for (const phone of this.host.phones()) {
       if (onScreen.has(phone.id)) continue;

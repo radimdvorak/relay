@@ -95,6 +95,7 @@ export class PhoneRemote {
   private tunnelPorts: TunnelPorts;
 
   private push = new PhonePush({
+    on: () => !!this.devices.settings.enabled,
     phones: () =>
       this.devices
         .list()
@@ -254,7 +255,7 @@ export class PhoneRemote {
   /** News the computer decided; older phones read theirs off the thread lists. */
   news(item: NewsItem) {
     // Phones away hear through their push, whether or not this computer is reachable.
-    if (this.devices.settings.enabled) this.push.news(item);
+    this.push.news(item);
     if (!this.server.listening) return;
     this.server.broadcast(
       { kind: "news", item },
