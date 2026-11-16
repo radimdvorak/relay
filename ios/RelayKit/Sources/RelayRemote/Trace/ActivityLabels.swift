@@ -215,6 +215,7 @@ let relayToolLabels = [
     "console_errors": "Read the preview's console",
     "import_sources": "Looked at what to import",
     "offer_import": "Offered what to import",
+    "ask_advisor": "Asked the advisor",
     "list_schedules": "Checked the schedules",
     "add_schedule": "Set up a schedule",
     "update_schedule": "Changed a schedule",

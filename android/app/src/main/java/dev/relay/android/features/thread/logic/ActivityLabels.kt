@@ -63,6 +63,7 @@ internal val RELAY_TOOL_LABELS = mapOf(
     "console_errors" to "Read the preview's console",
     "import_sources" to "Looked at what to import",
     "offer_import" to "Offered what to import",
+    "ask_advisor" to "Asked the advisor",
     "list_schedules" to "Checked the schedules",
     "add_schedule" to "Set up a schedule",
     "update_schedule" to "Changed a schedule",
