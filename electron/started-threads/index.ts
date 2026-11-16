@@ -255,9 +255,7 @@ export class StartedThreads {
       case "deep_review":
         return this.deepReview(lead, input, signal);
       case "list_review_setups":
-        if (!this.reviews)
-          return toolText("This Relay can't run deep reviews.", true);
-        return listReviewSetups(this.reviews);
+        return this.reviewSetups();
       case "list_schedules":
       case "add_schedule":
       case "update_schedule":
@@ -305,6 +303,12 @@ export class StartedThreads {
         throw new Error(`There is no handler for tool ${unhandled}.`);
       }
     }
+  }
+
+  private reviewSetups() {
+    if (!this.reviews)
+      return toolText("This Relay can't run deep reviews.", true);
+    return listReviewSetups(this.reviews);
   }
 
   /** Opens Relay's Report a problem page with the agent's write-up; the user sends it. */
