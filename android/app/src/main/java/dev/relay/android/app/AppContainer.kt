@@ -72,7 +72,7 @@ class AppContainer(context: Context) {
     /** Closes the link soon after the app leaves; see [parkSoon]. Before the init blocks that start it. */
     private var parking: Job? = null
 
-    val push = Push(app, remote, scope)
+    val push = Push(app, remote, scope).also { p -> p.registered = { if (!onScreen()) parkSoon() } }
     val notifications = ThreadNotifications(app as Application, remote, scope, push.delivering).also {
         it.start()
         push.start(it.on)

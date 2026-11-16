@@ -40,6 +40,9 @@ class Push(private val app: Context, private val remote: Remote, private val sco
     /** The active computer pushes this phone its news, so nothing needs to stay connected. */
     val delivering: StateFlow<Boolean> = _delivering.asStateFlow()
 
+    /** A computer took this phone's registration, so the link may close again with the app away. */
+    var registered: () -> Unit = {}
+
     fun setHideTitles(on: Boolean) {
         _hideTitles.value = on
         prefs.edit().putBoolean(HIDE_TITLES_KEY, on).apply()
@@ -76,6 +79,7 @@ class Push(private val app: Context, private val remote: Remote, private val sco
         try {
             client.setPush(registration)
             remember(computer, registration != null)
+            if (registration != null) registered()
         } catch (e: Exception) {
             // Not known to push this phone, so it stays connected to hear the news.
             Log.w(TAG, "Couldn't register for pushes", e)
