@@ -135,56 +135,58 @@ export function projectEntries(project: Project | undefined): SettingEntry[] {
         "sound sounds audio chime notification ping done needs you waiting failed",
       render: () => <ProjectSoundSelect project={project} event={event} />,
     })),
-    ...(project.plain
-      ? []
-      : [
-          {
-            id: "project-worktree-cleanup",
-            category: "project",
-            section: "Worktrees",
-            title: "Remove settled threads' worktrees",
-            description:
-              "Once this project's thread has been settled this long, its worktree goes and its branch stays. A worktree with uncommitted changes, or with something running in it, stays.",
-            keywords:
-              "worktree cleanup clean remove delete disk space settled branch folder prune",
-            render: () => <ProjectWorktreeCleanupSelect project={project} />,
-          } satisfies SettingEntry,
-          {
-            id: "project-worktree-setup",
-            category: "project",
-            section: "Worktrees",
-            title: "Setup command",
-            description:
-              "Runs in each new worktree before its thread's first answer, in your login shell. RELAY_PORT_OFFSET, RELAY_WORKTREE and RELAY_PROJECT_ROOT tell it where it is. The thread shows what it printed; if it fails, the agent starts anyway and hears why. A .worktreeinclude file in the project names the ignored files, like .env, to copy in first.",
-            keywords:
-              "worktree setup install bootstrap script command npm env port offset worktreeinclude ignored copy",
-            block: true,
-            render: () => (
-              <ProjectWorktreeCommandField
-                project={project}
-                setting="worktreeSetup"
-                placeholder="npm ci"
-              />
-            ),
-          } satisfies SettingEntry,
-          {
-            id: "project-worktree-teardown",
-            category: "project",
-            section: "Worktrees",
-            title: "Teardown command",
-            description:
-              "Runs in a worktree before Relay removes it, like stopping its containers. The worktree goes even if it fails.",
-            keywords:
-              "worktree teardown cleanup remove script command docker stop",
-            block: true,
-            render: () => (
-              <ProjectWorktreeCommandField
-                project={project}
-                setting="worktreeTeardown"
-                placeholder="docker compose down"
-              />
-            ),
-          } satisfies SettingEntry,
-        ]),
+    ...(project.plain ? [] : worktreeEntries(project)),
+  ];
+}
+
+/** What a Git project's worktrees do when they come and go. */
+function worktreeEntries(project: Project): SettingEntry[] {
+  return [
+    {
+      id: "project-worktree-cleanup",
+      category: "project",
+      section: "Worktrees",
+      title: "Remove settled threads' worktrees",
+      description:
+        "Once this project's thread has been settled this long, its worktree goes and its branch stays. A worktree with uncommitted changes, or with something running in it, stays.",
+      keywords:
+        "worktree cleanup clean remove delete disk space settled branch folder prune",
+      render: () => <ProjectWorktreeCleanupSelect project={project} />,
+    } satisfies SettingEntry,
+    {
+      id: "project-worktree-setup",
+      category: "project",
+      section: "Worktrees",
+      title: "Setup command",
+      description:
+        "Runs in each new worktree before its thread's first answer, in your login shell. RELAY_PORT_OFFSET, RELAY_WORKTREE and RELAY_PROJECT_ROOT tell it where it is. The thread shows what it printed; if it fails, the agent starts anyway and hears why. A .worktreeinclude file in the project names the ignored files, like .env, to copy in first.",
+      keywords:
+        "worktree setup install bootstrap script command npm env port offset worktreeinclude ignored copy",
+      block: true,
+      render: () => (
+        <ProjectWorktreeCommandField
+          project={project}
+          setting="worktreeSetup"
+          placeholder="npm ci"
+        />
+      ),
+    } satisfies SettingEntry,
+    {
+      id: "project-worktree-teardown",
+      category: "project",
+      section: "Worktrees",
+      title: "Teardown command",
+      description:
+        "Runs in a worktree before Relay removes it, like stopping its containers. The worktree goes even if it fails.",
+      keywords: "worktree teardown cleanup remove script command docker stop",
+      block: true,
+      render: () => (
+        <ProjectWorktreeCommandField
+          project={project}
+          setting="worktreeTeardown"
+          placeholder="docker compose down"
+        />
+      ),
+    } satisfies SettingEntry,
   ];
 }

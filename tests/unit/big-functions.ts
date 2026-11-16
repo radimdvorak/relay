@@ -274,7 +274,7 @@ export const bigFunctions: Record<string, number> = {
   "src/features/settings/sections/SettingsNav.tsx › SettingsNav": 109,
   "src/features/settings/sections/appearance.tsx › useAppearanceEntries": 176,
   "src/features/settings/sections/composer.tsx › useComposerEntries": 134,
-  "src/features/settings/sections/projects.tsx › projectEntries": 168,
+  "src/features/settings/sections/projects.tsx › projectEntries": 119,
   "src/features/sidebar/ProjectSidebar.tsx › ProjectSidebar": 286,
   "src/features/sidebar/ProjectTree.tsx › GroupSection": 117,
   "src/features/sidebar/ProjectTree.tsx › RealProject": 170,
