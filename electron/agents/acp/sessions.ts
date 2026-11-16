@@ -48,6 +48,7 @@ const metaSchema = z
     credentialsRevision: z.string().optional(),
     home: z.string().optional(),
     readOnly: z.boolean().optional(),
+    relayUrl: z.string().optional(),
     caps: capsSchema.optional(),
     session: z
       .object({
@@ -73,6 +74,8 @@ export class AcpAgent extends HostedAgent<
   caps?: AcpCaps;
   /** Started for a Read only thread: with the profile's `readOnlyEnv`, without Relay's tools. */
   readOnly = false;
+  /** Where its sessions reach Relay's tools, "" for nowhere; unknown for one a Relay before this kept. */
+  relayUrl?: string;
   /**
    * `base`: the settings it opened with, which Default goes back to. `cost`:
    * what the session had cost at the agent's last report, which the next one
@@ -100,6 +103,7 @@ export class AcpAgent extends HostedAgent<
       credentialsRevision: this.profile.credentialsRevision,
       home: this.profile.home,
       readOnly: this.readOnly,
+      relayUrl: this.relayUrl,
       caps: this.caps,
       session: this.session,
       run,
@@ -219,7 +223,9 @@ async function initialize(agent: AcpAgent) {
  * The process for a thread's session, started and initialized if it isn't
  * running. A thread's runs in the agent host; without a key it's a private
  * one that ends with its turn. A thread switched to or from Read only gets
- * a new one: its environment and MCP servers are fixed when it starts.
+ * a new one: its environment and MCP servers are fixed when it starts. So
+ * does an idle one whose Relay tools changed, as an advisor Relay asks adds
+ * one: a session it holds keeps the tools it opened with.
  */
 export async function acquireAcpAgent(
   profile: AcpProfile,
@@ -229,11 +235,14 @@ export async function acquireAcpAgent(
     env,
     readOnly = false,
     keepMode = false,
+    relayUrl,
   }: {
     env?: Record<string, string>;
     readOnly?: boolean;
     /** The turn finds the process as it is: `readOnly` only starts a missing one. */
     keepMode?: boolean;
+    /** Where the turn reaches Relay's tools, "" for nowhere. */
+    relayUrl?: string;
   } = {},
 ): Promise<AcpAgent> {
   const sessions = sessionsOf(profile);
@@ -243,7 +252,15 @@ export async function acquireAcpAgent(
     (previous.profile.accountKey !== profile.accountKey ||
       previous.profile.credentialsRevision !== profile.credentialsRevision);
   const otherMode = !!previous && !keepMode && previous.readOnly !== readOnly;
-  if (key && previous && (otherAccount || otherMode)) {
+  // Only an idle one: a turn can't change what the one it runs holds.
+  const otherTools =
+    !!previous?.caps?.http &&
+    !previous.busy &&
+    !keepMode &&
+    previous.relayUrl !== undefined &&
+    relayUrl !== undefined &&
+    previous.relayUrl !== relayUrl;
+  if (key && previous && (otherAccount || otherMode || otherTools)) {
     if (previous.busy)
       throw new Error(
         otherAccount
@@ -255,6 +272,7 @@ export async function acquireAcpAgent(
   return sessions.acquire(key, async () => {
     const agent = new AcpAgent(profile, await launch(profile, key, cwd, env));
     agent.readOnly = readOnly;
+    agent.relayUrl = relayUrl;
     return agent.start(initialize);
   });
 }
@@ -310,7 +328,8 @@ export async function openSession(
     };
     // Now that the session exists, wire the agent into the update handler
     // so config_option_update events refresh its settings (and models).
-    connection.onUpdate = (update) => hearCommands(agent.profile.provider, update, agent);
+    connection.onUpdate = (update) =>
+      hearCommands(agent.profile.provider, update, agent);
     agent.keep();
   };
   if (id && (agent.caps?.resume || agent.caps?.load)) {
@@ -377,6 +396,7 @@ export async function acquireTurnAgent(
     env: { ...options.env, ...readOnly?.env },
     readOnly: !!options.readOnly,
     keepMode: turnKeepsMode(options),
+    relayUrl: options.relayTools?.url ?? "",
   });
 }
 
@@ -414,6 +434,7 @@ export function reattachAcp(
     );
     agent.caps = meta.caps;
     agent.readOnly = !!meta.readOnly;
+    agent.relayUrl = meta.relayUrl;
     if (meta.session)
       agent.session = {
         id: meta.session.id,
@@ -422,7 +443,8 @@ export function reattachAcp(
         base: meta.session.base,
         cost: meta.session.cost,
       };
-    connection.onUpdate = (update) => hearCommands(profile.provider, update, agent);
+    connection.onUpdate = (update) =>
+      hearCommands(profile.provider, update, agent);
     agent.inflight = meta.run;
     if (!info.open) child.release();
     return agent;

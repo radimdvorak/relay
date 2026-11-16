@@ -381,6 +381,29 @@ it("restarts a thread's process when it switches to Read only and back, so it ru
   ).toEqual([null, "on", null]);
 });
 
+it("restarts an idle thread's process when its Relay tools change, so its session hears an advisor", async () => {
+  const { acp, root, sent } = await agent({ resume: true, sessions: ["s1"] });
+  const session = { key: "tools", id: "s1", onId: async () => {} };
+  const turn = (url: string) =>
+    runAcp(
+      acp,
+      options(root, {
+        session,
+        relayTools: { url, token: "t", renders: "auto" },
+      }),
+    );
+  await turn("http://127.0.0.1:1/mcp");
+  await turn("http://127.0.0.1:1/mcp");
+  await turn("http://127.0.0.1:1/mcp?advisor=on");
+  const opened = (await sent()).filter(
+    (m) => m.method === "session/resume" || m.method === "session/new",
+  );
+  expect(opened.map((m) => m.params.mcpServers[0].url)).toEqual([
+    "http://127.0.0.1:1/mcp",
+    "http://127.0.0.1:1/mcp?advisor=on",
+  ]);
+});
+
 it("keeps the process a restart cut a turn off in when the thread's mode now differs, so the turn can be picked up", async () => {
   const { acp, root } = await agent({});
   const running = await acquireAcpAgent(acp, "adopt", root);
