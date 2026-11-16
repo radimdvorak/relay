@@ -222,6 +222,16 @@ export class RemoteDevices {
     });
   }
 
+  /** Forgets the token Firebase refused, unless the phone has handed over another since. */
+  async forgetPush(deviceId: string, token: string) {
+    const saved = this.list().find((d) => d.id === deviceId);
+    if (saved?.push?.token !== token) return;
+    await this.store.update((s) => {
+      const device = s.phoneRemote?.devices?.find((d) => d.id === deviceId);
+      if (device?.push?.token === token) delete device.push;
+    });
+  }
+
   async revoke(deviceId: string) {
     await this.store.update((s) => {
       if (s.phoneRemote?.devices)

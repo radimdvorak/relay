@@ -21,8 +21,11 @@ export interface PushHost {
   /** Someone at this computer working in Relay; see ./presence. */
   present(): boolean;
   chat(projectId: string, chatId: string): ChatSummary | undefined;
-  /** The phone's token was refused for good: uninstalled, or signed out of Firebase. */
-  forget(phoneId: string): void;
+  /**
+   * Firebase refused `token` for good: the app was uninstalled or its token
+   * rotated. A newer one the phone handed over since stays.
+   */
+  forget(phoneId: string, token: string): void;
   post?(message: PushMessage): Promise<PushOutcome>;
 }
 
@@ -77,7 +80,7 @@ export class PhonePush {
         ...(hideTitles ? {} : { title: pushTitle(item.title) }),
       };
       void (this.host.post ?? postPush)(message).then((outcome) => {
-        if (outcome === "unregistered") this.host.forget(phone.id);
+        if (outcome === "unregistered") this.host.forget(phone.id, token);
       });
     }
   }

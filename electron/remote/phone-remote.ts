@@ -105,9 +105,9 @@ export class PhoneRemote {
     present: () => this.host.present?.() ?? false,
     chat: (projectId, chatId) =>
       this.host.chats(projectId).find((c) => c.id === chatId),
-    forget: (phoneId) =>
+    forget: (phoneId, token) =>
       void this.devices
-        .setPush(phoneId, null)
+        .forgetPush(phoneId, token)
         .catch((e) => console.warn("Phone push: couldn't forget a token:", e)),
   });
 

@@ -46,7 +46,7 @@ function setup({ hideTitles = false } = {}) {
     onScreen: () => state.onScreen,
     present: () => state.present,
     chat: () => state.chat,
-    forget: (id) => forgotten.push(id),
+    forget: (id, token) => forgotten.push(`${id} ${token}`),
     post: async (message) => {
       sent.push(message);
       return state.outcome;
@@ -134,13 +134,13 @@ describe("PhonePush", () => {
     expect(sent).toEqual([]);
   });
 
-  it("forgets a phone whose token Firebase no longer knows", async () => {
+  it("forgets only the token Firebase no longer knows", async () => {
     const { push, forgotten, state } = setup();
     state.outcome = "unregistered";
 
     push.news(news());
     await settle();
 
-    expect(forgotten).toEqual(["phone"]);
+    expect(forgotten).toEqual(["phone t1"]);
   });
 });
