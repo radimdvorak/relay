@@ -52,10 +52,14 @@ function clipUnderPinned(scroller: HTMLElement) {
   }
 }
 
+/** How much of the sidebar a shelf may scroll the cards away to show itself. */
+const REVEAL_SHARE = 0.4;
+
 /**
- * Scrolls a shelf just opened from its pinned header into view: as much of
- * its list as fits above the headers pinned below it, its own header no
- * higher than the top.
+ * Scrolls a shelf just opened from its pinned header into view. It shows in
+ * the room the cards leave empty; when that is less than REVEAL_SHARE of the
+ * sidebar, the cards scroll up to make that much, and no further: the rest of
+ * the list is a scroll away, and the cards stay in sight.
  */
 export function revealShelf(list: HTMLElement) {
   const scroller = list.parentElement;
@@ -69,8 +73,12 @@ export function revealShelf(list: HTMLElement) {
     list.getBoundingClientRect().top -
     scroller.getBoundingClientRect().top +
     scroller.scrollTop;
+  const revealed = Math.min(
+    list.offsetHeight,
+    scroller.clientHeight * REVEAL_SHARE,
+  );
   const to = Math.min(
-    top + list.offsetHeight - (scroller.clientHeight - pinned),
+    top + revealed - (scroller.clientHeight - pinned),
     top - header.offsetHeight,
   );
   if (to > scroller.scrollTop)
