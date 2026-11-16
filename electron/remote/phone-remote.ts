@@ -17,6 +17,7 @@ import {
   type PhoneAppearance,
   type PhonePairing,
   type PhoneRemoteState,
+  type RemoteMethod,
   updateMethods,
 } from "../../shared/remote";
 import { maxHosts } from "../../shared/remote-routes";
@@ -171,42 +172,7 @@ export class PhoneRemote {
       port,
       name,
       hosts: () => this.hosts,
-      handle: async (method, args, deviceId) => {
-        const device = this.devices.list().find((d) => d.id === deviceId);
-        const computer = device?.kind === "computer";
-        if ((computerMethods as readonly string[]).includes(method)) {
-          const either = (updateMethods as readonly string[]).includes(method);
-          if (!(computer || either) || !device || !host.handoffs)
-            throw new Error("Only a paired computer can do that.");
-          return host.handoffs.handle(
-            method as (typeof computerMethods)[number],
-            args,
-            device,
-          );
-        }
-        // A computer handing a thread over brings the files its messages name.
-        if (computer && method !== "uploadFile")
-          throw new Error("Computers can't do that.");
-        if (method === "reportApp")
-          return this.devices.setApp(deviceId, appReportSchema.parse(args[0]));
-        if (method === "dictate") {
-          if (!this.dictations)
-            throw new Error("Dictation isn't available on this computer.");
-          return this.dictations.handle(
-            deviceId,
-            dictationSchema.parse(args[0]),
-          );
-        }
-        if (method === "readAloud") {
-          if (!this.readings)
-            throw new Error("Read aloud isn't available on this computer.");
-          return this.readings.handle(deviceId, readAloudSchema.parse(args[0]));
-        }
-        if (method === "sites") return this.tunnelPorts.sites();
-        if (method === "tunnelAllow")
-          return this.tunnelPorts.type(deviceId, portSchema.parse(args[0]));
-        return this.bridge.handle(method, args, deviceId);
-      },
+      handle: (method, args, deviceId) => this.handle(method, args, deviceId),
       tunnel: (deviceId, send) =>
         this.isComputer(deviceId)
           ? undefined
@@ -224,6 +190,45 @@ export class PhoneRemote {
       send: (deviceId, event) =>
         this.server.broadcast(event, (id) => id === deviceId),
     });
+  }
+
+  /** A call from a paired phone, or a computer's handoff call. */
+  private async handle(
+    method: RemoteMethod,
+    args: unknown[],
+    deviceId: string,
+  ) {
+    const device = this.devices.list().find((d) => d.id === deviceId);
+    const computer = device?.kind === "computer";
+    if ((computerMethods as readonly string[]).includes(method)) {
+      const either = (updateMethods as readonly string[]).includes(method);
+      if (!(computer || either) || !device || !this.host.handoffs)
+        throw new Error("Only a paired computer can do that.");
+      return this.host.handoffs.handle(
+        method as (typeof computerMethods)[number],
+        args,
+        device,
+      );
+    }
+    // A computer handing a thread over brings the files its messages name.
+    if (computer && method !== "uploadFile")
+      throw new Error("Computers can't do that.");
+    if (method === "reportApp")
+      return this.devices.setApp(deviceId, appReportSchema.parse(args[0]));
+    if (method === "dictate") {
+      if (!this.dictations)
+        throw new Error("Dictation isn't available on this computer.");
+      return this.dictations.handle(deviceId, dictationSchema.parse(args[0]));
+    }
+    if (method === "readAloud") {
+      if (!this.readings)
+        throw new Error("Read aloud isn't available on this computer.");
+      return this.readings.handle(deviceId, readAloudSchema.parse(args[0]));
+    }
+    if (method === "sites") return this.tunnelPorts.sites();
+    if (method === "tunnelAllow")
+      return this.tunnelPorts.type(deviceId, portSchema.parse(args[0]));
+    return this.bridge.handle(method, args, deviceId);
   }
 
   private isComputer(deviceId: string) {
