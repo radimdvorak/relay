@@ -8,6 +8,8 @@ struct PickedPhoto: Identifiable, Sendable {
     let id = UUID()
     let image: PastedImage
     let thumbnail: UIImage
+    /// Drawn on in the composer: the photo before the ink, and the strokes burned into `image`.
+    var sketch: Sketched?
 }
 
 /// Photos picked but not sent, by the draft they go with, so they outlive its composer: an
@@ -93,7 +95,7 @@ private nonisolated func scale(_ image: UIImage, longSide: CGFloat) -> UIImage {
     }
 }
 
-/// The photos going with the next message, each with a way to take it back out, and the
+/// The photos going with the next message, a tap draws on one, each with a way to take it back out, and the
 /// screenshots the computer's composer has in this draft, which go with it from there.
 struct PhotoStrip: View {
     let photos: [PickedPhoto]
@@ -101,6 +103,7 @@ struct PhotoStrip: View {
     let loading: Int
     var computerShots: [Int] = []
     let remove: (PickedPhoto.ID) -> Void
+    var edit: (PickedPhoto) -> Void = { _ in }
     var retry: (AttachedFile) -> Void = { _ in }
     var removeFile: (AttachedFile) -> Void = { _ in }
     @Environment(\.colors) private var colors
@@ -114,6 +117,10 @@ struct PhotoStrip: View {
                         .scaledToFill()
                         .frame(width: 56, height: 56)
                         .clipShape(.rect(cornerRadius: 12))
+                        .contentShape(.rect(cornerRadius: 12))
+                        .onTapGesture { edit(photo) }
+                        .accessibilityAddTraits(.isButton)
+                        .accessibilityLabel("Draw on photo")
                         .overlay(alignment: .topTrailing) {
                             Button("Remove photo", systemImage: "xmark.circle.fill") { remove(photo.id) }
                                 .labelStyle(.iconOnly)
@@ -152,10 +159,15 @@ struct PhotoStrip: View {
 extension PickedPhoto {
     /// A photo coming back out of the queue, as the computer held it.
     init?(restoring image: PastedImage) {
-        guard let comma = image.dataUrl.firstIndex(of: ","),
-            let data = Data(base64Encoded: String(image.dataUrl[image.dataUrl.index(after: comma)...])),
-            let full = UIImage(data: data)
-        else { return nil }
+        guard let full = decoded(image) else { return nil }
         self.init(image: image, thumbnail: scale(full, longSide: 168))
     }
+}
+
+/// The photo a data URL holds, at its full size.
+nonisolated func decoded(_ image: PastedImage) -> UIImage? {
+    guard let comma = image.dataUrl.firstIndex(of: ","),
+        let data = Data(base64Encoded: String(image.dataUrl[image.dataUrl.index(after: comma)...]))
+    else { return nil }
+    return UIImage(data: data)
 }

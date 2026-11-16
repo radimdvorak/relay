@@ -51,6 +51,7 @@ struct Composer: View {
     @Environment(ReadAloud.self) private var reader
     @State private var field = ComposerText()
     @State private var photos: [PickedPhoto] = []
+    @State private var drawingOn: PickedPhoto?
     @State private var files: [AttachedFile] = []
     @State private var importing = false
     @State private var picked: [PhotosPickerItem] = []
@@ -149,6 +150,7 @@ struct Composer: View {
                 ComposerPhotos(
                     photos: photos, files: files, loading: loadingPhotos, draftAt: draftAt,
                     remove: { id in photos.removeAll { $0.id == id } },
+                    edit: { drawingOn = $0 },
                     retry: { $0.upload(with: connection) },
                     removeFile: removeFile)
                 ComposerField(
@@ -184,6 +186,13 @@ struct Composer: View {
             case .success(let urls): attach(urls)
             case .failure(let failure): error = "Couldn't open that file: \(failure.localizedDescription)"
             }
+        }
+        .fullScreenCover(item: $drawingOn) { photo in
+            DrawOnPhoto(
+                photo: photo,
+                drawn: { drawn in photos = photos.map { $0.id == photo.id ? drawn : $0 } },
+                failed: { error = $0 },
+                close: { drawingOn = nil })
         }
         .fullScreenCover(isPresented: $camera) {
             CameraPicker { add($0, name: "photo-\(photos.count + loadingPhotos + 1).jpg") }
@@ -830,6 +839,7 @@ private struct ComposerPhotos: View {
     let loading: Int
     let draftAt: (computer: String, key: String)?
     let remove: (PickedPhoto.ID) -> Void
+    let edit: (PickedPhoto) -> Void
     let retry: (AttachedFile) -> Void
     let removeFile: (AttachedFile) -> Void
     @Environment(Connection.self) private var connection
@@ -838,7 +848,7 @@ private struct ComposerPhotos: View {
         let shots = connection.computerShots(draftAt)
         if !photos.isEmpty || !files.isEmpty || loading > 0 || !shots.isEmpty {
             PhotoStrip(
-                photos: photos, files: files, loading: loading, computerShots: shots, remove: remove, retry: retry,
+                photos: photos, files: files, loading: loading, computerShots: shots, remove: remove, edit: edit, retry: retry,
                 removeFile: removeFile
             )
             .padding(.top, 4)
