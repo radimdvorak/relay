@@ -1,4 +1,3 @@
-import type { RunImportOffer } from "../import-offer";
 import type { AgentResponse } from "../agent-modes";
 import type { AgentProvider } from "../agents";
 import type { MergeBranch, MergePlan, MergeResult } from "../branch-merge";
@@ -29,6 +28,7 @@ import type { NewsItem } from "../thread-news";
 import type { CommitDetail, CommitLog, HistoryScope } from "../history";
 import type { DirListing, FileInfo, FilePreview } from "../project-files";
 import type { ChatMediaApi } from "./media-api";
+import type { ProjectFoldersApi } from "./folders-api";
 import type {
   BranchPull,
   CreatedPullRequest,
@@ -47,21 +47,7 @@ import type {
   RebaseResult,
   WorkingTree,
 } from "../working-tree";
-import type { AddingJob, AddingStart, GithubRepos, NewProject } from "./adding";
 import type { ProjectCouncilApi } from "./council-api";
-import type {
-  ImportApp,
-  ImportProject,
-  ImportChat,
-  ImportSelection,
-  ProjectImportResult,
-} from "../project-import";
-import type {
-  FolderEntry,
-  FolderInfo,
-  FolderPreview,
-  LinkSuggestion,
-} from "./folders";
 import type { LinkedFolder } from "./links";
 import type { WorktreeStart } from "./worktrees";
 import type { Project, ProjectSettings } from "./project";
@@ -120,51 +106,6 @@ export interface ProjectListApi {
   addProjectLinks(id: string, links: LinkedFolder[]): Promise<Project>;
   /** Opens the project's folder in Finder. */
   revealProject(id: string): Promise<void>;
-}
-
-/** Folders on disk, to add as projects or link to one. */
-export interface ProjectFoldersApi {
-  importProjects(app: ImportApp): Promise<ImportProject[]>;
-  importProjectChats(
-    app: ImportApp,
-    key: string,
-    folder?: string,
-  ): Promise<ImportChat[]>;
-  importSelectedProjects(
-    app: ImportApp,
-    selections: ImportSelection[],
-  ): Promise<ProjectImportResult>;
-  /** A Scratchpad thread opened to import `app`'s history with an agent, which gets the import tools. */
-  startImportThread(
-    app: ImportApp,
-  ): Promise<{ project: Project; chat: ChatSummary }>;
-  /** Imports what the user ticked in the list an agent offered (offer_import), and places the new projects. */
-  runImportOffer(
-    chatId: string,
-    messageId: string,
-    input: RunImportOffer,
-  ): Promise<ProjectImportResult>;
-  inspectFolder(path: string): Promise<FolderInfo>;
-  /** The folders inside `dir`, for typing a path; `~` stands for home. */
-  listFolders(dir: string): Promise<FolderEntry[]>;
-  folderPreview(dir: string, computerId?: string): Promise<FolderPreview>;
-  /** Finder's folder picker; null when cancelled. Adds nothing. */
-  chooseFolder(title: string): Promise<string | null>;
-  /** Folders worth linking to the project: the repositories beside it, then the other projects. */
-  linkSuggestions(projectId: string): Promise<LinkSuggestion[]>;
-  /** What the add-project palette opens on. */
-  addingStart(computerId?: string): Promise<AddingStart>;
-  /** Adds the folder at `path`; `setUpGit` runs `git init` in a plain one first. */
-  addProjectAt(path: string, setUpGit?: boolean): Promise<Project>;
-  /** Clones `remote` into a folder of its name inside `into`, then adds it. */
-  cloneProject(remote: string, into: string): Promise<Project>;
-  /** Makes the folder, with git and a GitHub repository when asked, then adds it. */
-  createProject(spec: NewProject, computerId?: string): Promise<Project>;
-  /** Stops the clone or creation under way; it rejects. */
-  cancelProjectAdding(computerId?: string): Promise<void>;
-  /** The repositories the `gh` login can see. */
-  githubRepos(computerId?: string): Promise<GithubRepos>;
-  onProjectAdding(callback: (job: AddingJob | null) => void): () => void;
 }
 
 /** A project's threads: the list, the conversation and its turns. */
