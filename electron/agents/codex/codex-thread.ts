@@ -52,6 +52,22 @@ export function appServerArgs(
 }
 
 /**
+ * A goal left active (Relay quit mid-goal) would start a turn the moment
+ * the thread loads; it waits paused for /goal resume instead.
+ */
+async function pauseLeftoverGoal(
+  transport: CodexTransport,
+  threadId: string,
+  goals: CodexGoalHold,
+): Promise<void> {
+  const leftover = codexGoals(transport, threadId);
+  const goal = await leftover.get().catch(() => undefined);
+  if (goal?.status === "active")
+    goals.seen(await leftover.set({ status: "paused" }));
+  else goals.goal = goal;
+}
+
+/**
  * The thread a run works on: the one its server already has, or one it
  * starts, resumes or forks with this run's settings. `policy` is left out
  * for a one-off, and `goals` when no goal keeps the run open.
@@ -114,15 +130,8 @@ export async function openCodexThread(
     job.kind === "helper"
       ? job.instructions
       : `${projectInstructions} ${job.kind === "side" ? sideInstructions : options.relayTools ? renderPrompt(options.relayTools.renders) : ""}`;
-  // A goal left active (Relay quit mid-goal) would start a turn the
-  // moment the thread loads; it waits paused for /goal resume instead.
-  if (goals && options.session?.id) {
-    const leftover = codexGoals(transport, options.session.id);
-    const goal = await leftover.get().catch(() => undefined);
-    if (goal?.status === "active")
-      goals.seen(await leftover.set({ status: "paused" }));
-    else goals.goal = goal;
-  }
+  if (goals && options.session?.id)
+    await pauseLeftoverGoal(transport, options.session.id, goals);
   const fork = options.session?.id ? undefined : options.session?.fork;
   // A side check's fork repeats these exactly, or it misses the thread's cache.
   const settings = {
