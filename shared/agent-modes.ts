@@ -118,6 +118,8 @@ export const agentResponseSchema = z.discriminatedUnion("kind", [
       kind: z.literal("secret"),
       /** What the user typed for request_secret; null when they declined. */
       value: z.string().min(1).max(SECRET_MAX_CHARS).nullable(),
+      /** Always: also remember it for the project's later requests. */
+      remember: z.literal(true).optional(),
     })
     .strict(),
 ]);

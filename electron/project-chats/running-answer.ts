@@ -7,8 +7,11 @@ import type { TurnPreview } from "../../shared/preview";
 import { PAGE_QUESTION_ID } from "../../shared/projects";
 import {
   SECRET_QUESTION_ID,
+  SECRET_REMEMBERED,
   type SecretRequest,
 } from "../../shared/secret-request";
+import { rememberedSecrets } from "./remembered-secrets";
+import { secretFiles } from "./secret-files";
 import type { ChatCore } from "./core";
 
 /** Asks the user in the thread's running turn, as its agent would; see electron/started-threads. */
@@ -108,23 +111,27 @@ export type Asked =
 
 /**
  * Leaves what the thread's agent asks in the answer it is writing, as an open
- * question the user answers later through answerQuestion.
+ * question the user answers later through answerQuestion. A secret the user
+ * had Relay remember for the project needs no answer: resolves to the file it
+ * was put in, and the answer keeps a row saying so.
  */
 export function ask(core: ChatCore, id: string, asked: Asked) {
   return "secret" in asked
     ? askForSecret(core, id, asked.secret)
-    : askWithPage(core, id, asked.page, asked.html, asked.ask);
+    : askWithPage(core, id, asked.page, asked.html, asked.ask).then(
+        () => undefined,
+      );
 }
 
 /**
  * The card stands in every app as one hidden question, so one that doesn't
  * know secret requests yet still shows a field that hides what is typed.
  */
-function askForSecret(core: ChatCore, id: string, secret: SecretRequest) {
+async function askForSecret(core: ChatCore, id: string, secret: SecretRequest) {
   const active = core.active.get(id);
   if (!active?.askPage || core.active.windingDown(active))
     throw new Error("This thread has no running answer to ask in.");
-  active.askPage({
+  const group = {
     id: randomUUID(),
     secret,
     questions: [
@@ -135,5 +142,20 @@ function askForSecret(core: ChatCore, id: string, secret: SecretRequest) {
         isSecret: true,
       },
     ],
+  };
+  const { projectId } = await core.storage.load(id);
+  const remembered = await rememberedSecrets(core.store).value(
+    projectId,
+    secret.name,
+  );
+  if (remembered === undefined) {
+    active.askPage(group);
+    return undefined;
+  }
+  const file = await secretFiles(core.store.dir).save(remembered);
+  active.askPage({
+    ...group,
+    answers: { [SECRET_QUESTION_ID]: [SECRET_REMEMBERED] },
   });
+  return file;
 }

@@ -47,6 +47,7 @@ import { previewHandlers } from "./previews";
 import { processHandlers } from "./processes";
 import { scheduleHandlers } from "./schedules";
 import { secondOpinionHandlers } from "./second-opinions";
+import { secretHandlers } from "./secrets";
 import { usageHandlers } from "./usage";
 
 export type Dispatch = (method: ApiMethod, args: unknown[]) => Promise<unknown>;
@@ -78,6 +79,7 @@ export function createDispatch(
     threadNoteHandlers(ctx),
     deepReviewHandlers(ctx),
     secondOpinionHandlers(ctx),
+    secretHandlers(ctx),
     terminalHandlers(ctx),
     threadWindowHandlers(ctx),
     editorWindowHandlers(ctx),

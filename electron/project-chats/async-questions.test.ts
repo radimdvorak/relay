@@ -22,8 +22,15 @@ import {
   supersedeQuestions,
 } from "./async-questions";
 import { ActiveTurns } from "./active";
+import { rememberedSecrets } from "./remembered-secrets";
 import { threadControl } from "./control";
 import type { ChatCore } from "./core";
+
+// The OS credential store, standing in: sealed text is the value reversed.
+vi.mock("../platform/seal", () => {
+  const reversed = async (text: string) => [...text].reverse().join("");
+  return { seal: reversed, unseal: reversed };
+});
 
 function fixture() {
   const message: ChatMessage = {
@@ -55,10 +62,13 @@ function fixture() {
   };
   const chat = {
     id: "chat",
+    projectId: "project",
     messages: [message],
     lastInput: input,
   } as ProjectChat;
   const dir = mkdtempSync(join(tmpdir(), "relay-async-questions-"));
+  /** What the store would write to state.json. */
+  const state: Record<string, unknown> = {};
   const active = new ActiveTurns(() => {});
   const run = active.claim(chat.id, input);
   run.steer = vi.fn().mockResolvedValue(undefined);
@@ -66,7 +76,12 @@ function fixture() {
   const emit = vi.fn();
   const core = {
     storage: { load: async () => chat, save },
-    store: { aiSettings: () => defaultAISettings, dir },
+    store: {
+      aiSettings: () => defaultAISettings,
+      dir,
+      get: () => state,
+      update: async (change: (s: typeof state) => void) => change(state),
+    },
     active,
     control: threadControl(),
     closing: () => false,
@@ -76,6 +91,8 @@ function fixture() {
   return {
     questions: new AsyncQuestions(core, send),
     secretsDir: join(dir, "secrets"),
+    state,
+    remembered: rememberedSecrets(core.store),
     active,
     chat,
     message,
@@ -377,6 +394,34 @@ describe("a secret request", () => {
     expect(readFileSync(f.savedFiles()[0], "utf8")).toBe(VALUE);
     expect(f.message.questions![0].answers).toEqual({ secret: ["Saved"] });
     expect(f.kept()).not.toContain(VALUE);
+  });
+
+  it("remembers it for the project when the user answers Always", async () => {
+    const f = asked();
+    await f.questions.answer("chat", "message", "item", {
+      kind: "secret",
+      value: VALUE,
+      remember: true,
+    });
+    expect(await f.remembered.value("project", "github TOKEN")).toBe(VALUE);
+    expect(await f.remembered.value("project", "GitHub")).toBeUndefined();
+    expect(f.run.steer).toHaveBeenCalledWith(
+      expect.stringContaining("always give it in this project"),
+      expect.any(String),
+    );
+    expect(f.message.questions![0].answers).toEqual({ secret: ["Always"] });
+    // Sealed in what the store writes, and nowhere in the thread.
+    expect(JSON.stringify(f.state)).not.toContain(VALUE);
+    expect(f.kept()).not.toContain(VALUE);
+  });
+
+  it("remembers nothing for a plain Save or a decline", async () => {
+    const f = asked();
+    await f.questions.answer("chat", "message", "item", {
+      kind: "secret",
+      value: VALUE,
+    });
+    expect(f.remembered.list("project")).toEqual([]);
   });
 
   it("tells the agent not to ask in chat when the user declines", async () => {

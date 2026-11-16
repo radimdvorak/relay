@@ -29,6 +29,7 @@ import type { CommitDetail, CommitLog, HistoryScope } from "../history";
 import type { DirListing, FileInfo, FilePreview } from "../project-files";
 import type { ChatMediaApi } from "./media-api";
 import type { ProjectFoldersApi } from "./folders-api";
+import type { ProjectSecretsApi } from "../secret-request";
 import type {
   BranchPull,
   CreatedPullRequest,
@@ -68,6 +69,7 @@ export interface ProjectApi
   extends
     ProjectListApi,
     ProjectFoldersApi,
+    ProjectSecretsApi,
     ProjectChatApi,
     ChatMediaApi,
     ThreadNotesApi,

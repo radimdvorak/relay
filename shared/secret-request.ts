@@ -39,3 +39,42 @@ export const SECRET_MAX_CHARS = 8000;
 
 /** How long the file holding a saved secret stays before Relay deletes it. */
 export const SECRET_FILE_LIFE_HOURS = 24;
+
+/** What the thread keeps instead of SECRET_SAVED when the user answered Always. */
+export const SECRET_ALWAYS = "Always";
+
+/** What the thread keeps for a request Relay answered itself, from what the user had it remember. */
+export const SECRET_REMEMBERED = "Remembered";
+
+/**
+ * What two names must share to be the same remembered secret: their letters,
+ * whatever the case and spacing. Nothing looser, so a lookalike name never
+ * gets another secret's value.
+ */
+export const secretNameKey = (name: string) =>
+  name.trim().replace(/\s+/g, " ").toLocaleLowerCase();
+
+/** A secret Relay remembers for a project; its value never leaves the main process. */
+export interface RememberedSecret {
+  name: string;
+  saved: number;
+  /** Kept only until Relay quits: this computer has no credential store to seal it with. */
+  sessionOnly?: true;
+}
+
+/** A project, or the one a thread is in. */
+export type SecretsOf = { projectId: string } | { chatId: string };
+
+export interface ProjectSecretsApi {
+  /** The secrets the user answered with Always in the project, by name. */
+  projectSecrets(of: SecretsOf): Promise<RememberedSecret[]>;
+  /** Stops remembering one; returns what is left. */
+  forgetProjectSecret(
+    projectId: string,
+    name: string,
+  ): Promise<RememberedSecret[]>;
+}
+
+/** How the agent is told to use the file a secret was put in. */
+export const secretFileUse = (file: string) =>
+  `Read it only inside the command that uses it, with the path quoted, like TOKEN="$(cat '${file}')" <command>. Never print it, copy it elsewhere or repeat it in your answer. Relay deletes the file in ${SECRET_FILE_LIFE_HOURS} hours.`;

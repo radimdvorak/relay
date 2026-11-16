@@ -1,5 +1,6 @@
 import type { Project } from "../../../../shared/projects";
 import { LinkedFoldersSetting } from "../../linked-folders/LinkedFoldersSetting";
+import { SavedSecretsSetting } from "../../secrets/SavedSecretsSetting";
 import type { SettingEntry } from "../settings-search";
 import {
   ProjectAutoSettleSelect,
@@ -51,6 +52,7 @@ export function projectEntries(project: Project | undefined): SettingEntry[] {
       block: true,
       render: () => <LinkedFoldersSetting project={project} />,
     },
+    savedSecretsEntry(project),
     {
       id: "project-dev-command",
       category: "project",
@@ -190,3 +192,17 @@ function worktreeEntries(project: Project): SettingEntry[] {
     } satisfies SettingEntry,
   ];
 }
+
+/** What the project's agents get without a card, to see and remove. */
+const savedSecretsEntry = (project: Project): SettingEntry => ({
+  id: "project-secrets",
+  category: "project",
+  section: "Saved secrets",
+  title: "Secrets agents get without asking",
+  description:
+    "Keys, tokens and passwords you answered with Always. Any agent in this project that asks for one by exactly its name gets it in a private file, with no card. Kept in this computer's credential store, never in the project.",
+  keywords:
+    "secret secrets token key password api credential always remember saved keychain request_secret remove forget",
+  block: true,
+  render: () => <SavedSecretsSetting project={project} />,
+});

@@ -6,12 +6,16 @@ import {
   type ChatMessage,
 } from "../../../shared/projects";
 import type { AgentRequest, AgentResponse } from "../../../shared/agent-modes";
-import { SECRET_QUESTION_ID } from "../../../shared/secret-request";
+import {
+  SECRET_ALWAYS,
+  SECRET_QUESTION_ID,
+  SECRET_REMEMBERED,
+} from "../../../shared/secret-request";
 import { questionAnswers } from "../../../shared/asked-questions";
 import { api } from "../../lib/api";
 import { AnsweredQuestions } from "../agent-turn/AnsweredQuestions";
 import { AgentRequestCard } from "./AgentRequestCard";
-import { SecretRequestCard } from "./SecretRequestCard";
+import { SecretRequestCard } from "../secrets/SecretRequestCard";
 import { errorMessage } from "../../../shared/error-message";
 
 /** Saved questions stay usable even after the turn's live trace folds away. */
@@ -59,16 +63,13 @@ function AnsweredGroup({
   answers: Record<string, string[]>;
   status?: string;
 }) {
-  if (group.secret) {
-    const saved = !!answers[SECRET_QUESTION_ID];
+  if (group.secret)
     return (
       <AnsweredQuestions
         status={status}
-        label={`${saved ? "Saved" : "Declined"} "${group.secret.name}"`}
-        note={saved ? "In a private file, not in the chat" : undefined}
+        {...secretOutcome(group.secret.name, answers[SECRET_QUESTION_ID]?.[0])}
       />
     );
-  }
   if (group.page) {
     const answer = answers[PAGE_QUESTION_ID];
     return (
@@ -90,6 +91,26 @@ function AnsweredGroup({
       status={status}
     />
   );
+}
+
+/** How a secret request ended, said once: the row's label, with where the value went under it. */
+function secretOutcome(name: string, kept: string | undefined) {
+  if (kept === SECRET_REMEMBERED)
+    return {
+      label: `Used saved "${name}"`,
+      note: "Saved for this project with Always, so there was no card",
+    };
+  if (kept === SECRET_ALWAYS)
+    return {
+      label: `Saved "${name}"`,
+      note: "In a private file, not in the chat. Always: this project's agents get it without asking",
+    };
+  if (kept)
+    return {
+      label: `Saved "${name}"`,
+      note: "In a private file, not in the chat",
+    };
+  return { label: `Declined "${name}"` };
 }
 
 function answerStatus(
@@ -144,6 +165,7 @@ function OpenCard({
   return group.secret ? (
     <SecretRequestCard
       secret={group.secret}
+      chatId={chatId}
       agent={agentName(provider)}
       onRespond={answer}
     />

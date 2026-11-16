@@ -53,3 +53,16 @@ export class SecretFiles {
     }
   }
 }
+
+const byDir = new Map<string, SecretFiles>();
+
+/** The one set of secret files under Relay's data folder `dataDir`, beside state.json. */
+export function secretFiles(dataDir: string) {
+  const dir = join(dataDir, "secrets");
+  const existing = byDir.get(dir);
+  if (existing) return existing;
+  const made = new SecretFiles(dir);
+  made.keepSwept();
+  byDir.set(dir, made);
+  return made;
+}

@@ -1,5 +1,4 @@
 import { randomUUID } from "node:crypto";
-import { join } from "node:path";
 import {
   agentResponseSchema,
   type AgentResponse,
@@ -15,7 +14,8 @@ import {
 } from "../../shared/projects";
 import { agentAsked } from "../../shared/recipient";
 import {
-  SECRET_FILE_LIFE_HOURS,
+  SECRET_ALWAYS,
+  secretFileUse,
   SECRET_MAX_CHARS,
   SECRET_QUESTION_ID,
   SECRET_SAVED,
@@ -23,7 +23,8 @@ import {
 } from "../../shared/secret-request";
 import type { ChatCore } from "./core";
 import { assertHere } from "./handoff";
-import { SecretFiles } from "./secret-files";
+import { rememberedSecrets } from "./remembered-secrets";
+import { secretFiles, type SecretFiles } from "./secret-files";
 import { sessionInput } from "./sessions";
 
 /**
@@ -127,13 +128,22 @@ export function secretGiven(response: AgentResponse): string | undefined {
 }
 
 /** What the agent reads once the secret is in `file`. */
-export const savedSecret = (secret: SecretRequest, file: string) => ({
+export const savedSecret = (
+  secret: SecretRequest,
+  file: string,
+  always: boolean,
+) => ({
   body: [
     `The user saved "${secret.name}" for you. It is in this private file, not in the chat:`,
     file,
-    `Read it only inside the command that uses it, with the path quoted, like TOKEN="$(cat '${file}')" <command>. Never print it, copy it elsewhere or repeat it in your answer. Relay deletes the file in ${SECRET_FILE_LIFE_HOURS} hours.`,
+    secretFileUse(file),
+    ...(always
+      ? [
+          `They also chose to always give it in this project: ask for it under exactly this name again and it comes at once, with no card.`,
+        ]
+      : []),
   ].join("\n"),
-  answers: { [SECRET_QUESTION_ID]: [SECRET_SAVED] },
+  answers: { [SECRET_QUESTION_ID]: [always ? SECRET_ALWAYS : SECRET_SAVED] },
 });
 
 /** What the agent reads when the user declined; without it agents ask again in chat. */
@@ -152,8 +162,7 @@ export class AsyncQuestions {
     /** Sends while already holding the thread's control. */
     private send: (id: string, input: ProjectChatSend) => Promise<void>,
   ) {
-    this.secrets = new SecretFiles(join(core.store.dir, "secrets"));
-    this.secrets.keepSwept();
+    this.secrets = secretFiles(core.store.dir);
   }
 
   answer(id: string, messageId: string, itemId: string, value: AgentResponse) {
@@ -165,7 +174,7 @@ export class AsyncQuestions {
       );
       const response = agentResponseSchema.parse(value);
       const { body, answers, pageAnswer, file } = group.secret
-        ? await this.secretAnswer(group.secret, response)
+        ? await this.secretAnswer(chat.projectId, group.secret, response)
         : { ...answerOf(group, response), file: undefined };
       if (body.length > 32000)
         throw new Error(
@@ -196,7 +205,11 @@ export class AsyncQuestions {
    * Puts the secret the user gave into a file and words the answer around its
    * path, so the value reaches neither the agent's context nor the thread.
    */
-  private async secretAnswer(secret: SecretRequest, response: AgentResponse) {
+  private async secretAnswer(
+    projectId: string,
+    secret: SecretRequest,
+    response: AgentResponse,
+  ) {
     const value = secretGiven(response);
     if (value === undefined)
       return {
@@ -204,8 +217,19 @@ export class AsyncQuestions {
         pageAnswer: undefined,
         file: undefined,
       };
+    const always = response.kind === "secret" && !!response.remember;
+    if (always)
+      await rememberedSecrets(this.core.store).remember(
+        projectId,
+        secret.name,
+        value,
+      );
     const file = await this.secrets.save(value);
-    return { ...savedSecret(secret, file), pageAnswer: undefined, file };
+    return {
+      ...savedSecret(secret, file, always),
+      pageAnswer: undefined,
+      file,
+    };
   }
 
   /** Says the answer to the agent that asked: into its running turn when that one reads steers, otherwise as the next turn. */

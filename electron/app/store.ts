@@ -70,6 +70,14 @@ interface State {
   pluginSecrets?: Partial<
     Record<import("../../shared/plugins").PluginId, Record<string, string>>
   >;
+  /**
+   * Secrets the user told Relay to always give a project's agents, by project
+   * id then the name's key; encrypted like `encryptedToken`.
+   */
+  projectSecrets?: Record<
+    string,
+    Record<string, { name: string; saved: number; sealed: string }>
+  >;
   clockify?: {
     settings?: import("../../shared/clockify").ClockifySettings;
     day?: import("../../shared/clockify").ClockifyDay;

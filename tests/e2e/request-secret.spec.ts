@@ -182,3 +182,110 @@ test("an agent asks for a secret and gets a file's path, never the value", async
     await rm(root, { recursive: true, force: true });
   }
 });
+
+test("a secret answered with Always comes back without a card, under its own name only", async () => {
+  test.setTimeout(120_000);
+  const root = await realpath(await mkdtemp(join(tmpdir(), "relay-secret-")));
+  let app: ElectronApplication | undefined;
+  try {
+    const opened = await openProject(root);
+    app = opened.app;
+    const page = opened.page;
+    const answers = page.getByRole("article", { name: "codex answer" });
+    const stop = page.getByRole("button", { name: "Stop answer", exact: true });
+    const told = () =>
+      readFile(join(root, "agent.jsonl"), "utf8").catch(() => "");
+    const cardFor = (name: string) =>
+      page.getByRole("region", { name: `Codex asks for a secret: ${name}` });
+
+    await askFor(page, { name: "npm publish token" });
+    const card = cardFor("npm publish token");
+    // The card says which saved secret Always makes it.
+    await expect(card).toContainText(
+      "any agent here that asks for “npm publish token” by exactly that name gets it without a card",
+    );
+    const actions = card.locator(".secret-request-actions button");
+    await expect(actions).toHaveText(["Decline", "Always", "Save"]);
+    await card.getByLabel("npm publish token").fill(SECRET);
+    await screenshot(card, {
+      path: join(tmpdir(), "relay-request-secret-always-card.png"),
+    });
+    await card.getByRole("button", { name: "Always" }).click();
+    await expect(page.getByText('Saved "npm publish token"')).toBeVisible();
+    await expect
+      .poll(told)
+      .toContain("They also chose to always give it in this project");
+    await expect(answers).toHaveCount(2, { timeout: 30_000 });
+    await expect(stop).toHaveCount(0, { timeout: 30_000 });
+
+    // Asked again, however it is cased: no card, the tool answers with a
+    // fresh file, and the thread keeps a row that it happened.
+    await askFor(page, { name: "NPM publish token" });
+    await expect(answers.last()).toContainText(
+      'The user chose to always give "NPM publish token" in this project',
+      { timeout: 30_000 },
+    );
+    await expect(cardFor("NPM publish token")).toHaveCount(0);
+    await expect(
+      page.getByText('Used saved "NPM publish token"'),
+    ).toBeVisible();
+    const handedOver =
+      /not in the chat:\s*(\S[^\n]*?secrets\/[0-9a-f]{32})/.exec(
+        (await answers.last().innerText()) ?? "",
+      )?.[1];
+    expect(await readFile(handedOver!, "utf8")).toBe(SECRET);
+    await expect(stop).toHaveCount(0, { timeout: 30_000 });
+    await screenshot(page, {
+      path: join(tmpdir(), "relay-request-secret-used-saved.png"),
+    });
+
+    // A lookalike name is another secret: it gets a card, which shows what
+    // is already saved so the difference is plain.
+    await askFor(page, { name: "npm token" });
+    const lookalike = cardFor("npm token");
+    await expect(lookalike).toContainText(
+      "Already saved here under other names: npm publish token.",
+    );
+    await screenshot(lookalike, {
+      path: join(tmpdir(), "relay-request-secret-lookalike-card.png"),
+    });
+    await lookalike.getByRole("button", { name: "Decline" }).click();
+    await expect(page.getByText('Declined "npm token"')).toBeVisible();
+    await expect(stop).toHaveCount(0, { timeout: 30_000 });
+
+    // Project settings lists what is saved, by name, and removes it.
+    await page.getByRole("button", { name: /^Project actions for/ }).click();
+    await page.getByRole("menuitem", { name: "Project settings" }).click();
+    const settings = page.getByRole("region", {
+      name: "Settings",
+      exact: true,
+    });
+    const saved = settings.getByRole("list", { name: "Saved secrets" });
+    await expect(saved.getByRole("listitem")).toHaveCount(1);
+    await expect(saved).toContainText("npm publish token");
+    await saved.scrollIntoViewIfNeeded();
+    await screenshot(page, {
+      path: join(tmpdir(), "relay-request-secret-settings.png"),
+    });
+    await saved
+      .getByRole("button", { name: "Remove npm publish token" })
+      .click();
+    await expect(settings.getByText("None saved.")).toBeVisible();
+    await settings.getByRole("button", { name: "Back to app" }).click();
+
+    // Removed, it is asked for again.
+    await askFor(page, { name: "npm publish token" });
+    await expect(cardFor("npm publish token")).toBeVisible({ timeout: 30_000 });
+
+    // The value is on disk only in the two files the agent was pointed at;
+    // what Relay saved of it for the project was sealed, and is gone.
+    await app.close();
+    app = undefined;
+    const holding = await filesHolding(root, SECRET);
+    expect(holding).toHaveLength(2);
+    expect(holding).toContain(handedOver);
+  } finally {
+    await app?.close();
+    await rm(root, { recursive: true, force: true });
+  }
+});
