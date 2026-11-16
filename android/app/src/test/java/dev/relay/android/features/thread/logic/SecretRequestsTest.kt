@@ -26,6 +26,25 @@ class SecretRequestsTest {
     }
 
     @Test
+    fun `says what Always does, what is already saved and how long it lasts`() {
+        val base = "Always also keeps it for this project: any agent here that asks for “npm token” by exactly that name gets it without a card."
+        assertEquals(base, alwaysExplained("npm token", emptyList(), sessionOnly = false))
+        assertEquals(
+            "$base Already saved here under other names: npm publish token, Staging password.",
+            alwaysExplained("npm token", listOf("npm publish token", "Staging password"), sessionOnly = false),
+        )
+        // Saved from another thread while this card was open: not another name.
+        assertEquals(
+            "$base Already saved here under other names: Staging password.",
+            alwaysExplained("npm token", listOf(" NPM  token", "Staging password"), sessionOnly = false),
+        )
+        assertEquals(
+            "$base This computer has no credential store, so it is kept only until Relay quits. Already saved here under other names: npm publish token.",
+            alwaysExplained("npm token", listOf("npm publish token"), sessionOnly = true),
+        )
+    }
+
+    @Test
     fun `tells where the value goes`() {
         assertEquals(
             "It goes to a private file that Claude's commands read, not into the chat. Relay deletes the file after 24 hours.",

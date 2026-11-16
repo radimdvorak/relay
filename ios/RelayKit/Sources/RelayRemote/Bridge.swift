@@ -44,6 +44,8 @@ public enum Bridge {
     public static let stepsOnOpen = 38
     /// Phones may download a video an answer plays, a piece at a time (`projectChatVideoPart`).
     public static let video = 42
+    /// A secret card may offer Always: `projectSecrets` says what the project has saved, and the answer takes `remember`.
+    public static let secretAlways = 43
 
     /// The desktop counts as outdated below this.
     public static let oldestCurrent = 22

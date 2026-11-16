@@ -22,7 +22,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import dev.relay.android.features.thread.logic.SecretOutcome
+import dev.relay.android.features.thread.logic.alwaysExplained
 import dev.relay.android.features.thread.logic.secretDestination
+import dev.relay.android.remote.model.SavedSecrets
 import dev.relay.android.remote.model.SecretRequest
 import dev.relay.android.ui.Button
 import dev.relay.android.ui.ButtonVariant
@@ -33,14 +35,19 @@ import dev.relay.android.ui.theme.RelayTheme
 import io.github.lyxnx.compose.ui.tablericons.TablerIcons
 import io.github.lyxnx.compose.ui.tablericons.outline.Key
 
-/** [onAnswer] gets the typed secret, or null when the user declines. */
+/**
+ * [onAnswer] gets the typed secret, or null when the user declines, and whether
+ * to remember it for the project. [saved] is what the project already has
+ * saved; null where the computer is too old to offer Always.
+ */
 @Composable
 internal fun SecretRequestCard(
     secret: SecretRequest,
     agent: String,
     busy: Boolean,
     error: String?,
-    onAnswer: (String?) -> Unit,
+    saved: SavedSecrets?,
+    onAnswer: (String?, Boolean) -> Unit,
 ) {
     // Not saveable: a typed secret isn't written into the app's saved state.
     var value by remember { mutableStateOf("") }
@@ -60,12 +67,17 @@ internal fun SecretRequestCard(
             label = secret.name,
             placeholder = "Paste or type it…",
             enabled = !busy,
-            onDone = { if (typed.isNotEmpty() && !busy) onAnswer(typed) },
+            onDone = { if (typed.isNotEmpty() && !busy) onAnswer(typed, false) },
         )
         Hint(secretDestination(agent))
+        if (saved != null) Hint(alwaysExplained(secret.name, saved.secrets.map { it.name }, saved.sessionOnly == true))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Button("Decline", { onAnswer(null) }, Modifier.weight(1f), variant = ButtonVariant.Outline, enabled = !busy)
-            Button("Save", { onAnswer(typed) }, Modifier.weight(1f), enabled = !busy && typed.isNotEmpty())
+            Button("Decline", { onAnswer(null, false) }, Modifier.weight(1f), variant = ButtonVariant.Outline, enabled = !busy)
+            if (saved != null) Button(
+                "Always", { onAnswer(typed, true) }, Modifier.weight(1f),
+                variant = ButtonVariant.Outline, enabled = !busy && typed.isNotEmpty(),
+            )
+            Button("Save", { onAnswer(typed, false) }, Modifier.weight(1f), enabled = !busy && typed.isNotEmpty())
         }
         error?.let { Hint(it, color = c.destructive) }
     }

@@ -14,6 +14,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -32,8 +34,12 @@ import dev.relay.android.features.renders.AskPage
 import dev.relay.android.features.thread.logic.SECRET_QUESTION_ID
 import dev.relay.android.features.thread.logic.agentName
 import dev.relay.android.features.thread.logic.secretOutcome
+import dev.relay.android.remote.Bridge
+import dev.relay.android.remote.Remote
+import dev.relay.android.remote.model.RemoteJson
 import dev.relay.android.remote.model.AsyncAgentQuestions
 import dev.relay.android.remote.model.ChatMessage
+import dev.relay.android.remote.model.SavedSecrets
 import dev.relay.android.ui.Haptic
 import dev.relay.android.ui.Icon
 import dev.relay.android.ui.Text
@@ -89,11 +95,13 @@ private fun Open(chatId: String, message: ChatMessage, group: AsyncAgentQuestion
     val c = RelayTheme.colors
     val secret = group.secret
     // Decline stands where the other cards have Dismiss.
-    if (secret != null && group.dismissed != true) SecretRequestCard(secret, agentName(message.provider), busy, error) { value ->
+    if (secret != null && group.dismissed != true) SecretRequestCard(
+        secret, agentName(message.provider), busy, error, savedSecrets(remote, chatId),
+    ) { value, always ->
         run({
             remote.desktop(
                 "answerProjectChatQuestion", chatId, message.id, group.id,
-                mapOf("kind" to "secret", "value" to value),
+                mapOf("kind" to "secret", "value" to value) + if (always) mapOf("remember" to true) else emptyMap(),
             )
         }, sent)
     } else if (group.dismissed != true) Column(
@@ -141,6 +149,27 @@ private fun Open(chatId: String, message: ChatMessage, group: AsyncAgentQuestion
         )
         error?.let { Hint(it, color = c.destructive) }
     }
+}
+
+/**
+ * What the thread's project has saved with Always, for the card to say what
+ * Always does. Null while it loads, where the computer is too old to remember
+ * secrets, or when it can't be read: the card then offers Decline and Save.
+ */
+@Composable
+private fun savedSecrets(remote: Remote, chatId: String): SavedSecrets? {
+    val supported = (remote.overview.collectAsState().value?.bridge ?: 1) >= Bridge.SECRET_ALWAYS
+    var saved by remember(chatId) { mutableStateOf<SavedSecrets?>(null) }
+    LaunchedEffect(chatId, supported) {
+        saved = if (!supported) null else try {
+            RemoteJson.decodeFromJsonElement(SavedSecrets.serializer(), remote.desktop("projectSecrets", mapOf("chatId" to chatId)))
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            null
+        }
+    }
+    return saved
 }
 
 @Composable

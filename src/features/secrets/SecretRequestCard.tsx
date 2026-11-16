@@ -3,8 +3,9 @@ import { KeyRound } from "lucide-react";
 import type { AgentResponse } from "../../../shared/agent-modes";
 import { errorMessage } from "../../../shared/error-message";
 import {
-  SECRET_FILE_LIFE_HOURS,
+  alwaysExplained,
   SECRET_MAX_CHARS,
+  secretDestination,
   type SecretRequest,
 } from "../../../shared/secret-request";
 import { useSavedSecrets } from "./useSavedSecrets";
@@ -66,11 +67,10 @@ export function SecretRequestCard({
       >
         <fieldset disabled={busy}>
           <SecretField name={secret.name} value={value} onChange={setValue} />
-          <WhereItGoes
-            name={secret.name}
-            agent={agent}
-            others={saved.map((s) => s.name)}
-          />
+          <p className="agent-request-note">{secretDestination(agent)}</p>
+          <p className="agent-request-note">
+            {alwaysExplained(secret.name, saved)}
+          </p>
           <SecretActions
             agent={agent}
             canSave={!!typed}
@@ -81,36 +81,6 @@ export function SecretRequestCard({
       </form>
       {error && <p role="alert">{error}</p>}
     </section>
-  );
-}
-
-/**
- * What each choice does with the value, and which saved secret Always makes
- * it: the one under exactly this name. Names already saved in the project
- * show beside it, so a lookalike asked under another name is plain to see.
- */
-function WhereItGoes({
-  name,
-  agent,
-  others,
-}: {
-  name: string;
-  agent: string;
-  others: string[];
-}) {
-  return (
-    <>
-      <p className="agent-request-note">
-        It goes to a private file that {agent}'s commands read, not into the
-        chat. Relay deletes the file after {SECRET_FILE_LIFE_HOURS} hours.
-      </p>
-      <p className="agent-request-note">
-        Always also keeps it for this project: any agent here that asks for “
-        {name}” by exactly that name gets it without a card.
-        {others.length > 0 &&
-          ` Already saved here under other names: ${others.join(", ")}.`}
-      </p>
-    </>
   );
 }
 

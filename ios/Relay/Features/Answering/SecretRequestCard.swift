@@ -8,8 +8,10 @@ struct SecretRequestCard: View {
     let secret: SecretRequest
     let agent: String
     let busy: Bool
-    /// The typed secret, or nil when the user declines.
-    let onAnswer: (String?) -> Void
+    /// What the project already has saved; nil where the computer is too old to offer Always.
+    let saved: SavedSecrets?
+    /// The typed secret, or nil when the user declines, and whether to remember it for the project.
+    let onAnswer: (String?, Bool) -> Void
     @State private var value = ""
 
     private var typed: String { value.trimmingCharacters(in: .whitespacesAndNewlines) }
@@ -29,7 +31,7 @@ struct SecretRequestCard: View {
                 .autocorrectionDisabled()
                 .privacySensitive()
                 .submitLabel(.done)
-                .onSubmit { if !typed.isEmpty { onAnswer(typed) } }
+                .onSubmit { if !typed.isEmpty { onAnswer(typed, false) } }
                 .accessibilityLabel(secret.name)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 9)
@@ -37,11 +39,21 @@ struct SecretRequestCard: View {
             Text(secretDestination(agent: agent))
                 .font(.footnote)
                 .foregroundStyle(.secondary)
+            if let saved {
+                Text(alwaysExplained(name: secret.name, saved: saved))
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
             HStack {
-                Button("Decline") { onAnswer(nil) }
+                Button("Decline") { onAnswer(nil, false) }
                     .buttonStyle(.glass)
                 Spacer()
-                Button("Save") { onAnswer(typed) }
+                if saved != nil {
+                    Button("Always") { onAnswer(typed, true) }
+                        .buttonStyle(.glass)
+                        .disabled(typed.isEmpty)
+                }
+                Button("Save") { onAnswer(typed, false) }
                     .buttonStyle(.accentGlass)
                     .disabled(typed.isEmpty)
             }

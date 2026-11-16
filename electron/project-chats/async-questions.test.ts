@@ -29,7 +29,7 @@ import type { ChatCore } from "./core";
 // The OS credential store, standing in: sealed text is the value reversed.
 vi.mock("../platform/seal", () => {
   const reversed = async (text: string) => [...text].reverse().join("");
-  return { seal: reversed, unseal: reversed };
+  return { seal: reversed, unseal: reversed, canSeal: async () => true };
 });
 
 function fixture() {

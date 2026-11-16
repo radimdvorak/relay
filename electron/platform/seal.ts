@@ -4,7 +4,7 @@
 import { safeStorage } from "electron";
 
 /** Linux's basic_text backend stores plaintext; secrets then stay in memory. */
-const canEncrypt = async () =>
+export const canSeal = async () =>
   process.platform === "linux"
     ? safeStorage.isEncryptionAvailable() &&
       safeStorage.getSelectedStorageBackend() !== "basic_text"
@@ -12,7 +12,7 @@ const canEncrypt = async () =>
 
 /** Encrypts with the OS credential store; null when it can't persist safely. */
 export const seal = async (value: string) =>
-  (await canEncrypt())
+  (await canSeal())
     ? (await safeStorage.encryptStringAsync(value)).toString("base64")
     : null;
 

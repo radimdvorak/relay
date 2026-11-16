@@ -2,7 +2,7 @@
 // version may use it. Bump `remoteBridgeVersion` when the bridge gains calls.
 
 /** Bumped when the bridge gains calls; a phone asks for an update of an older desktop. */
-export const remoteBridgeVersion = 42;
+export const remoteBridgeVersion = 43;
 /** Phones may download a video an answer plays, a piece at a time (`projectChatVideoPart`). */
 export const videoBridge = 42;
 /**
@@ -159,3 +159,10 @@ export const remoteAddingBridge = 30;
 
 /** The bridge from which phones may call `updateMethods` too. */
 export const phoneUpdatesBridge = 11;
+
+/**
+ * From here a phone's secret card offers Always: it reads what the project has
+ * saved (`desktop("projectSecrets")`) to say what Always does, and answers
+ * with `remember`. Before, a phone shows Decline and Save only.
+ */
+export const secretAlwaysBridge = 43;

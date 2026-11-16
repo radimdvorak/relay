@@ -22,7 +22,7 @@ export function SavedSecretsSetting({ project }: { project: Project }) {
       setError(errorMessage(e));
     }
   }
-  if (!saved.length)
+  if (!saved.secrets.length)
     return (
       <p className="saved-secrets-none">
         None saved. Answer an agent's request with Always to save one.
@@ -31,7 +31,7 @@ export function SavedSecretsSetting({ project }: { project: Project }) {
   return (
     <>
       <ul className="saved-secrets" aria-label="Saved secrets">
-        {saved.map((secret) => (
+        {saved.secrets.map((secret) => (
           <li key={secret.name}>
             <KeyRound size={14} aria-hidden />
             <span className="saved-secret-name">{secret.name}</span>

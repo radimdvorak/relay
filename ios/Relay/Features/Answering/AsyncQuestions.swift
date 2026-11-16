@@ -27,12 +27,20 @@ private struct Open: View {
     @Environment(Connection.self) private var connection
     @State private var busy = false
     @State private var error: String?
+    /// What the thread's project has saved with Always, for a secret card to say what Always does.
+    @State private var saved: SavedSecrets?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             if let secret = group.secret {
                 // Decline stands where the other cards have Dismiss.
-                SecretRequestCard(secret: secret, agent: agentName(message.provider), busy: busy) { send(.secret($0)) }
+                SecretRequestCard(secret: secret, agent: agentName(message.provider), busy: busy, saved: saved) {
+                    send(.secret($0, remember: $1))
+                }
+                // Too old a computer, or one that can't be asked, leaves Decline and Save.
+                .task(id: connection.canRememberSecrets) {
+                    saved = connection.canRememberSecrets ? try? await connection.savedSecrets(chatId) : nil
+                }
             } else {
                 asked
             }

@@ -638,6 +638,8 @@ final class Connection {
     }
 
     var canPlayVideos: Bool { (overview?.bridge ?? 1) >= Bridge.video }
+    /// A secret card may offer Always.
+    var canRememberSecrets: Bool { (overview?.bridge ?? 1) >= Bridge.secretAlways }
 
     /// An unused Scratchpad folder, or a fresh one: where a new Scratchpad chat starts.
     /// Whether the computer tunnels its localhost to the phone's browser.
@@ -778,6 +780,12 @@ final class Connection {
     func answer(_ chatId: String, message: String, group: String, _ response: AgentResponse) async throws {
         guard let client else { throw PairingError("Not connected.") }
         try await client.answerQuestion(chatId: chatId, messageId: message, groupId: group, response)
+    }
+
+    /// What the thread's project has saved with Always.
+    func savedSecrets(_ chatId: String) async throws -> SavedSecrets {
+        guard let client else { throw PairingError("Not connected.") }
+        return try await client.savedSecrets(chatId: chatId)
     }
 
     func dismissQuestion(_ chatId: String, message: String, group: String, _ dismissed: Bool) async throws {

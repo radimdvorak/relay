@@ -10,7 +10,7 @@ import { ask, showRender } from "./running-answer";
 // The OS credential store, standing in: sealed text is the value reversed.
 vi.mock("../platform/seal", () => {
   const reversed = async (text: string) => [...text].reverse().join("");
-  return { seal: reversed, unseal: reversed };
+  return { seal: reversed, unseal: reversed, canSeal: async () => true };
 });
 
 const page: HtmlRender = { id: "r1", title: "Chart", created: 1, pages: [{}] };

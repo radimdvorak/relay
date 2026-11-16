@@ -4,9 +4,10 @@
 import {
   secretNameKey,
   type RememberedSecret,
+  type SavedSecrets,
 } from "../../shared/secret-request";
 import type { Store } from "../app/store";
-import { seal, unseal } from "../platform/seal";
+import { canSeal, seal, unseal } from "../platform/seal";
 
 type Encrypt = (value: string) => Promise<string | null>;
 type Decrypt = (value: string) => Promise<string>;
@@ -25,7 +26,17 @@ export class RememberedSecrets {
     private store: Pick<Store, "get" | "update">,
     private encrypt: Encrypt = seal,
     private decrypt: Decrypt = unseal,
+    private canEncrypt: () => Promise<boolean> = canSeal,
   ) {}
+
+  /** What is remembered for the project, and whether this computer keeps it past a restart. */
+  async saved(projectId: string): Promise<SavedSecrets> {
+    const kept = await this.canEncrypt();
+    return {
+      secrets: this.list(projectId),
+      ...(kept ? {} : { sessionOnly: true as const }),
+    };
+  }
 
   /** What is remembered for the project, oldest first; names only. */
   list(projectId: string): RememberedSecret[] {

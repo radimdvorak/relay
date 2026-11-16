@@ -51,6 +51,23 @@ const stateAt = process.argv.indexOf("--state");
 const stateDir = stateAt > 0 ? process.argv[stateAt + 1] : await mkdtemp(join(tmpdir(), "relay-ios-live-"));
 await mkdir(stateDir, { recursive: true });
 const store = new Store(join(stateDir, "state"));
+// The real store of secrets answered with Always, sealed in a way a script can undo.
+// --no-keyring: a computer that can't seal, where Always lasts until the stand-in stops.
+const { RememberedSecrets } = await import(join(root, "electron/project-chats/remembered-secrets.ts"));
+const noKeyring = process.argv.includes("--no-keyring");
+const remembered = new RememberedSecrets(
+  store,
+  async (value: string) => (noKeyring ? null : Buffer.from(value).toString("base64")),
+  async (sealed: string) => Buffer.from(sealed, "base64").toString(),
+  async () => !noKeyring,
+);
+/** A request_secret group as the desktop leaves it in an answer; `answers` when it already ended. */
+const asksFor = (id: string, name: string, reason: string | undefined, answers?: Record<string, string[]>) => ({
+  id,
+  secret: { name, ...(reason ? { reason } : {}) },
+  questions: [{ id: "secret", header: name, question: reason ?? name, isSecret: true }],
+  ...(answers ? { answers } : {}),
+});
 await store.load();
 // --lan: listen on this computer's Wi-Fi address too, for a real phone, with no tailnet.
 const lan = process.argv.includes("--lan");
@@ -295,12 +312,6 @@ So every exponent is $\le 0$ and the biggest term is exactly $1$. A ragged one s
     }),
   ], { waiting: true, asking: true });
   // request_secret: one request each way it can end, and one still open to answer.
-  const asksFor = (id: string, name: string, reason: string | undefined, answers?: Record<string, string[]>) => ({
-    id,
-    secret: { name, ...(reason ? { reason } : {}) },
-    questions: [{ id: "secret", header: name, question: reason ?? name, isSecret: true }],
-    ...(answers ? { answers } : {}),
-  });
   thread(relay, "Publish the cache guard to npm", 6, [
     message("user", "Publish this to npm and check it on staging.", 12),
     message("assistant", "Staging is checked with the password you saved for this project. I asked for the registry login twice and you took one of them.", 10, {
@@ -760,7 +771,8 @@ const host = {
     if (method === "regenerateProjectChatTitle") renamed(args[0], "A fresh name from the stand-in");
     if (method === "compactProjectChat") compacted(args[0]);
     if (method === "respondProjectChat") responded(args[0], args[1], args[2]);
-    if (method === "answerProjectChatQuestion") answered(args[0], args[1], args[2], args[3]);
+    if (method === "answerProjectChatQuestion") await answered(args[0], args[1], args[2], args[3]);
+    if (method === "projectSecrets") return remembered.saved(args[0].projectId ?? threads.get(args[0].chatId)!.summary.projectId);
     if (method === "setProjectChatQuestionDismissed") dismissed(args[0], args[1], args[2], args[3]);
     if (method === "projectCommands") return agentCommands[args[1]] ?? [];
     if (method === "providerUsage") return usageOf(args[0]);
@@ -946,8 +958,26 @@ function responded(chatId: string, requestId: string, response: any) {
   changed(t.summary.projectId);
 }
 
+/**
+ * The agent asks for a secret: a card to answer, or, when the project has it
+ * saved under exactly that name, an answered row and no card.
+ */
+async function requestSecret(chatId: string, send: any, name: string) {
+  const t = threads.get(chatId)!;
+  const asked = { ...message("user", send.body, 0), id: send.id, created: Date.now() };
+  const value = await remembered.value(t.summary.projectId, name);
+  const group = asksFor(crypto.randomUUID(), name, undefined, value === undefined ? undefined : { secret: ["Remembered"] });
+  const reply = { ...message("assistant", value === undefined ? "I need this to go on." : "Got it from what you saved.", 0), created: Date.now(), questions: [group] };
+  t.messages.push(asked, reply);
+  remote.chatEvent({ chatId, message: asked });
+  remote.chatEvent({ chatId, message: reply });
+  Object.assign(t.summary, { updated: Date.now(), ...(value === undefined ? { waiting: true, asking: true } : {}) });
+  changed(t.summary.projectId);
+  console.error("secret", name, value === undefined ? "asked with a card" : `handed over (${value.length} characters)`);
+}
+
 /** An async question group answered: kept on its message, and the answer goes to the agent as a message. */
-function answered(chatId: string, messageId: string, groupId: string, response: any) {
+async function answered(chatId: string, messageId: string, groupId: string, response: any) {
   const t = threads.get(chatId)!;
   const m = t.messages.find((x) => x.id === messageId);
   const group = m?.questions?.find((g: any) => g.id === groupId);
@@ -955,8 +985,10 @@ function answered(chatId: string, messageId: string, groupId: string, response: 
   // A secret's value stays out of the thread, as on the real desktop: only how it ended is kept.
   if (group.secret) {
     if (response.kind !== "secret") throw new Error("Invalid response type.");
-    group.answers = response.value ? { secret: ["Saved"] } : {};
-    console.error("secret", group.secret.name, response.value ? `saved (${response.value.length} characters)` : "declined");
+    const always = !!response.value && response.remember === true;
+    if (always) await remembered.remember(t.summary.projectId, group.secret.name, response.value);
+    group.answers = response.value ? { secret: [always ? "Always" : "Saved"] } : {};
+    console.error("secret", group.secret.name, response.value ? `saved (${response.value.length} characters)${always ? ", always" : ""}` : "declined");
   } else group.answers = response.kind === "page" ? { page: [response.answer ?? ""] } : response.answers;
   m.version += 1;
   remote.chatEvent({ chatId, message: m });
@@ -1118,6 +1150,9 @@ function sent(chatId: string, send: any) {
   // "needs you" in a message makes another thread ask something a moment later, so the
   // phone's banner over the open thread can be seen.
   if (seeded && /needs you/i.test(send.body ?? "")) setTimeout(() => askElsewhere(chatId), 4000);
+  // "secret: <name>" has the agent ask for that secret, as request_secret would.
+  const wanted = seeded ? /^(?:@\S+\s+)?secret:\s*(.+)$/i.exec(send.body ?? "")?.[1]?.trim() : undefined;
+  if (wanted) return void requestSecret(chatId, send, wanted);
   if (send.sendAt) {
     (t.scheduled ??= []).push({ ...send, at: send.sendAt });
     t.summary.nextSend = Math.min(t.summary.nextSend ?? Infinity, send.sendAt);

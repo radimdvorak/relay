@@ -15,18 +15,14 @@ export function secretHandlers(ctx: ApiContext) {
   const remembered = rememberedSecrets(ctx.store);
   return {
     projectSecrets: takes([ofSchema], async (of) =>
-      remembered.list(
+      remembered.saved(
         "projectId" in of
           ? of.projectId
           : (await ctx.projectChats.get(of.chatId)).projectId,
       ),
     ),
-    forgetProjectSecret: takes(
-      [idSchema, nameSchema],
-      async (projectId, name) => {
-        await remembered.forget(projectId, name);
-        return remembered.list(projectId);
-      },
+    forgetProjectSecret: takes([idSchema, nameSchema], (projectId, name) =>
+      remembered.forget(projectId, name),
     ),
   } satisfies Handlers;
 }

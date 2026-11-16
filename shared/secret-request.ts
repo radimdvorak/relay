@@ -65,16 +65,52 @@ export interface RememberedSecret {
 /** A project, or the one a thread is in. */
 export type SecretsOf = { projectId: string } | { chatId: string };
 
+/** What a project has saved, as a card or its settings shows it. */
+export interface SavedSecrets {
+  secrets: RememberedSecret[];
+  /** This computer has no credential store, so Always lasts only until Relay quits. */
+  sessionOnly?: true;
+}
+
 export interface ProjectSecretsApi {
   /** The secrets the user answered with Always in the project, by name. */
-  projectSecrets(of: SecretsOf): Promise<RememberedSecret[]>;
-  /** Stops remembering one; returns what is left. */
-  forgetProjectSecret(
-    projectId: string,
-    name: string,
-  ): Promise<RememberedSecret[]>;
+  projectSecrets(of: SecretsOf): Promise<SavedSecrets>;
+  /** Stops remembering one. */
+  forgetProjectSecret(projectId: string, name: string): Promise<void>;
+}
+
+/**
+ * What the card says Always does, on the desktop and both phones: which saved
+ * secret it makes this one, the names the project already has saved, so a
+ * lookalike asked under another name is plain to see, and how long it lasts
+ * where the computer can't seal it.
+ */
+export function alwaysExplained(
+  name: string,
+  saved: Pick<SavedSecrets, "sessionOnly"> & { secrets: { name: string }[] },
+) {
+  // The asked name itself can be saved by now, from another thread's card.
+  const asked = secretNameKey(name);
+  const others = saved.secrets
+    .map((secret) => secret.name)
+    .filter((other) => secretNameKey(other) !== asked);
+  return [
+    `Always also keeps it for this project: any agent here that asks for “${name}” by exactly that name gets it without a card.`,
+    ...(saved.sessionOnly
+      ? [
+          "This computer has no credential store, so it is kept only until Relay quits.",
+        ]
+      : []),
+    ...(others.length
+      ? [`Already saved here under other names: ${others.join(", ")}.`]
+      : []),
+  ].join(" ");
 }
 
 /** How the agent is told to use the file a secret was put in. */
 export const secretFileUse = (file: string) =>
   `Read it only inside the command that uses it, with the path quoted, like TOKEN="$(cat '${file}')" <command>. Never print it, copy it elsewhere or repeat it in your answer. Relay deletes the file in ${SECRET_FILE_LIFE_HOURS} hours.`;
+
+/** Where the card says the value goes. */
+export const secretDestination = (agent: string) =>
+  `It goes to a private file that ${agent}'s commands read, not into the chat. Relay deletes the file after ${SECRET_FILE_LIFE_HOURS} hours.`;

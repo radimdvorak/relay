@@ -8,15 +8,18 @@ public enum AgentResponse: Sendable, Equatable {
     case answers([String: [String]])
     /// A page's answer; nil skips it.
     case page(String?)
-    /// What was typed for a secret request; nil declines it.
-    case secret(String?)
+    /// What was typed for a secret request, nil to decline it; `remember` for Always.
+    case secret(String?, remember: Bool = false)
 
     var json: JSON {
         switch self {
         case .decision(let d): ["kind": "approval", "decision": .string(d)]
         case .answers(let a): ["kind": "question", "answers": .object(a.mapValues { .array($0.map(JSON.string)) })]
         case .page(let answer): ["kind": "page", "answer": answer.map(JSON.string) ?? .null]
-        case .secret(let value): ["kind": "secret", "value": value.map(JSON.string) ?? .null]
+        case .secret(let value, let remember):
+            remember
+                ? ["kind": "secret", "value": value.map(JSON.string) ?? .null, "remember": true]
+                : ["kind": "secret", "value": value.map(JSON.string) ?? .null]
         }
     }
 }
@@ -31,6 +34,11 @@ public extension RemoteClient {
     func answerQuestion(chatId: String, messageId: String, groupId: String, _ response: AgentResponse) async throws {
         _ = try await desktop(
             "answerProjectChatQuestion", [.string(chatId), .string(messageId), .string(groupId), response.json])
+    }
+
+    /// What the thread's project has saved with Always; from `Bridge.secretAlways`.
+    func savedSecrets(chatId: String) async throws -> SavedSecrets {
+        try await desktop("projectSecrets", [["chatId": .string(chatId)]]).decode()
     }
 
     func setQuestionDismissed(chatId: String, messageId: String, groupId: String, _ dismissed: Bool) async throws {

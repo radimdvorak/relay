@@ -18,6 +18,7 @@ function fixture(canSeal = true) {
     store,
     async (value) => (canSeal ? reversed(value) : null),
     async (sealed) => reversed(sealed),
+    async () => canSeal,
   );
   return { secrets, state };
 }
@@ -71,6 +72,13 @@ it("remembers until Relay quits where the computer can't seal it, and writes not
     { name: "npm publish token", saved: expect.any(Number), sessionOnly: true },
   ]);
   expect(state.projectSecrets).toBeUndefined();
+  // The card and settings say so before anything is saved.
+  expect((await fixture(false).secrets.saved("project")).sessionOnly).toBe(
+    true,
+  );
+  expect(
+    (await fixture().secrets.saved("project")).sessionOnly,
+  ).toBeUndefined();
 });
 
 it("asks again when what was saved can't be read any more", async () => {

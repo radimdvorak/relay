@@ -126,6 +126,11 @@ data class AgentQuestion(
 
 @Serializable data class QuestionOption(val label: String, val description: String? = null, val value: String? = null)
 
+/** What a project has saved with Always, by name; `sessionOnly` where the computer keeps it only until Relay quits. */
+@Serializable data class SavedSecrets(val secrets: List<SavedSecret> = emptyList(), val sessionOnly: Boolean? = null)
+
+@Serializable data class SavedSecret(val name: String)
+
 /** What the agent calls the secret it asks for, and why it needs it. */
 @Serializable data class SecretRequest(val name: String, val reason: String? = null)
 

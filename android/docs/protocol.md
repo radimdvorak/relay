@@ -241,6 +241,7 @@ toServer = okm[0..32), toClient = okm[32..64)
 | 37 | `branchMovesBridge` | `projectChatWorkOn`: move a started thread to any branch |
 | 38 | `stepsOnOpenBridge` | `chat`'s `steps:"latest"` folds finished turns (`stepsLeftOut`); `messageSteps` fetches one's steps |
 | 42 | `videoBridge` | `desktop("projectChatVideoPart", [chatId, messageId, path, offset])` → `{size, data}`: an answer's video, 1MB (`videoPartBytes`) of base64 at a time, for the phone to download and play |
+| 43 | `secretAlwaysBridge` | `desktop("projectSecrets", [{chatId}])` → `{secrets:[{name,saved}], sessionOnly?}`: what the thread's project has saved with Always; `answerProjectChatQuestion`'s `{kind:"secret", value, remember:true}` saves one. Before, a secret card offers Decline and Save only |
 
 ### ClientFrame (phone → desktop)
 - `{t:"pair", code, device, kind?:"computer", bridge?}`. Phones omit `kind`.
