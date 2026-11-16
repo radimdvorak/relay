@@ -33,6 +33,12 @@ import Testing
             name: "npm token",
             saved: SavedSecrets(secrets: [.init(name: " NPM  token"), .init(name: "Staging password")]))
             == "\(base) Already saved here under other names: Staging password.")
+        #expect(alwaysExplained(
+            name: "npm token",
+            saved: SavedSecrets(secrets: [.init(name: "npm publish token")], sessionOnly: true, computer: "Workshop"))
+            == "Always also keeps it on Workshop for this project: any agent here that asks for “npm token” by exactly that name gets it without a card. Workshop has no credential store, so it is kept only until Relay quits there. Already saved there under other names: npm publish token.")
+        #expect(secretDestination(agent: "Claude", computer: "Workshop")
+            == "It goes to a private file on Workshop that Claude's commands read, not into the chat. Relay deletes the file after 24 hours.")
         // As the desktop sends it.
         let sessionOnly = try JSONDecoder().decode(
             SavedSecrets.self,

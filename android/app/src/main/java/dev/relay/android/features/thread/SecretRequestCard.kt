@@ -69,8 +69,10 @@ internal fun SecretRequestCard(
             enabled = !busy,
             onDone = { if (typed.isNotEmpty() && !busy) onAnswer(typed, false) },
         )
-        Hint(secretDestination(agent))
-        if (saved != null) Hint(alwaysExplained(secret.name, saved.secrets.map { it.name }, saved.sessionOnly == true))
+        Hint(secretDestination(agent, saved?.computer))
+        if (saved != null) {
+            Hint(alwaysExplained(secret.name, saved.secrets.map { it.name }, saved.sessionOnly == true, saved.computer))
+        }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Button("Decline", { onAnswer(null, false) }, Modifier.weight(1f), variant = ButtonVariant.Outline, enabled = !busy)
             if (saved != null) Button(

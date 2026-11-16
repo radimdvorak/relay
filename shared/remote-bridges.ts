@@ -161,8 +161,10 @@ export const remoteAddingBridge = 30;
 export const phoneUpdatesBridge = 11;
 
 /**
- * From here a phone's secret card offers Always: it reads what the project has
- * saved (`desktop("projectSecrets")`) to say what Always does, and answers
- * with `remember`. Before, a phone shows Decline and Save only.
+ * From here a phone's secret card offers Always: it reads what the thread's
+ * project has saved (`desktop("threadSecrets")`) to say what Always does, and
+ * answers with `remember`. Before, a phone shows Decline and Save only. A
+ * computer that shows another's project reads and trims its saved secrets
+ * from here too (`projectSecrets`, `forgetProjectSecret`).
  */
 export const secretAlwaysBridge = 43;

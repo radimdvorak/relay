@@ -31,9 +31,10 @@ public func secretOutcome(name: String, kept: String?) -> SecretOutcome {
     }
 }
 
-/// Where the card says the value goes.
-public func secretDestination(agent: String) -> String {
-    "It goes to a private file that \(agent)'s commands read, not into the chat. Relay deletes the file after 24 hours."
+/// Where the card says the value goes; `computer` names the paired one the agent runs on.
+public func secretDestination(agent: String, computer: String? = nil) -> String {
+    let file = computer.map { "a private file on \($0)" } ?? "a private file"
+    return "It goes to \(file) that \(agent)'s commands read, not into the chat. Relay deletes the file after 24 hours."
 }
 
 /// What a project has saved with Always, by name.
@@ -45,10 +46,13 @@ public struct SavedSecrets: Codable, Sendable, Equatable {
     public var secrets: [Secret]
     /// The computer has no credential store, so Always lasts only until Relay quits.
     public var sessionOnly: Bool?
+    /// The paired computer that keeps them, when the thread runs on one, not on the phone's.
+    public var computer: String?
 
-    public init(secrets: [Secret] = [], sessionOnly: Bool? = nil) {
+    public init(secrets: [Secret] = [], sessionOnly: Bool? = nil, computer: String? = nil) {
         self.secrets = secrets
         self.sessionOnly = sessionOnly
+        self.computer = computer
     }
 }
 
@@ -61,16 +65,20 @@ public func secretNameKey(_ name: String) -> String {
 /// the names the project already has saved, and how long it lasts where the
 /// computer can't seal it.
 public func alwaysExplained(name: String, saved: SavedSecrets) -> String {
+    let keeps = saved.computer.map { "keeps it on \($0)" } ?? "keeps it"
     var parts = [
-        "Always also keeps it for this project: any agent here that asks for “\(name)” by exactly that name gets it without a card."
+        "Always also \(keeps) for this project: any agent here that asks for “\(name)” by exactly that name gets it without a card."
     ]
     if saved.sessionOnly == true {
-        parts.append("This computer has no credential store, so it is kept only until Relay quits.")
+        parts.append(
+            saved.computer.map { "\($0) has no credential store, so it is kept only until Relay quits there." }
+                ?? "This computer has no credential store, so it is kept only until Relay quits.")
     }
     // The asked name itself can be saved by now, from another thread's card.
     let others = saved.secrets.map(\.name).filter { secretNameKey($0) != secretNameKey(name) }
     if !others.isEmpty {
-        parts.append("Already saved here under other names: \(others.joined(separator: ", ")).")
+        let place = saved.computer == nil ? "here" : "there"
+        parts.append("Already saved \(place) under other names: \(others.joined(separator: ", ")).")
     }
     return parts.joined(separator: " ")
 }

@@ -36,7 +36,7 @@ struct SecretRequestCard: View {
                 .padding(.horizontal, 12)
                 .padding(.vertical, 9)
                 .background(.quietFill, in: .rect(cornerRadius: 12))
-            Text(secretDestination(agent: agent))
+            Text(secretDestination(agent: agent, computer: saved?.computer))
                 .font(.footnote)
                 .foregroundStyle(.secondary)
             if let saved {

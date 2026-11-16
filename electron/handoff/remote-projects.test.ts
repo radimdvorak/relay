@@ -240,3 +240,60 @@ it("leaves a trailing left-out argument out of the call, which JSON would send a
   const args = call.mock.calls[0]?.[3];
   expect(JSON.parse(JSON.stringify(args))).toEqual(["p"]);
 });
+
+it("reads and trims a project's saved secrets on its computer, which the list names", async () => {
+  const call = vi.fn(async (method: string, ..._: unknown[]) =>
+    method === "computerInfo"
+      ? { bridge: 43 }
+      : { secrets: [{ name: "npm token", saved: 1 }] },
+  );
+  const computers = {
+    onEvent: () => {},
+    onOnline: () => {},
+    get: () => ({ id: "pc", name: "Studio" }),
+    status: () => "online",
+    list: () => [{ id: "pc", name: "Studio", status: "online" }],
+    asleep: () => false,
+    connected: async () => ({ call }),
+  } as unknown as Computers;
+  const projects = {
+    get: () => ({
+      id: "p",
+      computer: { id: "pc", name: "Studio", projectId: "there" },
+    }),
+  } as unknown as Projects;
+  const remote = new RemoteProjects(computers, projects);
+  expect(remote.forwards("projectSecrets", ["p"])).toBe(true);
+  expect(await remote.forward("projectSecrets", ["p"], () => {})).toEqual({
+    secrets: [{ name: "npm token", saved: 1 }],
+    computer: "Studio",
+  });
+  expect(remote.forwards("forgetProjectSecret", ["p", "npm token"])).toBe(true);
+  await remote.forward("forgetProjectSecret", ["p", "npm token"], () => {});
+  expect(call.mock.calls.filter(([m]) => m === "projectCall")).toEqual([
+    ["projectCall", "there", "projectSecrets", ["p"]],
+    ["projectCall", "there", "forgetProjectSecret", ["p", "npm token"]],
+  ]);
+});
+
+it("asks a computer from before saved secrets to update, rather than listing none", async () => {
+  const call = vi.fn(async (_method: string) => ({ bridge: 42 }));
+  const computers = {
+    onEvent: () => {},
+    onOnline: () => {},
+    get: () => ({ id: "pc", name: "Studio" }),
+    status: () => "online",
+    list: () => [],
+    asleep: () => false,
+    connected: async () => ({ call }),
+  } as unknown as Computers;
+  const remote = new RemoteProjects(computers, {
+    get: () => ({
+      id: "p",
+      computer: { id: "pc", name: "Studio", projectId: "there" },
+    }),
+  } as unknown as Projects);
+  await expect(
+    remote.forward("projectSecrets", ["p"], () => {}),
+  ).rejects.toThrow("Update Relay on Studio");
+});

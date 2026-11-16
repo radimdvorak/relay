@@ -29,6 +29,7 @@ export const handoffChatMethods = [
   "projectChatReadImage",
   "closeWatchNote",
   "seePrediction",
+  "threadSecrets",
 ] as const satisfies readonly ApiMethod[];
 
 export type HandoffChatMethod = (typeof handoffChatMethods)[number];
@@ -101,6 +102,9 @@ export const remoteProjectMethods = [
   "restartProjectTask",
   // From `projectSessionsBridge`.
   "terminalSessions",
+  // From `secretAlwaysBridge`.
+  "projectSecrets",
+  "forgetProjectSecret",
 ] as const satisfies readonly ApiMethod[];
 
 export type RemoteProjectMethod = (typeof remoteProjectMethods)[number];

@@ -162,7 +162,7 @@ private fun savedSecrets(remote: Remote, chatId: String): SavedSecrets? {
     var saved by remember(chatId) { mutableStateOf<SavedSecrets?>(null) }
     LaunchedEffect(chatId, supported) {
         saved = if (!supported) null else try {
-            RemoteJson.decodeFromJsonElement(SavedSecrets.serializer(), remote.desktop("projectSecrets", mapOf("chatId" to chatId)))
+            RemoteJson.decodeFromJsonElement(SavedSecrets.serializer(), remote.desktop("threadSecrets", chatId))
         } catch (e: CancellationException) {
             throw e
         } catch (_: Exception) {

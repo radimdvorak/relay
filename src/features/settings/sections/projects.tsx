@@ -193,16 +193,23 @@ function worktreeEntries(project: Project): SettingEntry[] {
   ];
 }
 
-/** What the project's agents get without a card, to see and remove. */
-const savedSecretsEntry = (project: Project): SettingEntry => ({
-  id: "project-secrets",
-  category: "project",
-  section: "Saved secrets",
-  title: "Secrets agents get without asking",
-  description:
-    "Keys, tokens and passwords you answered with Always. Any agent in this project that asks for one by exactly its name gets it in a private file, with no card. Kept in this computer's credential store, never in the project.",
-  keywords:
-    "secret secrets token key password api credential always remember saved keychain request_secret remove forget",
-  block: true,
-  render: () => <SavedSecretsSetting project={project} />,
-});
+/**
+ * What the project's agents get without a card, to see and remove. A project
+ * on another computer has them there.
+ */
+function savedSecretsEntry(project: Project): SettingEntry {
+  const keeper = project.computer
+    ? `${project.computer.name}'s`
+    : "this computer's";
+  return {
+    id: "project-secrets",
+    category: "project",
+    section: "Saved secrets",
+    title: "Secrets agents get without asking",
+    description: `Keys, tokens and passwords you answered with Always. Any agent in this project that asks for one by exactly its name gets it in a private file, with no card. Kept in ${keeper} credential store, never in the project.`,
+    keywords:
+      "secret secrets token key password api credential always remember saved keychain request_secret remove forget",
+    block: true,
+    render: () => <SavedSecretsSetting project={project} />,
+  };
+}

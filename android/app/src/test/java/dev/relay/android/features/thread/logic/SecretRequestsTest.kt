@@ -45,6 +45,18 @@ class SecretRequestsTest {
     }
 
     @Test
+    fun `names the paired computer that keeps it`() {
+        assertEquals(
+            "Always also keeps it on Workshop for this project: any agent here that asks for “npm token” by exactly that name gets it without a card. Workshop has no credential store, so it is kept only until Relay quits there. Already saved there under other names: npm publish token.",
+            alwaysExplained("npm token", listOf("npm publish token"), sessionOnly = true, computer = "Workshop"),
+        )
+        assertEquals(
+            "It goes to a private file on Workshop that Claude's commands read, not into the chat. Relay deletes the file after 24 hours.",
+            secretDestination("Claude", "Workshop"),
+        )
+    }
+
+    @Test
     fun `tells where the value goes`() {
         assertEquals(
             "It goes to a private file that Claude's commands read, not into the chat. Relay deletes the file after 24 hours.",

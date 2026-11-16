@@ -62,19 +62,24 @@ export interface RememberedSecret {
   sessionOnly?: true;
 }
 
-/** A project, or the one a thread is in. */
-export type SecretsOf = { projectId: string } | { chatId: string };
-
 /** What a project has saved, as a card or its settings shows it. */
 export interface SavedSecrets {
   secrets: RememberedSecret[];
-  /** This computer has no credential store, so Always lasts only until Relay quits. */
+  /** The computer has no credential store, so Always lasts only until Relay quits. */
   sessionOnly?: true;
+  /**
+   * The paired computer that keeps them, by name, when the thread or project
+   * is on one: the Relay that passed the call on says so. Absent for the
+   * computer that answered.
+   */
+  computer?: string;
 }
 
 export interface ProjectSecretsApi {
-  /** The secrets the user answered with Always in the project, by name. */
-  projectSecrets(of: SecretsOf): Promise<SavedSecrets>;
+  /** The secrets the user answered with Always in the thread's project, by name. */
+  threadSecrets(chatId: string): Promise<SavedSecrets>;
+  /** The same for a project, as its settings list them. */
+  projectSecrets(projectId: string): Promise<SavedSecrets>;
   /** Stops remembering one. */
   forgetProjectSecret(projectId: string, name: string): Promise<void>;
 }
@@ -87,22 +92,26 @@ export interface ProjectSecretsApi {
  */
 export function alwaysExplained(
   name: string,
-  saved: Pick<SavedSecrets, "sessionOnly"> & { secrets: { name: string }[] },
+  saved: Pick<SavedSecrets, "sessionOnly" | "computer"> & {
+    secrets: { name: string }[];
+  },
 ) {
   // The asked name itself can be saved by now, from another thread's card.
   const asked = secretNameKey(name);
   const others = saved.secrets
     .map((secret) => secret.name)
     .filter((other) => secretNameKey(other) !== asked);
+  const { computer } = saved;
+  const keeps = computer ? `keeps it on ${computer}` : "keeps it";
+  const noStore = computer
+    ? `${computer} has no credential store, so it is kept only until Relay quits there.`
+    : "This computer has no credential store, so it is kept only until Relay quits.";
+  const where = computer ? "there" : "here";
   return [
-    `Always also keeps it for this project: any agent here that asks for “${name}” by exactly that name gets it without a card.`,
-    ...(saved.sessionOnly
-      ? [
-          "This computer has no credential store, so it is kept only until Relay quits.",
-        ]
-      : []),
+    `Always also ${keeps} for this project: any agent here that asks for “${name}” by exactly that name gets it without a card.`,
+    ...(saved.sessionOnly ? [noStore] : []),
     ...(others.length
-      ? [`Already saved here under other names: ${others.join(", ")}.`]
+      ? [`Already saved ${where} under other names: ${others.join(", ")}.`]
       : []),
   ].join(" ");
 }
@@ -111,6 +120,8 @@ export function alwaysExplained(
 export const secretFileUse = (file: string) =>
   `Read it only inside the command that uses it, with the path quoted, like TOKEN="$(cat '${file}')" <command>. Never print it, copy it elsewhere or repeat it in your answer. Relay deletes the file in ${SECRET_FILE_LIFE_HOURS} hours.`;
 
-/** Where the card says the value goes. */
-export const secretDestination = (agent: string) =>
-  `It goes to a private file that ${agent}'s commands read, not into the chat. Relay deletes the file after ${SECRET_FILE_LIFE_HOURS} hours.`;
+/** Where the card says the value goes; `computer` names the paired one the agent runs on. */
+export function secretDestination(agent: string, computer?: string) {
+  const file = computer ? `a private file on ${computer}` : "a private file";
+  return `It goes to ${file} that ${agent}'s commands read, not into the chat. Relay deletes the file after ${SECRET_FILE_LIFE_HOURS} hours.`;
+}

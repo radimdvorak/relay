@@ -1,5 +1,7 @@
 // Saved secrets in project settings: what the project's agents get without
-// asking, because a request for it was answered with Always. Names only.
+// asking, because a request for it was answered with Always. Names only. A
+// project on another computer lists what that computer keeps, and Remove
+// forgets it there.
 import { useState } from "react";
 import { KeyRound } from "lucide-react";
 import type { Project } from "../../../shared/projects";
@@ -11,7 +13,11 @@ import "./secrets.css";
 const day = new Intl.DateTimeFormat(undefined, { dateStyle: "medium" });
 
 export function SavedSecretsSetting({ project }: { project: Project }) {
-  const { saved, changed } = useSavedSecrets({ projectId: project.id });
+  const {
+    saved,
+    changed,
+    error: unread,
+  } = useSavedSecrets({ projectId: project.id });
   const [error, setError] = useState<string>();
   async function remove(name: string) {
     setError(undefined);
@@ -22,6 +28,8 @@ export function SavedSecretsSetting({ project }: { project: Project }) {
       setError(errorMessage(e));
     }
   }
+  // Its computer is offline or runs an older Relay: not "none saved".
+  if (unread) return <p role="alert">{errorMessage(unread)}</p>;
   if (!saved.secrets.length)
     return (
       <p className="saved-secrets-none">

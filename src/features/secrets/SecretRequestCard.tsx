@@ -67,7 +67,9 @@ export function SecretRequestCard({
       >
         <fieldset disabled={busy}>
           <SecretField name={secret.name} value={value} onChange={setValue} />
-          <p className="agent-request-note">{secretDestination(agent)}</p>
+          <p className="agent-request-note">
+            {secretDestination(agent, saved.computer)}
+          </p>
           <p className="agent-request-note">
             {alwaysExplained(secret.name, saved)}
           </p>

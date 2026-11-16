@@ -55,6 +55,9 @@ const store = new Store(join(stateDir, "state"));
 // --no-keyring: a computer that can't seal, where Always lasts until the stand-in stops.
 const { RememberedSecrets } = await import(join(root, "electron/project-chats/remembered-secrets.ts"));
 const noKeyring = process.argv.includes("--no-keyring");
+// --keeper <name>: threads read as running on that paired computer, which keeps their secrets.
+const keeperAt = process.argv.indexOf("--keeper");
+const keeper = keeperAt > 0 ? process.argv[keeperAt + 1] : undefined;
 const remembered = new RememberedSecrets(
   store,
   async (value: string) => (noKeyring ? null : Buffer.from(value).toString("base64")),
@@ -772,7 +775,10 @@ const host = {
     if (method === "compactProjectChat") compacted(args[0]);
     if (method === "respondProjectChat") responded(args[0], args[1], args[2]);
     if (method === "answerProjectChatQuestion") await answered(args[0], args[1], args[2], args[3]);
-    if (method === "projectSecrets") return remembered.saved(args[0].projectId ?? threads.get(args[0].chatId)!.summary.projectId);
+    if (method === "threadSecrets") {
+      const saved = await remembered.saved(threads.get(args[0])!.summary.projectId);
+      return keeper ? { ...saved, computer: keeper } : saved;
+    }
     if (method === "setProjectChatQuestionDismissed") dismissed(args[0], args[1], args[2], args[3]);
     if (method === "projectCommands") return agentCommands[args[1]] ?? [];
     if (method === "providerUsage") return usageOf(args[0]);

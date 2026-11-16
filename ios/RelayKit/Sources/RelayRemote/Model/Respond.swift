@@ -38,7 +38,7 @@ public extension RemoteClient {
 
     /// What the thread's project has saved with Always; from `Bridge.secretAlways`.
     func savedSecrets(chatId: String) async throws -> SavedSecrets {
-        try await desktop("projectSecrets", [["chatId": .string(chatId)]]).decode()
+        try await desktop("threadSecrets", [.string(chatId)]).decode()
     }
 
     func setQuestionDismissed(chatId: String, messageId: String, groupId: String, _ dismissed: Bool) async throws {

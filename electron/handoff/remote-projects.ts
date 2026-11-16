@@ -18,6 +18,7 @@ import type {
 import {
   computerAddingMethods,
   projectSessionsBridge,
+  secretAlwaysBridge,
   remoteAddingBridge,
 } from "../../shared/remote";
 import {
@@ -25,6 +26,7 @@ import {
   type TerminalSessionPick,
 } from "../../shared/terminal-sessions";
 import { draftTerminalKey, terminalSlotKey } from "../../shared/terminals";
+import type { SavedSecrets } from "../../shared/secret-request";
 import type { Api } from "../../shared/types";
 import type { Projects } from "../projects/projects";
 import type { Computers } from "./computers";
@@ -54,6 +56,8 @@ const addingMethods = new Set<string>(computerAddingMethods);
 /** Project calls an older Relay refuses, and the bridge that brought them. */
 const projectCallBridges = new Map<string, number>([
   ["terminalSessions", projectSessionsBridge],
+  ["projectSecrets", secretAlwaysBridge],
+  ["forgetProjectSecret", secretAlwaysBridge],
 ]);
 
 type Client = Awaited<ReturnType<Computers["connected"]>>;
@@ -225,6 +229,9 @@ export class RemoteProjects {
       );
     });
     if (kept) this.answered.set(kept, answer);
+    // The list is that computer's; the settings here say so.
+    if (method === "projectSecrets")
+      return { ...(answer as SavedSecrets), computer: name };
     return answer;
   }
 

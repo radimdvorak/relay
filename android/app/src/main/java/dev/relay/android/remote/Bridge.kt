@@ -21,7 +21,7 @@ object Bridge {
     const val STEPS_ON_OPEN = 38
     /** Phones may download a video an answer plays, a piece at a time (`projectChatVideoPart`). */
     const val VIDEO = 42
-    /** A secret card may offer Always: `projectSecrets` says what the project has saved, and the answer takes `remember`. */
+    /** A secret card may offer Always: `threadSecrets` says what the thread's project has saved, and the answer takes `remember`. */
     const val SECRET_ALWAYS = 43
     const val DEFAULT_PORT = 47821
 
@@ -73,7 +73,7 @@ object Bridge {
     /** `phoneDesktopMethods`: the desktop's own calls a phone may make through `desktop`. */
     val phoneDesktopMethods = setOf(
         "createProjectChat", "createScratch", "sendProjectChat", "cancelProjectChat", "respondProjectChat",
-        "answerProjectChatQuestion", "setProjectChatQuestionDismissed", "projectSecrets", "projectChatQueueAction",
+        "answerProjectChatQuestion", "setProjectChatQuestionDismissed", "threadSecrets", "projectChatQueueAction",
         "resumeProjectChat", "compactProjectChat", "reloadProjectChatSession", "rerunWorktreeSetup",
         "selectAgentWorktree", "resolveStoppedWork", "stopProjectChatPending", "projectChatAgents",
         "projectChatAgent", "stopProjectChatAgent", "triageProjectChat", "renameProjectChat",

@@ -19,6 +19,7 @@ import {
   type ProjectChatSend,
 } from "../../shared/projects";
 import { errorMessage } from "../../shared/error-message";
+import type { SavedSecrets } from "../../shared/secret-request";
 import { sharedHandoffTriage } from "../../shared/handoff-triage";
 import { parseWorkspaceId } from "../../shared/workspaces";
 import type { Store } from "../app/store";
@@ -130,6 +131,7 @@ export class HandoffForwarding {
       );
     if (method === "projectChatImage")
       return this.sentImage(sentTo, args as [string, string], here);
+    if (method === "threadSecrets") return this.secretsThere(sentTo, args);
     if (folderMethods.has(method) && !sentTo.folder) {
       if (here) return here();
       throw new Error(`${sentTo.computer} runs an older Relay.`);
@@ -321,6 +323,20 @@ export class HandoffForwarding {
         console.warn("A thread's image from there wasn't kept:", e),
       );
     return image;
+  }
+
+  /** What the thread's project has saved on the computer it runs on, which the answer names. */
+  private async secretsThere(
+    sentTo: NonNullable<ChatSummary["sentTo"]>,
+    args: unknown[],
+  ): Promise<SavedSecrets> {
+    const saved = (await this.callThere(
+      sentTo.computerId,
+      sentTo.id,
+      "threadSecrets",
+      args,
+    )) as SavedSecrets;
+    return { ...saved, computer: sentTo.computer };
   }
 
   /**
