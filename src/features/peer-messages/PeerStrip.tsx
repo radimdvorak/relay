@@ -1,7 +1,7 @@
 // Above the composer while the thread's Claude session is in a conversation
 // with another session on this computer: who with, where it stands, and
 // what they said. Both threads stopping right after it offers a nudge.
-import { useState } from "react";
+import { memo, useState } from "react";
 import { MessagesSquare } from "lucide-react";
 import type { PeerMessage, PeerRef } from "../../../shared/peer-messages";
 import type { ChatMessage, ChatSummary } from "../../../shared/projects";
@@ -47,7 +47,7 @@ function usePeerThread(peer: PeerRef | undefined) {
   };
 }
 
-export function PeerStrip({
+function PeerStripView({
   chat,
   messages,
 }: {
@@ -137,3 +137,19 @@ function PeerLog({
     </ol>
   );
 }
+
+/** When the user last wrote in the thread; 0 before they have. */
+function lastUserMessageAt(messages: ChatMessage[]) {
+  for (let i = messages.length - 1; i >= 0; i--)
+    if (messages[i].role === "user") return messages[i].created;
+  return 0;
+}
+
+// Every streamed piece hands over new messages, but the strip only reads when
+// the user last wrote, so it skips the pieces.
+export const PeerStrip = memo(
+  PeerStripView,
+  (before, after) =>
+    before.chat === after.chat &&
+    lastUserMessageAt(before.messages) === lastUserMessageAt(after.messages),
+);
