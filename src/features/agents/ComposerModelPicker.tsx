@@ -14,7 +14,6 @@ import {
   ChevronDown,
   ChevronRight,
   MessageSquare,
-  Search,
   Star,
 } from "lucide-react";
 import {
@@ -51,6 +50,7 @@ import {
 } from "./model-picker-catalog";
 import { ModelReload, reloadsModels } from "./ModelReload";
 import { ModelPickerRail } from "./ModelPickerRail";
+import { ModelPickerSearch } from "./ModelPickerSearch";
 import { useModelReorder } from "./useModelReorder";
 import { usePickerUsage } from "./usePickerUsage";
 import {
@@ -355,23 +355,10 @@ export const ComposerModelPicker = memo(function ComposerModelPicker({
                       if (m) select(m);
                     }}
                   >
-                    <div className="model-picker-search">
-                      <Search size={16} aria-hidden />
-                      <Combobox.Input
-                        ref={search}
-                        aria-label="Search models"
-                        placeholder="Search models…"
-                        autoComplete="off"
-                        spellCheck={false}
-                        onKeyDown={(e) => {
-                          if (e.key === "Escape") {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            setOpen(false);
-                          }
-                        }}
-                      />
-                    </div>
+                    <ModelPickerSearch
+                      input={search}
+                      close={() => setOpen(false)}
+                    />
                     <div className="model-picker-columns">
                       {grouped && !searching && (
                         <nav

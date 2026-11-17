@@ -25,7 +25,7 @@ export const bigFiles: Record<string, number> = {
   "shared/remote-client.ts": 776,
   "shared/types.ts": 882,
   "src/features/add-project/AddProjectPalette.tsx": 579,
-  "src/features/agents/ComposerModelPicker.tsx": 562,
+  "src/features/agents/ComposerModelPicker.tsx": 549,
   "src/features/agents/ContextWindowMeter.tsx": 575,
   "src/features/bug-report/ReportProblem.tsx": 506,
   "src/features/composer/ProjectComposer.tsx": 608,
