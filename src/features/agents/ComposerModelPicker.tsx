@@ -336,6 +336,8 @@ export const ComposerModelPicker = memo(function ComposerModelPicker({
                     <ModelPickerSearch
                       input={search}
                       close={() => setOpen(false)}
+                      category={category}
+                      computer={computer}
                     />
                     <div className="model-picker-columns">
                       {grouped && !searching && (

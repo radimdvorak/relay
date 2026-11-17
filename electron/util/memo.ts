@@ -51,7 +51,7 @@ export function memoWhileStamp<T>(
   ttl = Infinity,
 ) {
   let kept: { stamp: string; at: number; result: Promise<T> } | undefined;
-  return async () => {
+  const get = async () => {
     const now = await stamp().catch(() => undefined);
     if (now !== undefined && kept?.stamp === now && Date.now() - kept.at < ttl)
       return kept.result;
@@ -64,4 +64,10 @@ export function memoWhileStamp<T>(
     });
     return result;
   };
+  return Object.assign(get, {
+    /** The next ask goes to `load`, e.g. when someone asks for a fresh list. */
+    forget: () => {
+      kept = undefined;
+    },
+  });
 }

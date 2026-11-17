@@ -1,5 +1,7 @@
 // Catalog-only Codex for composer UI scenarios; no agent turn is started.
-const { appendFileSync } = require("node:fs");
+// Models in the JSON file at COMPOSER_CODEX_ROLLOUT are listed too, like ones
+// OpenAI rolls out to a CLI that is already installed.
+const { appendFileSync, existsSync, readFileSync } = require("node:fs");
 const { join } = require("node:path");
 const discovery = new Set([
   "initialize",
@@ -10,6 +12,14 @@ const discovery = new Set([
 ]);
 const send = (id, result) =>
   process.stdout.write(JSON.stringify({ id, result }) + "\n");
+const efforts = ["low", "medium", "high", "xhigh"].map((reasoningEffort) => ({
+  reasoningEffort,
+}));
+const rollout = process.env.COMPOSER_CODEX_ROLLOUT;
+const rolledOut = () =>
+  rollout && existsSync(rollout)
+    ? JSON.parse(readFileSync(rollout, "utf8"))
+    : [];
 require("node:readline")
   .createInterface({ input: process.stdin })
   .on("line", (line) => {
@@ -34,10 +44,14 @@ require("node:readline")
             model: "gpt-6-sol",
             displayName: "GPT-6-Sol",
             isDefault: true,
-            supportedReasoningEfforts: ["low", "medium", "high", "xhigh"].map(
-              (reasoningEffort) => ({ reasoningEffort }),
-            ),
+            supportedReasoningEfforts: efforts,
           },
+          ...rolledOut().map((id) => ({
+            id,
+            model: id,
+            displayName: id.toUpperCase(),
+            supportedReasoningEfforts: efforts,
+          })),
         ],
       });
     if (method === "config/read")

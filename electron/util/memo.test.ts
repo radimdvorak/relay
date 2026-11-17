@@ -89,5 +89,8 @@ describe("memoWhileStamp", () => {
     vi.advanceTimersByTime(1000);
     await get();
     expect(load).toHaveBeenCalledTimes(3);
+    get.forget();
+    await get();
+    expect(load).toHaveBeenCalledTimes(4);
   });
 });

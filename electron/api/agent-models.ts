@@ -32,11 +32,16 @@ export function agentModelHandlers(ctx: ApiContext) {
             provider,
             stopRunning,
           );
+        const runtime = agentRuntime(provider);
+        if (runtime.forgetModels) {
+          runtime.forgetModels(); // nothing restarts, so no thread stops
+          return { running: [] };
+        }
         const running = projectChats.runningOn(provider);
         if (running.length && !stopRunning) return { running };
         let stopped: string[] = [];
         try {
-          await agentRuntime(provider).reloadModels?.(async () => {
+          await runtime.reloadModels?.(async () => {
             stopped = await projectChats.stopRunningOn(provider);
           });
         } finally {

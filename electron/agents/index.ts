@@ -54,6 +54,7 @@ const codex: AgentRuntime = {
   subagents: (key) => codexSubagentBooks.get(key),
   contextReport: readCodexContext,
   models: codexModels,
+  forgetModels: codexModels.forget,
   defaults: async (root) => {
     const [defaults, models] = await Promise.all([
       codexDefaults(root),
@@ -74,6 +75,7 @@ const claude: AgentRuntime = {
   subagents: claudeSubagents,
   contextReport: readClaudeContext,
   models: listClaudeModels,
+  forgetModels: listClaudeModels.forget,
   defaults: async (root) => {
     const [defaults, models] = await Promise.all([
       claudeDefaults(root),

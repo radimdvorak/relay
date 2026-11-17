@@ -233,6 +233,11 @@ export interface AgentRuntime {
    * resume after.
    */
   reloadModels?(beforeRestart: () => Promise<void>): Promise<void>;
+  /**
+   * Drops the model list Relay keeps, so the next ask goes to the agent; for
+   * one that answers afresh without restarting.
+   */
+  forgetModels?(): void;
   /** What threads in `root` run where the model or effort is left on Default. */
   defaults(root: string): Promise<AgentDefaults | null>;
   /** Its own slash commands and skills in `root`, for the composer's menu. */

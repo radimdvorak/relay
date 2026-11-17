@@ -5,15 +5,31 @@ import {
   _electron as electron,
   type Page,
 } from "../fixtures/electron";
-import { mkdtemp, mkdir, readFile, rm, realpath } from "node:fs/promises";
+import {
+  mkdtemp,
+  mkdir,
+  readFile,
+  rm,
+  realpath,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { execFileSync } from "node:child_process";
 import { fakeCli, pathWith } from "../fixtures/fake-cli";
 import { screenshot } from "../fixtures/screenshot";
 
-const test = relayTest.extend<{ composer: Page }>({
-  composer: async ({}, use) => {
+const test = relayTest.extend<{ composer: Page; rollout: string }>({
+  // Where the fake Codex reads models it gained without a new version.
+  rollout: async ({}, use) => {
+    const root = await realpath(
+      await mkdtemp(join(tmpdir(), "relay-rollout-")),
+    );
+    await use(join(root, "models.json"));
+    await rm(root, { recursive: true, force: true });
+  },
+
+  composer: async ({ rollout }, use) => {
     const root = await realpath(
       await mkdtemp(join(tmpdir(), "relay-commands-")),
     );
@@ -35,6 +51,7 @@ const test = relayTest.extend<{ composer: Page }>({
         ...env,
         ...pathWith(env, bin),
         RELAY_TEST_DATA: join(root, "data"),
+        COMPOSER_CODEX_ROLLOUT: rollout,
         SLOW_CLAUDE_MODELS: JSON.stringify([
           {
             value: "sonnet",
@@ -189,6 +206,55 @@ test("gives an agent an advisor from /advisor, picked from its list or typed", a
   await expect(input).toHaveText("");
   await input.fill("/advisor ");
   await expect(option(/\/advisor fable.*Current/)).toBeVisible();
+});
+
+test("shows a model rolled out to Codex after refreshing the picker", async ({
+  composer: page,
+  rollout,
+}) => {
+  const picker = page.getByRole("button", {
+    name: "Choose model and provider",
+    exact: true,
+  });
+  const codexTab = page
+    .getByRole("toolbar", { name: "Model providers" })
+    .getByRole("button", { name: "Codex", exact: true });
+  await picker.click();
+  await codexTab.click();
+  await expect(page.getByRole("option", { name: /GPT-6-Sol/ })).toBeVisible();
+  // Codex has answered once the built-in list, which has Astra, is gone.
+  await expect(page.getByRole("option", { name: /GPT-6-Astra/ })).toHaveCount(
+    0,
+  );
+  await page.keyboard.press("Escape");
+
+  await writeFile(rollout, JSON.stringify(["gpt-6.2-sol"]));
+  await picker.click();
+  await codexTab.click();
+  // Opening the picker asks again, but Relay still holds the list it had.
+  await expect(page.getByRole("option", { name: /GPT-6\.2-SOL/ })).toHaveCount(
+    0,
+  );
+  await page
+    .getByRole("button", { name: "Ask Codex for its models again" })
+    .click();
+  await expect(
+    page.getByRole("status").filter({ hasText: "1 new model" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("option", { name: /GPT-6\.2-SOL/ }),
+  ).toBeVisible();
+  await screenshot(page, {
+    path: join(tmpdir(), "relay-model-refresh.png"),
+    animations: "disabled",
+  });
+
+  await page
+    .getByRole("button", { name: "Ask Codex for its models again" })
+    .click();
+  await expect(
+    page.getByRole("status").filter({ hasText: "Up to date" }),
+  ).toBeVisible();
 });
 
 test("restores a skill pill after undo and reload", async ({
