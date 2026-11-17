@@ -54,9 +54,11 @@ const openai = (input: number, cacheRead: number, output: number): Rates => {
 
 // Anthropic's list (platform.claude.com/docs/en/about-claude/pricing) and
 // OpenAI's standard tier (developers.openai.com/api/docs/pricing), both read
-// 2026-10-09. Claude models since 4.6 bill a 1M context flat, all but Haiku 5.5.
+// 2026-10-09 (Fable 5.2 on 2026-11-15). Claude models since 4.6 bill a 1M
+// context flat, all but Haiku 5.5.
 // Data residency's 10% uplift isn't modelled; Relay calls the global endpoints.
 const PRICES: [id: string, rates: Rates][] = [
+  ["claude-fable-5-2", { price: anthropic(8, 40, 0.2), fast: 2 }],
   ["claude-fable-5-1", { price: anthropic(10, 50, 0.25) }],
   ["claude-opus-5-5", { price: anthropic(4, 20, 0.2), fast: 2 }],
   ["claude-sonnet-5-5", { price: anthropic(2, 10, 0.1) }],
