@@ -71,6 +71,10 @@ const PRICES: [id: string, rates: Rates][] = [
     },
   ],
   ["claude-haiku-4-5", { price: anthropic(1, 5) }],
+  // GPT-6.2 from launch coverage on 2026-11-17; Astra's cached rate assumes
+  // OpenAI's usual tenth of input, Sol's is 6.1 Sol's, which it kept.
+  ["gpt-6.2-astra", openai(8, 0.8, 40)],
+  ["gpt-6.2-sol", openai(2, 0.1, 10)],
   ["gpt-6.1-sol", openai(2, 0.1, 10)],
   ["gpt-6-astra", openai(10, 1, 50)],
   ["gpt-6-sol", openai(2, 0.2, 10)],
