@@ -265,37 +265,6 @@ export function projectHandlers(ctx: ApiContext) {
       async (id, provider) =>
         agentRuntime(provider).commands(await projects.root(id)),
     ),
-    agentModels: takes(
-      [agentProviderSchema, computerIdSchema],
-      (provider, computerId) =>
-        // A project on a paired computer runs that computer's own copy.
-        computerId
-          ? remoteProjects(ctx).agentModels(computerId, provider)
-          : agentRuntime(provider).models(),
-    ),
-    reloadAgentModels: takes(
-      [agentProviderSchema, z.boolean(), computerIdSchema],
-      async (provider, stopRunning, computerId) => {
-        if (computerId)
-          return remoteProjects(ctx).ask(
-            computerId,
-            "reloadAgentModels",
-            provider,
-            stopRunning,
-          );
-        const running = projectChats.runningOn(provider);
-        if (running.length && !stopRunning) return { running };
-        let stopped: string[] = [];
-        try {
-          await agentRuntime(provider).reloadModels?.(async () => {
-            stopped = await projectChats.stopRunningOn(provider);
-          });
-        } finally {
-          await projectChats.resumeStopped(stopped);
-        }
-        return { running: [] };
-      },
-    ),
     agentDefaults: takes(
       [idSchema, agentProviderSchema],
       async (id, provider) =>

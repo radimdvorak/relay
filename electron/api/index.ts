@@ -4,6 +4,7 @@ import type { ApiMethod } from "../../shared/types";
 import { callFrom, type AppWindow } from "../app/window";
 import { accountHandlers } from "./account";
 import { openCodeHandlers } from "./opencode";
+import { agentModelHandlers } from "./agent-models";
 import { agentToolHandlers } from "./agent-tools";
 import { accountHandlers as agentAccountHandlers } from "./accounts";
 import { chatHandlers } from "./chats";
@@ -61,6 +62,7 @@ export function createDispatch(
     accountHandlers(ctx),
     openCodeHandlers(),
     agentAccountHandlers(ctx),
+    agentModelHandlers(ctx),
     agentToolHandlers(ctx),
     reviewHandlers(ctx),
     reviewCheckoutHandlers(ctx),
