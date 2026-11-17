@@ -20,6 +20,7 @@ import {
 import { agentOn, inAgentOrder } from "../../../shared/agent-prefs";
 import type { AISettings } from "../../../shared/settings";
 import { keys } from "../../lib/mod-key";
+import { onShowAgent } from "../../lib/settings-page";
 import { SettingsCard, Switch } from "../../ui/SettingsCard";
 import { ErrorBox, Spinner } from "../../ui/ui";
 import { useAgentAccounts } from "../accounts/agent-accounts";
@@ -40,6 +41,13 @@ import {
 import { AgentDetail } from "./AgentDetail";
 import { isInstallable, listLine, wantsAttention } from "./agent-status";
 import "./agent-settings.css";
+
+/** The agent shown beside the list, or Add agent; another screen can pick one with `openAgentSettings`. */
+function usePickedAgent() {
+  const [picked, setPicked] = useState<AgentProvider | "add">();
+  useEffect(() => onShowAgent(setPicked), []);
+  return [picked, setPicked] as const;
+}
 
 const hasAccounts = (provider: AgentProvider): provider is AccountProvider =>
   (accountProviders as readonly AgentProvider[]).includes(provider);
@@ -72,7 +80,7 @@ export function AgentsPanel({
   const automatic = useAgentUpdateChecks();
   const accountState = useAgentAccounts();
   const runnable = useRunnableAgents();
-  const [picked, setPicked] = useState<AgentProvider | "add">();
+  const [picked, setPicked] = usePickedAgent();
   const rows = useRef(new Map<AgentProvider, HTMLElement>());
   // A row moved with ⌥↑/↓ keeps the focus once it has re-rendered in its new place.
   const refocus = useRef<AgentProvider>(undefined);

@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from "react";
-import { Download } from "lucide-react";
 import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   cantRun,
@@ -8,38 +7,25 @@ import {
   type AgentVersion,
 } from "../../../shared/agent-updates";
 import {
-  agentInfo,
   agentName,
   isCliProvider,
   type AgentProvider,
 } from "../../../shared/agents";
 import { SYSTEM_ACCOUNT } from "../../../shared/agent-accounts";
 import { api } from "../../lib/api";
-import { openSettings } from "../../lib/settings-page";
 import { usePoll } from "../../lib/poll";
-import { Spinner } from "../../ui/ui";
-import { InstallLog, plainOutput } from "../../ui/InstallLog";
-import type { SignInPlace } from "../sign-in/useAgentSignIn";
 import { signInOffer } from "../sign-in/sign-in-offer";
 import { agentModelsQuery } from "../agents/useAgentPicks";
 import { saysSignedOut } from "../../../shared/agent-error";
 import { errorMessage } from "../../../shared/error-message";
-import { AgentSignInPanel } from "./AgentSignInPanel";
 import { useAgentVersions } from "../updates/agent-updates";
-import { ProviderIcon, type PickerSetup } from "../agents/ComposerModelPicker";
-import "./agent-setup.css";
-
-/** Why an agent can't run where the project does yet. */
-type AgentSetup =
-  /** The project's computer was paired again under a new identity, or removed. */
-  | { kind: "unpaired" }
-  | { kind: "unreachable" }
-  | { kind: "missing"; reason: string; installable: boolean }
-  | { kind: "installing"; queued: boolean; output?: string }
-  | { kind: "failed"; message: string; output?: string }
-  | { kind: "signed-out" };
-
-type Computer = { id: string; name: string };
+import type { PickerSetup } from "../agents/ComposerModelPicker";
+import {
+  AgentSetupPanel,
+  type AgentSetup,
+  type Computer,
+  type SetupActions,
+} from "./AgentSetupPanel";
 
 /** Agents whose CLI can say whether it's signed in. */
 const saysSignedIn = (provider: AgentProvider) =>
@@ -49,9 +35,6 @@ const saysSignedIn = (provider: AgentProvider) =>
 const signInsStarted = new Map<string, number>();
 /** Long enough to finish a login in the browser; a check every few seconds till then. */
 const signInWatch = 5 * 60_000;
-
-const lastLine = (output?: string) =>
-  output && plainOutput(output).split("\n").filter(Boolean).at(-1);
 
 /**
  * What the composer's model picker shows for an agent that can't run where
@@ -291,190 +274,5 @@ function setupLabel(
       return `Sign in to ${name}`;
     default:
       return `Set up ${name}`;
-  }
-}
-
-interface SetupActions {
-  install: (p: AgentProvider) => Promise<void>;
-  checkAgain: (p: AgentProvider) => Promise<void>;
-  /** Asks again, so one signed in some other way meanwhile isn't sent to the terminal. */
-  stillSignedOut: (p: AgentProvider) => Promise<boolean>;
-  /** Its sign-in is under way: looks every few seconds for a while. */
-  watch: (p: AgentProvider) => void;
-}
-
-function AgentSetupPanel({
-  provider,
-  setup,
-  computer,
-  place,
-  watching,
-  actions,
-  close,
-}: {
-  provider: AgentProvider;
-  setup: AgentSetup;
-  computer?: Computer;
-  place: SignInPlace;
-  watching: boolean;
-  actions: SetupActions;
-  /** Closes the picker, so the terminal the sign-in went to shows. */
-  close: () => void;
-}) {
-  const [checking, setChecking] = useState(false);
-  const { cli } = agentInfo(provider);
-  const name = agentName(provider);
-  const on = computer ? `on ${computer.name}` : "on this computer";
-  const checkAgain = (
-    <button
-      type="button"
-      className="text-button"
-      disabled={checking}
-      onClick={() => {
-        setChecking(true);
-        void actions.checkAgain(provider).finally(() => setChecking(false));
-      }}
-    >
-      {checking ? "Checking…" : "Check again"}
-    </button>
-  );
-  const glyph = (
-    <span className="agent-setup-glyph">
-      <ProviderIcon provider={provider} />
-    </span>
-  );
-
-  switch (setup.kind) {
-    case "unpaired":
-      return (
-        <div className="agent-setup">
-          <h3>{computer!.name} isn't paired anymore</h3>
-          <p>
-            So this project can't run there. Pair it again, or add the project
-            from where it is now.
-          </p>
-          <div className="agent-setup-actions">
-            <button
-              type="button"
-              className="primary"
-              onClick={() => openSettings("computers")}
-            >
-              Computers
-            </button>
-          </div>
-        </div>
-      );
-    case "unreachable":
-      return (
-        <div className="agent-setup">
-          <h3>Couldn't reach {computer!.name}</h3>
-          <p>
-            Relay couldn't ask it which agents it has. It may be asleep or
-            offline.
-          </p>
-          <div className="agent-setup-actions">{checkAgain}</div>
-        </div>
-      );
-    case "missing":
-      return (
-        <div className="agent-setup">
-          {glyph}
-          <h3>
-            {setup.installable
-              ? `${cli} isn't ${on}`
-              : `${name} can't run ${on}`}
-          </h3>
-          <p>
-            {setup.installable
-              ? `Install it to run ${name} threads here. Relay${computer ? ` on ${computer.name}` : ""} puts it in its own folder.`
-              : setup.reason}
-          </p>
-          <div className="agent-setup-actions">
-            {setup.installable ? (
-              <button
-                type="button"
-                className="primary"
-                onClick={() => void actions.install(provider)}
-              >
-                <Download size={14} aria-hidden />
-                {computer ? `Install on ${computer.name}` : "Install"}
-              </button>
-            ) : (
-              !computer && (
-                <button
-                  type="button"
-                  className="primary"
-                  onClick={() => openSettings("agents")}
-                >
-                  Set up in Settings
-                </button>
-              )
-            )}
-            {checkAgain}
-          </div>
-        </div>
-      );
-    case "installing": {
-      const line = lastLine(setup.output);
-      return (
-        <div className="agent-setup">
-          {glyph}
-          <h3>
-            Installing {cli} {on}
-          </h3>
-          <p className="agent-setup-progress" role="status">
-            <Spinner size={12} steady />
-            <span>
-              {setup.queued
-                ? "Waiting for another agent's install to finish"
-                : (line ?? "Starting…")}
-            </span>
-          </p>
-          {setup.output && (
-            <div className="agent-setup-actions">
-              <span className="agent-setup-log">
-                <InstallLog output={setup.output} />
-              </span>
-            </div>
-          )}
-        </div>
-      );
-    }
-    case "failed":
-      return (
-        <div className="agent-setup">
-          {glyph}
-          <h3>
-            Couldn't install {cli} {on}
-          </h3>
-          <p>{setup.message}</p>
-          <div className="agent-setup-actions">
-            <button
-              type="button"
-              className="primary"
-              onClick={() => void actions.install(provider)}
-            >
-              Try again
-            </button>
-            {setup.output && (
-              <span className="agent-setup-log">
-                <InstallLog output={setup.output} />
-              </span>
-            )}
-          </div>
-        </div>
-      );
-    case "signed-out":
-      return (
-        <AgentSignInPanel
-          provider={provider}
-          computer={computer}
-          place={place}
-          checkAgain={watching && checkAgain}
-          stillSignedOut={() => actions.stillSignedOut(provider)}
-          onStarted={() => actions.watch(provider)}
-          close={close}
-        />
-      );
   }
 }
