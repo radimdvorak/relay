@@ -21,8 +21,6 @@ import {
   isRegistryProvider,
   type AgentProvider,
   type BuiltinProvider,
-  reportsUsage,
-  type UsageProvider,
 } from "../../../shared/agents";
 import {
   OpenAI,
@@ -36,7 +34,6 @@ import { keys } from "../../lib/mod-key";
 import { Spinner } from "../../ui/ui";
 import { CursorGlyph } from "./CursorGlyph";
 import { RegistryGlyph } from "./RegistryGlyph";
-import { NoUsageStrip, UsageStrip } from "./UsageStrip";
 import {
   isGrouped,
   modelKey,
@@ -48,7 +45,7 @@ import {
   type MessageProvider,
   type PickerModel,
 } from "./model-picker-catalog";
-import { ModelReload, reloadsModels } from "./ModelReload";
+import { ModelPickerFooter, type PickerAccount } from "./ModelPickerFooter";
 import { ModelPickerRail } from "./ModelPickerRail";
 import { ModelPickerSearch } from "./ModelPickerSearch";
 import { useModelReorder } from "./useModelReorder";
@@ -130,14 +127,7 @@ export const ComposerModelPicker = memo(function ComposerModelPicker({
    * The thread's account for each agent, whose usage the footer shows, and
    * a footer of its own where there are several to switch between.
    */
-  account?: {
-    of: (provider: UsageProvider) => string | undefined;
-    footer: (
-      provider: UsageProvider,
-      now: number,
-      container?: HTMLElement,
-    ) => ReactNode;
-  };
+  account?: PickerAccount;
   /** The paired computer the project lives on, whose agents list the models. */
   computer?: { id: string; name: string };
   /** Set while an agent can't run yet, with the way to set it up. */
@@ -156,7 +146,7 @@ export const ComposerModelPicker = memo(function ComposerModelPicker({
   const { list, captureReorder } = useModelReorder(favorites, open);
   const [customs, setCustoms] = useCustomModels();
   const search = useRef<HTMLInputElement>(null);
-  const { usage, now } = usePickerUsage(open, account?.of);
+  const pickerUsage = usePickerUsage(open, account?.of);
   const runnable = useOfferedAgents(
     provider === "message" ? undefined : provider,
   );
@@ -186,8 +176,6 @@ export const ComposerModelPicker = memo(function ComposerModelPicker({
     category === "favorites" || category === "message"
       ? undefined
       : setup?.(category);
-  // Favorites show the thread's agent, so every tab keeps the same footer.
-  const footerAgent = category === "favorites" ? provider : category;
   const grouped = isGrouped(category);
   const searching = !!query.trim();
   const { rows, groups, legacyCount, firstLegacy } = pickerRows(catalog, {
@@ -511,34 +499,15 @@ export const ComposerModelPicker = memo(function ComposerModelPicker({
                   </Combobox.Root>
                 </div>
               )}
-              {category !== "favorites" &&
-                category !== "message" &&
-                !blocked &&
-                reloadsModels(category) && (
-                  <ModelReload
-                    key={category}
-                    provider={category}
-                    computer={computer}
-                  />
-                )}
-              {!blocked &&
-                (reportsUsage(footerAgent) ? (
-                  (account?.footer(footerAgent, now, container) ?? (
-                    <UsageStrip
-                      usage={usage[footerAgent]}
-                      now={now}
-                      accountId={account?.of(footerAgent)}
-                      container={container}
-                    />
-                  ))
-                ) : footerAgent !== "message" &&
-                  !(category === footerAgent && reloadsModels(footerAgent)) ? (
-                  <NoUsageStrip name={agentName(footerAgent)} />
-                ) : null)}
-              {category === "message" && (
-                <p className="model-picker-note">
-                  Send a message without running an agent.
-                </p>
+              {!blocked && (
+                <ModelPickerFooter
+                  category={category}
+                  provider={provider}
+                  computer={computer}
+                  account={account}
+                  usage={pickerUsage}
+                  container={container}
+                />
               )}
             </div>
           </Popover.Popup>

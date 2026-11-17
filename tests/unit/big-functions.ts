@@ -121,7 +121,7 @@ export const bigFunctions: Record<string, number> = {
   "src/features/agent-turn/SubagentThread.tsx › SubagentThread": 136,
   "src/features/agent-turn/Subagents.tsx › Peek": 143,
   "src/features/agents/AcpRegistrySettings.tsx › AcpRegistrySettings": 193,
-  "src/features/agents/ComposerModelPicker.tsx › ComposerModelPicker": 456,
+  "src/features/agents/ComposerModelPicker.tsx › ComposerModelPicker": 428,
   "src/features/agents/ContextBreakdown.tsx › ContextBreakdown": 188,
   "src/features/agents/ContextWindowMeter.tsx › ContextWindowMeter": 268,
   "src/features/agents/ContextWindowMeter.tsx › HeatDecoration": 127,
