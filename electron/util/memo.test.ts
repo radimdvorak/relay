@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { memoByKey, memoOnce } from "./memo";
+import { memoByKey, memoOnce, memoWhileStamp } from "./memo";
 
 beforeEach(() => vi.useFakeTimers());
 
@@ -72,5 +72,22 @@ describe("memoOnce", () => {
     get.forget();
     await expect(get()).rejects.toThrow("no");
     expect(await get()).toBe(4);
+  });
+});
+
+describe("memoWhileStamp", () => {
+  it("asks again once the stamp changes or the time is up", async () => {
+    let stamp = "v1";
+    const load = vi.fn(async () => stamp);
+    const get = memoWhileStamp(async () => stamp, load, 1000);
+    expect(await get()).toBe("v1");
+    vi.advanceTimersByTime(999);
+    expect(await get()).toBe("v1");
+    expect(load).toHaveBeenCalledTimes(1);
+    stamp = "v2";
+    expect(await get()).toBe("v2");
+    vi.advanceTimersByTime(1000);
+    await get();
+    expect(load).toHaveBeenCalledTimes(3);
   });
 });

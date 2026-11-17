@@ -42,18 +42,22 @@ export function memoOnce<T>(load: () => Promise<T>, ttl = 60000) {
 
 /**
  * `load`'s answer, kept while `stamp` says the same, e.g. the installed CLI
- * that answered. A failure isn't kept; a stamp that fails asks again.
+ * that answered, and for at most `ttl` ms. A failure isn't kept; a stamp that
+ * fails asks again.
  */
 export function memoWhileStamp<T>(
   stamp: () => Promise<string>,
   load: () => Promise<T>,
+  ttl = Infinity,
 ) {
-  let kept: { stamp: string; result: Promise<T> } | undefined;
+  let kept: { stamp: string; at: number; result: Promise<T> } | undefined;
   return async () => {
     const now = await stamp().catch(() => undefined);
-    if (now !== undefined && kept?.stamp === now) return kept.result;
+    if (now !== undefined && kept?.stamp === now && Date.now() - kept.at < ttl)
+      return kept.result;
     const result = load();
-    const entry = now === undefined ? undefined : { stamp: now, result };
+    const entry =
+      now === undefined ? undefined : { stamp: now, at: Date.now(), result };
     kept = entry;
     result.catch(() => {
       if (entry && kept === entry) kept = undefined;

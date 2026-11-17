@@ -12,7 +12,8 @@ import { discoverClaudeSkills } from "./skills";
 
 /**
  * Asks the installed CLI which models this account can use, again once it's
- * updated: a new version brings new models.
+ * updated or after 15 minutes, in case a model reaches the account without a
+ * new version.
  */
 export const listClaudeModels = memoWhileStamp(
   () => findExecutable("claude").then(installStamp),
@@ -69,6 +70,7 @@ export const listClaudeModels = memoWhileStamp(
       },
       "models",
     ),
+  15 * 60_000,
 );
 
 // Relay owns these (model, effort, threads, context), or they need the

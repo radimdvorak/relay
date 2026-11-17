@@ -96,7 +96,8 @@ const modelPageSchema = z.object({
 
 /**
  * Asks the installed CLI which models this account can use, again once it's
- * updated: a new version brings new models.
+ * updated or after 15 minutes: OpenAI also rolls new models out to the CLI
+ * people already have.
  */
 export const codexModels = memoWhileStamp(
   () => findExecutable("codex").then(installStamp),
@@ -147,6 +148,7 @@ export const codexModels = memoWhileStamp(
       }
       return models;
     }),
+  15 * 60_000,
 );
 
 const configSchema = z.object({
