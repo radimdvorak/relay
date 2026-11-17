@@ -1,19 +1,24 @@
 import type { Handlers } from "./context";
 
+// Both helpers carry what they've found so far as an argument, so their
+// recursion is a tail call: TypeScript follows those 1000 deep instead of 50,
+// and the API has nearly 50 groups.
+
 /** Method names more than one group handles. */
 type HandledTwice<
   G extends readonly unknown[],
   Seen extends PropertyKey = never,
+  Twice extends PropertyKey = never,
 > = G extends readonly [infer Head, ...infer Rest]
-  ? (keyof Head & Seen) | HandledTwice<Rest, Seen | keyof Head>
-  : never;
+  ? HandledTwice<Rest, Seen | keyof Head, Twice | (keyof Head & Seen)>
+  : Twice;
 
-type Merged<G extends readonly unknown[]> = G extends readonly [
+type Merged<G extends readonly unknown[], All = unknown> = G extends readonly [
   infer Head,
   ...infer Rest,
 ]
-  ? Head & Merged<Rest>
-  : unknown;
+  ? Merged<Rest, All & Head>
+  : All;
 
 /**
  * One table from the domain groups. A spread would let the last group that
