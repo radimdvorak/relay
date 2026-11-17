@@ -45,6 +45,21 @@ export const isGrouped = (category: Category) =>
   agentInfo(category).modelGroups;
 
 /**
+ * What a row says under its name; nothing, for a plain model in its own
+ * section. `group` is the section open in the list, `runs` the model a
+ * Default row stands for.
+ */
+export function rowSubtitle(m: PickerModel, group: string, runs?: string) {
+  if (m.custom && m.provider !== "message")
+    return `Custom ${agentName(m.provider)} model`;
+  if (runs) return `Runs ${runs}`;
+  if (!isGrouped(m.provider)) return m.description || providerName(m.provider);
+  // An open section already names the row's own.
+  const section = group ? undefined : m.group;
+  return [section, m.description].filter(Boolean).join(" · ");
+}
+
+/**
  * Every row the picker could show. Each agent's listed models sit above its
  * Default, then ids it doesn't list: typed-in custom ones, and the pick itself.
  */

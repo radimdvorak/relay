@@ -39,6 +39,7 @@ import {
   modelKey,
   pickerCatalog,
   pickerRows,
+  rowSubtitle,
   providerName,
   type AgentCatalog,
   type Category,
@@ -207,17 +208,6 @@ export const ComposerModelPicker = memo(function ComposerModelPicker({
     setLegacy(false);
     // Only a new signal opens the picker, not a changed provider.
   }, [openSignal]);
-  /** What a row says under its name; nothing, for a plain model in its own section. */
-  const subtitle = (m: PickerModel) =>
-    m.custom && m.provider !== "message"
-      ? `Custom ${agentName(m.provider)} model`
-      : defaultName(m)
-        ? `Runs ${defaultName(m)}`
-        : isGrouped(m.provider)
-          ? [group ? undefined : m.group, m.description]
-              .filter(Boolean)
-              .join(" · ")
-          : m.description || providerName(m.provider);
   // Opens on the section of the model in use, so it shows among its neighbours.
   const openGroup = (next: Category) =>
     setGroup(
@@ -381,7 +371,8 @@ export const ComposerModelPicker = memo(function ComposerModelPicker({
                         <Combobox.List aria-label="Models">
                           {rows.map((m, index) => {
                             const key = modelKey(m),
-                              favorite = favorites.includes(key);
+                              favorite = favorites.includes(key),
+                              subtitle = rowSubtitle(m, group, defaultName(m));
                             return (
                               <Fragment key={key}>
                                 {index === firstLegacy && legacyToggle}
@@ -397,15 +388,15 @@ export const ComposerModelPicker = memo(function ComposerModelPicker({
                                   data-model-key={key}
                                   value={key}
                                   className="model-picker-row"
-                                  data-compact={subtitle(m) ? undefined : ""}
+                                  data-compact={subtitle ? undefined : ""}
                                   aria-label={m.name}
                                 >
                                   <div className="model-picker-row-label">
                                     <span>{m.name}</span>
-                                    {subtitle(m) && (
+                                    {subtitle && (
                                       <small>
                                         <ProviderIcon provider={m.provider} />
-                                        <span>{subtitle(m)}</span>
+                                        <span>{subtitle}</span>
                                       </small>
                                     )}
                                   </div>
