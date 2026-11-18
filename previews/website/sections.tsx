@@ -1,7 +1,7 @@
 // The smaller live demos down the page. Where the app has the component, it
 // is the app's: the usage meters with their pace logic, the quick-switch drum
 // and the agent turn the phone and the desktop draw from the same code.
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ChevronLeft,
   ChevronRight,
@@ -26,6 +26,7 @@ import { chats, projectRoot, turnMessages, turns } from "./sample";
 import { reducedMotion, useActive, useLiveTurn } from "./motion";
 import { useOs } from "./live";
 import { PhoneSidebar, PhoneStatus, PhoneThread } from "./phone";
+import { useFoldMotion } from "./fold-motion";
 
 const HOUR = 60 * 60 * 1000;
 const DAY = 24 * HOUR;
@@ -330,6 +331,8 @@ export function PhoneSync() {
   const shown = useLiveTurn(turns[LIVE].steps.length, active, 6000);
   const messages = turnMessages(LIVE, shown);
   const [open, setOpen] = useState(false);
+  const foldRef = useRef<HTMLDivElement>(null);
+  useFoldMotion(open, ref, foldRef);
   // Unfolded, the cards in Activity open their thread in the other half.
   const [picked, setPicked] = useState(LIVE);
   const [unread, setUnread] = useState<ReadonlySet<string>>(() => new Set(["hero"]));
@@ -383,43 +386,53 @@ export function PhoneSync() {
           </span>
           <span className="sync-note">over your tailnet</span>
         </div>
-        <div className="fold">
+        <div className="fold" ref={foldRef}>
           <button type="button" className="fold-link" aria-pressed={open} onClick={fold}>
             {open ? "Fold it back" : "Works on fold"}
           </button>
+          <div className="fold-half fold-phone">
+            <div className="fold-screen" />
+          </div>
+          {/* The inner screen. From 600dp wide the app puts the list beside the thread. */}
+          <div className="fold-layer fold-inner" inert={!open}>
+            <div className="fold-glass">
+              <div className="ph">
+                <PhoneStatus hole="right" />
+                <PhoneSidebar
+                  selected={picked}
+                  unread={unread}
+                  onOpen={(c) => {
+                    if (!turns[c.id]) return;
+                    setPicked(c.id);
+                    setUnread((was) => new Set([...was].filter((id) => id !== c.id)));
+                  }}
+                />
+                <PhoneThread
+                  key={picked}
+                  chat={chat}
+                  messages={picked === LIVE ? messages : settled}
+                  model={model(picked)}
+                  pane
+                />
+              </div>
+            </div>
+          </div>
           <div className="fold-half fold-flap">
             <div className="fold-screen" />
           </div>
           {/* Folded: the cover screen, a phone like any other. */}
-          <div className="fold-half fold-phone">
-            <div className="fold-screen">
+          <div className="fold-layer fold-cover" inert={open}>
+            <div className="fold-glass">
               <div className="ph ph-cover">
                 <PhoneStatus hole="center" />
                 <PhoneThread chat={chats.find((c) => c.id === LIVE)!} messages={messages} model={model(LIVE)} />
               </div>
             </div>
           </div>
-          {/* Unfolded: the inner screen. From 600dp wide the app puts the list beside the thread. */}
-          <div className="fold-inner" inert={!open}>
-            <div className="ph">
-              <PhoneStatus hole="right" />
-              <PhoneSidebar
-                selected={picked}
-                unread={unread}
-                onOpen={(c) => {
-                  if (!turns[c.id]) return;
-                  setPicked(c.id);
-                  setUnread((was) => new Set([...was].filter((id) => id !== c.id)));
-                }}
-              />
-              <PhoneThread
-                key={picked}
-                chat={chat}
-                messages={picked === LIVE ? messages : settled}
-                model={model(picked)}
-                pane
-              />
-            </div>
+          <div className="fold-shade" aria-hidden="true">
+            <i />
+            <i />
+            <i />
           </div>
         </div>
       </div>

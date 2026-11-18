@@ -951,7 +951,10 @@ body {
   --tall: 620px;
   /* One dp of the phone app, in px: the cover screen is about 370dp wide. */
   --dp: 0.75;
-  --fold: 0.9s cubic-bezier(0.3, 0.7, 0.2, 1);
+  /* The Fold7's flat sides and tight corners: about 3.5mm on a 72.8mm wide
+     body, and the screen's following them inside the bezel. */
+  --body-round: 14px;
+  --glass-round: 8px;
   --frame: color-mix(in srgb, var(--border), var(--text) 22%);
   --bezel: color-mix(in srgb, var(--surface), #000 55%);
   display: flex;
@@ -961,7 +964,8 @@ body {
 }
 /* The device column is always as wide as the open foldable. Closed, the phone
    slides over to the wire and the whole row shifts to stay centred, so
-   unfolding moves things with transforms only. */
+   unfolding moves things with transforms only. fold-motion.ts swings --bend
+   from 1 (folded) to 0 (open) and sets the clips the screens use. */
 .sync {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 170px calc(var(--half) * 2);
@@ -971,11 +975,7 @@ body {
   font-size: 13px;
   line-height: 1.45;
   text-align: left;
-  transform: translateX(calc(var(--half) / 2));
-  transition: transform var(--fold);
-}
-.sync[data-open] {
-  transform: none;
+  transform: translateX(calc(var(--half) / 2 * var(--bend, 1)));
 }
 .sync-desk {
   display: flex;
@@ -1014,11 +1014,7 @@ body {
   position: relative;
   height: var(--tall);
   perspective: 1700px;
-  transform: translateX(calc(var(--half) * -1));
-  transition: transform var(--fold);
-}
-.sync[data-open] .fold {
-  transform: none;
+  transform: translateX(calc(var(--half) * -1 * var(--bend, 1)));
 }
 .fold-half {
   position: absolute;
@@ -1027,27 +1023,26 @@ body {
   height: 100%;
   padding: 5px;
   border: 1px solid var(--frame);
-  border-radius: 32px;
+  border-radius: var(--body-round);
   background: var(--bezel);
-  transition:
-    transform var(--fold),
-    border-radius var(--fold),
-    border-width var(--fold),
-    padding var(--fold);
 }
 .fold-screen {
-  position: relative;
-  display: flex;
-  flex-direction: column;
   height: 100%;
-  border-radius: 27px;
-  background: var(--surface);
-  overflow: hidden;
-  transition: border-radius var(--fold);
+  border-radius: var(--glass-round);
+  background: #0b0b0d;
 }
+/* The inner screen runs straight across the hinge, so this half has no bezel
+   there. Its hinge corners round off as it folds, to hide behind the flap's. */
 .fold-phone {
   left: var(--half);
-  z-index: 1;
+  padding-left: 0;
+  border-left-width: 0;
+  border-radius: calc(var(--body-round) * var(--bend, 1)) var(--body-round) var(--body-round)
+    calc(var(--body-round) * var(--bend, 1));
+}
+.fold-phone .fold-screen {
+  border-radius: calc(var(--glass-round) * var(--bend, 1)) var(--glass-round) var(--glass-round)
+    calc(var(--glass-round) * var(--bend, 1));
 }
 /* Power and volume, on the edge that stays outside. */
 .fold-phone::after {
@@ -1063,48 +1058,43 @@ body {
     0 50px 0 var(--frame),
     0 72px 0 var(--frame);
 }
-/* Folded, the flap lies flat behind the phone; it swings out around the hinge. */
+/* Folded, the flap lies over the phone half and is the phone you see; it
+   swings out around the hinge. Only its frame turns: the screens drawn on it
+   are the flat layers below, cut to where it stands. */
 .fold-flap {
   left: 0;
+  z-index: 2;
+  padding-right: calc(5px * var(--bend, 1));
+  border-right-width: calc(1px * var(--bend, 1));
+  border-radius: var(--body-round) calc(var(--body-round) * var(--bend, 1))
+    calc(var(--body-round) * var(--bend, 1)) var(--body-round);
   transform-origin: right center;
-  transform: rotateY(180deg);
-}
-/* The flap comes out of the phone's shadow as it swings round. */
-.fold-flap::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  background: #000;
-  opacity: 0.6;
-  pointer-events: none;
-  transition: opacity var(--fold);
-}
-.sync[data-open] .fold-flap::after {
-  opacity: 0;
+  transform: rotateY(calc(var(--bend, 1) * 180deg));
 }
 .fold-flap .fold-screen {
-  background: var(--sidebar);
+  border-radius: var(--glass-round) calc(var(--glass-round) * var(--bend, 1))
+    calc(var(--glass-round) * var(--bend, 1)) var(--glass-round);
 }
-.sync[data-open] .fold-flap {
-  transform: none;
+.fold-layer {
+  position: absolute;
+  inset: 0;
 }
-/* The inner screen lights up once the flap is nearly flat, and goes dark
-   before it swings back. */
-.fold-inner {
+.fold-layer[inert] {
+  pointer-events: none;
+}
+.fold-glass {
   position: absolute;
   inset: 6px;
-  z-index: 1;
-  border-radius: 27px;
+  border-radius: var(--glass-round);
   overflow: hidden;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.15s;
 }
-.sync[data-open] .fold-inner {
-  opacity: 1;
-  pointer-events: auto;
-  transition: opacity 0.3s 0.62s;
+.fold-inner {
+  z-index: 1;
+  clip-path: var(--inner-clip);
+}
+/* Under the flap while its back is turned to you, over its frame once its face is. */
+.sync[data-inner-face] .fold-inner {
+  z-index: 3;
 }
 .fold-inner .ph-thread {
   animation: fold-thread-in 0.28s cubic-bezier(0.3, 0.7, 0.2, 1);
@@ -1115,22 +1105,48 @@ body {
     transform: translateX(10px);
   }
 }
-/* Open, the two halves meet at the hinge as one screen. */
-.sync[data-open] .fold-phone {
-  padding-left: 0;
-  border-left-width: 0;
-  border-radius: 0 32px 32px 0;
+.fold-cover {
+  z-index: 3;
+  clip-path: var(--cover-clip);
 }
-.sync[data-open] .fold-phone .fold-screen {
-  border-radius: 0 27px 27px 0;
+.fold-cover .fold-glass {
+  left: auto;
+  width: calc(var(--half) - 12px);
+  transform: translateX(var(--cover-shift, 0px));
 }
-.sync[data-open] .fold-flap {
-  padding-right: 0;
-  border-right-width: 0;
-  border-radius: 32px 0 0 32px;
+/* The panel blurs and darkens towards its far edge while it stands off flat:
+   three blur layers, each from further out, then the shade over them. */
+.fold-shade {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  display: none;
+  pointer-events: none;
 }
-.sync[data-open] .fold-flap .fold-screen {
-  border-radius: 27px 0 0 27px;
+.sync[data-shaded] .fold-shade {
+  display: block;
+}
+.fold-shade i,
+.fold-shade::after {
+  position: absolute;
+  inset: 0;
+  clip-path: var(--panel-clip);
+}
+.fold-shade i:nth-child(1) {
+  backdrop-filter: blur(var(--blur-1));
+  mask-image: var(--band-1);
+}
+.fold-shade i:nth-child(2) {
+  backdrop-filter: blur(var(--blur-2));
+  mask-image: var(--band-2);
+}
+.fold-shade i:nth-child(3) {
+  backdrop-filter: blur(var(--blur-3));
+  mask-image: var(--band-3);
+}
+.fold-shade::after {
+  content: "";
+  background: var(--shade);
 }
 /* Rides above the phone half, wherever the unfolding puts it. */
 .fold-link {
@@ -2356,15 +2372,28 @@ body {
   .sync-link,
   .fold-flap,
   .fold-inner,
+  .fold-shade,
+  .sync[data-shaded] .fold-shade,
   .fold-link {
     display: none;
   }
-  .fold,
-  .sync[data-open] .fold {
+  .fold {
     transform: none;
   }
   .fold-phone {
     left: 0;
+    padding-left: 5px;
+    border-left-width: 1px;
+    border-radius: var(--body-round);
+  }
+  .fold-phone .fold-screen {
+    border-radius: var(--glass-round);
+  }
+  .fold-cover {
+    clip-path: none;
+  }
+  .fold-cover .fold-glass {
+    transform: none;
   }
   .grid,
   .promises {
