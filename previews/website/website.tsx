@@ -3,7 +3,7 @@
 // the app draws. Product facts follow README.md and docs/phone.md.
 // Open http://127.0.0.1:5177/previews/website/
 import "../_shared/desktop-stub";
-import { StrictMode, useEffect, useRef, useState } from "react";
+import { StrictMode, useEffect, useRef, useState, type RefObject } from "react";
 import { createRoot } from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ArrowDownToLine, ArrowRight, ArrowUpRight } from "lucide-react";
@@ -128,9 +128,37 @@ function useRise<T extends HTMLElement>() {
   return ref;
 }
 
+/**
+ * Scales the window down to fit its column instead of letting it reflow, so a
+ * narrower screen shows the same layout, smaller.
+ */
+function useFit(column: RefObject<HTMLElement | null>) {
+  const fit = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const element = column.current;
+    const scaled = fit.current;
+    if (!element || !scaled) return;
+    const update = () => {
+      // offsetWidth ignores the transform, so it stays the window's full size.
+      const scale = Math.min(1, element.clientWidth / scaled.offsetWidth);
+      element.style.setProperty("--fit", scale.toFixed(4));
+      element.style.setProperty(
+        "--fit-height",
+        `${scaled.offsetHeight * scale}px`,
+      );
+    };
+    const observer = new ResizeObserver(update);
+    observer.observe(element);
+    observer.observe(scaled);
+    return () => observer.disconnect();
+  }, [column]);
+  return fit;
+}
+
 function Tour() {
   const [ref, active] = useActive<HTMLDivElement>(0.3);
   const rise = useRise<HTMLDivElement>();
+  const fit = useFit(rise);
   const [index, setIndex] = useState(0);
   // Bumped when a stop is picked again, so its progress line starts over.
   const [lap, setLap] = useState(0);
@@ -181,11 +209,13 @@ function Tour() {
         ))}
       </div>
       <div className="tour-window" ref={rise}>
-        <AppWindow
-          stop={current.stop}
-          active={active}
-          onDone={() => setIndex((value) => (value + 1) % tour.length)}
-        />
+        <div className="rw-fit" ref={fit}>
+          <AppWindow
+            stop={current.stop}
+            active={active}
+            onDone={() => setIndex((value) => (value + 1) % tour.length)}
+          />
+        </div>
       </div>
     </div>
   );

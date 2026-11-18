@@ -127,6 +127,8 @@ export function useAutopilot(
         const target = frame?.querySelector<HTMLElement>(act.to);
         if (!target && act.optional) continue;
         if (frame && target) {
+          // The window may be scaled down to fit; the pointer and scrolling use its own pixels.
+          const scale = frame.getBoundingClientRect().width / frame.offsetWidth;
           // Bring a finding below the fold into the thread's own view first.
           const scroller = target.closest<HTMLElement>(".project-messages");
           if (scroller) {
@@ -134,7 +136,9 @@ export function useAutopilot(
             const spot = target.getBoundingClientRect();
             if (spot.bottom > view.bottom - 150 || spot.top < view.top + 24) {
               scroller.scrollTo({
-                top: scroller.scrollTop + spot.top - view.top - view.height / 3,
+                top:
+                  scroller.scrollTop +
+                  (spot.top - view.top - view.height / 3) / scale,
                 behavior: "smooth",
               });
               await wait(420);
@@ -144,8 +148,10 @@ export function useAutopilot(
           const box = frame.getBoundingClientRect();
           const at = target.getBoundingClientRect();
           // Aim inside wide targets rather than at their middle, as a hand would.
-          const x = at.left - box.left + Math.min(at.width / 2, 120);
-          const y = at.top - box.top + Math.min(at.height / 2, 60);
+          const x =
+            (at.left - box.left) / scale + Math.min(at.width / scale / 2, 120);
+          const y =
+            (at.top - box.top) / scale + Math.min(at.height / scale / 2, 60);
           setPointer({ x, y, down: false });
           await wait(MOVE_MS);
           if (cancelled) return;

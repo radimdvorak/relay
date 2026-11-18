@@ -408,9 +408,17 @@ body {
 }
 .tour-window {
   --risen: 1;
+  height: var(--fit-height, auto);
+}
+/* The window's full size, scaled to the column by useFit, so a phone shows
+   the same layout as a desktop, only smaller. */
+.rw-fit {
+  width: 1048px;
+  transform: scale(var(--fit, 1));
+  transform-origin: 0 0;
   perspective: 1800px;
 }
-.tour-window > .rw {
+.rw-fit > .rw {
   transform-origin: 50% 0;
   transform: rotateX(calc((1 - var(--risen)) * 14deg))
     scale(calc(0.93 + var(--risen) * 0.07));
@@ -535,10 +543,8 @@ body {
   height: 640px;
   transition: grid-template-columns 260ms ease;
 }
-@media (min-width: 1001px) {
-  .rw[data-sidebar-hidden] .rw-body {
-    grid-template-columns: var(--activity-bar-width) 0px minmax(0, 1fr);
-  }
+.rw[data-sidebar-hidden] .rw-body {
+  grid-template-columns: var(--activity-bar-width) 0px minmax(0, 1fr);
 }
 .rw-bar {
   position: relative;
@@ -2354,24 +2360,8 @@ body {
   .row:nth-child(even) > :first-child {
     order: 0;
   }
-  .rw-body {
-    grid-template-columns: minmax(0, 1fr);
-  }
-  .rw-bar,
-  .rw .rw-sidebar,
-  .rw-brand,
-  .rw-crumb,
-  .rw-columns[data-split] > .rw-thread {
-    display: none;
-  }
-  .rw-actions {
-    margin-left: auto;
-  }
   .row-demo {
     padding: 20px 14px;
-  }
-  .rw-columns[data-split] {
-    grid-template-columns: minmax(0, 1fr);
   }
   /* No room to unfold: just the phone. */
   .sync,
@@ -2426,16 +2416,6 @@ body {
   }
   .hero-facts li + li::before {
     display: none;
-  }
-}
-
-/* The header's buttons need the room Commit's label takes. */
-@media (max-width: 520px) {
-  .rw .git-actions {
-    display: none;
-  }
-  .rw-actions {
-    margin-inline: auto;
   }
 }
 
