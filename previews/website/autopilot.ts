@@ -48,6 +48,8 @@ export const scripts: Record<Stop, Act[]> = {
   ],
   review: [
     tidy,
+    // Make room for the diff before it opens.
+    { to: "[data-rw='sidebar']", click: true, rest: 700 },
     openCard,
     { to: ".running-changes-row", click: true, rest: 500 },
     { ...foldCard, rest: 1700 },

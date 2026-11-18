@@ -450,6 +450,7 @@ body {
   flex: none;
   width: calc(var(--activity-bar-width) + 264px);
   height: 100%;
+  transition: width 260ms ease;
   padding-left: 14px;
   border-right: 1px solid var(--border);
 }
@@ -462,6 +463,9 @@ body {
   height: 11px;
   border-radius: 50%;
   background: color-mix(in srgb, var(--border), var(--text) 12%);
+}
+.rw[data-sidebar-hidden] .rw-brand {
+  width: calc(var(--activity-bar-width) + 92px);
 }
 .rw-sidebar-toggle {
   display: inline-flex;
@@ -529,6 +533,12 @@ body {
   display: grid;
   grid-template-columns: var(--activity-bar-width) 264px minmax(0, 1fr);
   height: 640px;
+  transition: grid-template-columns 260ms ease;
+}
+@media (min-width: 1001px) {
+  .rw[data-sidebar-hidden] .rw-body {
+    grid-template-columns: var(--activity-bar-width) 0px minmax(0, 1fr);
+  }
 }
 .rw-bar {
   position: relative;
@@ -537,7 +547,9 @@ body {
    file in a shared chunk that loads before the app's CSS. */
 .rw .rw-sidebar {
   width: auto;
+  min-width: 0;
   min-height: 0;
+  overflow: hidden;
 }
 .rw-main {
   display: flex;
@@ -552,7 +564,7 @@ body {
   min-height: 0;
 }
 .rw-columns[data-split] {
-  grid-template-columns: minmax(0, 0.82fr) minmax(0, 1.18fr);
+  grid-template-columns: minmax(0, 1.3fr) minmax(0, 0.7fr);
 }
 /* The editor takes the thread's place, so the code gets the whole window. */
 .rw-columns[data-files] {

@@ -403,6 +403,7 @@ export function AppWindow({
   const [changes, setChanges] = useState(false);
   const [terminal, setTerminal] = useState(false);
   const [files, setFiles] = useState(false);
+  const [sidebar, setSidebar] = useState(true);
   const [run, setRun] = useState(0);
 
   const serve = (on: boolean) => {
@@ -416,6 +417,7 @@ export function AppWindow({
     setChanges(false);
     setTerminal(false);
     setFiles(stop === "editor" && reducedMotion());
+    setSidebar(true);
     serve(false);
     setRun((value) => value + 1);
   }, [stop]);
@@ -435,7 +437,13 @@ export function AppWindow({
   }, [settled]);
 
   return (
-    <div className="rw" ref={frame} inert aria-label="Relay, playing a demo">
+    <div
+      className="rw"
+      ref={frame}
+      inert
+      aria-label="Relay, playing a demo"
+      data-sidebar-hidden={!sidebar || undefined}
+    >
       <div className="rw-titlebar">
         <span className="rw-brand">
           <span className="rw-lights" aria-hidden="true">
@@ -443,7 +451,12 @@ export function AppWindow({
             <i />
             <i />
           </span>
-          <span className="rw-sidebar-toggle" aria-hidden="true">
+          <span
+            className="rw-sidebar-toggle"
+            aria-hidden="true"
+            data-rw="sidebar"
+            onClick={() => setSidebar(!sidebar)}
+          >
             <PanelLeft size={16} />
           </span>
           <Mark size={22} />
