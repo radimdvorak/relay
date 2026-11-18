@@ -3,7 +3,12 @@ import { defaultPrefs } from "../settings";
 import { ThreadList } from "./thread-list";
 import type { ChatCore } from "./core";
 import { ActiveTurns } from "./active";
-import type { ChatSummary, ProjectChatSend } from "../../shared/projects";
+import { LiveHandoff } from "./handoff-live";
+import type {
+  ChatSummary,
+  ProjectChat,
+  ProjectChatSend,
+} from "../../shared/projects";
 import type { HandoffTriage } from "../../shared/handoff-triage";
 import { chatActivitySection } from "../../shared/chat-activity";
 
@@ -172,3 +177,49 @@ it.each([
     expect(summary).toMatchObject({ updated: 100, markedUnread: true });
   },
 );
+
+it("keeps a thread settled on its computer settled while that computer is off", async () => {
+  vi.useFakeTimers();
+  const chat: ProjectChat = {
+    id: "remote",
+    projectId: "p",
+    title: "Settled there",
+    scope: { kind: "project" },
+    created: 1,
+    updated: 100,
+    messages: [],
+    sentTo: {
+      id: "handoff",
+      computerId: "other",
+      computer: "Other computer",
+      state: "away",
+      live: true,
+      kept: 0,
+      at: 1,
+    },
+  };
+  const save = vi.fn(async () => {});
+  const core = {
+    store: { get: () => ({ chats: [chat] }) },
+    storage: { load: async () => chat, save, chatChanged: () => {} },
+    prefs: () => ({ ...defaultPrefs, autoSettleDays: null }),
+    projects: { get: () => ({ settings: {} }) },
+    active: new ActiveTurns(() => {}),
+    sessions: { pending: () => [], onPending: () => () => {} },
+    away: new Map(),
+  } as unknown as ChatCore;
+  const handoff = new LiveHandoff(core, () => []);
+  const threads = new ThreadList(core);
+  try {
+    handoff.setLive(chat.id, { triage: { updated: 100, settledAt: 101 } });
+    await vi.runAllTimersAsync();
+    expect(save).toHaveBeenCalledOnce();
+
+    handoff.setLive(chat.id, undefined);
+    const [summary] = threads.list("p");
+    expect(chatActivitySection(summary!, Date.now())).toBe("settled");
+  } finally {
+    handoff.dispose();
+    vi.useRealTimers();
+  }
+});

@@ -14,7 +14,10 @@ import type {
   ProjectChatSend,
 } from "../../shared/projects";
 import { promptTitle } from "../../shared/prompt-title";
-import { handoffTriage } from "../../shared/handoff-triage";
+import {
+  handoffTriage,
+  type HandoffTriage,
+} from "../../shared/handoff-triage";
 import { sentSettingsOf } from "../../shared/projects";
 import type { ChatCore } from "./core";
 import { chatSummary } from "./chat-summaries";
@@ -298,6 +301,7 @@ export class LiveHandoff {
         ? { runningSince: Date.now() - runningFor }
         : {}),
     };
+    if (live?.triage) void this.keepTriage(id, live.triage);
     if (JSON.stringify(away.get(id)) === JSON.stringify(next)) return;
     if (next) away.set(id, next);
     else away.delete(id);
@@ -307,10 +311,23 @@ export class LiveHandoff {
   /** A shelf action completed there: show its result before the live push arrives. */
   triaged(id: string, summary: ChatSummary) {
     const away = this.core.away;
-    if (away) {
-      away.set(id, { ...away.get(id), triage: handoffTriage(summary) });
-      this.core.storage.chatChanged(id);
-    }
+    if (!away) return;
+    const triage = handoffTriage(summary);
+    away.set(id, { ...away.get(id), triage });
+    this.core.storage.chatChanged(id);
+    void this.keepTriage(id, triage);
+  }
+
+  /**
+   * Saves the marks the thread's computer last gave it, so it stays settled
+   * or snoozed here while that computer is off and after a restart.
+   */
+  private async keepTriage(id: string, triage: HandoffTriage) {
+    const chat = await this.core.storage.load(id).catch(() => undefined);
+    if (!chat?.sentTo || !liveAway(chat)) return;
+    if (JSON.stringify(chat.sentTo.triage) === JSON.stringify(triage)) return;
+    chat.sentTo = { ...chat.sentTo, triage };
+    this.saveSoon(chat);
   }
 
   /** Sends that wait for the computer the thread is live on. */

@@ -95,6 +95,11 @@ export interface ChatSentTo {
    * computer and its phones still show it. See `withSnoozeHere`.
    */
   snoozedHere?: { at: number; until: number };
+  /**
+   * Live: the Activity marks that computer last gave the thread, kept so it
+   * stays where it was while that computer can't be reached.
+   */
+  triage?: HandoffTriage;
 }
 
 /**

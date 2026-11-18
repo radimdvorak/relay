@@ -83,8 +83,7 @@ export class ThreadList {
     const { days, onCommit } = this.settling(settings);
     return this.live(projectId).map((listed) => {
       // The thread's computer decides its shelves, including automatic settling.
-      if (liveAway(listed) && this.core.away?.get(listed.id)?.triage)
-        return listed;
+      if (liveAway(listed) && this.awayOf(listed)?.triage) return listed;
       const settledAt = autoSettledAt(listed, now, days, onCommit);
       return settledAt
         ? { ...listed, settledAt, autoSettled: true as const }
@@ -115,6 +114,16 @@ export class ThreadList {
       .filter((c) => c.startedBy?.chatId === leadId)
       .map((c) => c.id);
     return [...this.byIds(ids).values()];
+  }
+
+  /**
+   * What the other computer last said of a thread live there; while it can't
+   * be reached, only the Activity marks it last gave.
+   */
+  private awayOf(c: ChatSummary): AwayLive | undefined {
+    const away = this.core.away?.get(c.id);
+    if (away?.triage || !liveAway(c) || !c.sentTo?.triage) return away;
+    return { ...away, triage: c.sentTo.triage };
   }
 
   /** The project's threads as saved, with what runs or waits in each now. */
@@ -155,7 +164,7 @@ export class ThreadList {
       .map((c) => {
         // One waiting on a setup there reads as that setup's agent does.
         if (c.sentTo?.live || inSetup(c)) {
-          const away = this.core.away?.get(c.id);
+          const away = this.awayOf(c);
           return away ? awaySummary(c, away) : c;
         }
         // The thread's own turns first: the one holding it, any the agent
