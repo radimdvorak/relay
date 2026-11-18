@@ -83,9 +83,17 @@ it("puts Relay's toast first", () => {
     { status: "ready", current: "0.13.4", version: "0.14.0" },
     [claude()],
     true,
+    [],
     0,
   );
   expect(items.map((i) => i.id)).toEqual(["relay", "agent:claude"]);
+});
+
+it("offers no release for an agent switched off, but still shows its update under way", () => {
+  const amp = (over: Partial<AgentVersion> = {}) => claude({ provider: "amp", ...over });
+  expect(updateItems(undefined, [amp()], true, ["amp"], 0)).toEqual([]);
+  const running = updateItems(undefined, [amp({ update: { status: "running" } })], true, ["amp"], 0);
+  expect(running.map((i) => i.phase)).toEqual(["busy"]);
 });
 
 describe("shortVersion", () => {

@@ -16,6 +16,7 @@ import {
   useAgentVersions,
 } from "./agent-updates";
 import { useRecent } from "./useRecent";
+import { useAISettings } from "../agents/useAISettings";
 import {
   crashItem,
   doneFor,
@@ -44,6 +45,7 @@ function useUpdateItems(crashOffer: CrashOffer | null): UpdateItem[] {
   const { state } = useUpdates();
   const agents = useAgentVersions()?.agents;
   const notices = useAgentUpdateChecks() === true;
+  const agentsOff = useAISettings().data?.agentsOff;
   const lastUpdated = Math.max(
     0,
     ...(agents ?? []).map((a) => (a.update?.status === "updated" ? a.update.at : 0)),
@@ -51,10 +53,10 @@ function useUpdateItems(crashOffer: CrashOffer | null): UpdateItem[] {
   // Re-renders when the last check mark is due to go.
   const justUpdated = useRecent(lastUpdated || undefined, doneFor);
   return useMemo(() => {
-    const updates = updateItems(state, agents ?? [], notices, Date.now());
+    const updates = updateItems(state, agents ?? [], notices, agentsOff ?? [], Date.now());
     const crashed = crashItem(crashOffer);
     return crashed ? [crashed, ...updates] : updates;
-  }, [crashOffer, state, agents, notices, justUpdated]);
+  }, [crashOffer, state, agents, notices, agentsOff, justUpdated]);
 }
 
 function Stack({ onAgentDetails }: { onAgentDetails: () => void }) {

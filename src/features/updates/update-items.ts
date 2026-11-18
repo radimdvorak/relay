@@ -203,14 +203,21 @@ export function agentItem(
   return undefined;
 }
 
-/** Every toast to show, Relay's first. */
+/**
+ * Every toast to show, Relay's first. An agent switched off in Settings gets
+ * no newer-release offer, but an update you started for it still shows.
+ */
 export function updateItems(
   state: UpdateState | undefined,
   agents: AgentVersion[],
   notices: boolean,
+  agentsOff: readonly AgentProvider[],
   now: number,
 ): UpdateItem[] {
   const relay = relayItem(state);
-  const rest = agents.flatMap((a) => agentItem(a, notices, now) ?? []);
+  const rest = agents.flatMap((a) => {
+    const offersRelease = notices && !agentsOff.includes(a.provider);
+    return agentItem(a, offersRelease, now) ?? [];
+  });
   return relay ? [relay, ...rest] : rest;
 }
