@@ -88,7 +88,7 @@ export function AgentTools({
   const [tab, setTab] = useState<Tab>("skills");
   const [query, setQuery] = useState("");
   const [state, setState] = useState<AgentToolState | "all">("all");
-  const { projects, projectName, projectId, projectOptions, selectProject } =
+  const { projects, projectName, projectId, projectOptions, selectProject, readingProject } =
     useToolsProject(initialProjectId);
   const computers = useQuery({
     queryKey: ["paired-computers"],
@@ -100,7 +100,7 @@ export function AgentTools({
   const inventory = useQuery({
     queryKey: ["agent-tools", computer, projectId, agent, account],
     queryFn: () =>
-      api.agentTools(projectId || null, agent, computer || undefined),
+      readingProject(api.agentTools(projectId || null, agent, computer || undefined)),
     // Waits for what picks the agent and its account, so the first answer isn't thrown away.
     enabled: projects.isSuccess && (!signsIn || accounts !== undefined),
     staleTime: 0,

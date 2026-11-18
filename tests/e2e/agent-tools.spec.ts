@@ -142,3 +142,54 @@ require('node:readline').createInterface({input:process.stdin}).on('line',line=>
     await rm(root, { recursive: true, force: true });
   }
 });
+
+test("reads the personal configuration when the project's folder is gone", async () => {
+  const root = await realpath(await mkdtemp(join(tmpdir(), "relay-tools-gone-e2e-")));
+  const folder = join(root, "deleted-project");
+  const bin = join(root, "bin");
+  await Promise.all([mkdir(folder), mkdir(bin)]);
+  await fakeCli(
+    join(bin, "codex"),
+    `
+require('node:readline').createInterface({input:process.stdin}).on('line',line=>{
+ const m=JSON.parse(line);if(m.id==null)return;
+ let result={};
+ if(m.method==='skills/list')result={data:[]};
+ if(m.method==='config/read')result={config:{},origins:{}};
+ if(m.method==='account/read')result={account:null,requiresOpenaiAuth:false};
+ if(m.method==='model/list')result={data:[],nextCursor:null};
+ console.log(JSON.stringify({id:m.id,result}));
+});`,
+  );
+  const env = relayEnv();
+  const app = await electron.launch({
+    env: {
+      ...env,
+      ...pathWith(env, bin),
+      RELAY_TEST_DATA: join(root, "data"),
+      CODEX_HOME: join(root, "codex"),
+    },
+  });
+  try {
+    const page = await app.firstWindow();
+    await app.evaluate(({ dialog }, folder) => {
+      dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [folder] });
+    }, folder);
+    await page.evaluate(() => window.relay.addProject());
+    await rm(folder, { recursive: true });
+    await page.reload();
+    await page.getByRole("button", { name: "Open settings", exact: true }).click();
+    await page.getByRole("button", { name: "Agents", exact: true }).click();
+    await page.getByRole("option", { name: /^Codex CLI/ }).click();
+    await expect(page.getByText("Personal configuration on this computer")).toBeVisible();
+    await expect(page.getByText(/folder is gone/)).toHaveCount(0);
+    await page.getByRole("combobox", { name: "Tools project" }).click();
+    await expect(page.getByRole("option", { name: /Deleted Project/ })).toContainText(
+      "Folder is gone",
+    );
+    await page.screenshot({ path: join(tmpdir(), "relay-agent-tools-gone.png") });
+  } finally {
+    await app.close();
+    await rm(root, { recursive: true, force: true });
+  }
+});
