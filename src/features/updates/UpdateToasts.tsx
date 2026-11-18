@@ -3,6 +3,7 @@ import { Toast } from "@base-ui/react/toast";
 import { Check, TriangleAlert, X } from "lucide-react";
 import { api } from "../../lib/api";
 import { releasesPage } from "../../../shared/updates";
+import type { CrashOffer } from "../../../shared/bug-report";
 import { ProviderIcon } from "../agents/ComposerModelPicker";
 import { useCrashOffer } from "../bug-report/useCrashOffer";
 import { RelayMark } from "../../ui/RelayMark";
@@ -38,9 +39,9 @@ export function UpdateToasts({ onAgentDetails }: { onAgentDetails: () => void })
   );
 }
 
-function Stack({ onAgentDetails }: { onAgentDetails: () => void }) {
+/** The toasts there are to show, the crash offer first. */
+function useUpdateItems(crashOffer: CrashOffer | null): UpdateItem[] {
   const { state } = useUpdates();
-  const crash = useCrashOffer();
   const agents = useAgentVersions()?.agents;
   const notices = useAgentUpdateChecks() === true;
   const lastUpdated = Math.max(
@@ -49,11 +50,16 @@ function Stack({ onAgentDetails }: { onAgentDetails: () => void }) {
   );
   // Re-renders when the last check mark is due to go.
   const justUpdated = useRecent(lastUpdated || undefined, doneFor);
-  const items = useMemo(() => {
+  return useMemo(() => {
     const updates = updateItems(state, agents ?? [], notices, Date.now());
-    const crashed = crashItem(crash.offer);
+    const crashed = crashItem(crashOffer);
     return crashed ? [crashed, ...updates] : updates;
-  }, [crash.offer, state, agents, notices, justUpdated]);
+  }, [crashOffer, state, agents, notices, justUpdated]);
+}
+
+function Stack({ onAgentDetails }: { onAgentDetails: () => void }) {
+  const crash = useCrashOffer();
+  const items = useUpdateItems(crash.offer);
 
   const manager = Toast.useToastManager();
   const putOffKeys = putOffToasts.use();

@@ -322,7 +322,7 @@ export const bigFunctions: Record<string, number> = {
   "src/features/tips/Clip.tsx › Clip": 111,
   "src/features/tips/TipPeek.tsx › Peek": 144,
   "src/features/updates/Changelog.tsx › Changelog": 123,
-  "src/features/updates/UpdateToasts.tsx › Stack": 122,
+  "src/features/updates/UpdateToasts.tsx › Stack": 109,
   "src/features/usage/UsagePage.tsx › Rhythmic": 198,
   "src/features/usage/usage-charts.tsx › Bars": 92,
   "src/features/watch/WatchNotes.tsx › WatchNotes": 96,
