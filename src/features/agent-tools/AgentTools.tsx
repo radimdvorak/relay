@@ -25,7 +25,7 @@ import { useAgentAccounts } from "../accounts/agent-accounts";
 import { computerLine } from "../handoff/computer-status";
 import { filterAgentTools } from "./filter";
 import "./agent-tools.css";
-import { useProjectList } from "../../lib/workspace-queries";
+import { useToolsProject } from "./useToolsProject";
 
 type Tab = "skills" | "servers";
 
@@ -85,23 +85,16 @@ export function AgentTools({
 }) {
   const accounts = useAgentAccounts();
   const [computer, setComputer] = useState("");
-  const [selectedProject, setSelectedProject] = useState<string>();
   const [tab, setTab] = useState<Tab>("skills");
   const [query, setQuery] = useState("");
   const [state, setState] = useState<AgentToolState | "all">("all");
-  const projects = useProjectList();
+  const { projects, projectName, projectId, projectOptions, selectProject } =
+    useToolsProject(initialProjectId);
   const computers = useQuery({
     queryKey: ["paired-computers"],
     queryFn: () => api.pairedComputers(),
     retry: false,
   });
-  const offeredProjects =
-    projects.data?.filter((p) => !p.scratch && !p.removed) ?? [];
-  const requestedProject =
-    selectedProject ?? initialProjectId ?? offeredProjects[0]?.id ?? "";
-  const projectId = offeredProjects.some((p) => p.id === requestedProject)
-    ? requestedProject
-    : "";
   const signsIn = !computer && (agent === "codex" || agent === "claude");
   const account = signsIn ? accounts?.inUse[agent] : undefined;
   const inventory = useQuery({
@@ -121,7 +114,6 @@ export function AgentTools({
     ? (computers.data?.find((c) => c.id === computer)?.name ??
       "the selected computer")
     : "this computer";
-  const projectName = offeredProjects.find((p) => p.id === projectId)?.name;
   const counts = (["enabled", "disabled", "unknown"] as const).map(
     (s) => [s, items.filter((t) => t.state === s).length] as const,
   );
@@ -161,11 +153,8 @@ export function AgentTools({
             label="Tools project"
             value={projectId}
             icon={projectId ? <FolderGit2 size={14} /> : <User size={14} />}
-            onChange={setSelectedProject}
-            options={[
-              ...offeredProjects.map((p) => ({ value: p.id, label: p.name })),
-              { value: "", label: "Personal configuration", short: "Personal" },
-            ]}
+            onChange={selectProject}
+            options={projectOptions}
           />
         </div>
         <button

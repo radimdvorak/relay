@@ -114,7 +114,7 @@ export const bigFunctions: Record<string, number> = {
   "src/features/add-project/useAdding.ts › useAdding": 100,
   "src/features/agent-settings/AgentDetail.tsx › AgentDetail": 284,
   "src/features/agent-settings/AgentsPanel.tsx › AgentsPanel": 238,
-  "src/features/agent-tools/AgentTools.tsx › AgentTools": 268,
+  "src/features/agent-tools/AgentTools.tsx › AgentTools": 257,
   "src/features/agent-turn/AgentTurn.tsx › AgentTurn": 175,
   "src/features/agent-turn/StartedChip.tsx › StartedChip": 87,
   "src/features/agent-turn/SubagentThread.tsx › Run": 97,
