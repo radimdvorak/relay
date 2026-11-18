@@ -194,6 +194,51 @@ function editorCanPopOut(
   return !folder.gone && !folder.deleted && !folderComputer(project, chat);
 }
 
+/** What the composer's scope menu can start a new thread in. */
+function scopeChoice(
+  nav: ShellNavigation,
+  host: ThreadTools["host"],
+  onChoosePR: (() => void) | undefined,
+): ChatProps["scopes"] {
+  return {
+    canChoosePR: !!host.account || host.pending,
+    onClearScope: () => nav.newThreadIn({ kind: "project" }),
+    onChoosePR,
+    onSelectPR: (ref) => nav.newThreadIn({ kind: "pr", ref }),
+    onDeepReview: () => nav.newThreadIn({ kind: "review" }),
+  };
+}
+
+/** What the thread's messages read from around them. */
+function ChatContexts({
+  tools,
+  project,
+  allProjects,
+  everyThread,
+  previewPanel,
+  children,
+}: {
+  tools: ThreadTools;
+  project: Project;
+  allProjects: Project[];
+  everyThread: ChatSummary[];
+  previewPanel: ComponentProps<typeof ThreadPreviewContext.Provider>["value"];
+  children: ReactNode;
+}) {
+  const { nav, cardSlot } = tools;
+  return (
+    <CardSlot.Provider value={cardSlot}>
+      <StartedThreadsContext.Provider
+        value={startedThreads(nav, project, allProjects, everyThread)}
+      >
+        <ThreadPreviewContext.Provider value={previewPanel}>
+          {children}
+        </ThreadPreviewContext.Provider>
+      </StartedThreadsContext.Provider>
+    </CardSlot.Provider>
+  );
+}
+
 /** The threads the open one started, for the chat to list and open. */
 function startedThreads(
   { chat, navigate }: ShellNavigation,
@@ -295,58 +340,52 @@ export function ThreadWorkspace({
           {...frame("chat")}
           className="project-chat-pane"
         >
-          <CardSlot.Provider value={tools.cardSlot}>
-            <StartedThreadsContext.Provider
-              value={startedThreads(nav, project, allProjects, everyThread)}
-            >
-              <ThreadPreviewContext.Provider value={previewPanel}>
-                <ProjectChat
-                  key={chat?.id ?? draftId}
-                  ref={composer}
-                  project={project}
-                  projects={projects}
-                  chat={chat}
-                  draftId={draftId}
-                  draftScope={nav.draftScope}
-                  viewing={codeOpen ? view.viewing : NO_VIEWING}
-                  contextText={view.context}
-                  onContextUsed={() => view.setContext(undefined)}
-                  scopes={{
-                    canChoosePR: !!host.account || host.pending,
-                    onClearScope: () => nav.newThreadIn({ kind: "project" }),
-                    onChoosePR,
-                    onSelectPR: (ref) => nav.newThreadIn({ kind: "pr", ref }),
-                    onDeepReview: () => nav.newThreadIn({ kind: "review" }),
-                  }}
-                  opens={{
-                    onOpenCode: opens.openCode,
-                    onOpenFile: opens.openChatFile,
-                    onOpenTurnDiff: opens.openTurnDiff,
-                    // Where the header has no Git actions, there's nothing to commit with.
-                    onCommitFiles:
-                      project.plain || folder.gone || folder.deleted
-                        ? undefined
-                        : (paths) =>
-                            void gitActions.current?.commit(paths, chat?.id),
-                    commitPaths: folder.tree?.changes.map((c) => c.path),
-                  }}
-                  onCommand={onCommand}
-                  onDraftWorkspace={nav.setDraftWorkspace}
-                  onStartThread={onStartThread}
-                  onBackToReview={
-                    review ? () => void navigate(project, review) : undefined
-                  }
-                  onCreated={onCreated}
-                  onForked={onOpened}
-                  onOpenThread={onOpened}
-                  onSwitchProject={(next) => navigate(next, undefined, true)}
-                  onAddProject={onAddProject}
-                  onScratch={onScratch}
-                  onProjectSettings={() => onSettings("project", project.id)}
-                />
-              </ThreadPreviewContext.Provider>
-            </StartedThreadsContext.Provider>
-          </CardSlot.Provider>
+          <ChatContexts
+            tools={tools}
+            project={project}
+            allProjects={allProjects}
+            everyThread={everyThread}
+            previewPanel={previewPanel}
+          >
+            <ProjectChat
+              key={chat?.id ?? draftId}
+              ref={composer}
+              project={project}
+              projects={projects}
+              chat={chat}
+              draftId={draftId}
+              draftScope={nav.draftScope}
+              viewing={codeOpen ? view.viewing : NO_VIEWING}
+              contextText={view.context}
+              onContextUsed={() => view.setContext(undefined)}
+              scopes={scopeChoice(nav, host, onChoosePR)}
+              opens={{
+                onOpenCode: opens.openCode,
+                onOpenFile: opens.openChatFile,
+                onOpenTurnDiff: opens.openTurnDiff,
+                // Where the header has no Git actions, there's nothing to commit with.
+                onCommitFiles:
+                  project.plain || folder.gone || folder.deleted
+                    ? undefined
+                    : (paths) =>
+                        void gitActions.current?.commit(paths, chat?.id),
+                commitPaths: folder.tree?.changes.map((c) => c.path),
+              }}
+              onCommand={onCommand}
+              onDraftWorkspace={nav.setDraftWorkspace}
+              onStartThread={onStartThread}
+              onBackToReview={
+                review ? () => void navigate(project, review) : undefined
+              }
+              onCreated={onCreated}
+              onForked={onOpened}
+              onOpenThread={onOpened}
+              onSwitchProject={(next) => navigate(next, undefined, true)}
+              onAddProject={onAddProject}
+              onScratch={onScratch}
+              onProjectSettings={() => onSettings("project", project.id)}
+            />
+          </ChatContexts>
           <RunningCard
             tools={tools}
             project={project}

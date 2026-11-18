@@ -30,7 +30,6 @@ import {
   chatFileLink,
   type ProjectFileLink,
 } from "../../shared/project-file-links";
-import { api } from "../lib/api";
 import { looksLikeColor } from "../lib/color-value";
 import { parentSuffixes } from "../lib/file-icons";
 import { normalizeFileCitations } from "../lib/file-citations";
@@ -51,6 +50,7 @@ import {
   linkedProjectFiles,
 } from "./FileLinkChip";
 import { MarkdownTable } from "./MarkdownTable";
+import { WebLink } from "./WebLink";
 import { KeepBlock, KeepBlockButton } from "./KeepBlock";
 import { BlockMath, InlineMath } from "./MathView";
 
@@ -369,15 +369,7 @@ export const RichText = memo(function RichText({
             onOpen={(target) => openFile.current?.(target)}
           />
         ) : href && /^(https?:|mailto:)/i.test(href) ? (
-          <a
-            href={href}
-            onClick={(e) => {
-              e.preventDefault();
-              if (href) void api.openExternal(href).catch(() => {});
-            }}
-          >
-            {children}
-          </a>
+          <WebLink href={href}>{children}</WebLink>
         ) : (
           <span>{children}</span>
         );
@@ -413,17 +405,7 @@ export const RichText = memo(function RichText({
         if (shown !== undefined) return shown;
         // Remote images stay links: loading one would tell its server the thread was read.
         if (/^https?:/i.test(src))
-          return (
-            <a
-              href={src}
-              onClick={(e) => {
-                e.preventDefault();
-                void api.openExternal(src).catch(() => {});
-              }}
-            >
-              {alt || src}
-            </a>
-          );
+          return <WebLink href={src}>{alt || src}</WebLink>;
         return /^data:image\//i.test(src) ? (
           <img className="markdown-image" src={src} alt={alt ?? ""} />
         ) : null;
