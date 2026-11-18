@@ -7,6 +7,7 @@ import {
 import { revealLabel } from "../lib/mod-key";
 import { PILL_MARK } from "../lib/pill-marks";
 import { FileEntryIcon } from "./FileEntryIcon";
+import { FileLinkMenu } from "./FileLinkMenu";
 
 /** Parent folders for file names the message links under several paths. */
 export const FileLinkSuffixes = createContext<ReadonlyMap<string, string>>(
@@ -68,23 +69,26 @@ export function FileLinkChip({
     ...(target.line ? [`L${linesOf(target, "–")}`] : []),
   ].join(" · ");
   const pill = pillPath(target);
+  const fullPath = pathOnDisk(target, root);
   return (
-    <span
-      role="button"
-      tabIndex={0}
-      className="chat-file-link"
-      title={`${pathOnDisk(target, root)}${target.line ? `:${linesOf(target, "-")}` : ""}${target.outside && target.directory ? `\n${revealLabel}` : ""}`}
-      data-copy={`\`${pill}\``}
-      {...{ [PILL_MARK.file]: pill }}
-      onClick={() => onOpen(target)}
-      onKeyDown={(event) => {
-        if (event.key !== "Enter" && event.key !== " ") return;
-        event.preventDefault();
-        onOpen(target);
-      }}
-    >
-      <FileEntryIcon path={target.path} directory={target.directory} />
-      <span className="chat-file-link-label">{label}</span>
-    </span>
+    <FileLinkMenu target={target} fullPath={fullPath} onOpen={onOpen}>
+      <span
+        role="button"
+        tabIndex={0}
+        className="chat-file-link"
+        title={`${fullPath}${target.line ? `:${linesOf(target, "-")}` : ""}${target.outside && target.directory ? `\n${revealLabel}` : ""}`}
+        data-copy={`\`${pill}\``}
+        {...{ [PILL_MARK.file]: pill }}
+        onClick={() => onOpen(target)}
+        onKeyDown={(event) => {
+          if (event.key !== "Enter" && event.key !== " ") return;
+          event.preventDefault();
+          onOpen(target);
+        }}
+      >
+        <FileEntryIcon path={target.path} directory={target.directory} />
+        <span className="chat-file-link-label">{label}</span>
+      </span>
+    </FileLinkMenu>
   );
 }

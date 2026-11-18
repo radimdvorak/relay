@@ -29,6 +29,7 @@ import type { ComposerControls } from "../features/composer/ProjectComposer";
 import { TerminalDrawer } from "../features/terminal/TerminalDrawer";
 import { useEditorWindowShortcut } from "../features/editor-windows/EditorWindowButtons";
 import { Pane } from "../ui/WorkspacePanes";
+import { FilesOnThisComputer } from "../ui/FileLinkMenu";
 import { TerminalToggle, ThreadPaneToggles } from "./ShellTitlebar";
 import { ThreadChanges, ThreadPanel } from "./ThreadPanes";
 import { usePaneOpens } from "./usePaneOpens";
@@ -227,15 +228,17 @@ function ChatContexts({
 }) {
   const { nav, cardSlot } = tools;
   return (
-    <CardSlot.Provider value={cardSlot}>
-      <StartedThreadsContext.Provider
-        value={startedThreads(nav, project, allProjects, everyThread)}
-      >
-        <ThreadPreviewContext.Provider value={previewPanel}>
-          {children}
-        </ThreadPreviewContext.Provider>
-      </StartedThreadsContext.Provider>
-    </CardSlot.Provider>
+    <FilesOnThisComputer.Provider value={!folderComputer(project, nav.chat)}>
+      <CardSlot.Provider value={cardSlot}>
+        <StartedThreadsContext.Provider
+          value={startedThreads(nav, project, allProjects, everyThread)}
+        >
+          <ThreadPreviewContext.Provider value={previewPanel}>
+            {children}
+          </ThreadPreviewContext.Provider>
+        </StartedThreadsContext.Provider>
+      </CardSlot.Provider>
+    </FilesOnThisComputer.Provider>
   );
 }
 

@@ -308,3 +308,57 @@ test("a chat file link to a file the thread changed in another repository opens 
     await rm(root, { recursive: true, force: true });
   }
 });
+
+test("a page a chat links opens in the default browser from its right-click menu", async () => {
+  const root = await realpath(
+    await mkdtemp(join(tmpdir(), "relay-chat-browser-")),
+  );
+  const repo = join(root, "project"),
+    brief = join(root, "drafts", "brief.html");
+  execFileSync("git", ["init", "-q", "-b", "main", repo]);
+  await mkdir(join(root, "drafts"));
+  await writeFile(brief, "<h1>Brief</h1>\n");
+  const app = await launch(root, { RELAY_TEST_OUTSIDE_FILE: brief });
+  try {
+    const page = await app.firstWindow();
+    await app.evaluate(({ app, dialog, shell }, dir) => {
+      dialog.showOpenDialog = async () => ({
+        canceled: false,
+        filePaths: [dir],
+      });
+      // No browser of its own here, so Relay falls back to the system's pick.
+      app.getApplicationInfoForProtocol = async () => {
+        throw new Error("no browser in tests");
+      };
+      const opened: string[] = [];
+      (globalThis as { opened?: string[] }).opened = opened;
+      shell.openExternal = async (url) => void opened.push(url);
+    }, repo);
+    await page.evaluate(() => window.relay.addProject());
+    await page.reload();
+    await page.getByLabel("Message project").fill("fixture outside link");
+    await page
+      .getByRole("button", { name: "Send message", exact: true })
+      .click();
+    await page
+      .locator(`.chat-file-link[title="${brief}:2"]`)
+      .click({ button: "right" });
+    const menu = page.getByRole("menu");
+    await expect(menu.getByRole("menuitem")).toHaveText([
+      "Open",
+      "Open in browser",
+      "Open with default app",
+      /^Show in /,
+      "Copy path",
+    ]);
+    await menu.getByRole("menuitem", { name: "Open in browser" }).click();
+    await expect
+      .poll(() =>
+        app.evaluate(() => (globalThis as { opened?: string[] }).opened),
+      )
+      .toEqual([`file://${brief}`]);
+  } finally {
+    await app.close();
+    await rm(root, { recursive: true, force: true });
+  }
+});

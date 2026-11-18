@@ -132,6 +132,7 @@ export const handoffHereOnlyMethods = [
   "revealProjectPath",
   "openProjectPath",
   "openProjectPathWith",
+  "openProjectPathInBrowser",
   "revealProjectWorktree",
 ] as const satisfies readonly ApiMethod[];
 

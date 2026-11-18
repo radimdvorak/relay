@@ -3,7 +3,7 @@ import { shell } from "electron";
 import { z } from "zod";
 import { openWithAppIdSchema } from "../../shared/open-with";
 import { workingPathSchema } from "../../shared/working-tree";
-import { openWith, openWithApps } from "../open-with";
+import { openInBrowser, openWith, openWithApps } from "../open-with";
 import {
   createEntry,
   entryItself,
@@ -32,6 +32,11 @@ export function projectEntryHandlers(ctx: ApiContext) {
       [fileRootSchema, workingPathSchema],
       async (where, path) =>
         openPath(entryPath((await rootOf(where)).root, path)),
+    ),
+    openProjectPathInBrowser: takes(
+      [fileRootSchema, workingPathSchema],
+      async (where, path) =>
+        openInBrowser(await entryPath((await rootOf(where)).root, path)),
     ),
     openWithApps: () => openWithApps(),
     openProjectPathWith: takes(

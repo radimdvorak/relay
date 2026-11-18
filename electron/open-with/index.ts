@@ -1,7 +1,7 @@
 // The editors and IDEs on this computer that the Files pane offers to open a
 // file in, and opening it in one.
 import { app } from "electron";
-import { execFile, spawn } from "node:child_process";
+import { execFile } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { readFile, rm } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
@@ -16,6 +16,9 @@ import {
   findWindowsApps,
   type FoundApp,
 } from "./find-apps";
+import { launch } from "./launch";
+
+export { openInBrowser } from "./default-browser";
 
 /** How long a search's answer holds: an editor installed since shows up after this. */
 const searchHolds = 60_000;
@@ -110,36 +113,21 @@ async function readIcon(path: string) {
 async function bundleIcon(bundle: string) {
   const run = promisify(execFile);
   const plist = join(bundle, "Contents", "Info.plist");
-  const { stdout } = await run("plutil", ["-extract", "CFBundleIconFile", "raw", "-o", "-", plist], { timeout: 5_000 });
+  const { stdout } = await run(
+    "plutil",
+    ["-extract", "CFBundleIconFile", "raw", "-o", "-", plist],
+    { timeout: 5_000 },
+  );
   const name = stdout.trim().replace(/\.icns$/, "");
   if (!name) return "";
   const icns = join(bundle, "Contents", "Resources", `${name}.icns`);
   const png = join(tmpdir(), `relay-app-icon-${randomUUID()}.png`);
   try {
-    await run("sips", ["-s", "format", "png", "-Z", "64", icns, "--out", png], { timeout: 10_000 });
+    await run("sips", ["-s", "format", "png", "-Z", "64", icns, "--out", png], {
+      timeout: 10_000,
+    });
     return `data:image/png;base64,${(await readFile(png)).toString("base64")}`;
   } finally {
     await rm(png, { force: true });
   }
-}
-
-async function launch({ path }: FoundApp, file: string) {
-  if (process.platform === "darwin") {
-    // open's own words say why, not Node's "Command failed: open -a …".
-    await promisify(execFile)("open", ["-a", path, file], {
-      timeout: 15_000,
-    }).catch((e: Error & { stderr?: string }) => {
-      throw new Error(e.stderr?.trim() || e.message);
-    });
-    return;
-  }
-  // Detached, so the app outlives Relay and its windows aren't Relay's.
-  await new Promise<void>((resolve, reject) => {
-    const child = spawn(path, [file], { detached: true, stdio: "ignore" });
-    child.once("error", reject);
-    child.once("spawn", () => {
-      child.unref();
-      resolve();
-    });
-  });
 }

@@ -16,6 +16,8 @@ export interface OpenWithApi {
   revealProjectPath(where: string, path: string): Promise<void>;
   /** Opens a file in the app the system picks for it. */
   openProjectPath(where: string, path: string): Promise<void>;
+  /** Opens a page in the system's default web browser, whatever app the file's type opens in. */
+  openProjectPathInBrowser(where: string, path: string): Promise<void>;
   /** The editors and IDEs found on this computer, in the order to offer them. */
   openWithApps(): Promise<OpenWithApp[]>;
   /** Opens a file in one of `openWithApps`, by its id. */
