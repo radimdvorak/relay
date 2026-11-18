@@ -185,6 +185,8 @@ it("toggles existing and new project names, persists the setting, and preserves 
       s.smartProjectNames = false;
     });
     expect(restored.get(scratch.id).name).toBe("Scratchpad");
+    // Its launch backup is written in the background; the folder goes next.
+    await reloaded.flush();
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
