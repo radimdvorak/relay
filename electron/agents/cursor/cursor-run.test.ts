@@ -212,6 +212,17 @@ describe("a Cursor turn", () => {
     });
   });
 
+  it("sends xhigh as the extra-high a model names it", async () => {
+    const { options } = turn("say hello", {
+      choice: { model: "gpt-fixture", fast: false, reasoningEffort: "xhigh" },
+    });
+    await runCursor(options);
+    expect((await asked())[0].sendOptions.model).toEqual({
+      id: "gpt-fixture",
+      params: [{ id: "reasoning", value: "extra-high" }],
+    });
+  });
+
   it.each([true, false])(
     "sends explicit Fast=%s for a model with no effort levels",
     async (fast) => {
@@ -691,6 +702,10 @@ describe("Cursor's models", () => {
       efforts: ["low", "high"],
       defaultEffort: "high",
       fast: false,
+    });
+    expect(models.find((m) => m.id === "gpt-fixture")).toMatchObject({
+      efforts: ["medium", "xhigh"],
+      defaultEffort: "xhigh",
     });
     expect(models.find((m) => m.id === "auto")?.fast).toBe(false);
     expect(models.find((m) => m.id === "auto")?.efforts).toEqual([]);

@@ -355,6 +355,22 @@ export const Cursor = {
             },
           ],
         },
+        {
+          id: "gpt-fixture",
+          displayName: "GPT fixture",
+          parameters: [
+            {
+              id: "reasoning",
+              values: [{ value: "medium" }, { value: "extra-high" }],
+            },
+          ],
+          variants: [
+            {
+              params: [{ id: "reasoning", value: "extra-high" }],
+              isDefault: true,
+            },
+          ],
+        },
       ];
     },
   },

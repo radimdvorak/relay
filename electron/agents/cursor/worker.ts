@@ -57,6 +57,10 @@ async function models() {
   return list;
 }
 
+/** Some models call their top effort "extra-high"; Relay calls it xhigh. */
+const relayEffort = (value: string) =>
+  value === "extra-high" ? "xhigh" : value;
+
 async function modelList(): Promise<CursorModel[]> {
   return (await models().catch(forgetList)).map((model) => ({
     id: model.id,
@@ -64,10 +68,10 @@ async function modelList(): Promise<CursorModel[]> {
     description: model.description ?? "",
     parameters: (model.parameters ?? []).map((p) => ({
       id: p.id,
-      values: p.values.map((v) => v.value),
+      values: p.values.map((v) => relayEffort(v.value)),
     })),
     defaults: (model.variants?.find((v) => v.isDefault)?.params ?? []).map(
-      (p) => ({ id: p.id, value: p.value }),
+      (p) => ({ id: p.id, value: relayEffort(p.value) }),
     ),
   }));
 }
@@ -77,17 +81,22 @@ const forgetList = (error: unknown): never => {
   throw error;
 };
 
+/** The setting that picks `effort` on `model`, in the model's own words. */
+function effortParam(model: SDKModel | undefined, effort: string) {
+  for (const p of model?.parameters ?? []) {
+    if (!/effort|reason|think/i.test(p.id)) continue;
+    const level = p.values.find((v) => relayEffort(v.value) === effort);
+    if (level) return { id: p.id, value: level.value };
+  }
+}
+
 /** The model's effort and speed, with Standard sent explicitly even if Fast is its default. */
 async function modelSelection(run: CursorRun): Promise<ModelSelection> {
   const id = run.model || "auto";
   const model = (await models().catch(forgetList)).find((m) => m.id === id);
-  const param = model?.parameters?.find(
-    (p) =>
-      /effort|reason|think/i.test(p.id) &&
-      p.values.some((v) => v.value === run.effort),
-  );
   const params: NonNullable<ModelSelection["params"]> = [];
-  if (param && run.effort) params.push({ id: param.id, value: run.effort });
+  const effort = run.effort && effortParam(model, run.effort);
+  if (effort) params.push(effort);
   const speed = model?.parameters?.find((p) => p.id === "fast");
   if (speed) {
     const value = String(run.fast);
