@@ -302,7 +302,8 @@ export const Cursor = {
     async list() {
       return [
         {
-          id: "auto",
+          id: "default",
+          aliases: ["auto"],
           displayName: "Auto",
           parameters: [],
         },

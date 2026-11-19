@@ -707,9 +707,12 @@ describe("Cursor's models", () => {
       efforts: ["medium", "xhigh"],
       defaultEffort: "xhigh",
     });
-    expect(models.find((m) => m.id === "auto")?.fast).toBe(false);
-    expect(models.find((m) => m.id === "auto")?.efforts).toEqual([]);
-    expect(await cursorDefaults()).toEqual({ model: "auto", effort: "" });
+    expect(models.find((m) => m.id === "default")).toMatchObject({
+      name: "Auto",
+      efforts: [],
+      fast: false,
+    });
+    expect(await cursorDefaults()).toEqual({ model: "default", effort: "" });
   });
 });
 

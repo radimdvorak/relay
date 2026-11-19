@@ -6,6 +6,8 @@
 /** A model the SDK lists, cut down to what Relay reads. */
 export interface CursorModel {
   id: string;
+  /** Other ids that pick it, e.g. `auto` for Auto. */
+  aliases: string[];
   name: string;
   description: string;
   /** What its settings offer, e.g. `{ id: "reasoning", values: ["low", "high"] }`. */

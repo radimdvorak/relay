@@ -13,8 +13,9 @@ import { cursorCall } from "./connection";
 import type { CursorModel } from "./protocol";
 import { currentSdk } from "./sdk";
 
-/** The model Cursor picks for whoever doesn't pick one. */
-const defaultModel = "auto";
+/** Cursor runs Auto for whoever doesn't pick a model. It lists it as `default`, with `auto` as an alias. */
+const isAuto = (model: CursorModel) =>
+  model.id === "auto" || model.aliases.includes("auto");
 const effortParameter = /effort|reason|think/i;
 
 const byName = (a: string, b: string) =>
@@ -72,25 +73,25 @@ function agentModelOf(model: CursorModel): AgentModel {
  * download the SDK to answer: that's Settings' job, and an unset Cursor just
  * has no models yet.
  */
-export const cursorModels = memoOnce(async (): Promise<AgentModel[]> => {
+const listedModels = memoOnce(async (): Promise<CursorModel[]> => {
   const sdk = await currentSdk();
   if (!sdk) throw new Error("Cursor isn't set up yet.");
   const found = await cursorCall(sdk, "models", {});
-  return found
-    .filter((model) => modelSchema.safeParse(model.id).success)
-    .map(agentModelOf)
-    .sort((a, b) => byName(a.group!, b.group!) || byName(a.name, b.name));
+  return found.filter((model) => modelSchema.safeParse(model.id).success);
 });
 
+export async function cursorModels(): Promise<AgentModel[]> {
+  return (await listedModels())
+    .map(agentModelOf)
+    .sort((a, b) => byName(a.group!, b.group!) || byName(a.name, b.name));
+}
+
 /** Forgets the list, e.g. after signing in as someone else. */
-export const forgetCursorModels = cursorModels.forget;
+export const forgetCursorModels = listedModels.forget;
 
 export async function cursorDefaults(): Promise<AgentDefaults | null> {
-  const models = await cursorModels().catch(() => []);
-  return {
-    model: models.some((m) => m.id === defaultModel) ? defaultModel : "",
-    effort: "",
-  };
+  const models = await listedModels().catch(() => []);
+  return { model: models.find(isAuto)?.id ?? "", effort: "" };
 }
 
 /** Cursor's SDK doesn't list commands or skills, so they're read from the folders it reads. */

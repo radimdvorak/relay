@@ -64,6 +64,7 @@ const relayEffort = (value: string) =>
 async function modelList(): Promise<CursorModel[]> {
   return (await models().catch(forgetList)).map((model) => ({
     id: model.id,
+    aliases: model.aliases ?? [],
     name: model.displayName || model.id,
     description: model.description ?? "",
     parameters: (model.parameters ?? []).map((p) => ({
@@ -93,7 +94,9 @@ function effortParam(model: SDKModel | undefined, effort: string) {
 /** The model's effort and speed, with Standard sent explicitly even if Fast is its default. */
 async function modelSelection(run: CursorRun): Promise<ModelSelection> {
   const id = run.model || "auto";
-  const model = (await models().catch(forgetList)).find((m) => m.id === id);
+  const model = (await models().catch(forgetList)).find(
+    (m) => m.id === id || m.aliases?.includes(id),
+  );
   const params: NonNullable<ModelSelection["params"]> = [];
   const effort = run.effort && effortParam(model, run.effort);
   if (effort) params.push(effort);
