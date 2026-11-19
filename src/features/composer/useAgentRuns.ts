@@ -304,8 +304,8 @@ export function useAgentRuns(
           ),
         );
       else if (isPickAgent(to)) {
-        const pick = pickOf(to);
-        setEffort(to, stepEffort(pick.efforts, pick.reasoningEffort, "", step));
+        const { efforts, reasoningEffort: now, defaultEffort } = pickOf(to);
+        setEffort(to, stepEffort(efforts, now, defaultEffort, step));
       }
     },
     /** Claude as the composer shows it. */

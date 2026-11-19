@@ -95,7 +95,7 @@ export function ComposerEffortControl({
   );
 }
 
-/** The effort of an agent with its own model catalog. */
+/** The effort of an agent with its own model catalog; Default says what it runs on the model. */
 function PickEffortSelect({
   to,
   runs,
@@ -112,7 +112,11 @@ function PickEffortSelect({
       label="Reasoning effort"
       value={pick.reasoningEffort}
       options={[
-        { value: "", label: "Default" },
+        {
+          value: "",
+          label: defaultEffortLabel(pick.defaultEffort),
+          short: defaultEffortShort(pick.defaultEffort),
+        },
         ...pick.efforts.map((value) => ({
           value,
           label: effortLabels[value],

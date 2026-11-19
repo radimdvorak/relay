@@ -157,7 +157,8 @@ export function livePick(
   models: AgentModel[] | undefined,
 ) {
   const { model, reasoningEffort } = entry?.choice ?? blankChoice;
-  const efforts = models?.find((m) => m.id === model)?.efforts ?? [];
+  const listed = models?.find((m) => m.id === model);
+  const efforts = listed?.efforts ?? [];
   return {
     model,
     efforts,
@@ -165,6 +166,8 @@ export function livePick(
     reasoningEffort: efforts.includes(reasoningEffort)
       ? reasoningEffort
       : ("" as const),
+    /** What Default runs on this model, as its agent reports it; "" when unknown. */
+    defaultEffort: listed?.defaultEffort ?? ("" as const),
   };
 }
 
