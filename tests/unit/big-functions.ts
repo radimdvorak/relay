@@ -163,7 +163,6 @@ export const bigFunctions: Record<string, number> = {
   "src/features/composer/AgentSetupPanel.tsx › AgentSetupPanel": 150,
   "src/features/composer/AgentSetup.tsx › useAgentSetup": 188,
   "src/features/composer/ComposerCommands.tsx › useComposerCommands": 359,
-  "src/features/composer/ComposerEffortControl.tsx › ComposerEffortControl": 91,
   "src/features/composer/ComposerPromptInput.tsx › ComposerPromptInput": 93,
   "src/features/composer/ComposerToolbarSample.tsx › useSampleControls": 111,
   "src/features/composer/ComposerToolbarSettings.tsx › ComposerToolbarSettings": 152,

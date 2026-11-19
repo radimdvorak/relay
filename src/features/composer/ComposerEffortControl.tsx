@@ -87,27 +87,41 @@ export function ComposerEffortControl({
         sections={claudeTraits}
       />
     );
-  const pick = runs.pickOf(to);
   return (
     <>
-      {pick.efforts.length > 0 && (
-        <ComposerSelect<ReasoningEffort>
-          label="Reasoning effort"
-          value={pick.reasoningEffort}
-          options={[
-            { value: "", label: "Default" },
-            ...pick.efforts.map((value) => ({
-              value,
-              label: effortLabels[value],
-              short: effortShortLabels[value],
-            })),
-          ]}
-          onChange={(effort) => runs.setEffort(to, effort)}
-          heading={{ label: "Reasoning", hint }}
-        />
-      )}
+      <PickEffortSelect to={to} runs={runs} hint={hint} />
       {fastButton}
     </>
+  );
+}
+
+/** The effort of an agent with its own model catalog. */
+function PickEffortSelect({
+  to,
+  runs,
+  hint,
+}: {
+  to: AgentProvider;
+  runs: AgentRuns;
+  hint: string | undefined;
+}) {
+  const pick = runs.pickOf(to);
+  if (!pick.efforts.length) return null;
+  return (
+    <ComposerSelect<ReasoningEffort>
+      label="Reasoning effort"
+      value={pick.reasoningEffort}
+      options={[
+        { value: "", label: "Default" },
+        ...pick.efforts.map((value) => ({
+          value,
+          label: effortLabels[value],
+          short: effortShortLabels[value],
+        })),
+      ]}
+      onChange={(effort) => runs.setEffort(to, effort)}
+      heading={{ label: "Reasoning", hint }}
+    />
   );
 }
 
