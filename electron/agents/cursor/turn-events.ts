@@ -9,6 +9,10 @@ import {
 import type { CursorUpdate } from "./protocol";
 import { CursorRequests, type CursorRequest } from "./request-usage";
 
+/** Auto picks a model for each request, so how fast it wrote is no one model's speed. */
+const picksPerRequest = (model: string) =>
+  !model || model === "auto" || model === "default";
+
 /** What Cursor's worker says during one turn, put to the thread as it comes. */
 export class CursorTurnEvents {
   readonly turn: TurnText;
@@ -49,6 +53,7 @@ export class CursorTurnEvents {
       case "tool-call-started":
       case "tool-call-completed": {
         const done = update.type === "tool-call-completed";
+        if (!done) this.requests.paused();
         const call = update.toolCall as CursorCall | undefined;
         if (!call) return;
         if (!done) this.turn.toCommentary();
@@ -97,11 +102,13 @@ export class CursorTurnEvents {
     if (cutOff) this.report(cutOff);
   }
 
-  private report(request: CursorRequest) {
+  private report({ tokens, streamed }: CursorRequest) {
+    const { model, fast } = this.options.choice;
     this.options.onUsage?.({
-      model: this.options.choice.model || "cursor",
-      fast: this.options.choice.fast,
-      tokens: request.tokens,
+      model: model || "cursor",
+      fast,
+      tokens,
+      ...(streamed && !picksPerRequest(model) && { streamed }),
     });
   }
 }

@@ -319,6 +319,21 @@ describe("a Cursor turn", () => {
       { input: 4, cacheRead: 9828, cacheWrite: 95, output: 70 },
       { input: 2, cacheRead: 9923, cacheWrite: 108, output: 568 },
     ]);
+    // The answer streamed 10 tokens after its first count, 20ms apart or more.
+    const [beforeTool, answer] = usage.map((u) => u.streamed);
+    expect(beforeTool).toBeUndefined();
+    expect(answer?.output).toBe(10);
+    expect(answer?.ms).toBeGreaterThanOrEqual(40);
+  });
+
+  it("doesn't time Auto, which picks a model for each request", async () => {
+    const usage: UsageReport[] = [];
+    const { options } = turn("[[usage]]", {
+      onUsage: (report) => usage.push(report),
+    });
+    await runCursor(options);
+    expect(usage).toHaveLength(2);
+    expect(usage.every((u) => !u.streamed)).toBe(true);
   });
 
   it("counts what a stopped request wrote, which Cursor never reports", async () => {
