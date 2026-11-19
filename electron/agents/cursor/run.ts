@@ -265,6 +265,7 @@ export async function runCursor(options: AgentOptions): Promise<string> {
     grace?.clear();
     signal.removeEventListener("abort", abort);
     connection.unlisten(run);
+    events.finish();
     // What the last Relay's steers and cancels were answered with, in the replay.
     if (adopted) connection.dropOrphans();
     // Given up on before the worker said the turn ended (a cancel it never

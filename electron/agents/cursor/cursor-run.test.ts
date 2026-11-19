@@ -26,7 +26,7 @@ import { closeCursorConnection } from "./connection";
 import { cursorPolicy, runCursor } from "./run";
 import { configureCursor } from "./sdk";
 import { runtimeModesFor } from "../../../shared/agent-modes";
-import type { AgentOptions } from "../types";
+import type { AgentOptions, UsageReport } from "../types";
 import { CANCEL_GRACE_MS } from "../turn-kit";
 import { readOnlyGitEnv } from "../read-only-git";
 import type { AgentActivity } from "../../../shared/projects";
@@ -305,6 +305,36 @@ describe("a Cursor turn", () => {
     await ready;
     controller.abort();
     await cancelled;
+  });
+
+  it("counts each request's usage as Cursor reports it, cached input apart", async () => {
+    const usage: UsageReport[] = [];
+    const { options } = turn("[[usage]]", {
+      choice: { model: "gpt-fixture", fast: false, reasoningEffort: "" },
+      onUsage: (report) => usage.push(report),
+    });
+    await runCursor(options);
+    expect(usage.map((u) => u.model)).toEqual(["gpt-fixture", "gpt-fixture"]);
+    expect(usage.map((u) => u.tokens)).toEqual([
+      { input: 4, cacheRead: 9828, cacheWrite: 95, output: 70 },
+      { input: 2, cacheRead: 9923, cacheWrite: 108, output: 568 },
+    ]);
+  });
+
+  it("counts what a stopped request wrote, which Cursor never reports", async () => {
+    let started!: () => void;
+    const ready = new Promise<void>((resolve) => (started = resolve));
+    const usage: UsageReport[] = [];
+    const { controller, options } = turn("[[slow]]", {
+      onText: () => started(),
+      onUsage: (report) => usage.push(report),
+    });
+    const running = runCursor(options);
+    const cancelled = expect(running).rejects.toThrow(/Cancelled by you/);
+    await ready;
+    controller.abort();
+    await cancelled;
+    expect(usage.map((u) => u.tokens.output)).toEqual([7]);
   });
 
   it("stops a turn stopped while its prompt was being prepared", async () => {

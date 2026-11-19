@@ -7,6 +7,7 @@ import {
   type CursorCall,
 } from "./activity";
 import type { CursorUpdate } from "./protocol";
+import { CursorRequests, type CursorRequest } from "./request-usage";
 
 /** What Cursor's worker says during one turn, put to the thread as it comes. */
 export class CursorTurnEvents {
@@ -15,6 +16,7 @@ export class CursorTurnEvents {
   readonly steers: (string | undefined)[] = [];
   agentId: string | undefined;
   private capped = false;
+  private requests = new CursorRequests();
 
   constructor(
     private options: AgentOptions,
@@ -63,16 +65,13 @@ export class CursorTurnEvents {
         return;
       }
       case "token-delta": {
-        // Cursor counts tokens as they stream, without a split or a model.
         const tokens = Number(update.tokens);
-        if (tokens > 0)
-          this.options.onUsage?.({
-            model: this.options.choice.model || "cursor",
-            fast: this.options.choice.fast,
-            tokens: { input: 0, cacheWrite: 0, cacheRead: 0, output: tokens },
-          });
+        if (tokens > 0) this.requests.delta(tokens);
         return;
       }
+      case "model-call-completed":
+        this.report(this.requests.ended(update.usage));
+        return;
       case "summary-started":
         this.options.onCommentary?.(
           "cursor-summary",
@@ -91,4 +90,18 @@ export class CursorTurnEvents {
       }
     }
   };
+
+  /** The turn is over: counts what a request cut off in the middle wrote. */
+  finish() {
+    const cutOff = this.requests.cutOff();
+    if (cutOff) this.report(cutOff);
+  }
+
+  private report(request: CursorRequest) {
+    this.options.onUsage?.({
+      model: this.options.choice.model || "cursor",
+      fast: this.options.choice.fast,
+      tokens: request.tokens,
+    });
+  }
 }

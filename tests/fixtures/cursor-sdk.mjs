@@ -15,6 +15,20 @@ const log = (entry) => {
     appendFileSync(process.env.CURSOR_FAKE_LOG, JSON.stringify(entry) + "\n");
 };
 const pause = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const read = { type: "read", args: { path: "notes.txt" } };
+const firstRequest = {
+  inputTokens: 9927,
+  outputTokens: 70,
+  cacheReadTokens: 9828,
+  cacheWriteTokens: 95,
+};
+const secondRequest = {
+  inputTokens: 10033,
+  outputTokens: 568,
+  cacheReadTokens: 9923,
+  cacheWriteTokens: 108,
+};
 // A handoff test decides when the worker may finish, regardless of machine speed.
 const released = (file) =>
   new Promise((resolve) => {
@@ -150,6 +164,7 @@ class FakeAgent {
           "The MCP server docs needs an API key in its settings.",
         );
       if (/\[\[slow\]\]/.test(prompt)) {
+        say({ type: "token-delta", tokens: 7 });
         say({ type: "text-delta", text: "Working. " });
         // Cancelled already, as a run can be before anyone waits for it.
         if (!run.cancelled)
@@ -197,6 +212,26 @@ class FakeAgent {
         };
       if (/\[\[fail\]\]/.test(prompt))
         return { status: "error", error: { message: "The model is down." } };
+      // Two requests as Cursor reports them: a tool call, then the answer
+      // streamed a few tokens at a time, each with its usage once it ends.
+      if (/\[\[usage\]\]/.test(prompt)) {
+        say({ type: "token-delta", tokens: 2 });
+        say({ type: "tool-call-started", callId: "u1", toolCall: read });
+        say({
+          type: "tool-call-completed",
+          callId: "u1",
+          toolCall: { ...read, result: { status: "success" } },
+        });
+        say({ type: "token-delta", tokens: 23 });
+        say({ type: "model-call-completed", usage: firstRequest });
+        for (const word of ["Tokens ", "per ", "second"]) {
+          await pause(20);
+          say({ type: "token-delta", tokens: 5 });
+          say({ type: "text-delta", text: word });
+        }
+        say({ type: "model-call-completed", usage: secondRequest });
+        return { status: "finished", result: "Tokens per second" };
+      }
       if (/\[\[plan\]\]/.test(prompt)) {
         say({
           type: "tool-call-completed",

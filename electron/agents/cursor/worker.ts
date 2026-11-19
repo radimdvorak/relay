@@ -254,6 +254,7 @@ function forward(run: string, update: any) {
       });
       return;
     case "token-delta":
+    case "model-call-completed":
     case "summary-started":
     case "summary-completed":
     case "turn-ended":
