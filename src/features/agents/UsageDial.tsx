@@ -2,14 +2,15 @@ import type { UsageMeter } from "../../../shared/provider-usage";
 import { RING_RADIUS } from "./ContextWindowMeter";
 import "./composer-model-picker.css";
 
-// Outer ring is the week, inner ring the session, so the two limits read at
-// a glance and the icon differs from the single-ring context meter. A pixel
-// larger than the context meter's so the button matches the send button's
-// height with the same padding around the rings.
-const RINGS: Record<UsageMeter["kind"], { radius: number }> = {
-  weekly: { radius: RING_RADIUS + 1 },
-  session: { radius: 5 },
-};
+// Outer ring is the long limit (the week, or Cursor's month), inner ring the
+// session, so the two limits read at a glance and the icon differs from the
+// single-ring context meter. A pixel larger than the context meter's so the
+// button matches the send button's height with the same padding around the
+// rings.
+const RINGS = [
+  { ring: "long", radius: RING_RADIUS + 1, kinds: ["weekly", "monthly"] },
+  { ring: "session", radius: 5, kinds: ["session"] },
+] as const;
 
 /** The two rings on their own, as the trigger and Settings' sample draw them. */
 export function UsageDial({
@@ -27,11 +28,10 @@ export function UsageDial({
       viewBox="0 0 20 20"
       aria-hidden
     >
-      {(["weekly", "session"] as const).map((kind) => {
-        const { radius } = RINGS[kind];
+      {RINGS.map(({ ring, radius, kinds }) => {
         const circumference = 2 * Math.PI * radius;
         const meter = plan
-          .filter((m) => m.kind === kind)
+          .filter((m) => (kinds as readonly string[]).includes(m.kind))
           .reduce<(typeof plan)[number] | undefined>(
             (worst, m) =>
               !worst || m.leftPercent < worst.leftPercent ? m : worst,
@@ -40,7 +40,7 @@ export function UsageDial({
         // Full while the limit is untouched, draining as it's used.
         const left = meter?.leftPercent ?? 0;
         return (
-          <g key={kind} className="usage-ring" data-kind={kind}>
+          <g key={ring} className="usage-ring" data-ring={ring}>
             <circle className="usage-ring-track" cx="10" cy="10" r={radius} />
             <circle
               className="usage-ring-fill"

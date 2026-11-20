@@ -966,10 +966,10 @@
 .usage-ring-track {
   stroke: color-mix(in srgb, var(--muted) 24%, transparent);
 }
-.usage-ring[data-kind="weekly"] .usage-ring-fill {
+.usage-ring[data-ring="long"] .usage-ring-fill {
   stroke: var(--usage-ring-weekly);
 }
-.usage-ring[data-kind="session"] .usage-ring-fill {
+.usage-ring[data-ring="session"] .usage-ring-fill {
   stroke: var(--usage-ring-session);
 }
 .usage-ring .usage-ring-fill[data-pace="warn"] {
@@ -1100,7 +1100,7 @@
   gap: 4px;
   --usage-row-color: var(--usage-ring-session, var(--accent));
 }
-.usage-row[data-kind="weekly"] {
+.usage-row:is([data-kind="weekly"], [data-kind="monthly"]) {
   --usage-row-color: color-mix(in srgb, var(--accent) 55%, var(--muted));
 }
 .usage-row[data-pace="warn"] {

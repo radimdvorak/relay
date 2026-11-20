@@ -14,7 +14,7 @@ const usageWindowSchema = z.object({
   label: z.string().max(160).optional(),
   /** Only this model's turns count against it; the rings leave it out. */
   model: z.string().max(120).optional(),
-  kind: z.enum(["session", "weekly"]),
+  kind: z.enum(["session", "weekly", "monthly"]),
   usedPercent: z.number().min(0).max(100),
   resetsAt: z.number().nullable(),
   periodMs: z.number().positive(),
@@ -55,7 +55,7 @@ export const providerUsageSchema = z
     resets: savedResetsSchema.nullish(),
   })
   .strict();
-export type UsageKind = "session" | "weekly";
+export type UsageKind = UsageWindow["kind"];
 export type UsageWindow = z.infer<typeof usageWindowSchema>;
 export type ProviderUsage = z.infer<typeof providerUsageSchema>;
 export type UsageCredits = z.infer<typeof usageCreditsSchema>;
@@ -116,10 +116,16 @@ type Clock = (from: number, to: number) => number;
 const wallClock: Clock = (from, to) => to - from;
 
 function clockFor(window: UsageWindow, activeHours?: ActiveHours | null) {
-  // Only the week spans nights and weekends; a session is all working time.
-  if (window.kind !== "weekly" || !activeHours) return null;
+  // Only the week and the month span nights and weekends; a session is all working time.
+  if (window.kind === "session" || !activeHours) return null;
   return ((from, to) => activeWeight(activeHours, from, to) * HOUR) as Clock;
 }
+
+const kindLabels: Record<UsageKind, string> = {
+  session: "Session",
+  weekly: "Weekly",
+  monthly: "Monthly",
+};
 
 /**
  * Whole-percent meter for one usage window, including the pace warning. With
@@ -132,8 +138,7 @@ export function presentWindow(
 ): UsageMeter {
   const used = clamp(window.usedPercent, 0, 100);
   const leftPercent = clamp(Math.round(100 - used), 0, 100);
-  const label =
-    window.label ?? (window.kind === "session" ? "Session" : "Weekly");
+  const label = window.label ?? kindLabels[window.kind];
   const base = { id: window.id, kind: window.kind, label, model: window.model };
   const fresh =
     window.kind === "session" && window.resetsAt == null && used <= 0;

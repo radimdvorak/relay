@@ -2,6 +2,7 @@ import { UsageDial } from "../agents/UsageDial";
 import {
   presentWindow,
   type ProviderUsage,
+  type UsageKind,
   type UsageMeter,
 } from "../../../shared/provider-usage";
 
@@ -46,6 +47,12 @@ export function AccountBars({
   );
 }
 
+const shortKinds: Record<UsageKind, string> = {
+  session: "5h",
+  weekly: "Week",
+  monthly: "Month",
+};
+
 function AccountBar({
   meter,
   resets,
@@ -57,7 +64,7 @@ function AccountBar({
     <span className="account-bar" data-pace={meter.pace}>
       <span className="account-bar-top">
         <span>
-          {meter.id ? meter.label : meter.kind === "session" ? "5h" : "Week"}
+          {meter.id ? meter.label : shortKinds[meter.kind]}
         </span>
         <span className="account-bar-left">{meter.leftPercent}% left</span>
       </span>

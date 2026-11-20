@@ -11,11 +11,20 @@ import {
   SESSION_MS,
   type ProviderUsage,
   type UsageMeter,
+  type UsageWindow,
 } from "../../../shared/provider-usage";
 import { UsageMeters } from "./UsageMeters";
 import { ResetUsage } from "./saved-resets/ResetUsage";
 import { putUsage } from "./provider-usage";
 import "./usage-strip.css";
+
+function shortLabel(window: UsageWindow) {
+  if (window.label) return window.label;
+  if (window.periodMs === SESSION_MS) return "5h";
+  if (window.kind === "weekly") return "Week";
+  if (window.kind === "monthly") return "Month";
+  return "Session";
+}
 
 /** The picker's summary; full meters stay one click away. */
 export function UsageStrip({
@@ -38,13 +47,7 @@ export function UsageStrip({
   const meters =
     usage?.windows.map((window) => ({
       ...presentWindow(window, now, usage.activeHours),
-      short:
-        window.label ??
-        (window.periodMs === SESSION_MS
-          ? "5h"
-          : window.kind === "weekly"
-            ? "Week"
-            : "Session"),
+      short: shortLabel(window),
     })) ?? [];
   const resets = usage?.provider === "codex" ? usage.resets : null;
   const credits = usage?.credits;

@@ -149,8 +149,8 @@ fun UsageBar(provider: String, usage: ProviderUsage?, context: ContextUsage?, co
 }
 
 /**
- * The plan's first two limits as rings, the session outside and the week
- * inside, each arc what's left. Nothing for an agent without plan limits;
+ * The plan's limits as rings, the long one (week or month) outside and the
+ * session inside, each arc what's left. Nothing for an agent without plan limits;
  * bare rings while the first answer is on its way.
  */
 @Composable
@@ -158,7 +158,8 @@ fun UsageRings(provider: String, usage: ProviderUsage?, onClick: () -> Unit, mod
     if (!reportsUsage(provider)) return
     val c = RelayTheme.colors
     val plan = meters(usage?.copy(windows = usage.windows.filter { it.model == null }))
-    val list = listOf("weekly", "session").mapNotNull { kind -> plan.filter { it.kind == kind }.minByOrNull { it.leftPercent } }
+    val list = listOf(setOf("weekly", "monthly"), setOf("session"))
+        .mapNotNull { kinds -> plan.filter { it.kind in kinds }.minByOrNull { it.leftPercent } }
     Box(
         modifier.size(36.dp).clip(CircleShape)
             .pressable(onClick = onClick, role = Role.Button)

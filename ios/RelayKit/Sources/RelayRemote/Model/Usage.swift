@@ -9,7 +9,7 @@ public struct UsageWindow: Codable, Sendable, Equatable {
     public var label: String?
     /// Only this model's turns count against it; the rings leave it out.
     public var model: String?
-    /// "session" | "weekly"
+    /// "session" | "weekly" | "monthly"
     public var kind: String
     public var usedPercent: Double
     public var resetsAt: Int64?
@@ -134,8 +134,8 @@ public func activeWeight(_ profile: [Double], from: Int64, to: Int64, zone: Time
 private typealias BurnClock = (_ from: Int64, _ to: Int64) -> Double
 
 private func clockFor(_ window: UsageWindow, _ activeHours: [Double]?, _ zone: TimeZone) -> BurnClock? {
-    // Only the week spans nights and weekends; a session is all working time.
-    guard window.kind == "weekly", let activeHours, activeHours.count == 24 else { return nil }
+    // Only the week and the month span nights and weekends; a session is all working time.
+    guard window.kind != "session", let activeHours, activeHours.count == 24 else { return nil }
     return { from, to in activeWeight(activeHours, from: from, to: to, zone: zone) * Double(hourMs) }
 }
 
@@ -152,7 +152,7 @@ public func presentWindow(_ window: UsageWindow, now: Int64, activeHours: [Doubl
 {
     let used = clamp(window.usedPercent, 0, 100)
     let left = Int(clamp((100 - used).rounded(), 0, 100))
-    let label = window.label ?? (window.kind == "session" ? "Session" : "Weekly")
+    let label = window.label ?? kindLabel(window.kind)
     let fresh = window.kind == "session" && window.resetsAt == nil && used <= 0
     let resetLabel = fresh ? "Not started" : window.resetsAt.flatMap { resetsIn($0, now: now) }
     let active = clockFor(window, activeHours, zone)
@@ -242,13 +242,21 @@ public func usageMeters(_ usage: ProviderUsage?, now: Int64, zone: TimeZone = .c
     usage?.windows.map { presentWindow($0, now: now, activeHours: usage?.activeHours, zone: zone) } ?? []
 }
 
-/// The tightest plan limit of each kind, week first, as the rings draw them.
+private func kindLabel(_ kind: String) -> String {
+    switch kind {
+    case "session": "Session"
+    case "monthly": "Monthly"
+    default: "Weekly"
+    }
+}
+
+/// The tightest plan limit of each ring, the long one (week or month) first, as the rings draw them.
 public func ringMeters(_ usage: ProviderUsage?, now: Int64, zone: TimeZone = .current) -> [UsageMeter] {
     var plan = usage
     plan?.windows.removeAll { $0.model != nil }
     let all = usageMeters(plan, now: now, zone: zone)
-    return ["weekly", "session"].compactMap { kind in
-        all.filter { $0.kind == kind }.min { $0.leftPercent < $1.leftPercent }
+    return [["weekly", "monthly"], ["session"]].compactMap { kinds in
+        all.filter { kinds.contains($0.kind) }.min { $0.leftPercent < $1.leftPercent }
     }
 }
 

@@ -38,6 +38,20 @@ struct UsageTests {
         #expect(usageMeters(usage, now: at(21, 0), zone: prague).count == 2)
     }
 
+    @Test func drawsCursorsTightestMonthlyPoolOnTheLongRing() throws {
+        let month = 30 * 24 * 60 * 60 * 1000
+        let json = """
+            {"provider":"cursor","message":null,"windows":[
+              {"id":"api","label":"API","kind":"monthly","usedPercent":24,"resetsAt":null,"periodMs":\(month)},
+              {"id":"total","label":"Total","kind":"monthly","usedPercent":1,"resetsAt":null,"periodMs":\(month)}
+            ]}
+            """
+        let usage = try JSONDecoder().decode(ProviderUsage.self, from: Data(json.utf8))
+        let rings = ringMeters(usage, now: at(21, 0), zone: prague)
+        #expect(rings.map(\.label) == ["API"])
+        #expect(rings.map(\.leftPercent) == [76])
+    }
+
     @Test func holdsThePaceMarkStillOvernight() {
         let evening = present(weekly(10), at(21, 20), nineToFive)
         let morning = present(weekly(10), at(22, 8), nineToFive)

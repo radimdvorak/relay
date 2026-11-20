@@ -101,8 +101,8 @@ private typealias Clock = (from: Long, to: Long) -> Double
 private val wallClock: Clock = { from, to -> (to - from).toDouble() }
 
 private fun clockFor(window: UsageWindow, activeHours: List<Double>?): Clock? {
-    // Only the week spans nights and weekends; a session is all working time.
-    if (window.kind != "weekly" || activeHours == null || activeHours.size != 24) return null
+    // Only the week and the month span nights and weekends; a session is all working time.
+    if (window.kind == "session" || activeHours == null || activeHours.size != 24) return null
     return { from, to -> activeWeight(activeHours, from, to) * HOUR }
 }
 
@@ -112,6 +112,12 @@ private fun paceLeft(clock: Clock, start: Long, end: Long, now: Long): Double? {
     return clamp(clock(max(now, start), end) / total * 100, 0.0, 100.0)
 }
 
+private fun kindLabel(kind: String) = when (kind) {
+    "session" -> "Session"
+    "monthly" -> "Monthly"
+    else -> "Weekly"
+}
+
 /**
  * Whole-percent meter for one usage window, including the pace warning. With
  * the hours someone usually works, the week's burn and pace only count those.
@@ -119,7 +125,7 @@ private fun paceLeft(clock: Clock, start: Long, end: Long, now: Long): Double? {
 fun presentWindow(window: UsageWindow, now: Long, activeHours: List<Double>? = null): UsageMeter {
     val used = clamp(window.usedPercent, 0.0, 100.0)
     val left = clamp((100 - used).roundToInt().toDouble(), 0.0, 100.0).toInt()
-    val label = window.label ?: if (window.kind == "session") "Session" else "Weekly"
+    val label = window.label ?: kindLabel(window.kind)
     val fresh = window.kind == "session" && window.resetsAt == null && used <= 0
     val resetLabel = when {
         fresh -> "Not started"
