@@ -6,7 +6,7 @@ import { renderPrompt } from "../../../../shared/html-render";
 import { withWorktreeEnv } from "../../worktree-env";
 import { pastesRoot } from "../../../drafts";
 import { chromeArgs } from "./sdk";
-import { RELAY_SERVER } from "../../../relay-mcp";
+import { RELAY_SERVER, WAIT_LIMIT_SECONDS } from "../../../relay-mcp";
 import { claudeAdvisorSetting } from "../../../../shared/advisor";
 
 export type ClaudeRunOptions = AgentOptions & {
@@ -113,6 +113,30 @@ export const sessionSignature = (options: ClaudeRunOptions) =>
     ...(options.readOnly ? ["read-only"] : []),
   ]);
 
+/**
+ * A thread gets the MCP servers the terminal's `claude` would, plus Relay's; a
+ * reviewer works unattended, so it keeps to none.
+ */
+function mcpSetup(
+  options: ClaudeRunOptions,
+  fewerTools: boolean | undefined,
+): Pick<Options, "strictMcpConfig" | "mcpServers"> {
+  if (fewerTools) return { strictMcpConfig: true, mcpServers: {} };
+  if (!options.relayTools) return {};
+  return {
+    mcpServers: {
+      [RELAY_SERVER]: {
+        type: "http",
+        url: options.relayTools.url,
+        headers: { Authorization: `Bearer ${options.relayTools.token}` },
+        // Relay answers only once a tool is done, and Claude Code gives up on
+        // a silent HTTP server after 60s unless told otherwise.
+        timeout: (WAIT_LIMIT_SECONDS + 60) * 1000,
+      },
+    },
+  };
+}
+
 /** What a thread's Claude Code session starts with; `env` signs in its account. */
 export function sessionConfig(
   options: ClaudeRunOptions,
@@ -159,23 +183,7 @@ export function sessionConfig(
         options.relayTools
         ? { disallowedTools: ["EnterWorktree", "ExitWorktree"] }
         : {}),
-    // A thread gets the MCP servers the terminal's `claude` would; a reviewer
-    // works unattended, so it keeps to none.
-    ...(fewerTools
-      ? { strictMcpConfig: true, mcpServers: {} }
-      : options.relayTools
-        ? {
-            mcpServers: {
-              [RELAY_SERVER]: {
-                type: "http",
-                url: options.relayTools.url,
-                headers: {
-                  Authorization: `Bearer ${options.relayTools.token}`,
-                },
-              },
-            },
-          }
-        : {}),
+    ...mcpSetup(options, fewerTools),
     extraArgs: chromeArgs,
     env: withWorktreeEnv(env, {
       ...options.env,

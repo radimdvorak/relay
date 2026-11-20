@@ -10,6 +10,7 @@ import {
   sessionSignature,
   type ClaudeRunOptions,
 } from "./config";
+import { RELAY_SERVER, WAIT_LIMIT_SECONDS } from "../../../relay-mcp";
 
 // Read only reaches an agent as Supervised with `readOnly`; see turn-run.
 const agentModes = runtimeModeSchema.options.filter(
@@ -160,4 +161,33 @@ it("places Default as the model it runs: Claude Code keeps a weaker advisor off"
   expect(advisorModel("sonnet")).toBe("sonnet");
   // Not known, Claude Code gets the benefit of the doubt.
   expect(advisorModel()).toBe("sonnet");
+});
+
+it("lets a Relay tool call run past the longest wait", () => {
+  const setup = sessionConfig(
+    {
+      job: { kind: "prompt" },
+      cwd: "/project",
+      prompt: "",
+      choice: {} as never,
+      model: "opus",
+      effort: "high",
+      signal: new AbortController().signal,
+      onText() {},
+      runtimeMode: "full-access",
+      interactionMode: "default",
+      relayTools: {
+        url: "http://127.0.0.1:1/mcp",
+        token: "t",
+        renders: "auto",
+      },
+    },
+    "/usr/bin/claude",
+    true,
+    {},
+  );
+  const relay = setup.mcpServers?.[RELAY_SERVER];
+  expect(relay && "timeout" in relay && relay.timeout).toBeGreaterThan(
+    WAIT_LIMIT_SECONDS * 1000,
+  );
 });

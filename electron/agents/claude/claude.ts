@@ -88,7 +88,7 @@ export async function runClaude(options: ClaudeRunOptions): Promise<string> {
             "Claude",
             { code, signal },
             said,
-            "Check your Claude Code sign-in and version (2.1.248 or newer).",
+            "Check your Claude Code sign-in and version (2.1.274 or newer).",
           ),
         ),
       );
