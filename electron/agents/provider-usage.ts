@@ -20,6 +20,7 @@ import {
 import { readClaudeUsage } from "./claude/project";
 import { readAntigravityUsage } from "./antigravity";
 import { readMuseUsage } from "./muse";
+import { readCursorUsage } from "./cursor/plan-usage";
 import type { UsageProvider } from "../../shared/agents";
 import { SYSTEM_ACCOUNT } from "../../shared/agent-accounts";
 import { recordUsage } from "./usage-history";
@@ -45,6 +46,7 @@ const SUCCESS_TTL = 45_000;
 const EMPTY_TTL = 8_000;
 // Without a running session, each Claude reading starts the CLI.
 const CLAUDE_TTL = 150_000;
+const CURSOR_TTL = 120_000;
 const REFRESH_SLACK = 5 * 60 * 1000;
 // Claude starts its CLI for a reading, so this leaves it room.
 const LOAD_TIMEOUT = 60_000;
@@ -63,6 +65,8 @@ const readers: Record<
   antigravity: { load: readAntigravityUsage },
   // Only one Muse sign-in: its accounts aren't Relay's to switch.
   muse: { load: () => readMuseUsage() },
+  // A month-long limit moves slowly, and each reading signs in afresh.
+  cursor: { load: () => readCursorUsage(), ttl: CURSOR_TTL },
 };
 
 /** The limits of one of the agent's accounts; its usual sign-in when left out. */

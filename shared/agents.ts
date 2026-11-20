@@ -159,7 +159,7 @@ export const agents = {
     compactInstructions: false,
     side: false,
     reload: true,
-    usage: false,
+    usage: true,
     modelGroups: true,
     sdk: true,
   },

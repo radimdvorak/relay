@@ -23,7 +23,7 @@ private val builtin = mapOf(
     "codex" to info("Codex", fast = true, skills = true, alone = false, side = true, usage = true),
     "claude" to info("Claude", side = true, usage = true),
     "opencode" to info("OpenCode", side = true, groups = true),
-    "cursor" to info("Cursor", fast = true, groups = true),
+    "cursor" to info("Cursor", fast = true, groups = true, usage = true),
     "muse" to info("Muse", side = true, usage = true),
     "amp" to info("Amp"),
     "antigravity" to info("Antigravity", usage = true),
