@@ -37,6 +37,7 @@ const metaSchema = z
       .optional(),
     run: z.object({ turnId: z.string() }).optional(),
     readOnly: z.boolean().optional(),
+    relayUrl: z.string().optional(),
   })
   .loose();
 type MuseMeta = z.infer<typeof metaSchema>;
@@ -50,6 +51,8 @@ export class MuseAgent extends HostedAgent<MuseConnection, { turnId: string }> {
   experimental = false;
   /** Started for a Read only thread: its session opened without Relay's tools. */
   readOnly = false;
+  /** Where its session reaches Relay's tools; unknown for one an older Relay started. */
+  relayUrl?: string;
 
   constructor(
     connection: MuseConnection,
@@ -70,6 +73,7 @@ export class MuseAgent extends HostedAgent<MuseConnection, { turnId: string }> {
       session: this.session,
       run: this.inflight,
       readOnly: this.readOnly,
+      relayUrl: this.relayUrl,
     } satisfies MuseMeta);
   }
 }
@@ -135,12 +139,19 @@ export async function initialize(agent: MuseAgent) {
  * The process for a thread's session, started and initialized if it isn't
  * running. A thread's runs in the agent host; without a key it's a private
  * one that ends with its turn, and keeps no session log when `ephemeral`.
- * A thread switched to or from Read only gets a new one: a session keeps
- * the MCP servers it opened with for as long as the process runs it.
+ * A thread switched to or from Read only, or reaching Relay's tools at
+ * another URL, gets a new one: a session keeps the MCP servers it opened
+ * with for as long as the process runs it.
  */
 export async function acquireMuse(
   key: string | undefined,
-  turn: { cwd: string; env?: Record<string, string>; readOnly?: boolean; job?: { kind: string } },
+  turn: {
+    cwd: string;
+    env?: Record<string, string>;
+    readOnly?: boolean;
+    job?: { kind: string };
+    relayTools?: { url: string };
+  },
   ephemeral = false,
 ): Promise<MuseAgent> {
   const { cwd, env } = turn;
@@ -149,10 +160,17 @@ export async function acquireMuse(
   // Picking up a turn a restart cut off gives it nothing new, so it stays where it runs.
   const adopting = turn.job?.kind === "adopt";
   const otherMode = !!previous && !adopting && previous.readOnly !== readOnly;
-  if (otherMode && !previous.busy) await sessions.close(key!);
+  const relayUrl = turn.relayTools?.url ?? "";
+  const otherTools =
+    !!previous &&
+    !adopting &&
+    previous.relayUrl !== undefined &&
+    previous.relayUrl !== relayUrl;
+  if ((otherMode || otherTools) && !previous.busy) await sessions.close(key!);
   return sessions.acquire(key, async () => {
     const agent = new MuseAgent(await launch(key, cwd, env, ephemeral), ephemeral);
     agent.readOnly = readOnly;
+    agent.relayUrl = relayUrl;
     return agent.start(initialize);
   });
 }
@@ -336,6 +354,7 @@ export function reattachMuse(owns: (key: string) => boolean) {
     };
     agent.inflight = meta.run;
     agent.readOnly = !!meta.readOnly;
+    agent.relayUrl = meta.relayUrl;
     if (!info.open) child.release();
     return agent;
   });

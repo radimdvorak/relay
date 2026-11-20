@@ -66,7 +66,7 @@ export class LeadMessages {
       return toolText(
         caller.startedBy
           ? "The thread that started this one is gone; tell the user here instead."
-          : "No thread started this one; tell the user here instead.",
+          : "This thread has no lead now: it was detached, or the thread that started it was deleted. Tell the user here instead.",
         true,
       );
     // A wait of the lead's hands it over at once; queued, it would sit

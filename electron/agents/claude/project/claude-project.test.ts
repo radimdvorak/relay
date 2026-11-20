@@ -631,7 +631,8 @@ it("moves a session with background work to new settings instead of ending it", 
   });
 });
 
-it("restarts a Supervised session switched to Read only, even with work running", async () => {
+/** Claude Code answering every prompt with background work still running, so a new setting retunes it if it can. */
+function mockClaudeStillWorking() {
   const close = vi.fn();
   vi.mocked(query).mockClear();
   vi.mocked(query).mockImplementation(({ prompt }) => {
@@ -644,7 +645,6 @@ it("restarts a Supervised session switched to Read only, even with work running"
           const sent = await input.next();
           if (sent.done) return;
           yield lifecycle(sent.value.uuid, "started");
-          // Work still running is what makes a session retune rather than restart.
           yield {
             type: "system",
             subtype: "background_tasks_changed",
@@ -662,6 +662,11 @@ it("restarts a Supervised session switched to Read only, even with work running"
       },
     ) as unknown as ReturnType<typeof query>;
   });
+  return close;
+}
+
+it("restarts a Supervised session switched to Read only, even with work running", async () => {
+  const close = mockClaudeStillWorking();
   const key = crypto.randomUUID();
   const relayTools = { url: "http://127.0.0.1:1/mcp", token: "t" };
   const turn = (patch: Partial<Parameters<typeof runClaudeProject>[0]> = {}) =>
@@ -695,4 +700,31 @@ it("restarts a Supervised session switched to Read only, even with work running"
   expect(supervised.hooks?.PreToolUse).toBeUndefined();
   expect(supervised.disallowedTools).not.toContain("Edit");
   expect(vi.mocked(query)).toHaveBeenCalledTimes(3);
+});
+
+it("restarts a started thread its lead let go of onto the lead's tools, even with work running", async () => {
+  const close = mockClaudeStillWorking();
+  const key = crypto.randomUUID();
+  const turn = (url: string) =>
+    runClaudeProject({
+      job: { kind: "prompt" },
+      cwd: "/project",
+      prompt: "Look around.",
+      choice: {} as never,
+      model: "",
+      effort: "",
+      runtimeMode: "approval-required",
+      interactionMode: "default",
+      signal: new AbortController().signal,
+      onText() {},
+      relayTools: { url, token: "t" },
+      session: { key, id: session_id, async onId() {} },
+    });
+  await turn("http://127.0.0.1:1/mcp/started");
+  await turn("http://127.0.0.1:1/mcp");
+  expect(close).toHaveBeenCalledTimes(1);
+  const options = vi.mocked(query).mock.lastCall![0].options!;
+  expect(options.mcpServers?.relay).toMatchObject({
+    url: "http://127.0.0.1:1/mcp",
+  });
 });

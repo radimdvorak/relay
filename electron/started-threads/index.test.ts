@@ -2147,7 +2147,7 @@ test("message_lead is refused in a thread nothing started", async () => {
     message: "hi",
   });
   expect(result).toMatchObject({ isError: true });
-  expect(resultText(result)).toMatch(/No thread started this one/);
+  expect(resultText(result)).toMatch(/This thread has no lead now/);
   expect(sent).toEqual([]);
 });
 

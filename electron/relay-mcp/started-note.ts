@@ -22,6 +22,8 @@ export function startedNote({
       : "The user wrote this message here themselves; answer them.",
     canMessage &&
       "To reach your lead before you finish, with a question about the task, a blocker or a finding it needs now, use message_lead. When you can't go on without its reply, ask with message_lead and end your answer; the reply comes as your next message.",
+    canMessage &&
+      "You can't start or drive threads yourself: when the task needs one, ask your lead with message_lead, or ask the user to detach this thread from its lead.",
   ]
     .filter(Boolean)
     .join(" ");

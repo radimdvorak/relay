@@ -111,6 +111,9 @@ export const sessionSignature = (options: ClaudeRunOptions) =>
     ...(options.links?.length ? [linksSignature(options.links)] : []),
     // Read only runs as Supervised, but with fewer tools and the read-only hook.
     ...(options.readOnly ? ["read-only"] : []),
+    // Relay's tools are fixed when Claude Code starts; a thread its lead let
+    // go of reaches the lead's tools at another URL.
+    options.relayTools?.url,
   ]);
 
 /**

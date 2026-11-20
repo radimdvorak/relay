@@ -70,6 +70,18 @@ it("restarts the session when a link's folder or access changes, not its note", 
   expect(signature([{ ...api, note: "the backend" }])).toBe(signature([api]));
 });
 
+it("restarts the session when a lead lets go of the thread, so it gets the lead's tools", () => {
+  const signature = (url: string) =>
+    sessionSignature({
+      runtimeMode: "auto",
+      interactionMode: "default",
+      relayTools: { url, token: "t" },
+    } as ClaudeRunOptions);
+  expect(signature("http://127.0.0.1:1/mcp")).not.toBe(
+    signature("http://127.0.0.1:1/mcp/started"),
+  );
+});
+
 it("sets a side conversation up as its thread, so its fork reads the thread's cache", () => {
   const thread: ClaudeRunOptions = {
     job: { kind: "prompt" },

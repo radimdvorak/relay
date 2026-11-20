@@ -335,7 +335,8 @@ function startedNoteFor(
   const by = chat.startedBy;
   if (!by || chat.reviewer || by.secondOpinionOn) return undefined;
   const lead = (core.store.get().chats ?? []).find((c) => c.id === by.chatId);
-  if (!lead) return undefined;
+  // message_lead turns an archived lead down, so don't point the thread at it.
+  if (!lead || lead.archivedAt) return undefined;
   return startedNote({
     lead: { id: lead.id, title: lead.title, agent: by.agent },
     fromLead: input.fromThread?.id === lead.id,

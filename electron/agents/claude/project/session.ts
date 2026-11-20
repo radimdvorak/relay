@@ -33,9 +33,9 @@ import {
   type ClaudeRunOptions,
 } from "./config";
 import { readOnlyHook } from "../../../agent-host/read-only-tools";
+import { renderModes } from "../../../../shared/html-render";
 import { relayPromptTokens } from "./context";
 import {
-  advisorRoute,
   claudeAdvisorSetting,
   threadAdvisorSchema,
 } from "../../../../shared/advisor";
@@ -63,6 +63,15 @@ export const hostedMetaSchema = z
         readOnly: z.boolean().optional(),
         account: z.string().optional(),
         links: linkedFoldersSchema.optional().catch(undefined),
+        // Kept so a session picked up again matches the turn that started it.
+        relayTools: z
+          .object({
+            url: z.string(),
+            token: z.string(),
+            renders: z.enum(renderModes).optional().catch(undefined),
+          })
+          .optional()
+          .catch(undefined),
         choice: z
           .object({
             model: z.string(),
@@ -216,10 +225,6 @@ export function closeClaudeSession(key: string) {
   if (session) closeSession(session);
 }
 
-const relayAsksAdvisor = (options: ClaudeRunOptions) =>
-  advisorRoute("claude", advisedModel(options), options.advisor)?.via ===
-  "relay";
-
 /**
  * Moves a live session to new settings instead of restarting it, which
  * would end the background work and wake-ups it holds. False when it can't:
@@ -241,8 +246,9 @@ export async function retune(
     linksSignature(options.links) !== linksSignature(before.links) ||
     // So are its tools, MCP servers and hooks, which Read only cuts down.
     !!options.readOnly !== !!before.readOnly ||
-    // An advisor Relay asks comes as one more of Relay's tools.
-    relayAsksAdvisor(options) !== relayAsksAdvisor(before) ||
+    // So are Relay's tools: a lead letting go of the thread or an advisor
+    // Relay asks reaches them at another URL.
+    options.relayTools?.url !== before.relayTools?.url ||
     (mode === "bypassPermissions" && !session.skipsPermissions)
   )
     return false;
@@ -388,6 +394,7 @@ function openHosted(holder: ClaudeSession, config: Options, key?: string) {
       readOnly: options.readOnly,
       account: options.account,
       links: options.links,
+      relayTools: options.relayTools,
       choice: options.choice,
     },
   };
