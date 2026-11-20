@@ -70,8 +70,8 @@ export const features: { title: string; text: string; detail: string }[] = [
   },
   {
     title: "Limits",
-    text: "Meters show the usage that remains for Claude and Codex. One meter is for the session. One meter is for the week.",
-    detail: "session · week",
+    text: "Meters show how much of your plan is left for Claude, Codex, Cursor, Muse and Antigravity: one for the session, one for the week or the month.",
+    detail: "session · week · month",
   },
   {
     title: "Themes and shortcuts",
