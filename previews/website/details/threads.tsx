@@ -7,12 +7,14 @@ import {
   ChevronRight,
   Clock,
   GitBranch,
+  Laptop,
   Monitor,
   MonitorUp,
+  PanelRightClose,
   Pin,
   Server,
 } from "lucide-react";
-import { Cursor, Cycle, PLACEHOLDER, Placeholder, Type, on, within } from "./kit";
+import { Cursor, Cycle, PLACEHOLDER, Placeholder, on, within } from "./kit";
 import type { Loop } from "./kit";
 
 const hue = (h: number) => ({ ["--hue" as string]: h });
@@ -20,8 +22,11 @@ const slot = (n: number) => ({ transform: `translateY(${n * 62}px)` });
 const is = (v: string | undefined) => v !== undefined;
 
 /* ---- Hand a running thread to another computer ---- */
+// Hand off sits in the Running card's head (HandoffButton.tsx). Once the
+// thread runs there, the card names that computer and offers Bring back
+// (LiveAwayStatus.tsx), and the thread carries on here as before.
 export const handoffLoop: Loop = {
-  times: [0, 700, 1500, 2200, 2800, 3900, 5300, 6000, 8400],
+  times: [0, 700, 1500, 2200, 2800, 3900, 5400, 6200, 8600],
   still: 7,
 };
 const computers: [name: string, Icon: typeof Server][] = [
@@ -32,11 +37,32 @@ export function HandoffTile({ s }: { s: number }) {
   const away = s >= 4;
   return (
     <div className="t-handoff">
-      <div className="t-hhead">
-        <span>Move webhooks to the queue</span>
-        <span className="t-hbtn" data-hot={within(s, 1, 4)} data-press={within(s, 2, 3)}>
-          <MonitorUp size={13} />
-        </span>
+      <div className="t-hcard">
+        <div className="t-hcard-head">
+          <span className="dt-swap t-hwhere" data-on={away ? "" : undefined}>
+            <span>
+              <Laptop size={13} /> This computer
+            </span>
+            <span>
+              <Server size={13} /> macmini
+            </span>
+          </span>
+          <span className="t-hbtn" data-hot={within(s, 1, 4)} data-press={within(s, 2, 3)}>
+            <MonitorUp size={13} />
+          </span>
+          <span className="t-hbtn">
+            <PanelRightClose size={13} />
+          </span>
+        </div>
+        <div className="dt-swap t-hstatus" data-on={away ? "" : undefined}>
+          <span className="t-hload">
+            <i />
+            <b>14%</b> CPU <b>6.2</b>/32 GB
+          </span>
+          <span>
+            Handed off from here <b>Bring back</b>
+          </span>
+        </div>
       </div>
       <div className="dt-menu t-hmenu dt-in" data-on={within(s, 2, 4)}>
         <div className="dt-menu-heading">Hand off to</div>
@@ -50,40 +76,30 @@ export function HandoffTile({ s }: { s: number }) {
           </div>
         ))}
       </div>
+      <p className="dt-bubble">Move webhooks to the queue</p>
       <p className="dt-say t-hline">
-        {away ? <Check size={12} className="t-htick" /> : <span className="dt-spin" />}
-        <Cycle
-          at={away ? 1 : 0}
-          items={["Moving the webhooks to the new queue…", "Wrote a handoff note for macmini"]}
-        />
+        <span className="dt-spin" /> Moving the webhooks to the new queue…
       </p>
       <div className="dt-divider dt-in" data-on={on(s, 4)}>
-        <span>Continued on macmini · 14:02</span>
+        <Cycle
+          at={s >= 5 ? 1 : 0}
+          items={[
+            "Claude is writing a handoff note for macmini…",
+            <>
+              Continued on macmini · 14:02 <b className="t-hnote">Show note</b>
+            </>,
+          ]}
+        />
       </div>
       <p className="dt-bubble dt-in" data-on={on(s, 6)}>
         Also run the e2e suite
       </p>
       <p className="dt-say t-hline dt-in" data-on={on(s, 7)}>
-        <span className="dt-spin" /> Running the e2e suite on macmini…
+        <span className="dt-spin" /> Running the e2e suite…
       </p>
-      <div className="t-hfoot">
-        <div className="t-away dt-in" data-on={on(s, 4)}>
-          <MonitorUp size={12} />
-          <span>Running on macmini</span>
-          <b>Bring back</b>
-        </div>
-        <div className="dt-composer">
-          <span className="dt-swap" data-on={within(s, 5, 6)}>
-            <Placeholder>{PLACEHOLDER.working}</Placeholder>
-            <span>
-              <Type text="Also run the e2e suite" go={s >= 5} ms={1000} />
-            </span>
-          </span>
-        </div>
-      </div>
       <Cursor
-        x={s >= 3 ? 150 : 268}
-        y={s >= 3 ? 70 : 22}
+        x={s >= 3 ? 170 : 236}
+        y={s >= 3 ? 76 : 14}
         show={s >= 1 && s < 4}
         press={within(s, 2, 3) !== undefined || within(s, 3, 4) !== undefined}
       />
@@ -96,9 +112,9 @@ export const snoozeLoop: Loop = { times: [0, 900, 1800, 3000, 3700, 4800, 6400],
 export function SnoozeTile({ s }: { s: number }) {
   const gone = s >= 4;
   const cards = [
-    ["Fix flaky sync test", "9 min", 262],
-    ["Rename the sync worker", "4 min", 190],
-    ["Draft the release notes", "1 h", 28],
+    ["Fix flaky sync test", "9m", 262],
+    ["Rename the sync worker", "4m", 190],
+    ["Draft the release notes", "1h", 28],
   ] as const;
   return (
     <div className="t-snooze">
@@ -225,7 +241,7 @@ export function NotesTile({ s }: { s: number }) {
         </div>
       </div>
       <div className="dt-ui t-notecard" data-open={within(s, 3, 7)}>
-        <div className="t-notehead"><b>Notes</b></div>
+        <div className="t-notehead"><b>Notes</b><span>Select text, or pin a list, code, table or whole answer</span></div>
         <ol className="t-items">
           {todo.map((item, i) => (
             <li key={item} data-done={(i === 0 && s >= 5) || (i === 1 && s >= 6) ? "" : undefined}>

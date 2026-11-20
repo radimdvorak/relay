@@ -3,14 +3,15 @@
    in tiles-*.css. */
 @import "./tiles-agents.css";
 @import "./tiles-threads.css";
+@import "./tiles-threads-more.css";
 @import "./tiles-code.css";
 @import "./tiles-phone.css";
 
 .dt {
   --tile-w: 332px;
   --amber: #d99a2b;
+  /* The next section's own top padding is the gap after it. */
   padding-top: 130px;
-  padding-bottom: 120px;
 }
 .dt-head {
   display: flex;
@@ -520,17 +521,15 @@
   line-height: 1.55;
 }
 /* A message you sent. */
+/* What the user sent, in the desktop's box (user-text.css), small. */
 .dt-canvas .dt-bubble {
-  width: fit-content;
-  max-width: 88%;
   margin: 0;
-  align-self: flex-end;
-  justify-self: end;
-  padding: 5px 11px;
-  border-radius: 12px;
-  background: var(--accent-soft);
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--toolbar);
   font-size: 12px;
-  line-height: 1.45;
+  line-height: 1.5;
 }
 .dt-composer {
   display: flex;

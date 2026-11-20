@@ -3,14 +3,17 @@
 // drawn to match the shell. It is a film, not a sandbox: an on-screen pointer clicks
 // through it, and the visitor's pointer and wheel pass straight through.
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   ChartColumn,
   ChevronDown,
+  GitBranch,
   GitCommitHorizontal,
   GitPullRequest,
   MessageSquare,
   MessagesSquare,
+  MonitorUp,
   PanelBottom,
   PanelLeft,
   PanelRight,
@@ -33,13 +36,7 @@ import {
   FindingsTray,
 } from "../../src/features/deep-review/DeepReview";
 import { RunningTasks } from "../../src/features/terminal/RunningTasks";
-import { ComposerToolbar } from "../../src/features/composer/ComposerToolbar";
-import { useSampleControls } from "../../src/features/composer/ComposerToolbarSample";
-import { defaultToolbar } from "../../src/features/composer/composer-toolbar";
-import {
-  SendButton,
-  StopButton,
-} from "../../src/features/composer/ComposerSendButtons";
+import "../../src/features/changes/worktrees.css";
 import { agentName } from "../../shared/agents";
 import type { ChatMessage } from "../../shared/projects";
 import type { DeepReviewState } from "../../shared/deep-review";
@@ -54,7 +51,9 @@ import {
   turns,
 } from "./sample";
 import { playing } from "./stubs";
-import { ChangesPane, TerminalDrawer } from "./panes";
+import { TerminalDrawer } from "./panes";
+import { ChangesPane } from "./changes-pane";
+import { SampleComposer } from "./sample-composer";
 import { EditorPane } from "./editor-pane";
 import { Mark } from "./parts";
 import { reducedMotion, useLiveTurn } from "./motion";
@@ -79,49 +78,27 @@ function Composer({
   id,
   running,
   approval,
+  placeholder,
 }: {
   id: string;
   running?: boolean;
   approval?: ReactNode;
+  placeholder?: string;
 }) {
   const turn = turns[id] ?? turns.shortcuts;
   const effort = turn.model.effort || "";
-  const controls = useSampleControls({
-    agent: turn.provider,
-    name: turn.model.name || `${agentName(turn.provider)} default`,
-    effort: effort ? effort[0].toUpperCase() + effort.slice(1) : "Default",
-    window: 200_000,
-  });
   return (
-    <div className="thread-compose-wrap">
-      {approval}
-      <form
-        className="project-composer"
-        onSubmit={(event) => event.preventDefault()}
-      >
-        <textarea
-          className="composer-prompt-input"
-          readOnly
-          rows={1}
-          aria-label="Message"
-          placeholder={`Steer ${agentName(turn.provider)}, or /btw to ask on the side…`}
-        />
-        <div className="composer-tools">
-          <ComposerToolbar layout={defaultToolbar} controls={controls} />
-          {running ? (
-            <StopButton armed={false} keys="" onStop={() => {}} />
-          ) : (
-            <SendButton
-              disabled
-              running={false}
-              sendKey="enter"
-              runningAction="queue"
-              onSendLater={() => {}}
-            />
-          )}
-        </div>
-      </form>
-    </div>
+    <SampleComposer
+      model={{
+        agent: turn.provider,
+        name: turn.model.name || `${agentName(turn.provider)} default`,
+        effort: effort ? effort[0].toUpperCase() + effort.slice(1) : "Default",
+        window: 200_000,
+      }}
+      running={running}
+      approval={approval}
+      placeholder={placeholder}
+    />
   );
 }
 
@@ -272,7 +249,14 @@ function ReviewThread() {
             }}
           />
         ) : (
-          <Composer id="shortcuts" />
+          <Composer
+            id="shortcuts"
+            placeholder={
+              phase < 3
+                ? "Reviewers are at work. Messages wait for the lead…"
+                : undefined
+            }
+          />
         )}
       </div>
     </section>
@@ -298,7 +282,7 @@ function Thread({
     <Message
       key={m.id}
       message={m}
-      chatId=""
+      chatId={id}
       onReply={() => {}}
       onFork={() => {}}
       onChanges={onOpenChanges}
@@ -340,6 +324,24 @@ const threadChanges = {
   files: 9,
   lines: { additions: 103, deletions: 3 },
 };
+
+/** The branch row the app's ThreadWhere puts in the Running card. */
+function CardBranch() {
+  return (
+    <div className="running-where-rows">
+      <div className="running-where-folder" />
+      <div className="running-where-branch">
+        <button type="button" className="composer-branch-trigger">
+          <GitBranch size={13} />
+          <span className="middle-truncate">
+            <span className="middle-truncate-shown">main</span>
+          </span>
+          <ChevronDown size={12} />
+        </button>
+      </div>
+    </div>
+  );
+}
 
 /** The window's left edge, as the app draws it on the threads. */
 function ActivityBar() {
@@ -404,6 +406,8 @@ export function AppWindow({
   const [terminal, setTerminal] = useState(false);
   const [files, setFiles] = useState(false);
   const [sidebar, setSidebar] = useState(true);
+  // The Running card's slot for the thread's branch, as the app's ThreadWhere fills it.
+  const [where, setWhere] = useState<HTMLElement | null>(null);
   const [run, setRun] = useState(0);
 
   const serve = (on: boolean) => {
@@ -556,11 +560,22 @@ export function AppWindow({
                 <RunningTasks
                   project={projects[0]}
                   chats={chats}
+                  whereSlot={setWhere}
+                  handoff={(className) => (
+                    <button
+                      type="button"
+                      className={className}
+                      aria-label="Hand off to another computer"
+                    >
+                      <MonitorUp size={14} />
+                    </button>
+                  )}
                   changes={threadChanges}
                   onOpenChanges={() => setChanges(true)}
                   onOpenChat={() => {}}
                 />
               ) : null}
+              {where ? createPortal(<CardBranch />, where) : null}
             </div>
             {changes ? <ChangesPane /> : null}
             {files ? <EditorPane /> : null}

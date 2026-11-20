@@ -173,10 +173,9 @@ export function Cycle({ at: now, items }: { at: number; items: ReactNode[] }) {
   );
 }
 
-/** The composer's own placeholders (ThreadComposer.tsx), by state. */
+/** The composer's own placeholder (ProjectComposer.tsx), which a running thread keeps too. */
 export const PLACEHOLDER = {
   idle: "Ask about the code, plan a change, or build something…",
-  working: "Message Claude now, or wait for it to check back…",
 };
 
 /** Placeholder text that gives way with an ellipsis when the composer is narrow. */

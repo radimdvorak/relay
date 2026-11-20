@@ -164,5 +164,11 @@ export function installStubs() {
     stopProjectTask: async () => {},
     restartProjectTask: async () => {},
     openExternal: async () => {},
+    // A computer at ease, its CPU wandering a little between looks.
+    machineLoad: async () => ({
+      cpu: 14 + Math.round(Math.random() * 12),
+      usedMb: 6.2 * 1024,
+      totalMb: 32 * 1024,
+    }),
   } satisfies Partial<Record<keyof Api, unknown>>);
 }

@@ -2,8 +2,11 @@
 import {
   ArrowDown,
   ArrowUp,
+  ChevronDown,
   CircleAlert,
+  FileDiff,
   FileWarning,
+  FolderOpen,
   GitBranch,
   GitPullRequest,
   Redo2,
@@ -19,11 +22,13 @@ const Stat = ({ add, del }: { add: number; del: number }) => (
   </span>
 );
 /* ---- Roll back one turn, redo ---- */
+// The turn's changed-files card (ChangedFilesCard.tsx): a folder tree, and a
+// file's own Roll back on hover, which turns to Redo once it's rolled back.
 export const rollbackLoop: Loop = { times: [0, 900, 1700, 3000, 3800, 5400, 7000], still: 5 };
 const changed: [string, number, number][] = [
-  ["src/queue.ts", 42, 8],
-  ["src/worker.ts", 17, 4],
-  ["src/worker.test.ts", 31, 12],
+  ["queue.ts", 42, 8],
+  ["worker.ts", 17, 4],
+  ["worker.test.ts", 31, 12],
 ];
 export function RollbackTile({ s }: { s: number }) {
   const back = s >= 2 && s < 4;
@@ -31,10 +36,25 @@ export function RollbackTile({ s }: { s: number }) {
     <div className="c-rollback">
       <div className="dt-ui c-sheet c-changed">
         <header>
+          <ChevronDown size={13} className="dt-muted" />
           <b>3 changed files</b>
-          <span className="dt-muted c-note dt-in" data-on={back ? "" : undefined}>1 rolled back</span>
-          <span className="dt-btn ghost">Roll back</span>
+          <Cycle
+            at={back ? 1 : 0}
+            items={[<Stat key="a" add={90} del={24} />, <span key="b" className="dt-muted c-note">1 rolled back</span>]}
+          />
+          <span className="c-head-tools">
+            <FileDiff size={13} />
+            <span className="c-rollall">
+              <Undo2 size={13} /> Roll back
+            </span>
+          </span>
         </header>
+        <div className="c-folder">
+          <ChevronDown size={12} />
+          <FolderOpen size={13} />
+          <span>src</span>
+          <Stat add={90} del={24} />
+        </div>
         {changed.map(([f, a, d], i) => (
           <div className="c-file" data-hover={i === 1 ? within(s, 1, 5) : undefined} data-back={i === 1 && back ? "" : undefined} key={f}>
             <span className="c-fname">{f}</span>
@@ -46,7 +66,7 @@ export function RollbackTile({ s }: { s: number }) {
         ))}
         <p className="c-tip dt-in" data-on={within(s, 2, 3)}>Roll back this file to before this turn</p>
       </div>
-      <Cursor x={s >= 4 ? 262 : s >= 1 ? 262 : 150} y={s >= 1 ? 84 : 140} show={s >= 1 && s < 6} press={is(within(s, 2, 3)) || is(within(s, 4, 5))} />
+      <Cursor x={262} y={s >= 1 ? 108 : 150} show={s >= 1 && s < 6} press={is(within(s, 2, 3)) || is(within(s, 4, 5))} />
     </div>
   );
 }
@@ -73,6 +93,7 @@ export function SyncTile({ s }: { s: number }) {
         <div className="dt-ui c-conflict dt-in" data-on={on(s, 3)}>
           <header><CircleAlert size={14} /> <b>Couldn’t rebase onto origin/main</b></header>
           <p>Both sides changed the same lines. The rebase was undone, so nothing in the project folder moved.</p>
+          <h5 className="c-conf-head">Conflicts in</h5>
           <div className="c-conf"><FileWarning size={12} /> src/queue.ts</div>
           <footer>
             <span className="dt-btn ghost">Open as draft</span>
@@ -83,7 +104,7 @@ export function SyncTile({ s }: { s: number }) {
           <div className="dt-card-top">
             <span className="dt-badge">R</span>
             <span className="dt-card-project">Relay</span>
-            <span className="dt-card-state" data-kind="working"><i /> Working</span>
+            <span className="dt-card-state" data-kind="working">1m 12s <span className="dt-spin" /></span>
           </div>
           <span className="dt-card-title">Rebase feat/sync onto origin/main</span>
           <div className="dt-card-meta"><GitPullRequest size={11} /> Resolving conflicts in src/queue.ts</div>

@@ -48,41 +48,49 @@
   color: var(--p-muted);
 }
 /* Android's heads-up notification, as the app posts one for a thread that needs you. */
+/* NeedsYou.kt: a card under the thread's header, amber dot, title and project. */
 .p-banner {
   position: absolute;
-  inset: 40px 10px auto;
+  inset: 84px 12px auto;
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 12px;
-  padding: 14px 16px;
-  border-radius: 22px;
-  background: #2b2b30;
-  box-shadow: 0 4px 16px #0008;
+  padding: 10px 14px;
+  border: 0.5px solid var(--p-border);
+  border-radius: 12px;
+  background: var(--p-raised);
+  box-shadow: 0 4px 10px #0006;
   opacity: 0;
-  transform: translateY(-60px);
+  transform: translateY(-24px);
   transition: opacity 0.3s, transform 0.5s cubic-bezier(0.2, 0.9, 0.3, 1);
 }
 .p-banner[data-on] {
   opacity: 1;
   transform: none;
 }
-.p-banner img {
-  width: 30px;
-  height: 30px;
+.p-banner > i {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--p-waiting);
 }
 .p-banner > span {
   display: grid;
   flex: 1;
-  gap: 1px;
-  font-size: 14px;
-}
-.p-banner small {
-  font-size: 12px;
-  color: var(--p-muted);
+  gap: 2px;
+  min-width: 0;
 }
 .p-banner b {
   font-size: 15px;
-  font-weight: 600;
+  font-weight: 500;
+}
+.p-banner small {
+  font-size: 12px;
+  color: var(--p-waiting);
+}
+.p-banner > svg {
+  color: var(--p-muted);
 }
 .p-later {
   margin: 14px 16px 0 40px;

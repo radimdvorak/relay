@@ -71,7 +71,9 @@ export const chats: ChatSummary[] = [
   }),
 ];
 
-export type Step = { text: string } | { kind: AgentActivity["kind"]; label: string };
+export type Step =
+  | { text: string }
+  | { kind: AgentActivity["kind"]; label: string; /** What the tool answered, as the app keeps it. */ detail?: string };
 
 /** Rows keep their ids from render to render, or the thread remounts them and they flash. */
 export function trace(
@@ -89,6 +91,7 @@ export function trace(
         id,
         kind: step.kind,
         label: step.label,
+        detail: step.detail,
         status: runningLast && i === steps.length - 1 ? "running" : "complete",
       },
     };
@@ -120,8 +123,10 @@ export const turns: Record<string, Turn> = {
       { kind: "read", label: p("shared/shortcuts.ts") },
       { kind: "search", label: "registerShortcut" },
       { kind: "read", label: p("src/features/sidebar/SidebarActivity.tsx") },
+      // Commentary closes the run above it, which then groups by what it did.
+      { text: "Adding the binding next to ⌘N and the key handler in the sidebar." },
       { kind: "file", label: p("shared/shortcuts.ts") },
-      { kind: "file", label: p("src/features/sidebar/useActivityKeys.ts") },
+      { kind: "file", label: p("src/features/sidebar/useActivityKeys.ts"), detail: "File created successfully" },
       { kind: "command", label: "npx vitest run src/lib/shortcuts.test.ts" },
     ],
     body: "Added **⌘1–9** to open the Nth card in Activity. Holding ⌘ for a moment shows the numbers on the cards, so you can see where each one goes.\n\nThe binding lives in `shared/shortcuts.ts` next to ⌘N, so it can be rebound in Settings. All 14 tests pass.",
@@ -135,7 +140,7 @@ export const turns: Record<string, Turn> = {
   hero: {
     prompt: user("h1", 9, "Build the hero section for the launch page from the notes in launch-notes.md.", "codex"),
     provider: "codex",
-    model: { name: "GPT-5.6-Sol", effort: "high" },
+    model: { name: "GPT-6-Sol", effort: "high" },
     steps: [
       { kind: "read", label: "/Users/you/website/launch-notes.md" },
       { kind: "read", label: "/Users/you/website/src/sections/Hero.tsx" },
@@ -226,7 +231,7 @@ export const review: DeepReviewState = {
   scope: { target: { kind: "uncommitted" }, label: "Uncommitted changes", branch: "main" },
   reviewers: [
     { provider: "claude", choice: { ...choice, model: "claude-opus-5-5" }, chatId: "rev-1" },
-    { provider: "codex", choice: { ...choice, model: "GPT-5.6-Sol" }, chatId: "rev-2" },
+    { provider: "codex", choice: { ...choice, model: "GPT-6-Sol" }, chatId: "rev-2" },
   ],
   lead: { provider: "claude", choice: { ...choice, model: "claude-opus-5-5" } },
   runChecks: true,

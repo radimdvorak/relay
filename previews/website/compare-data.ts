@@ -2,7 +2,7 @@
 // pricing and changelog on CHECKED; nobody ran them side by side. Keep every
 // cell something its makers could check, and say where they are ahead.
 
-export const CHECKED = "11 October 2026";
+export const CHECKED = "18 November 2026";
 
 export type Rival = {
   id: string;
@@ -30,13 +30,13 @@ export const rivals: Rival[] = [
     pickThem:
       "You work on a Mac in a team and want managed cloud workspaces, shared chats and GitHub stacks, and the Pro plan is fine.",
     pickRelay:
-      "You use Windows or Linux, want your phone on your own machines for free, or need agents that keep running after you quit.",
+      "You use Windows or Linux, want your phone to reach your computer without anyone's relay, or want threads that move between your computers.",
   },
   {
     id: "t3-code",
     name: "T3 Code",
     href: "https://github.com/pingdotgg/t3code",
-    is: "A free, MIT-licensed app from ping.gg for the agents you already have. A server on your machine is driven from desktop, web, iOS and Android.",
+    is: "A free, MIT-licensed app from T3 Tools for the agents you already have. A server on your machine is driven from desktop, web, iOS and Android.",
     pickThem:
       "You want an iPhone app from the store today, agents spread over several SSH machines, or GitLab and Bitbucket.",
     pickRelay:
@@ -44,13 +44,13 @@ export const rivals: Rival[] = [
   },
   {
     id: "superset",
-    name: "Superset",
-    href: "https://superset.sh",
-    is: "A source-available (ELv2) workspace that runs 22 CLI agents in terminals, with a paid Pro tier for remote hosts, automations and iPhone.",
+    name: "Paradev",
+    href: "https://paradev.com",
+    is: "Formerly Superset: an MIT-licensed workspace that runs CLI agents in terminals, with paid plans for remote hosts, automations, iPhone and cloud workspaces.",
     pickThem:
-      "You want the widest list of terminal agents, Slack and Linear automations, or team features like SSO.",
+      "You want a long list of terminal agents, Slack and Linear automations, managed cloud workspaces, or team features like SSO.",
     pickRelay:
-      "You want no account, an open-source license, Windows or Android, and a structured view of each step instead of a terminal.",
+      "You want Windows or Android, your phone on your own network, and a structured view of each step instead of a terminal.",
   },
   {
     id: "jean",
@@ -65,12 +65,12 @@ export const rivals: Rival[] = [
   {
     id: "orca",
     name: "Orca",
-    href: "https://onorca.dev",
-    is: "A free, MIT-licensed, terminal-first workspace from Stably AI for fleets of CLI agents, on your laptop, over SSH or on a server, with a phone app.",
+    href: "https://orca.dev",
+    is: "A free, MIT-licensed workspace from Stably AI for fleets of agents, in a chat or a terminal, on your laptop, over SSH or on a server, with phone apps.",
     pickThem:
-      "You want any CLI agent in a terminal, three ways to run remotely, an iPhone app from the store, and Jira or GitLab built in.",
+      "You want any CLI agent in a chat or a terminal, three ways to run remotely, phone apps from both stores, and Jira built in.",
     pickRelay:
-      "You want each step as a structured trace instead of a terminal, threads that move between computers, and voice.",
+      "You want threads that move between computers, reviews checked by a lead, and answers read aloud.",
   },
 ];
 
@@ -92,7 +92,7 @@ export const groups: { title: string; rows: Row[] }[] = [
         cells: {
           relay: yes(),
           "t3-code": yes(),
-          conductor: part("Cloud and iOS need Pro, $50/mo"),
+          conductor: part("Cloud and the phone app need Pro, $50/mo"),
           superset: part("Remote, phone and automations need Pro"),
           jean: yes(),
           orca: yes(),
@@ -103,8 +103,8 @@ export const groups: { title: string; rows: Row[] }[] = [
         cells: {
           relay: yes(),
           "t3-code": yes("Their hosted tunnel needs one"),
-          conductor: unknown("Unclear for local use"),
-          superset: no("GitHub or Google sign-in"),
+          conductor: unknown("Needed for the phone; local use not stated"),
+          superset: unknown("Needed for phone and remote; local use not stated"),
           jean: yes(),
           orca: yes("Their hosted phone relay needs one"),
         },
@@ -115,7 +115,7 @@ export const groups: { title: string; rows: Row[] }[] = [
           relay: yes("MIT"),
           "t3-code": yes("MIT"),
           conductor: no(),
-          superset: part("ELv2, source-available"),
+          superset: yes("MIT, since November"),
           jean: yes("Apache-2.0"),
           orca: yes("MIT"),
         },
@@ -125,10 +125,10 @@ export const groups: { title: string; rows: Row[] }[] = [
         cells: {
           relay: part("One daily count with no ID; Settings turns it off"),
           "t3-code": no("On by default, env var opts out"),
-          conductor: no("No opt-out documented"),
-          superset: no("Tied to your account"),
-          jean: yes("None found in the source"),
-          orca: no("On by default, can be turned off"),
+          conductor: no("PostHog, no opt-out documented"),
+          superset: no("PostHog, tied to your account"),
+          jean: yes("None in its dependencies"),
+          orca: no("Optional telemetry, can be turned off"),
         },
       },
     ],
@@ -140,15 +140,15 @@ export const groups: { title: string; rows: Row[] }[] = [
         label: "Agents it runs",
         cells: {
           relay: yes(
-            "Claude, Codex, OpenCode, Cursor, Amp, Antigravity, ACP registry",
+            "Claude, Codex, OpenCode, Cursor, Amp, Antigravity, Muse, ACP registry",
           ),
           "t3-code": yes(
-            "Claude, Codex, Cursor, OpenCode, Grok, Pi, ACP registry",
+            "Claude, Codex, Cursor, OpenCode, Grok, Antigravity, Kiro, Pi, Muse, ACP registry",
           ),
           conductor: yes("Claude Code, Codex, Cursor, OpenCode"),
-          superset: yes("22 CLI agents, in terminals"),
-          jean: yes("Claude, Codex, Cursor, OpenCode, Grok, Pi and more"),
-          orca: yes("About 40 CLI agents, in terminals"),
+          superset: yes("21 CLI agents and any other, in terminals"),
+          jean: yes("Claude, Codex, Cursor, OpenCode, Antigravity, Muse, Grok, Pi and more"),
+          orca: yes("27 agents, in a chat or a terminal"),
         },
       },
       {
@@ -167,10 +167,10 @@ export const groups: { title: string; rows: Row[] }[] = [
         cells: {
           relay: yes(),
           "t3-code": yes(),
-          conductor: part("New tab with a summary"),
+          conductor: part("Another agent in a new tab"),
           superset: part("Passes on the terminal output"),
-          jean: yes(),
-          orca: part("Fresh session with a summary"),
+          jean: part("Per session; mid-chat not documented"),
+          orca: part("Hands the work to another agent's chat"),
         },
       },
     ],
@@ -194,10 +194,10 @@ export const groups: { title: string; rows: Row[] }[] = [
         cells: {
           relay: part("Android only"),
           "t3-code": yes("iOS and Android"),
-          conductor: part("iOS, Pro, cloud workspaces only"),
+          conductor: part("iOS, Pro; reaches your Mac too"),
           superset: part("iPhone and iPad, Pro"),
           jean: part("Web app in the phone's browser"),
-          orca: yes("iOS beta, and Android as an APK"),
+          orca: yes("iOS and Android, from the stores"),
         },
       },
       {
@@ -205,7 +205,7 @@ export const groups: { title: string; rows: Row[] }[] = [
         cells: {
           relay: yes("Tailscale or LAN, end-to-end encrypted"),
           "t3-code": yes("Direct, or their optional tunnel"),
-          conductor: no("Through their cloud"),
+          conductor: no("Through their relay, end-to-end encrypted"),
           superset: no("Through their relay"),
           jean: yes("Your own server, secured by you"),
           orca: yes("LAN, Tailscale, or their relay"),
@@ -216,7 +216,7 @@ export const groups: { title: string; rows: Row[] }[] = [
         cells: {
           relay: yes("Projects over SSH, WSL or a headless Relay"),
           "t3-code": yes("SSH or a headless server"),
-          conductor: part("Their cloud only, Pro"),
+          conductor: part("Their cloud only"),
           superset: yes("Your hosts, through their relay, Pro"),
           jean: yes("Headless Linux server"),
           orca: yes("SSH, own server, your cloud VMs"),
@@ -229,7 +229,7 @@ export const groups: { title: string; rows: Row[] }[] = [
           relay: yes("Keep chatting from either one"),
           "t3-code": no("Threads stay where they started"),
           conductor: no("Not between your own Macs"),
-          superset: unknown(),
+          superset: no("Workspaces stay on their host"),
           jean: no("A project stays on its one server"),
           orca: no("Sessions stay on the server that owns them"),
         },
@@ -239,10 +239,10 @@ export const groups: { title: string; rows: Row[] }[] = [
         cells: {
           relay: yes(),
           "t3-code": part("As a background service"),
-          conductor: no("Local sessions end"),
+          conductor: unknown("The app must stay open for the phone"),
           superset: yes(),
-          jean: yes(),
-          orca: yes(),
+          jean: part("On a server; desktop not documented"),
+          orca: yes("A daemon keeps them going"),
         },
       },
       {
@@ -251,9 +251,9 @@ export const groups: { title: string; rows: Row[] }[] = [
           relay: no("Runs on computers you own"),
           "t3-code": no(),
           conductor: yes("Pro"),
-          superset: part("Early access"),
+          superset: yes("Team plan, $60 per user a month"),
           jean: no(),
-          orca: part("Experimental, on your own cloud account"),
+          orca: part("A hosted sandbox, or your own cloud"),
         },
       },
     ],
@@ -267,21 +267,21 @@ export const groups: { title: string; rows: Row[] }[] = [
         cells: {
           relay: yes("Any mix of agents"),
           "t3-code": no(),
-          conductor: no("One-model review"),
-          superset: unknown(),
-          jean: part("Up to 5 side by side, no lead"),
-          orca: no("Not built in"),
+          conductor: no("Agents review in tabs, no lead"),
+          superset: part("A coordinator checks workers, not review-specific"),
+          jean: part("A coordinator, closed to new users"),
+          orca: part("Coordinator agents, not review-specific"),
         },
       },
       {
         label: "Dictation and read-aloud on your own computer",
         cells: {
           relay: yes("Both, with local models"),
-          "t3-code": part("Dictation on iPhone"),
+          "t3-code": part("Dictation, no read-aloud"),
           conductor: part("Dictation"),
-          superset: part("Dictation on iOS"),
+          superset: part("Dictation, no read-aloud"),
           jean: no(),
-          orca: part("Local dictation, no read-aloud"),
+          orca: part("On-device dictation, no read-aloud"),
         },
       },
       {
@@ -290,9 +290,9 @@ export const groups: { title: string; rows: Row[] }[] = [
         cells: {
           relay: part("Scheduled prompts"),
           "t3-code": yes("Schedules and webhooks"),
-          conductor: yes("Routines, Pro"),
+          conductor: yes("Routines"),
           superset: yes("Automations, Pro"),
-          jean: yes("Picks up issues, fixes CI"),
+          jean: yes("Picks up issues, fixes CI, routines"),
           orca: yes("Scheduled automations"),
         },
       },
@@ -307,7 +307,7 @@ export const groups: { title: string; rows: Row[] }[] = [
         cells: {
           relay: no("Built for one developer"),
           conductor: yes("Shared chats; Teams plan"),
-          "t3-code": no(),
+          "t3-code": part("Guest links to follow a thread, beta"),
           superset: yes("Shared hosts; SSO on Enterprise"),
           jean: no(),
           orca: unknown("Enterprise plan, no details"),
@@ -320,8 +320,8 @@ export const groups: { title: string; rows: Row[] }[] = [
           relay: part("GitHub, Gitea and Azure DevOps"),
           conductor: part("GitHub only"),
           "t3-code": yes("GitLab, Bitbucket, Azure DevOps and more"),
-          superset: part("GitHub; GitLab only locally"),
-          jean: part("GitHub; GitLab for cloning only"),
+          superset: part("GitHub; other remotes work locally"),
+          jean: part("GitHub; GitLab as a provider"),
           orca: yes("GitLab, Bitbucket, Azure DevOps, Gitea"),
         },
       },
@@ -331,8 +331,8 @@ export const groups: { title: string; rows: Row[] }[] = [
         cells: {
           relay: part("Azure DevOps work items, as a plugin"),
           conductor: yes("Linear and GitHub issues"),
-          "t3-code": no(),
-          superset: yes("Linear tasks"),
+          "t3-code": part("Opens Linear issues from links"),
+          superset: yes("Linear, or its own tasks"),
           jean: yes("Linear, Sentry, GitHub issues"),
           orca: yes("Linear and Jira"),
         },

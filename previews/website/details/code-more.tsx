@@ -5,10 +5,15 @@ import {
   Check,
   Copy,
   Droplet,
+  EyeOff,
   FolderGit2,
   PenLine,
+  Redo2,
+  Trash2,
+  Undo2,
 } from "lucide-react";
-import { Cursor, Cycle, on, within } from "./kit";
+import { sketchColors } from "../../../src/features/images/sketch";
+import { Cursor, Cycle, PLACEHOLDER, Placeholder, on, within } from "./kit";
 import type { Loop } from "./kit";
 
 const is = (v: string | undefined) => v !== undefined;
@@ -23,15 +28,21 @@ export function WorktreeTile({ s }: { s: number }) {
           <b>Move into its own worktree?</b>
           <p>
             Every uncommitted edit in the project folder moves with the thread, onto a new branch. The project folder
-            goes back to its last commit.
+            goes back to its last commit; ignored files such as .env stay there. The agent continues the same
+            conversation there.
           </p>
           <div className="m-wfiles">
             <div className="dt-in" data-on={on(s, 1)}>
-              <span>src/queue.ts</span><span className="c-stat"><b className="add">+42</b> <b className="del">−8</b></span>
+              <span>
+                queue.ts <small>src</small>
+              </span>
+              <span className="c-stat"><b className="add">+42</b> <b className="del">−8</b></span>
             </div>
             <div className="dt-in" data-on={on(s, 1)}>
-              <span>src/worker.ts</span><span className="c-stat"><b className="add">+17</b> <b className="del">−4</b></span>
-              <small>also “Update the docs”</small>
+              <span>
+                worker.ts <small>src</small> <small className="m-also">also “Update the docs”</small>
+              </span>
+              <span className="c-stat"><b className="add">+17</b> <b className="del">−4</b></span>
             </div>
           </div>
           <footer>
@@ -42,10 +53,16 @@ export function WorktreeTile({ s }: { s: number }) {
         <div className="m-moved">
           <header>
             <b>Rename the sync worker</b>
-            <span className="c-branch"><FolderGit2 size={12} /> relay/sync-worker</span>
           </header>
-          <p className="dt-say">The agent continues the same conversation there.</p>
-          <p className="dt-say dt-muted">The project folder is back at its last commit.</p>
+          <p className="dt-say">
+            <span className="dt-spin" /> Renaming the worker in its own worktree…
+          </p>
+          <div className="dt-composer m-wcomposer">
+            <Placeholder>{PLACEHOLDER.idle}</Placeholder>
+          </div>
+          <span className="c-branch m-wchip">
+            <FolderGit2 size={12} /> relay/sync-worker
+          </span>
         </div>
       </div>
       <Cursor x={s >= 2 ? 232 : 150} y={s >= 2 ? 188 : 120} show={s >= 2 && s < 3} press={is(within(s, 2, 3))} />
@@ -81,17 +98,29 @@ export function DrawTile({ s }: { s: number }) {
           />
         </svg>
       </div>
+      {/* ImageSketch.tsx's toolbar: tools, colours, sizes, undo, redo, clear, done. */}
       <div className="m-palette">
         <span className="m-tool" data-on={within(s, 0, 3)}><PenLine size={14} /></span>
         <span className="m-tool" data-on={on(s, 3)}><Droplet size={14} /></span>
+        <span className="m-tool"><EyeOff size={14} /></span>
         <i className="m-sep" />
-        {["#ff3b30", "#ffd100", "#34c759", "#007aff"].map((c, i) => (
+        {sketchColors.map((c, i) => (
           <i className="m-dot" style={{ color: c }} data-on={i === 0 ? "" : undefined} key={c} />
         ))}
         <i className="m-sep" />
+        {[5, 8, 13].map((size) => (
+          <i className="m-size" data-on={size === 8 ? "" : undefined} key={size}>
+            <b style={{ width: size * 0.7, height: size * 0.7 }} />
+          </i>
+        ))}
+        <i className="m-sep" />
+        <Undo2 size={14} />
+        <Redo2 size={14} />
+        <Trash2 size={14} />
+        <i className="m-sep" />
         <Check size={14} />
       </div>
-      <p className="m-tips">Pause to snap a shape · Blur a box to hide all of it</p>
+      <p className="m-tips">Pause to snap a shape · Blur or black out a box to hide all of it</p>
     </div>
   );
 }

@@ -144,13 +144,15 @@
 
 /* drive Relay */
 .a-drive {
-  gap: 10px;
-  padding-top: 14px;
+  gap: 8px;
+  padding-top: 4px;
+  transition: transform 0.5s cubic-bezier(0.2, 0.7, 0.2, 1);
 }
 .a-ex {
   display: grid;
-  gap: 5px;
+  gap: 4px;
 }
+/* A Relay tool's row in the trace: its wrench and the app's label for it. */
 .a-call {
   display: flex;
   align-items: center;
@@ -160,13 +162,36 @@
   font-size: 11.5px;
   white-space: nowrap;
 }
-.a-call .a-tick {
-  margin: 0;
+.a-marks {
+  display: inline-flex;
+  gap: 2px;
+}
+.a-marks svg {
+  width: 11px;
+  height: 11px;
 }
 .a-call-out {
   overflow: hidden;
-  color: var(--text);
   text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The dialog's "Don't show this again", unticked: a row, as thread.css sets
+   it against the app's column-stacked labels. */
+.a-dialog label.a-remember {
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+  margin: 9px 0 0;
+  color: var(--muted);
+  font-size: 10.5px;
+  font-weight: 400;
+}
+.a-remember i {
+  width: 10px;
+  height: 10px;
+  border: 1px solid var(--border);
+  border-radius: 3px;
 }
 
 /* voice */
@@ -186,7 +211,8 @@
 .a-vread {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
+  color: var(--muted);
   font-size: 11px;
 }
 .a-vbtn {
@@ -200,38 +226,16 @@
 }
 .a-vbtn[data-on] {
   background: var(--hover);
-  color: var(--accent);
+  color: var(--text);
 }
 .a-vbtn[data-press] {
   transform: scale(0.88);
 }
-.a-eq {
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-  height: 10px;
-  margin-right: 6px;
-  vertical-align: -1px;
-}
-.a-eq b,
 .a-wave b {
   width: 2px;
   border-radius: 1px;
   background: currentColor;
   transform: scaleY(0.2);
-}
-.a-eq b {
-  height: 10px;
-  color: var(--accent);
-}
-.a-eq[data-on] b {
-  animation: dt-loop-bar 0.9s steps(9) infinite;
-}
-.a-vlabel {
-  margin: 0 2px 6px;
-  color: var(--muted);
-  font-size: 10.5px;
-  text-align: right;
 }
 .a-vdraft,
 .a-vdraft > .dt-swap {
@@ -348,6 +352,10 @@
 .a-main .dt-spin {
   color: var(--accent);
 }
+.a-side-head {
+  margin: 4px 0 -2px;
+  font-size: 11px;
+}
 .a-side {
   padding: 10px 14px 6px;
   border: 1px dashed color-mix(in srgb, var(--muted) 55%, transparent);
@@ -381,8 +389,10 @@
   border: 1px solid var(--border);
   border-radius: 6px;
   background: var(--toolbar);
-  font-size: 10px;
-  font-weight: 700;
+}
+.a-face svg {
+  width: 12px;
+  height: 12px;
 }
 .a-view {
   color: var(--accent);

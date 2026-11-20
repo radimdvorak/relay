@@ -1,10 +1,11 @@
 // Each tile's loop and drawing, joined to its words in words.ts, which also
-// sets the order. The drawings are in agents.tsx, threads.tsx, code.tsx,
-// code-more.tsx and phone-tiles.tsx.
+// sets the order. The drawings are in agents.tsx, threads.tsx,
+// threads-more.tsx, code.tsx, code-more.tsx and phone-tiles.tsx.
 import type { ReactNode } from "react";
 import type { Category, Loop } from "./kit";
 import * as agents from "./agents";
 import * as threads from "./threads";
+import * as threadsMore from "./threads-more";
 import * as code from "./code";
 import * as more from "./code-more";
 import * as phone from "./phone-tiles";
@@ -32,6 +33,8 @@ const demos: Record<Id, Pick<TileDef, "loop" | "Tile">> = {
   snooze: { loop: threads.snoozeLoop, Tile: threads.SnoozeTile },
   later: { loop: threads.laterLoop, Tile: threads.LaterTile },
   notes: { loop: threads.notesLoop, Tile: threads.NotesTile },
+  schedule: { loop: threadsMore.scheduleLoop, Tile: threadsMore.ScheduleTile },
+  computers: { loop: threadsMore.computersLoop, Tile: threadsMore.ComputersTile },
   rollback: { loop: code.rollbackLoop, Tile: code.RollbackTile },
   sync: { loop: code.syncLoop, Tile: code.SyncTile },
   worktree: { loop: more.worktreeLoop, Tile: more.WorktreeTile },

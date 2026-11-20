@@ -1,7 +1,8 @@
 // Demo tiles about agents: what happens when one hits a limit, when you
 // switch, what it can do in Relay for you, voice, and the cards it puts in
 // front of you.
-import { ArrowUp, Check, Eye, Hourglass, Mic, Square, Volume2, X } from "lucide-react";
+import { ArrowUp, Check, Copy, Eye, Hourglass, Mic, Reply, Split, Square, Volume2, Wrench, X } from "lucide-react";
+import { ProviderIcon } from "../../../src/features/agents/ComposerModelPicker";
 import { Cursor, Cycle, PLACEHOLDER, Placeholder, Type, on, within } from "./kit";
 import type { Loop } from "./kit";
 
@@ -51,6 +52,9 @@ export function SwitchTile({ s }: { s: number }) {
         <h4>Switch to Codex?</h4>
         <p>Claude has been working in this thread. Codex cannot see its session, tool results, or the files it read.</p>
         <p>Claude will write a handoff note first. Codex continues from that note and the recent messages, so expect some context to be lost.</p>
+        <label className="a-remember">
+          <i /> Don’t show this again
+        </label>
         <div className="a-actions">
           <span className="dt-btn">Keep Claude</span>
           <span className="dt-btn primary" data-press={within(s, 2, 3)}>
@@ -76,7 +80,7 @@ export function SwitchTile({ s }: { s: number }) {
         <p className="dt-say a-codex dt-in" data-on={on(s, 5)}>
           <b>Codex</b> Picking up from the note: updating the docs now.
         </p>
-        <div className="dt-composer a-handoff-composer"><Placeholder>{PLACEHOLDER.working.replace("Claude", "Codex")}</Placeholder></div>
+        <div className="dt-composer a-handoff-composer"><Placeholder>{PLACEHOLDER.idle}</Placeholder></div>
       </div>
       <Cursor
         x={s >= 2 ? 196 : 130}
@@ -93,15 +97,31 @@ export const driveLoop: Loop = {
   times: [0, 300, 900, 1800, 2700, 3200, 4000, 4900, 5400, 6200, 8600],
   still: 9,
 };
-const asks: [ask: string, tool: string, result: string][] = [
-  ["Give each failing test its own thread", "start_threads", "Started 3 threads"],
-  ["How much of my week is left?", "usage_limits", "Claude 62% · Codex 81%"],
-  ["Hand this thread to my desktop at home", "hand_off_thread", "Continued on studio"],
+// Each ask, the label the app gives Relay's tool (relay-mcp/tool-meta.ts),
+// and what the agent says after.
+const asks: { ask: string; tool: string; marks?: boolean; answer: string }[] = [
+  {
+    ask: "Give each failing test its own thread",
+    tool: "Started threads",
+    marks: true,
+    answer: "Three threads, one per test.",
+  },
+  {
+    ask: "How much of my week is left?",
+    tool: "Checked usage limits",
+    answer: "Claude 62% left, Codex 81%.",
+  },
+  {
+    ask: "Hand this thread to my desktop at home",
+    tool: "Moved a thread to another computer",
+    answer: "It runs on studio now.",
+  },
 ];
 export function DriveTile({ s }: { s: number }) {
+  // The thread keeps its newest ask in view, as the app's does.
   return (
-    <div className="a-drive">
-      {asks.map(([ask, tool, result], i) => {
+    <div className="a-drive" style={{ transform: `translateY(${s >= 7 ? -64 : 0}px)` }}>
+      {asks.map(({ ask, tool, marks, answer }, i) => {
         const start = 1 + i * 3;
         const done = s >= start + 2;
         return (
@@ -110,12 +130,19 @@ export function DriveTile({ s }: { s: number }) {
               {ask}
             </p>
             <div className="a-call dt-in" data-on={on(s, start + 1)}>
-              {done ? <Check size={12} className="a-tick" /> : <span className="dt-spin" />}
-              <code>{tool}</code>
-              <span className="a-call-out dt-in" data-on={done ? "" : undefined}>
-                {result}
-              </span>
+              {done ? <Wrench size={12} /> : <span className="dt-spin" />}
+              <span className={done ? undefined : "live-shine"}>{tool}</span>
+              {marks ? (
+                <span className="a-marks">
+                  {["claude", "codex", "claude"].map((provider, n) => (
+                    <ProviderIcon key={n} provider={provider as "claude" | "codex"} />
+                  ))}
+                </span>
+              ) : null}
             </div>
+            <p className="dt-say a-call-out dt-in" data-on={done ? "" : undefined}>
+              {answer}
+            </p>
           </div>
         );
       })}
@@ -142,31 +169,21 @@ export function VoiceTile({ s }: { s: number }) {
           <p className="dt-say">
             <Check size={12} className="a-tick" /> Renamed it to <code>queueWorker</code>. Tests pass.
           </p>
+          {/* The answer's actions (MessageActions.tsx); Read aloud turns to Stop while it reads. */}
           <div className="a-vread">
+            <Copy size={13} />
             <span className="a-vbtn" data-on={reading || undefined} data-press={within(s, 6, 7)}>
               {reading ? <Square size={10} /> : <Volume2 size={13} />}
             </span>
-            <span className="dt-swap a-vstate" data-on={reading ? "" : undefined}>
-              <span className="dt-muted">Read aloud</span>
-              <span>
-                <i className="a-eq" data-on={reading || undefined}>
-                  {Array.from({ length: 5 }, (_, i) => (
-                    <b key={i} className="dt-loop-eq" style={{ animationDelay: `${-i * 0.23}s` }} />
-                  ))}
-                </i>
-                Reading with Pocket, on this computer
-              </span>
-            </span>
+            <Split size={13} />
+            <Reply size={13} />
           </div>
         </div>
       </div>
-      <p className="a-vlabel dt-in" data-on={listening ? "" : undefined}>
-        Parakeet, on this computer · nothing leaves it
-      </p>
       <div className="dt-composer a-vcomposer">
         <span className="a-vdraft">
           {sent ? (
-            <Placeholder>{PLACEHOLDER.working}</Placeholder>
+            <Placeholder>{PLACEHOLDER.idle}</Placeholder>
           ) : (
             <span className="dt-swap" data-on={s >= 2 ? "" : undefined}>
               <Placeholder>{PLACEHOLDER.idle}</Placeholder>
@@ -207,7 +224,7 @@ export function KnowTile({ s }: { s: number }) {
         <div>
           <header>
             <Eye size={13} />
-            <b>You should know</b>
+            <b>Heads up</b>
             <span>this turn</span>
             <X size={13} className="a-x" />
           </header>
@@ -235,14 +252,19 @@ export function BtwTile({ s }: { s: number }) {
       <p className="dt-say a-main">
         <span className="dt-spin" /> Updating the migration…
       </p>
+      <header className="a-side-head dt-in" data-on={on(s, 2)}>
+        <b>You</b> <span className="dt-muted">13:30</span>
+      </header>
       <div className="a-side dt-in" data-on={on(s, 2)}>
         <p>Is the cache shared between tabs?</p>
         <div className="a-sidebar">
-          <span className="a-face">C</span>
+          <span className="a-face">
+            <ProviderIcon provider="claude" />
+          </span>
           <Cycle
             at={s >= 4 ? 1 : 0}
             items={[
-              <span key="a" className="dt-muted">Codex is answering…</span>,
+              <span key="a" className="dt-muted">Claude is answering…</span>,
               <span key="b">
                 <strong>1 reply</strong> <span className="dt-muted">Last reply 13:31</span>
               </span>,
@@ -256,7 +278,7 @@ export function BtwTile({ s }: { s: number }) {
           <span>
             <Type text="/btw Is the cache shared between tabs?" go={s >= 1} ms={1500} />
           </span>
-          <Placeholder>{PLACEHOLDER.working}</Placeholder>
+          <Placeholder>{PLACEHOLDER.idle}</Placeholder>
         </span>
         <span className="dt-send" data-press={within(s, 2, 3)}>
           <ArrowUp size={13} strokeWidth={2.5} />

@@ -2,24 +2,40 @@
 
 /* hand off */
 .t-handoff {
-  gap: 5px;
-  padding-top: 10px;
+  gap: 6px;
+  padding-top: 8px;
 }
-.t-hhead {
+/* The Running card's head, as the app docks it beside the thread. */
+.t-hcard {
+  align-self: flex-end;
+  width: 214px;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  font-size: 11.5px;
+}
+.t-hcard-head {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding-bottom: 6px;
-  border-bottom: 1px solid var(--border);
-  color: var(--muted);
-  font-size: 11.5px;
+  gap: 2px;
+}
+.t-hwhere {
+  flex: 1;
+  min-width: 0;
+}
+.t-hwhere > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 .t-hbtn {
   display: grid;
   place-items: center;
-  width: 24px;
-  height: 22px;
+  width: 22px;
+  height: 20px;
   border-radius: 6px;
+  color: var(--muted);
   transition: background-color 0.2s, color 0.2s, transform 0.15s;
 }
 .t-hbtn[data-hot] {
@@ -29,9 +45,37 @@
 .t-hbtn[data-press] {
   transform: scale(0.9);
 }
+.t-hstatus {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 11px;
+}
+.t-hstatus > span {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+.t-hstatus > span:last-child b {
+  color: var(--accent);
+  font-weight: 600;
+}
+/* The load row: a flat CPU line, then the numbers, as ComputerLoad draws them. */
+.t-hload {
+  justify-content: flex-end !important;
+}
+.t-hload i {
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+.t-hload b {
+  color: var(--text);
+  font-weight: 500;
+}
 .t-hmenu {
   position: absolute;
-  top: 40px;
+  top: 36px;
   right: 0;
   z-index: 3;
   width: 180px;
@@ -48,34 +92,9 @@
   align-items: center;
   gap: 6px;
 }
-.t-htick {
+.t-hnote {
   color: var(--accent);
-}
-.t-hfoot {
-  margin-top: auto;
-}
-.t-away {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin: 0 6px -1px;
-  padding: 5px 10px;
-  border: 1px solid var(--border);
-  border-bottom: 0;
-  border-radius: 10px 10px 0 0;
-  background: color-mix(in srgb, var(--surface) 60%, transparent);
-  color: var(--muted);
-  font-size: 11px;
-}
-.t-away b {
-  margin-left: auto;
-  color: var(--accent);
-  font-weight: 600;
-}
-.t-hfoot .dt-swap {
-  flex: 1;
-  min-width: 0;
-  grid-template-columns: minmax(0, 1fr);
+  font-weight: 500;
 }
 .t-list {
   position: relative;
@@ -301,8 +320,18 @@
   transform: none;
 }
 .t-notehead {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
   margin-bottom: 4px;
   font-size: 12px;
+}
+.t-notehead span {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .t-items {
   margin: 0;

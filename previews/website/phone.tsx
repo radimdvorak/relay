@@ -18,15 +18,17 @@ import {
   FileText,
   Globe,
   ImagePlus,
-  Inbox,
+  GitPullRequest,
   LayoutGrid,
+  ListFilter,
+  MessagesSquare,
   Mic,
   PanelLeft,
-  Plus,
   Reply,
   Search,
-  Bolt,
+  Settings,
   Split,
+  SquarePen,
   Terminal,
   Undo2,
   Volume2,
@@ -39,15 +41,11 @@ import type {
   ChatSummary,
 } from "../../shared/projects";
 import { agentName } from "../../shared/agents";
-import {
-  doneLabel,
-  duration,
-  liveLabel,
-  summarizeActivity,
-} from "../../shared/activity-labels";
+import { duration, liveLabel } from "../../shared/activity-labels";
 import {
   groupTrace,
   readTurn,
+  thinkingWord,
   turnHeading,
 } from "../../shared/agent-trace";
 import {
@@ -56,6 +54,9 @@ import {
   shortAge,
 } from "../../shared/chat-activity";
 import { ProviderIcon } from "../../src/features/agents/ComposerModelPicker";
+import { ProjectBadge } from "../../src/features/projects/ProjectBadge";
+import { Run } from "../../src/features/agent-turn/trace-tree/Run";
+import { Subagents } from "../../src/features/agent-turn/ToolRow";
 import { chats, projectRoot, projects } from "./sample";
 import "./phone.css";
 
@@ -102,11 +103,27 @@ export function PhoneStatus({ hole }: { hole: "center" | "right" }) {
 const projectName = (chat: ChatSummary) =>
   projects.find((p) => p.id === chat.projectId)?.name ?? "?";
 
-/** ActivityCard's leading mark: needs you, working, unread or nothing new. */
-function Glyph({ chat, unread }: { chat: ChatSummary; unread: boolean }) {
+/** ActivityCard's StateGlyph, under the time: needs you, working, unread or nothing. */
+function StateGlyph({ chat, unread }: { chat: ChatSummary; unread: boolean }) {
   if (chat.waiting) return <i className="ph-dot" data-kind="waiting" />;
   if (chat.running) return <i className="ph-spin" />;
-  return <i className="ph-dot" data-kind={unread ? "unread" : undefined} />;
+  if (unread) return <i className="ph-dot" data-kind="unread" />;
+  return null;
+}
+
+/** ActivityCard's ProjectMark: the project's badge with the thread's agent in its corner. */
+function ProjectMark({ chat }: { chat: ChatSummary }) {
+  const project = projects.find((p) => p.id === chat.projectId);
+  return (
+    <span className="ph-mark">
+      <ProjectBadge project={project} />
+      {chat.provider ? (
+        <span className="ph-mark-agent">
+          <ProviderIcon provider={chat.provider} />
+        </span>
+      ) : null}
+    </span>
+  );
 }
 
 /** A thread on Home: its title, where it is and what it's doing, and how long. */
@@ -140,20 +157,22 @@ function Row({
       data-dim={!bright || undefined}
       onClick={onOpen}
     >
-      <span className="ph-glyph">
-        <Glyph chat={chat} unread={unread} />
-      </span>
+      <ProjectMark chat={chat} />
       <span className="ph-row-text">
         <strong>{chat.title}</strong>
         <span>{meta}</span>
       </span>
       <span className="ph-row-end">
-        <time data-kind={chat.waiting ? "waiting" : undefined}>
-          {chat.running && chat.runningSince
-            ? elapsedLabel(chat.runningSince, now)
-            : shortAge(chat.updated, now)}
-        </time>
-        {chat.provider ? <ProviderIcon provider={chat.provider} /> : null}
+        {chat.running && chat.runningSince ? (
+          <time data-kind="working">{elapsedLabel(chat.runningSince, now)}</time>
+        ) : (
+          <time data-kind={unread ? "unread" : undefined}>
+            {shortAge(chat.updated, now)}
+          </time>
+        )}
+        <span className="ph-state">
+          <StateGlyph chat={chat} unread={unread} />
+        </span>
       </span>
     </button>
   );
@@ -197,17 +216,19 @@ export function PhoneSidebar({
   ];
   return (
     <aside className="ph-sidebar">
+      {/* HomeHeader: the tab's title with the computer under it, filter and search beside. */}
       <header className="ph-home-head">
-        <strong>
-          studio
-          <ChevronDown size={16} />
-        </strong>
-        <Plus size={22} />
+        <div>
+          <b>Threads</b>
+          <span>
+            studio <ChevronDown size={14} />
+          </span>
+        </div>
+        <span className="ph-capsule">
+          <ListFilter size={20} />
+          <Search size={20} />
+        </span>
       </header>
-      <div className="ph-search">
-        <Search size={18} />
-        Search
-      </div>
       <div className="ph-rows">
         {groups.map(([label, group]) =>
           group.length ? (
@@ -229,18 +250,25 @@ export function PhoneSidebar({
         <SectionHeader label="Snoozed" count={2} folded />
         <SectionHeader label="Settled" count={14} folded />
       </div>
-      <nav className="ph-tabs">
-        <span data-on>
-          <Inbox size={20} />
-          Threads
+      {/* HomeDock: the tabs in a floating capsule, New thread beside it. */}
+      <nav className="ph-homedock">
+        <span className="ph-tabs">
+          <span data-on>
+            <MessagesSquare size={20} />
+            Threads
+          </span>
+          <span aria-label="Projects">
+            <LayoutGrid size={20} />
+          </span>
+          <span aria-label="PRs">
+            <GitPullRequest size={20} />
+          </span>
+          <span aria-label="Settings">
+            <Settings size={20} />
+          </span>
         </span>
-        <span>
-          <LayoutGrid size={20} />
-          Projects
-        </span>
-        <span>
-          <Bolt size={20} />
-          Settings
+        <span className="ph-new" aria-label="New thread">
+          <SquarePen size={22} />
         </span>
       </nav>
     </aside>
@@ -272,42 +300,13 @@ function Markdown({ text, small }: { text: string; small?: boolean }) {
 
 const display = (text: string) => text.split(`${projectRoot}/`).join("");
 
-function Step({
-  icon: Icon,
-  running,
-  mono,
-  folds,
-  children,
-}: {
-  icon: typeof Terminal;
-  running?: boolean;
-  mono?: boolean;
-  folds?: boolean;
-  children: ReactNode;
-}) {
-  return (
-    <div className="ph-step">
-      <Icon size={14} />
-      <span
-        className={running ? "live-shine" : undefined}
-        data-mono={mono || undefined}
-      >
-        {children}
-      </span>
-      {folds ? <ChevronRight size={13} /> : null}
-    </div>
-  );
-}
-
-// features/thread/AgentRun.kt
-/** The call a live batch shows: the one running, else the latest. */
-const batchHead = (activity: AgentActivity[]) =>
-  [...activity].reverse().find((a) => a.status === "running") ?? activity.at(-1)!;
-
+// features/thread/AgentRun.kt and RunOfCalls.kt draw the desktop's runs:
+// each call a row while the agent is on it, grouped once commentary closes
+// it. The desktop's Run draws them here, sized by phone.css.
 function AgentRun({ message }: { message: ChatMessage }) {
   useNow(1000);
   const turn = readTurn(message);
-  const { live, entries, shown } = turn;
+  const { live, entries, shown, calls, thinking } = turn;
   if (!live && !entries.length) return null;
   const heading = turnHeading(message, live, turn);
   const HeaderIcon =
@@ -341,34 +340,30 @@ function AgentRun({ message }: { message: ChatMessage }) {
         <ChevronRight size={13} data-turned={live || undefined} />
       </div>
       {live ? (
-        <div className="ph-trace">
-          {groupTrace(shown).map((part, index, parts) => {
-            if (part.kind === "commentary")
-              return <Markdown key={part.id} text={part.text} small />;
-            if (index === parts.length - 1) {
-              const head = batchHead(part.activity);
-              const running = head.status === "running";
-              return (
-                <Step key={part.id} icon={icons[head.kind]} running={running}>
-                  {display(running ? liveLabel(head) : doneLabel(head))}
-                </Step>
-              );
-            }
-            const only =
-              part.activity.length === 1 ? part.activity[0]! : undefined;
-            const kinds = new Set(part.activity.map((a) => a.kind));
-            return (
-              <Step
-                key={part.id}
-                icon={kinds.size === 1 ? icons[part.activity[0]!.kind] : Wrench}
-                mono={only?.kind === "command"}
-                folds
-              >
-                {only ? display(only.label) : summarizeActivity(part.activity)}
-              </Step>
-            );
-          })}
-        </div>
+        <Subagents.Provider value={{ calls, display }}>
+          <div className="ph-trace">
+            {groupTrace(shown).map((part, index, parts) =>
+              part.kind === "commentary" ? (
+                <Markdown key={part.id} text={part.text} small />
+              ) : (
+                <Run
+                  key={part.id}
+                  calls={part.activity}
+                  live={index === parts.length - 1}
+                  only={parts.every((p) => p === part || p.kind === "commentary")}
+                  arrived
+                  onChanges={() => {}}
+                />
+              ),
+            )}
+            {thinking && !message.body ? (
+              <div className="ph-step">
+                <span className={`thinking-glyph ${message.provider}`} aria-hidden />
+                <span>{thinkingWord(message.id)}</span>
+              </div>
+            ) : null}
+          </div>
+        </Subagents.Provider>
       ) : null}
     </div>
   );
@@ -479,7 +474,7 @@ export function PhoneThread({
       </div>
       <PhoneComposer
         input={`Message ${agentName(provider)}`}
-        stop={chat.running}
+        stop={messages.at(-1)?.status === "streaming"}
       />
     </section>
   );
@@ -500,10 +495,14 @@ export function PhoneComposer({
       <div className="ph-box">
         <span className="ph-input">{input}</span>
         <div className="ph-tools">
-          <ImagePlus size={20} />
+          <span className="ph-tool">
+            <ImagePlus size={18} />
+          </span>
           <i />
-          <span className="ph-slash">/</span>
-          <Mic size={20} />
+          <span className="ph-tool ph-slash">/</span>
+          <span className="ph-tool">
+            <Mic size={18} />
+          </span>
           <span
             className="ph-send"
             data-stop={stop || undefined}

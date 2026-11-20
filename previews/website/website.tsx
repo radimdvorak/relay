@@ -78,7 +78,7 @@ const tour: { stop: Stop; title: string; text: string }[] = [
   {
     stop: "review",
     title: "Review the changes",
-    text: "Changes shows the working tree next to the thread. You stage and commit there.",
+    text: "Files lists the working tree next to the thread and opens each change in the editor. You stage and commit there.",
   },
   {
     stop: "deep",
@@ -228,8 +228,8 @@ const rows = [
     text: (
       <>
         Each thread has its own agent, model and effort. Press{" "}
-        <QuickKeys arrows="←" /> or <QuickKeys arrows="→" /> to select the
-        next preset. A new agent gets a note about the earlier work.
+        <QuickKeys arrows="←" /> or <QuickKeys arrows="→" /> to step through
+        your presets. A new agent gets a note about the earlier work.
       </>
     ),
     demo: <QuickSwitchDemo />,
@@ -237,7 +237,7 @@ const rows = [
   {
     eyebrow: "Usage",
     title: "See how much usage is left",
-    text: "Relay shows the percent that remains for Claude and Codex. One bar is for the 5-hour session. One bar is for the week. The mark on the weekly bar shows an even pace.",
+    text: "Relay shows what is left of your Claude, Codex, Antigravity and Muse plans. One bar is for the 5-hour session, one for the week, and the mark on the weekly bar shows an even pace.",
     demo: <UsageDemo />,
   },
 ];
@@ -311,7 +311,7 @@ function Site() {
           </p>
           <HeroDownload />
           <ul className="hero-facts">
-            <li>6 agents + ACP</li>
+            <li>7 agents + ACP</li>
             <li>No Relay account</li>
             <li>No API keys</li>
             <li>Open source, MIT</li>

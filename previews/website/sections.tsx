@@ -2,13 +2,7 @@
 // is the app's: the usage meters with their pace logic, the quick-switch drum
 // and the agent turn the phone and the desktop draw from the same code.
 import { useEffect, useMemo, useRef, useState } from "react";
-import {
-  ChevronLeft,
-  ChevronRight,
-  GitBranch,
-  GitMerge,
-  Lock,
-} from "lucide-react";
+import { Lock } from "lucide-react";
 import { UsageMeters } from "../../src/features/agents/UsageMeters";
 import { UsageDial } from "../../src/features/agents/UsageDial";
 import { QuickSwitchHud } from "../../src/features/quick-switch/QuickSwitchHud";
@@ -26,6 +20,7 @@ import { chats, projectRoot, turnMessages, turns } from "./sample";
 import { reducedMotion, useActive, useLiveTurn } from "./motion";
 import { useOs } from "./live";
 import { PhoneSidebar, PhoneStatus, PhoneThread } from "./phone";
+import { SampleComposer } from "./sample-composer";
 import { useFoldMotion } from "./fold-motion";
 
 const HOUR = 60 * 60 * 1000;
@@ -171,8 +166,8 @@ export function UsageDemo() {
 
 const presets: QuickItem[] = [
   { id: "1", provider: "claude", name: "Opus 5.5", effort: "High", fast: false },
-  { id: "2", provider: "codex", name: "GPT-5.6-Sol", effort: "High", fast: false },
-  { id: "3", provider: "claude", name: "Sonnet 5", effort: "Medium", fast: false },
+  { id: "2", provider: "codex", name: "GPT-6-Sol", effort: "High", fast: false },
+  { id: "3", provider: "claude", name: "Sonnet 5.5", effort: "Medium", fast: false },
   { id: "4", provider: "opencode", name: "OpenCode default", effort: "Default", fast: false },
   { id: "5", provider: "cursor", name: "Cursor default", effort: "Default", fast: false },
 ];
@@ -185,16 +180,6 @@ export function QuickKeys({ arrows }: { arrows: string }) {
   const os = useOs();
   const mod = os === "win" || os === "linux" ? "Ctrl+Alt+Shift+" : "⌃⌘";
   return <>{mod + arrows}</>;
-}
-
-/**
- * The composer's key chip, on macOS only: Ctrl+Alt+Shift+ crowds it, and the
- * arrow buttons around it and the text beside it already say the rest.
- */
-function QuickKeysChip() {
-  const os = useOs();
-  if (os === "win" || os === "linux") return null;
-  return <kbd>⌃⌘← →</kbd>;
 }
 
 /** The composer's quick switch, stepping through presets as its keys do. */
@@ -227,95 +212,11 @@ export function QuickSwitchDemo() {
           setIndex(next);
         }}
       />
-      <div className="project-composer quick-demo-composer">
-        <span className="quick-demo-prompt">Make the settings page keyboard-navigable</span>
-        <div className="composer-tools">
-          <span className="rw-pick">
-            <ProviderIcon provider={item.provider} />
-            {item.name}
-          </span>
-          <span className="rw-pick">{item.effort}</span>
-          <span className="spacer" />
-          <button
-            type="button"
-            className="icon-button"
-            aria-label="Previous preset"
-            onClick={() => {
-              setTouched(true);
-              step(-1);
-            }}
-          >
-            <ChevronLeft size={15} />
-          </button>
-          <QuickKeysChip />
-          <button
-            type="button"
-            className="icon-button"
-            aria-label="Next preset"
-            onClick={() => {
-              setTouched(true);
-              step(1);
-            }}
-          >
-            <ChevronRight size={15} />
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-const trees = [
-  { thread: "Split project-chats.ts into modules", branch: "split-chats", commits: 3 },
-  { thread: "Hero section for the launch page", branch: "launch-hero", commits: 5 },
-  { thread: "Rate-limit the upload endpoint", branch: "upload-limits", commits: 2 },
-];
-
-/** Threads on branches of their own beside `main`; Merge lands one the way a branch merge does. */
-export function WorktreeGraph() {
-  const [ref, active] = useActive<HTMLDivElement>(0.4);
-  const [drawn, setDrawn] = useState(false);
-  const [merged, setMerged] = useState<boolean[]>(trees.map(() => false));
-  useEffect(() => {
-    if (active) setDrawn(true);
-  }, [active]);
-  return (
-    <div className="tree-demo" ref={ref} data-drawn={drawn || undefined}>
-      <div className="tree-main">
-        <GitBranch size={14} />
-        <code>main</code>
-        <span>Your checkout. Relay does not change it.</span>
-      </div>
-      {trees.map((tree, index) => (
-        <div key={tree.branch} className="tree-row" data-merged={merged[index] || undefined}>
-          <svg width="56" height="64" viewBox="0 0 56 64" aria-hidden="true">
-            <path className="tree-rail" d="M12 0V64" />
-            <path className="tree-fork" d="M12 4C12 26 40 14 40 32" pathLength={1} />
-            <path className="tree-back" d="M40 32C40 50 12 40 12 62" pathLength={1} />
-            <circle className="tree-dot" cx="40" cy="32" r="4" />
-            <circle className="tree-land" cx="12" cy="62" r="4" />
-          </svg>
-          <div>
-            <strong>{tree.thread}</strong>
-            <span>
-              <code>{tree.branch}</code> ·{" "}
-              {merged[index] ? "merged into main" : `${tree.commits} commits ahead`}
-            </span>
-          </div>
-          <button
-            type="button"
-            onClick={() => setMerged(merged.map((value, i) => (i === index ? !value : value)))}
-          >
-            {merged[index] ? (
-              "Undo"
-            ) : (
-              <>
-                <GitMerge size={13} /> Merge
-              </>
-            )}
-          </button>
-        </div>
-      ))}
+      <SampleComposer
+        className="quick-demo-composer"
+        model={{ agent: item.provider, name: item.name, effort: item.effort, window: 200_000 }}
+        prompt="Make the settings page keyboard-navigable"
+      />
     </div>
   );
 }
@@ -345,7 +246,7 @@ export function PhoneSync() {
     <Message
       key={m.id}
       message={m}
-      chatId=""
+      chatId={LIVE}
       onReply={() => {}}
       onFork={() => {}}
       onChanges={() => {}}

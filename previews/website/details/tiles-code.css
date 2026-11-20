@@ -48,18 +48,51 @@
   justify-content: center;
 }
 .c-changed header {
-  margin-bottom: 7px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-bottom: 4px;
+  white-space: nowrap;
+}
+.c-changed header .c-stat {
+  font-size: 10.5px;
 }
 .c-changed header .c-note {
-  margin-left: auto;
   font-size: 11px;
+}
+.c-head-tools {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 10.5px;
+}
+.c-rollall {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+/* A folder row: muted, in the mono of the files under it. */
+.c-folder {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  height: 26px;
+  padding: 0 6px 0 4px;
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+}
+.c-folder span {
+  flex: 1;
 }
 .c-file {
   display: flex;
   align-items: center;
   gap: 6px;
-  height: 30px;
-  padding: 0 6px 0 8px;
+  height: 28px;
+  padding: 0 6px 0 30px;
   border-radius: 7px;
   font-family: var(--font-mono);
   font-size: 11px;
@@ -100,7 +133,7 @@
 }
 .c-tip {
   position: absolute;
-  top: 132px;
+  top: 186px;
   right: 14px;
   z-index: 3;
   margin: 0;
@@ -110,6 +143,14 @@
   color: var(--surface);
   font-size: 11px;
   white-space: nowrap;
+}
+
+/* The conflict card's "Conflicts in" heading. */
+.c-conf-head {
+  margin: 8px 0 2px;
+  color: var(--muted);
+  font-size: 10.5px;
+  font-weight: 500;
 }
 
 /* sync */
@@ -189,8 +230,13 @@
 .m-worktree {
   justify-content: center;
 }
+.m-wstack,
+.m-dialog,
+.m-moved {
+  min-width: 0;
+}
 .m-dialog {
-  padding: 13px 14px 11px;
+  padding: 12px 12px 10px;
 }
 .m-dialog > b {
   font-size: 13px;
@@ -208,13 +254,20 @@
 }
 .m-wfiles > div {
   display: flex;
-  flex-wrap: wrap;
+  gap: 6px;
   justify-content: space-between;
+  white-space: nowrap;
+}
+.m-wfiles > div > span:first-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .m-wfiles small {
-  flex-basis: 100%;
-  color: hsl(280 55% 65%);
+  color: var(--muted);
   font: 10px var(--font-sans);
+}
+.m-wfiles .m-also {
+  color: var(--accent);
 }
 .m-dialog footer {
   display: flex;
@@ -222,17 +275,25 @@
   gap: 8px;
   margin-top: 10px;
 }
-.m-moved header {
-  display: grid;
+.m-moved {
+  display: flex;
+  flex-direction: column;
   gap: 8px;
-  justify-items: start;
-  margin-bottom: 10px;
 }
 .m-moved header b {
   font-size: 13px;
 }
-.m-moved .dt-say + .dt-say {
-  margin-top: 4px;
+.m-moved .dt-say {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.m-wcomposer {
+  min-width: 0;
+}
+/* The thread's folder chip under the composer, on the worktree's branch now. */
+.m-wchip {
+  align-self: flex-start;
 }
 
 /* draw */
@@ -319,14 +380,16 @@
 .m-stroke.clean {
   fill: none;
 }
+/* The whole toolbar, scaled down to fit the tile. */
 .m-palette {
   display: flex;
   align-items: center;
   width: fit-content;
   height: 34px;
   margin: 0 auto;
-  padding: 0 12px;
-  gap: 8px;
+  padding: 0 10px;
+  gap: 6px;
+  zoom: 0.66;
   border-radius: 14px;
   background: #1e1e21e0;
   box-shadow: 0 0 0 1px #ffffff14;
@@ -355,6 +418,20 @@
   height: 14px;
   border-radius: 50%;
   background: currentColor;
+}
+.m-size {
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 5px;
+}
+.m-size[data-on] {
+  background: #ffffff2e;
+}
+.m-size b {
+  border-radius: 50%;
+  background: #fff;
 }
 .m-dot[data-on] {
   box-shadow: 0 0 0 2px #1e1e21, 0 0 0 3.5px #fffffff2;

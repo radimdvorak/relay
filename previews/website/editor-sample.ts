@@ -10,11 +10,7 @@ export interface Queued {
 }
 
 /** Moves one queued message to a new place. */
-export function reorder(
-  queue: Queued[],
-  from: number,
-  to: number,
-) {
+export function reorder(queue: Queued[], from: number, to: number) {
   const next = [...queue];
   const [moved] = next.splice(from, 1);
   next.splice(clamp(to, 0, next.length), 0, moved);
@@ -48,6 +44,18 @@ export function isEmpty(queue: Queued[]) {
 }
 `;
 
+/** What the line over each declaration counts. */
+export const declarations = [
+  { name: "Queued", usages: 9 },
+  { name: "reorder", usages: 4 },
+  { name: "moveUp", usages: 2 },
+  { name: "moveDown", usages: 2 },
+  { name: "remove", usages: 3 },
+  { name: "replace", usages: 1 },
+  { name: "first", usages: 0 },
+  { name: "isEmpty", usages: 2 },
+];
+
 /** The call the hover and the usages are about, and the argument that is wrong. */
 export const symbol = { text: "reorder(queue, at, at - 1)", word: "reorder" };
 export const mistake = '"next"';
@@ -59,8 +67,8 @@ export const errorText =
   "Argument of type 'string' is not assignable to parameter of type 'number'.";
 
 export const usages = [
-  { path: "src/lib/queue.ts", line: 9, preview: "export function reorder(" },
-  { path: "src/lib/queue.ts", line: 22, preview: "return reorder(queue, at, at - 1);" },
-  { path: "src/lib/queue.ts", line: 27, preview: 'return reorder(queue, at, "next");' },
+  { path: "src/lib/queue.ts", line: 9, preview: "export function reorder(queue: Queued[], from: number, to: number) {" },
+  { path: "src/lib/queue.ts", line: 18, preview: "return reorder(queue, at, at - 1);" },
+  { path: "src/lib/queue.ts", line: 23, preview: 'return reorder(queue, at, "next");' },
   { path: "src/features/thread/ProjectChat.tsx", line: 212, preview: "setQueue(reorder(queue, from, to));" },
 ];

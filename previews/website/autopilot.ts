@@ -53,9 +53,10 @@ export const scripts: Record<Stop, Act[]> = {
     openCard,
     { to: ".running-changes-row", click: true, rest: 500 },
     { ...foldCard, rest: 1700 },
+    { to: "[data-rw-file='0']", click: true, rest: 2200 },
     { to: "[data-rw-file='1']", click: true, rest: 2000 },
-    { to: "[data-rw-stage='1']", click: true, rest: 1400 },
-    { to: "[data-rw-file='2']", click: true, rest: 2400 },
+    { to: "[data-rw-stage='0']", click: true, rest: 1400 },
+    { to: "[data-rw-stage='1']", click: true, rest: 2400 },
   ],
   // The review's own clock (REVIEW_MS below) runs from the click on Start.
   deep: [

@@ -1,15 +1,13 @@
 // Demo tiles about the phone app, drawn in the same dp-scaled screens as the
 // site's phone section.
-import { ChevronLeft, Ellipsis } from "lucide-react";
+import { ChevronLeft, Ellipsis, X } from "lucide-react";
 import "../phone.css";
-import { relayIconSvg, svgDataUrl } from "../../../src/lib/relay-icon";
 import { PhoneComposer, PhoneStatus } from "../phone";
 import { Cycle, Finger, on, within } from "./kit";
 import type { Loop } from "./kit";
 import type { ReactNode } from "react";
 
 const is = (v: string | undefined) => v !== undefined;
-const icon = svgDataUrl(relayIconSvg("#aaa8e5"));
 
 function Phone({ children }: { children: ReactNode }) {
   return (
@@ -41,32 +39,44 @@ function Thread({ title, children, composer }: { title: string; children: ReactN
   );
 }
 
-/* ---- A thread that needs you: Android's heads-up notification ---- */
-export const bannerLoop: Loop = { times: [0, 900, 2800, 3500, 5600], still: 1 };
+/* ---- A thread that needs you, while you're in another (features/home/NeedsYou.kt) ---- */
+export const bannerLoop: Loop = { times: [0, 900, 2400, 3100, 3500, 6200], still: 1 };
 export function BannerTile({ s }: { s: number }) {
+  // Tapping the card opens the thread that waits.
+  const opened = s >= 4;
   return (
     <div className="p-tile">
       <Phone>
-        <Thread title="Draft the release notes" composer={<PhoneComposer input="Message Claude" stop />}>
-          <div className="ph-turn" data-user="">
-            <div className="ph-bubble">Write the 0.12 notes from the commits since 0.11.1.</div>
-          </div>
-          <div className="ph-turn">
-            <div className="ph-md">
-              <p>I'm going through the commits now and grouping them by what you'd notice.</p>
+        {opened ? (
+          <Thread title="Rename the sync worker" composer={<PhoneComposer input="Message Claude" />}>
+            <div className="ph-turn">
+              <div className="ph-md">
+                <p>The old name is also in the queue table. Should I rename that too?</p>
+              </div>
             </div>
-          </div>
-        </Thread>
-        <div className="p-banner" data-on={within(s, 1, 3)}>
-          <img src={icon} alt="" />
+          </Thread>
+        ) : (
+          <Thread title="Draft the release notes" composer={<PhoneComposer input="Message Claude" stop />}>
+            <div className="ph-turn" data-user="">
+              <div className="ph-bubble">Write the 0.12 notes from the commits since 0.11.1.</div>
+            </div>
+            <div className="ph-turn">
+              <div className="ph-md">
+                <p>I'm going through the commits now and grouping them by what you'd notice.</p>
+              </div>
+            </div>
+          </Thread>
+        )}
+        <div className="p-banner" data-on={within(s, 1, 4)}>
+          <i />
           <span>
-            <small>Relay · now</small>
             <b>Rename the sync worker</b>
-            <span>Claude needs you</span>
+            <small>Needs input · relay</small>
           </span>
+          <X size={16} />
         </div>
       </Phone>
-      <Finger x={150} y={s >= 2 ? 70 : 120} show={s >= 2 && s < 4} press={s === 3} />
+      <Finger x={150} y={s >= 2 ? 112 : 150} show={s >= 2 && s < 4} press={s === 3} />
     </div>
   );
 }

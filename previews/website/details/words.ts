@@ -64,6 +64,18 @@ export const words = [
     text: "Pin a list or a whole answer to the thread's notes, then tick items off as you go.",
   },
   {
+    id: "schedule",
+    category: "threads",
+    title: "Run a prompt on a schedule",
+    text: "Pick a template or write your own prompt and choose when it runs. Each run shows up as a normal thread.",
+  },
+  {
+    id: "computers",
+    category: "threads",
+    title: "Answer threads on your other computers",
+    text: "Threads you started on another paired computer show up here with its name. Open one and answer it from this one.",
+  },
+  {
     id: "rollback",
     category: "code",
     title: "Roll back one turn, or one file",
@@ -97,7 +109,7 @@ export const words = [
     id: "banner",
     category: "phone",
     title: "A banner when a thread needs you",
-    text: "If a thread you're not looking at asks a question, it drops in from the top.",
+    text: "If another thread asks you something while you read this one, a card slides in under the header and the phone buzzes.",
   },
   {
     id: "hold",
@@ -113,7 +125,7 @@ export const words = [
 }[];
 
 export const quiet = [
-  "Plugged in, your computer stays awake. On battery, only while an agent works.",
+  "Plugged in, your computer stays awake. On battery, only while there is work going or a phone may call, and never below 20%.",
   "On a server, Relay updates itself once no thread is working.",
   "Send later and limit resumes go out on time after your computer sleeps.",
   "A settled thread finishes quietly.",

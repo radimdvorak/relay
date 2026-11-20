@@ -12,8 +12,9 @@ import { shadowMount } from "../../src/features/editor/shadow-mount";
 import { guides } from "../../src/features/editor/view-aids/guides";
 import { stickyScopes } from "../../src/features/editor/view-aids/sticky-scopes";
 import { minimap } from "../../src/features/editor/minimap/minimap";
+import { codeVision, setHints } from "../../src/features/editor/code-vision/code-vision";
 import { useSiteTheme } from "./theme";
-import { code, mistake, path, symbol } from "./editor-sample";
+import { code, declarations, mistake, path, symbol } from "./editor-sample";
 
 export interface Spot {
   left: number;
@@ -30,6 +31,8 @@ export interface Spots {
   symbol: Spot;
   /** The wrong argument. */
   mistake: Spot;
+  /** The usages count over `reorder`'s declaration, which lists them. */
+  usages?: Spot;
 }
 
 function spotOf(view: EditorView, from: number, to: number, origin: DOMRect): Spot {
@@ -44,6 +47,16 @@ function spotOf(view: EditorView, from: number, to: number, origin: DOMRect): Sp
   };
 }
 
+/** Where `name` is declared in the sample, by `function` or `interface`. */
+function declaredAt(name: string) {
+  const keyword = code.search(new RegExp(`(function|interface) ${name}\\b`));
+  return code.indexOf(name, keyword);
+}
+
+/** The count the line over the declaration at `at` shows. */
+const usagesAt = (at: number) =>
+  declarations.find(({ name }) => declaredAt(name) === at)?.usages ?? 0;
+
 /** Where the words sit inside `frame`, once the view has drawn them; undefined before. */
 function measure(view: EditorView, frame: HTMLElement): Spots | undefined {
   const origin = frame.getBoundingClientRect();
@@ -55,7 +68,18 @@ function measure(view: EditorView, frame: HTMLElement): Spots | undefined {
     frameHeight: origin.height,
     symbol: spotOf(view, callAt, callAt + symbol.word.length, origin),
     mistake: spotOf(view, wrongAt, wrongAt + mistake.length, origin),
+    usages: visionSpot(view, symbol.word, origin),
   };
+}
+
+/** The code-vision count over the declaration of `name`, once it's drawn. */
+function visionSpot(view: EditorView, name: string, origin: DOMRect): Spot | undefined {
+  const line = view.state.doc.lineAt(declaredAt(name)).from;
+  const counts = view.dom.querySelectorAll<HTMLElement>(".cm-vision-usages");
+  const over = [...counts].find((count) => view.posAtDOM(count) === line);
+  if (!over) return undefined;
+  const at = over.getBoundingClientRect();
+  return { left: at.left - origin.left, top: at.top - origin.top, width: at.width, height: at.height };
 }
 
 export function useSampleEditor(
@@ -90,8 +114,20 @@ export function useSampleEditor(
             guides,
             stickyScopes,
             minimap,
+            codeVision({ countUsages: async (_, at) => usagesAt(at), showUsages: () => {} }),
           ],
         }),
+      });
+      // The line over each declaration, counted already, as the language server would.
+      view.dispatch({
+        effects: setHints.of(
+          declarations.map(({ name, usages }) => ({
+            namePos: declaredAt(name),
+            usages,
+            fresh: true,
+            author: "you",
+          })),
+        ),
       });
       const wrongAt = code.indexOf(mistake);
       view.dispatch(

@@ -43,7 +43,7 @@ const builtinWord = (provider: AgentProvider): Word => ({
 });
 export const turning: Word[] = [
   ...(
-    ["claude", "codex", "opencode", "cursor", "amp", "antigravity"] as const
+    ["claude", "codex", "opencode", "cursor", "amp", "antigravity", "muse"] as const
   ).map(builtinWord),
   ...registryAgents.map(([id, name]) => ({
     key: id,

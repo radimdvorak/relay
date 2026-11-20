@@ -25,15 +25,32 @@ const SIDEBAR = 264;
 // One pixel either way for borders and rounding.
 const near = (a, b) => Math.abs(a - b) <= 1.5;
 
-/** The demo window's columns, measured in the page. */
+/**
+ * The demo window's columns in its own pixels: the window is scaled down to
+ * fit its column, so what's measured on the page is divided by that scale.
+ */
 function measure() {
+  const window = document.querySelector(".rw-body");
+  const fit = document.querySelector(".rw-fit");
+  const column = document.querySelector(".tour-window");
+  if (!window || !fit || !column) return {};
+  const origin = window.getBoundingClientRect();
+  // offsetWidth ignores the transform, so it is the window's unscaled size.
+  const scale = origin.width / window.offsetWidth;
   const box = (selector) => {
     const element = document.querySelector(selector);
     if (!element || element.getClientRects().length === 0) return null;
     const { left, right } = element.getBoundingClientRect();
-    return { left, right, width: right - left };
+    return {
+      left: (left - origin.left) / scale,
+      right: (right - origin.left) / scale,
+      width: (right - left) / scale,
+    };
   };
+  const shown = fit.getBoundingClientRect();
+  const room = column.getBoundingClientRect();
   return {
+    fits: shown.left >= room.left - 1.5 && shown.right <= room.right + 1.5,
     body: box(".rw-body"),
     bar: box(".rw-body .activity-bar"),
     sidebar: box(".rw-sidebar"),
@@ -41,33 +58,17 @@ function measure() {
   };
 }
 
-function wideProblems({ body, bar, sidebar, main }) {
+// Every width shows the same layout, smaller where the column is narrower.
+function layoutProblems({ fits, body, bar, sidebar, main }) {
   if (!body || !bar || !sidebar || !main) return ["a column is missing"];
   const problems = [];
+  if (!fits) problems.push("the window is wider than its column");
   if (!near(bar.left, body.left) || !near(bar.width, BAR))
-    problems.push(
-      `activity bar at ${bar.left - body.left}px, ${bar.width}px wide`,
-    );
+    problems.push(`activity bar at ${bar.left}px, ${bar.width}px wide`);
   if (!near(sidebar.left, bar.right) || !near(sidebar.width, SIDEBAR))
-    problems.push(
-      `sidebar at ${sidebar.left - body.left}px, ${sidebar.width}px wide`,
-    );
+    problems.push(`sidebar at ${sidebar.left}px, ${sidebar.width}px wide`);
   if (!near(main.left, sidebar.right) || !near(main.right, body.right))
-    problems.push(
-      `thread from ${main.left - body.left}px to ${main.right - body.left}px`,
-    );
-  return problems;
-}
-
-// Under 1000px the frame shows the thread alone.
-function narrowProblems({ body, bar, sidebar, main }) {
-  if (!body || !main) return ["the thread is missing"];
-  const problems = [];
-  if (bar || sidebar) problems.push("the activity bar or the sidebar shows");
-  if (!near(main.left, body.left) || !near(main.right, body.right))
-    problems.push(
-      `thread from ${main.left - body.left}px to ${main.right - body.left}px`,
-    );
+    problems.push(`thread from ${main.left}px to ${main.right}px`);
   return problems;
 }
 
@@ -81,7 +82,7 @@ const url = server.resolvedUrls.local[0];
 const browser = await chromium.launch();
 const failures = [];
 try {
-  for (const width of [1440, 1100, 800]) {
+  for (const width of [1440, 1100, 800, 390]) {
     // Reduced motion keeps the window from tilting as it scrolls in, which
     // would skew what's measured.
     const page = await browser.newPage({
@@ -96,8 +97,7 @@ try {
       // Let the stop's first panes open.
       await page.waitForTimeout(800);
       const columns = await page.evaluate(measure);
-      const problems =
-        width > 1000 ? wideProblems(columns) : narrowProblems(columns);
+      const problems = layoutProblems(columns);
       const stop = (await tabs.nth(i).locator("strong").textContent())?.trim();
       for (const problem of problems)
         failures.push(`${width}px, "${stop}": ${problem}`);

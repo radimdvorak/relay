@@ -25,7 +25,7 @@ export const releaseNotes =
 export const features: { title: string; text: string; detail: string }[] = [
   {
     title: "Your agents",
-    text: "Relay runs Claude, Codex, OpenCode, Cursor, Amp and Antigravity. You add more from the ACP registry. You select the model and the effort for each thread.",
+    text: "Relay runs Claude, Codex, OpenCode, Cursor, Amp, Antigravity and Meta's Muse. You add more from the ACP registry. You select the model and the effort for each thread.",
     detail: "model · effort",
   },
   {
@@ -83,7 +83,7 @@ export const features: { title: string; text: string; detail: string }[] = [
 export const promises: { title: string; text: string }[] = [
   {
     title: "No API keys",
-    text: "Relay contains no agent and no API key. Each agent runs through its own CLI and your account.",
+    text: "Relay contains no agent and no API key. Each agent runs through its own CLI or SDK, signed in with your account.",
   },
   {
     title: "Local data",
@@ -91,7 +91,7 @@ export const promises: { title: string; text: string }[] = [
   },
   {
     title: "Your Git",
-    text: "Relay does not check out, reset, pull, force-push or stage files by itself. A Git action occurs only when you click it.",
+    text: "Relay does not check out, reset, pull, push or stage files by itself. It only fetches in the background, so you can see when a branch is behind.",
   },
   {
     title: "Open source",
@@ -187,7 +187,7 @@ export const firstStart: {
 ];
 
 export const steps: string[] = [
-  "Sign in to one agent CLI: Claude Code, Codex, OpenCode or Amp. Relay installs a missing CLI. Settings → AI & agents adds Cursor, Antigravity and ACP agents.",
+  "Sign in to one agent CLI: Claude Code, Codex, OpenCode or Amp. Relay installs a missing CLI. Settings → AI & agents adds Cursor, Antigravity, Muse and ACP agents.",
   "Open Relay and add a project folder.",
   "Type a task, select the agent and the model, and press Send.",
 ];
@@ -227,7 +227,7 @@ export const openSource: {
 export const faq: { q: string; a: string }[] = [
   {
     q: "Which agents does Relay run?",
-    a: "Relay runs Claude Code, Codex, OpenCode, Cursor, Amp and Google's Antigravity. Settings → AI & agents adds any agent from the ACP registry. You sign in with your own subscription.",
+    a: "Relay runs Claude Code, Codex, OpenCode, Cursor, Amp, Google's Antigravity and Meta's Muse. Settings → AI & agents adds any agent from the ACP registry. You sign in with your own subscription.",
   },
   {
     q: "Do I need a Relay account or an API key?",
