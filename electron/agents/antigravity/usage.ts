@@ -128,6 +128,31 @@ export async function readQuotaCredential(
 
 class QuotaAuthError extends Error {}
 
+type Request = (url: string, init: RequestInit) => Promise<Response>;
+
+async function readEndpoint(
+  request: Request,
+  endpoint: string,
+  bearer: string,
+  project: string | undefined,
+): Promise<UsageWindow[]> {
+  const response = await request(
+    `${endpoint}/v1internal:retrieveUserQuotaSummary`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${bearer}`,
+        "Content-Type": "application/json",
+        "User-Agent": `antigravity/hub/1.0.0 (aidev_client; os_type=${process.platform}; arch=${process.arch})`,
+      },
+      body: JSON.stringify(project ? { project } : {}),
+    },
+  );
+  if (response.status === 401) throw new QuotaAuthError();
+  if (!response.ok) throw new Error("Google quota request failed.");
+  return mapAntigravityUsage(await response.json());
+}
+
 const unavailable = (message: string): ProviderUsage => ({
   provider: "antigravity",
   windows: [],
@@ -197,28 +222,11 @@ export function createAntigravityUsageReader(
       // A quota read is safe to retry once after a documented bearer-token refusal.
       for (let attempt = 0; attempt < 2; attempt++) {
         const auth = await access(credential, started);
+        const project = credential.token.project_id;
         const responses = await Promise.allSettled(
-          endpoints.map(async (endpoint) => {
-            const response = await request(
-              `${endpoint}/v1internal:retrieveUserQuotaSummary`,
-              {
-                method: "POST",
-                headers: {
-                  Authorization: `Bearer ${auth.token}`,
-                  "Content-Type": "application/json",
-                  "User-Agent": `antigravity/hub/1.0.0 (aidev_client; os_type=${process.platform}; arch=${process.arch})`,
-                },
-                body: JSON.stringify(
-                  credential!.token.project_id
-                    ? { project: credential!.token.project_id }
-                    : {},
-                ),
-              },
-            );
-            if (response.status === 401) throw new QuotaAuthError();
-            if (!response.ok) throw new Error("Google quota request failed.");
-            return mapAntigravityUsage(await response.json());
-          }),
+          endpoints.map((endpoint) =>
+            readEndpoint(request, endpoint, auth.token, project),
+          ),
         );
         const windows = new Map<string, UsageWindow>();
         for (const result of responses)
