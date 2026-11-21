@@ -2,7 +2,7 @@
 // Window selection and burn-rate pacing follow OpenUsage (MIT, Robin Ebers);
 // see THIRD_PARTY_NOTICES.md. Claude Code reports its own; Relay asks Codex's.
 import { z } from "zod";
-import { usageProviderSchema } from "./agents";
+import { usageProviderSchema, type UsageProvider } from "./agents";
 import { activeWeight, nextHour, type ActiveHours } from "./usage-history";
 
 export const SESSION_MS = 5 * 60 * 60 * 1000;
@@ -333,3 +333,144 @@ export function creditsReach(credits: UsageCredits) {
   );
   return low === high ? `~${low} messages` : `~${low}–${high} messages`;
 }
+
+const PACE_RANK: Record<MeterPace, number> = {
+  ok: 0,
+  warn: 1,
+  hot: 2,
+  spent: 3,
+};
+
+/** The model currently picked for a provider, used to scope independent pools. */
+export type UsageModel = {
+  id: string;
+  name?: string;
+};
+
+/** Outer ("long") or inner ("session") ring slot — governs colour and order. */
+export type DialRingRole = "long" | "session";
+
+export type UsageDialRing<
+  M extends Pick<
+    UsageMeter,
+    "id" | "kind" | "leftPercent" | "pace" | "model"
+  > = UsageMeter,
+> = {
+  role: DialRingRole;
+  meter: M;
+};
+
+export function worstPace(meters: Pick<UsageMeter, "pace">[]): MeterPace {
+  return meters.reduce<MeterPace>(
+    (worst, m) => (PACE_RANK[m.pace] > PACE_RANK[worst] ? m.pace : worst),
+    "ok",
+  );
+}
+
+function modelText(model?: UsageModel) {
+  return [model?.id, model?.name].filter(Boolean).join(" ").trim().toLowerCase();
+}
+
+function matchesToken(text: string, token: string) {
+  const escaped = token
+    .trim()
+    .toLowerCase()
+    .replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  if (!escaped) return false;
+  return new RegExp(`(^|[^a-z0-9])${escaped}([^a-z0-9]|$)`).test(text);
+}
+
+function antigravityPool(text: string): "gemini-" | "3p-" | null {
+  if (/\bgemini\b/.test(text)) return "gemini-";
+  if (/\b(claude|opus|sonnet|haiku|gpt|openai|o[1-9])\b/.test(text))
+    return "3p-";
+  return null;
+}
+
+function isCursorIncludedModel(model: UsageModel, text: string) {
+  // Cursor's Auto runs under id "default" or "auto"; Composer shares the Total-only pool.
+  return (
+    model.id.trim().toLowerCase() === "default" ||
+    /\b(auto|composer)\b/.test(text)
+  );
+}
+
+/**
+ * The meters that actually cap the picked model. Without a model (such as
+ * Accounts settings), keeps every plan-level pool and drops model-only limits.
+ */
+export function metersForModel<
+  M extends Pick<UsageMeter, "id" | "kind" | "model">,
+>(provider: UsageProvider, meters: M[], model?: UsageModel): M[] {
+  const plan = meters.filter((m) => !m.model);
+  const text = modelText(model);
+  if (!model || !text) return plan;
+
+  if (provider === "antigravity") {
+    const prefix = antigravityPool(text);
+    if (!prefix) return plan;
+    const pool = plan.filter((m) => m.id?.startsWith(prefix));
+    return pool.length ? pool : plan;
+  }
+
+  if (provider === "cursor") {
+    if (!isCursorIncludedModel(model, text)) return plan;
+    const total = plan.filter((m) => m.id === "total");
+    return total.length ? total : plan;
+  }
+
+  if (provider === "claude") {
+    return meters.filter((m) => !m.model || matchesToken(text, m.model));
+  }
+
+  return plan;
+}
+
+function tightest<M extends Pick<UsageMeter, "leftPercent" | "pace">>(
+  meters: M[],
+): M | undefined {
+  return meters.reduce<M | undefined>((worst, m) => {
+    if (!worst) return m;
+    if (m.leftPercent !== worst.leftPercent)
+      return m.leftPercent < worst.leftPercent ? m : worst;
+    return PACE_RANK[m.pace] > PACE_RANK[worst.pace] ? m : worst;
+  }, undefined);
+}
+
+/**
+ * The 1 or 2 concentric rings to draw for active meters, outermost first.
+ * Drops empty slots instead of drawing a 0% track, and splits paired monthly
+ * pools (Cursor's Total + API) across both rings.
+ */
+export function dialRings<
+  M extends Pick<UsageMeter, "id" | "kind" | "leftPercent" | "pace" | "model">,
+>(meters: M[]): UsageDialRing<M>[] {
+  const longs = meters.filter(
+    (m) => m.kind === "weekly" || m.kind === "monthly",
+  );
+  const sessions = meters.filter((m) => m.kind === "session");
+  const long = tightest(longs);
+  const session = tightest(sessions);
+  if (long && session) {
+    return [
+      { role: "long", meter: long },
+      { role: "session", meter: session },
+    ];
+  }
+  if (longs.length >= 2) {
+    const total = longs.find((m) => m.id === "total");
+    const sub = total
+      ? tightest(longs.filter((m) => m !== total))
+      : undefined;
+    if (total && sub) {
+      return [
+        { role: "long", meter: total },
+        { role: "session", meter: sub },
+      ];
+    }
+  }
+  if (long) return [{ role: "long", meter: long }];
+  if (session) return [{ role: "session", meter: session }];
+  return [];
+}
+

@@ -1,5 +1,6 @@
 import { UsageDial } from "../agents/UsageDial";
 import {
+  metersForModel,
   presentWindow,
   type ProviderUsage,
   type UsageKind,
@@ -83,7 +84,8 @@ function AccountBar({
   );
 }
 
-/** The two rings, as the composer's usage control draws them. */
+/** The rings, as the composer's usage control draws them. */
 export function AccountDial({ usage }: { usage: ProviderUsage | undefined }) {
-  return <UsageDial meters={meters(usage)} />;
+  const active = usage ? metersForModel(usage.provider, meters(usage)) : [];
+  return <UsageDial meters={active} />;
 }

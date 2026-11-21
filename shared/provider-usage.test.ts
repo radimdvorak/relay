@@ -4,8 +4,11 @@ import {
   WEEK_MS,
   creditsLabel,
   creditsReach,
+  dialRings,
+  metersForModel,
   paceGap,
   presentWindow,
+  type UsageMeter,
 } from "./provider-usage";
 import { mapCodexCredits } from "./provider-usage-responses";
 
@@ -154,5 +157,124 @@ describe("Codex credits", () => {
     )!;
     expect(creditsLabel(credits)).toBe("Unlimited credits");
     expect(creditsReach(credits)).toBeNull();
+  });
+});
+
+describe("dial ring selection", () => {
+  const meter = (
+    overrides: Partial<UsageMeter> & Pick<UsageMeter, "kind" | "leftPercent">,
+  ): UsageMeter => ({
+    label: overrides.kind,
+    paceLeftPercent: null,
+    pace: "ok",
+    limitLabel: null,
+    resetLabel: null,
+    ...overrides,
+  });
+
+  it("picks only the matching Antigravity pool and drops empty ring slots", () => {
+    const all = [
+      meter({ id: "gemini-models-5h", kind: "session", leftPercent: 97 }),
+      meter({ id: "3p-weekly", kind: "weekly", leftPercent: 100 }),
+      meter({ id: "3p-5h", kind: "session", leftPercent: 100 }),
+    ];
+
+    const gemini = metersForModel("antigravity", all, {
+      id: "gemini-3-flash",
+      name: "Gemini 3 Flash",
+    });
+    expect(dialRings(gemini).map((r) => [r.role, r.meter.id])).toEqual([
+      ["session", "gemini-models-5h"],
+    ]);
+
+    const gpt = metersForModel("antigravity", all, {
+      id: "gpt-oss-120b",
+      name: "GPT-OSS 120B",
+    });
+    expect(dialRings(gpt).map((r) => [r.role, r.meter.id])).toEqual([
+      ["long", "3p-weekly"],
+      ["session", "3p-5h"],
+    ]);
+
+    // Without a model (e.g. Accounts settings), falls back to worst across pools.
+    const unscoped = metersForModel("antigravity", all);
+    expect(dialRings(unscoped).map((r) => [r.role, r.meter.id])).toEqual([
+      ["long", "3p-weekly"],
+      ["session", "gemini-models-5h"],
+    ]);
+  });
+
+  it("draws Cursor Total alone for Auto/Composer and Total + API for named models", () => {
+    const all = [
+      meter({ id: "api", kind: "monthly", leftPercent: 40 }),
+      meter({ id: "total", kind: "monthly", leftPercent: 85 }),
+    ];
+
+    expect(
+      dialRings(
+        metersForModel("cursor", all, {
+          id: "composer-2.5",
+          name: "Composer 2.5",
+        }),
+      ).map((r) => [r.role, r.meter.id]),
+    ).toEqual([["long", "total"]]);
+
+    expect(
+      dialRings(
+        metersForModel("cursor", all, {
+          id: "gpt-5",
+          name: "GPT-5",
+        }),
+      ).map((r) => [r.role, r.meter.id]),
+    ).toEqual([
+      ["long", "total"],
+      ["session", "api"],
+    ]);
+  });
+
+  it("includes a Claude model-scoped weekly limit when that model is picked and keeps the tighter weekly", () => {
+    const all = [
+      meter({ kind: "session", leftPercent: 80 }),
+      meter({ kind: "weekly", leftPercent: 60 }),
+      meter({
+        id: "model:Fable",
+        model: "Fable",
+        kind: "weekly",
+        leftPercent: 15,
+        pace: "hot",
+      }),
+    ];
+
+    expect(
+      dialRings(metersForModel("claude", all)).map((r) => [
+        r.role,
+        r.meter.leftPercent,
+      ]),
+    ).toEqual([
+      ["long", 60],
+      ["session", 80],
+    ]);
+
+    expect(
+      dialRings(
+        metersForModel("claude", all, {
+          id: "claude-fable-5-1[1m]",
+          name: "Fable 5.1",
+        }),
+      ).map((r) => [r.role, r.meter.leftPercent]),
+    ).toEqual([
+      ["long", 15],
+      ["session", 80],
+    ]);
+  });
+
+  it("returns one ring for session-only limits and none while loading", () => {
+    expect(
+      dialRings([meter({ kind: "session", leftPercent: 72 })]).map((r) => [
+        r.role,
+        r.meter.leftPercent,
+      ]),
+    ).toEqual([["session", 72]]);
+    expect(dialRings([])).toEqual([]);
   });
 });

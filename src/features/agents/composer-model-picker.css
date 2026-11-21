@@ -1103,12 +1103,25 @@
 .usage-row:is([data-kind="weekly"], [data-kind="monthly"]) {
   --usage-row-color: color-mix(in srgb, var(--accent) 55%, var(--muted));
 }
+.usage-row[data-ring="session"] {
+  --usage-row-color: var(--usage-ring-session, var(--accent));
+}
+.usage-row[data-ring="long"] {
+  --usage-row-color: color-mix(in srgb, var(--accent) 55%, var(--muted));
+}
 .usage-row[data-pace="warn"] {
   --usage-row-color: #e3a23a;
 }
 .usage-row[data-pace="hot"],
 .usage-row[data-pace="spent"] {
   --usage-row-color: #ef6a5a;
+}
+.usage-row[data-inactive] {
+  opacity: 0.48;
+  transition: opacity 150ms ease;
+}
+.usage-row[data-inactive]:hover {
+  opacity: 0.85;
 }
 .usage-row-top,
 .usage-row-bottom {

@@ -1,25 +1,33 @@
-import type { UsageMeter } from "../../../shared/provider-usage";
+import { dialRings, type UsageMeter } from "../../../shared/provider-usage";
 import { RING_RADIUS } from "./ContextWindowMeter";
 import "./composer-model-picker.css";
 
-// Outer ring is the long limit (the week, or Cursor's month), inner ring the
-// session, so the two limits read at a glance and the icon differs from the
-// single-ring context meter. A pixel larger than the context meter's so the
-// button matches the send button's height with the same padding around the
-// rings.
-const RINGS = [
-  { ring: "long", radius: RING_RADIUS + 1, kinds: ["weekly", "monthly"] },
-  { ring: "session", radius: 5, kinds: ["session"] },
+// Outer ring is the long limit (or the lone limit when only one applies), inner
+// ring the session (or Cursor's API sub-pool). A pixel larger than the context
+// meter's so the button matches the send button's height with the same padding
+// around the rings.
+const OUTER_RADIUS = RING_RADIUS + 1;
+const INNER_RADIUS = 5;
+
+const LOADING_RINGS = [
+  { role: "long", radius: OUTER_RADIUS },
+  { role: "session", radius: INNER_RADIUS },
 ] as const;
 
-/** The two rings on their own, as the trigger and Settings' sample draw them. */
+/** The rings on their own, as the trigger and Settings' sample draw them. */
 export function UsageDial({
   meters,
 }: {
-  meters: Pick<UsageMeter, "kind" | "leftPercent" | "pace" | "model">[];
+  meters: Pick<UsageMeter, "id" | "kind" | "leftPercent" | "pace" | "model">[];
 }) {
-  // A single model's own limit isn't the plan's, so it gets no ring.
-  const plan = meters.filter((m) => !m.model);
+  const rings = dialRings(meters);
+  const drawn = rings.length
+    ? rings.map((entry, index) => ({
+        role: entry.role,
+        radius: index === 0 ? OUTER_RADIUS : INNER_RADIUS,
+        meter: entry.meter,
+      }))
+    : LOADING_RINGS.map((ring) => ({ ...ring, meter: undefined }));
   return (
     <svg
       className="usage-ring-dial"
@@ -28,19 +36,12 @@ export function UsageDial({
       viewBox="0 0 20 20"
       aria-hidden
     >
-      {RINGS.map(({ ring, radius, kinds }) => {
+      {drawn.map(({ role, radius, meter }) => {
         const circumference = 2 * Math.PI * radius;
-        const meter = plan
-          .filter((m) => (kinds as readonly string[]).includes(m.kind))
-          .reduce<(typeof plan)[number] | undefined>(
-            (worst, m) =>
-              !worst || m.leftPercent < worst.leftPercent ? m : worst,
-            undefined,
-          );
         // Full while the limit is untouched, draining as it's used.
         const left = meter?.leftPercent ?? 0;
         return (
-          <g key={ring} className="usage-ring" data-ring={ring}>
+          <g key={`${role}:${radius}`} className="usage-ring" data-ring={role}>
             <circle className="usage-ring-track" cx="10" cy="10" r={radius} />
             <circle
               className="usage-ring-fill"
