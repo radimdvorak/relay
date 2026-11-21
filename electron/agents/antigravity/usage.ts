@@ -88,6 +88,52 @@ export function mapAntigravityUsage(raw: unknown): UsageWindow[] {
   );
 }
 
+/**
+ * Every Gemini model reports the same share of one 5h pool, so the tightest
+ * one stands for all. Tab completion reports a fraction without a window.
+ */
+export function mapGeminiModelQuota(raw: unknown): UsageWindow[] {
+  const model = z.object({
+    modelProvider: z.string().optional(),
+    quotaInfo: z
+      .object({
+        remainingFraction: z.number().optional(),
+        resetTime: z.string().optional(),
+      })
+      .optional(),
+  });
+  const models = z
+    .object({ models: z.record(z.string(), z.unknown()) })
+    .safeParse(raw).data?.models;
+  const quotas = Object.values(models ?? {}).flatMap((raw) => {
+    const info = model.safeParse(raw).data;
+    const fraction = info?.quotaInfo?.remainingFraction;
+    const resetTime = info?.quotaInfo?.resetTime;
+    const pooled = info?.modelProvider === "MODEL_PROVIDER_GOOGLE";
+    if (!pooled || fraction === undefined || !resetTime) return [];
+    return [
+      {
+        remaining: Math.max(0, Math.min(1, fraction)),
+        reset: Date.parse(resetTime),
+      },
+    ];
+  });
+  if (!quotas.length) return [];
+  const tightest = quotas.reduce((a, b) => (b.remaining < a.remaining ? b : a));
+  // An untouched pool reports a reset that just rolls along with the clock.
+  const started = tightest.remaining < 1 && Number.isFinite(tightest.reset);
+  return [
+    {
+      id: "gemini-models-5h",
+      label: "Gemini · 5h",
+      kind: "session",
+      usedPercent: (1 - tightest.remaining) * 100,
+      resetsAt: started ? tightest.reset : null,
+      periodMs: SESSION_MS,
+    },
+  ];
+}
+
 /** Read afresh on every operation, so an external sign-in is picked up without restarting. */
 export async function readQuotaCredential(
   home: string,
@@ -136,21 +182,32 @@ async function readEndpoint(
   bearer: string,
   project: string | undefined,
 ): Promise<UsageWindow[]> {
+  const init = {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${bearer}`,
+      "Content-Type": "application/json",
+      "User-Agent": `antigravity/hub/1.0.0 (aidev_client; os_type=${process.platform}; arch=${process.arch})`,
+    },
+    body: JSON.stringify(project ? { project } : {}),
+  };
   const response = await request(
     `${endpoint}/v1internal:retrieveUserQuotaSummary`,
-    {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${bearer}`,
-        "Content-Type": "application/json",
-        "User-Agent": `antigravity/hub/1.0.0 (aidev_client; os_type=${process.platform}; arch=${process.arch})`,
-      },
-      body: JSON.stringify(project ? { project } : {}),
-    },
+    init,
   );
   if (response.status === 401) throw new QuotaAuthError();
   if (!response.ok) throw new Error("Google quota request failed.");
-  return mapAntigravityUsage(await response.json());
+  const windows = mapAntigravityUsage(await response.json());
+  if (windows.some((window) => window.id?.startsWith("gemini-")))
+    return windows;
+  // The summary only covers the Claude/GPT pool; the model list carries Gemini's.
+  const models = await request(
+    `${endpoint}/v1internal:fetchAvailableModels`,
+    init,
+  )
+    .then((response) => (response.ok ? response.json() : null))
+    .catch(() => null);
+  return [...mapGeminiModelQuota(models), ...windows];
 }
 
 const unavailable = (message: string): ProviderUsage => ({

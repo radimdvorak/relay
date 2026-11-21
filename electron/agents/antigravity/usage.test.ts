@@ -2,6 +2,7 @@ import { afterEach, expect, it, vi } from "vitest";
 import {
   createAntigravityUsageReader,
   mapAntigravityUsage,
+  mapGeminiModelQuota,
   type QuotaCredential,
 } from "./usage";
 
@@ -216,4 +217,44 @@ it("keeps the cached access token after a network failure and resumes without an
   expect(
     fetcher.mock.calls.filter(([url]) => urlOf(url).endsWith("/token")),
   ).toHaveLength(1);
+});
+
+it("reads Gemini's pool from the model list when the summary covers only Claude and GPT", async () => {
+  const google = (fraction: number, resetTime?: string) => ({
+    modelProvider: "MODEL_PROVIDER_GOOGLE",
+    quotaInfo: { remainingFraction: fraction, resetTime },
+  });
+  const models = {
+    models: {
+      "gemini-3-flash": google(0.75, "2026-10-22T15:00:00Z"),
+      "gemini-2.5-pro": google(0.75, "2026-10-22T15:00:00Z"),
+      tab_flash_lite_preview: google(0.1),
+      "claude-opus-5-5-low": {
+        modelProvider: "MODEL_PROVIDER_ANTHROPIC",
+        quotaInfo: {
+          remainingFraction: 0.2,
+          resetTime: "2026-10-22T15:00:00Z",
+        },
+      },
+    },
+  };
+  const fetcher = vi.fn<typeof fetch>(async (url) => {
+    if (urlOf(url).endsWith("/token")) return token("access");
+    if (urlOf(url).endsWith(":fetchAvailableModels")) return json(models);
+    return json({ groups: [summary.groups[1]] });
+  });
+  const service = createAntigravityUsageReader(
+    async () => credential("one"),
+    fetcher,
+  );
+  expect(
+    (await service()).windows.map((w) => [w.label, Math.round(w.usedPercent)]),
+  ).toEqual([
+    ["Gemini · 5h", 25],
+    ["Claude & GPT · 5h", 10],
+    ["Claude & GPT · Weekly", 40],
+  ]);
+  expect(
+    mapGeminiModelQuota({ models: { a: google(1, "2026-10-22T15:00:00Z") } }),
+  ).toEqual([expect.objectContaining({ usedPercent: 0, resetsAt: null })]);
 });
