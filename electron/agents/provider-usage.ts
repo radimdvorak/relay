@@ -21,6 +21,7 @@ import { readClaudeUsage } from "./claude/project";
 import { readAntigravityUsage } from "./antigravity";
 import { readMuseUsage } from "./muse";
 import { readCursorUsage } from "./cursor/plan-usage";
+import { readOpenCodeUsage } from "./opencode/go-usage";
 import type { UsageProvider } from "../../shared/agents";
 import { SYSTEM_ACCOUNT } from "../../shared/agent-accounts";
 import { recordUsage } from "./usage-history";
@@ -67,6 +68,8 @@ const readers: Record<
   muse: { load: () => readMuseUsage() },
   // A month-long limit moves slowly, and each reading signs in afresh.
   cursor: { load: () => readCursorUsage(), ttl: CURSOR_TTL },
+  // OpenCode's service keeps the one sign-in; Relay only asks a running one.
+  opencode: { load: () => readOpenCodeUsage() },
 };
 
 /** The limits of one of the agent's accounts; its usual sign-in when left out. */

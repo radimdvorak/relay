@@ -993,6 +993,7 @@ test("usage limits read each agent on the account the thread pinned for it", asy
       },
       weekly: { usedPercent: 12 },
     },
+    { agent: "opencode", note: "Sign in with opencode" },
     { agent: "cursor", note: "Sign in with cursor" },
     { agent: "muse", note: "Sign in with muse" },
     { agent: "antigravity", note: "Sign in with antigravity" },
@@ -1000,6 +1001,7 @@ test("usage limits read each agent on the account the thread pinned for it", asy
   expect(reads).toEqual([
     ["codex", false, "work"],
     ["claude", false, undefined],
+    ["opencode", false, undefined],
     ["cursor", false, undefined],
     ["muse", false, undefined],
     ["antigravity", false, undefined],
