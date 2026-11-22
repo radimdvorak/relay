@@ -2,7 +2,12 @@ import { expect, it, vi } from "vitest";
 import type { ModelChoice, ReasoningEffort } from "../../../shared/settings";
 import type { AcpConnection } from "./connection";
 import type { AcpSettings } from "./sessions";
-import { applySettings, currentOf, modelsOf } from "./settings";
+import {
+  applySettings,
+  currentOf,
+  effortsForModels,
+  modelsOf,
+} from "./settings";
 
 const select = (id: string, category: string, currentValue: string, values: string[]) => ({
   id,
@@ -103,6 +108,153 @@ it("offers OpenCode's levels alongside its explicit default without duplicating 
   expect(currentOf(settings)).toEqual({ model: "openai/gpt", effort: "" });
   settings.configOptions![1].options = [{ value: "default", name: "Default" }];
   expect(modelsOf(settings)[0].efforts).toEqual([]);
+});
+
+it("asks each model for its own effort levels", async () => {
+  const settings = {
+    configOptions: [
+      select("model", "model", "gemini", ["deepseek", "gemini"]),
+      select("effort", "thought_level", "default", [
+        "low",
+        "medium",
+        "high",
+        "xhigh",
+        "default",
+      ]),
+    ],
+  } as AcpSettings;
+  const original = { ...settings };
+  const request = vi.fn(async () => {
+    settings.configOptions = [
+      select("model", "model", "deepseek", ["deepseek", "gemini"]),
+      select("effort", "thought_level", "default", [
+        "low",
+        "high",
+        "max",
+        "default",
+      ]),
+    ];
+    return { configOptions: settings.configOptions };
+  });
+
+  const found = await effortsForModels(
+    { request } as unknown as AcpConnection,
+    { id: "s", settings },
+    1_000,
+  );
+
+  expect(request.mock.calls).toEqual([
+    [
+      "session/set_config_option",
+      { sessionId: "s", configId: "model", value: "deepseek" },
+    ],
+  ]);
+  expect(
+    modelsOf(original, found).map(({ id, efforts }) => [id, efforts]),
+  ).toEqual([
+    ["deepseek", ["low", "high", "max"]],
+    ["gemini", ["low", "medium", "high", "xhigh"]],
+  ]);
+});
+
+it("surveys models even when the default has no effort option", async () => {
+  const ids = ["plain", "deepseek", "other-plain"];
+  const settings = { configOptions: [select("model", "model", "plain", ids)] };
+  const request = vi.fn(async (_: string, { value }: { value: string }) => ({
+    configOptions: [
+      select("model", "model", value, ids),
+      ...(value === "deepseek"
+        ? [select("effort", "thought_level", "default", ["low", "high", "max"])]
+        : []),
+    ],
+  }));
+
+  const found = await effortsForModels(
+    { request } as unknown as AcpConnection,
+    { id: "s", settings },
+    1_000,
+  );
+
+  expect([...found]).toEqual([
+    ["plain", []],
+    ["deepseek", ["low", "high", "max"]],
+    ["other-plain", []],
+  ]);
+});
+
+it("does not borrow efforts for models whose reply fails or reports another model", async () => {
+  const ids = ["a", "failed", "mismatch", "plain"];
+  const settings = {
+    configOptions: [
+      select("model", "model", "a", ids),
+      select("effort", "thought_level", "default", ["low", "high", "default"]),
+    ],
+  };
+  const request = vi.fn(async (_: string, { value }: { value: string }) => {
+    if (value === "failed") throw new Error("Can't switch");
+    if (value === "mismatch") return { configOptions: settings.configOptions };
+    return { configOptions: [select("model", "model", value, ids)] };
+  });
+
+  const found = await effortsForModels(
+    { request } as unknown as AcpConnection,
+    { id: "s", settings },
+    1_000,
+  );
+
+  expect([...found]).toEqual([
+    ["a", ["low", "high"]],
+    ["plain", []],
+  ]);
+  expect(modelsOf(settings, found).map(({ efforts }) => efforts)).toEqual([
+    ["low", "high"],
+    [],
+    [],
+    [],
+  ]);
+});
+
+it("returns verified efforts at the deadline without starting another switch", async () => {
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "performance"] });
+  try {
+    const ids = ["a", "deepseek", "slow", "unreached"];
+    const settings = {
+      configOptions: [
+        select("model", "model", "a", ids),
+        select("effort", "thought_level", "low", ["low", "high"]),
+      ],
+    };
+    const request = vi.fn(async (_: string, { value }: { value: string }) => {
+      if (value === "slow") return new Promise<never>(() => {});
+      return {
+        configOptions: [
+          select("model", "model", value, ids),
+          select("effort", "thought_level", "high", ["high", "max"]),
+        ],
+      };
+    });
+
+    const surveyed = effortsForModels(
+      { request } as unknown as AcpConnection,
+      { id: "s", settings },
+      100,
+    );
+    await vi.advanceTimersByTimeAsync(100);
+    const found = await surveyed;
+
+    expect(modelsOf(settings, found).map(({ efforts }) => efforts)).toEqual([
+      ["low", "high"],
+      ["high", "max"],
+      [],
+      [],
+    ]);
+    expect(request.mock.calls.map(([, params]) => params.value)).toEqual([
+      "deepseek",
+      "slow",
+    ]);
+  } finally {
+    vi.useRealTimers();
+  }
 });
 
 it("sends the explicit default when resetting effort, even if the session started at another level", async () => {

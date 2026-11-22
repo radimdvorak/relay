@@ -9,9 +9,11 @@ import { heardCommands } from "./commands";
 import { skillCommands } from "../skill-presentation";
 import type { AcpProfile } from "./profiles";
 import { acquireAcpAgent, openSession, type AcpSettings } from "./sessions";
-import { currentOf, modelsOf } from "./settings";
+import { currentOf, effortsForModels, modelsOf } from "./settings";
 
 const probeTimeout = 60_000;
+/** A survey of every model's efforts; OpenCode's fifty-odd take well under a second. */
+const effortsTimeout = 10_000;
 /** Agents send their commands just after the session opens; this long is waited for them. */
 const commandsWait = 1500;
 
@@ -40,17 +42,26 @@ async function probe(profile: AcpProfile, cwd: string) {
       probeTimeout,
       `${profile.name} didn't open a session in time.`,
     );
-    const settings = agent.session!.settings;
+    const session = agent.session!;
     if (!heardCommands(profile.provider))
       await new Promise((resolve) => setTimeout(resolve, commandsWait));
     // Some agents send models in a config_option_update after the session
     // opens; give them a moment to arrive.
-    if (!hasModels(settings))
+    if (!hasModels(session.settings))
       await new Promise((resolve) => setTimeout(resolve, commandsWait));
-    const listed = modelsOf(settings);
+    const settings = { ...session.settings };
+    const current = currentOf(settings);
+    // ACP reports effort levels only for the model a session runs. Ask each
+    // model in turn so a picker offers, say, Max on one and Extra high on another.
+    const efforts = await effortsForModels(
+      agent.connection,
+      { id: session.id, settings },
+      effortsTimeout,
+    );
+    const listed = modelsOf(settings, efforts);
     return {
       models: profile.models?.(listed) ?? listed,
-      current: currentOf(settings),
+      current,
     };
   } finally {
     agent.close();

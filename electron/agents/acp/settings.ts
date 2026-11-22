@@ -4,6 +4,7 @@ import {
   type ModelChoice,
   type ReasoningEffort,
 } from "../../../shared/settings";
+import { withTimeout } from "../../util/timeout";
 import type { AcpConnection } from "./connection";
 import type { AcpWish } from "./profiles";
 import {
@@ -20,22 +21,34 @@ const optionIn = (settings: AcpSettings, category: string) =>
   settings.configOptions?.find((o) => o.category === category);
 
 /** Known efforts; an explicit `default` is represented by Relay's Default choice. */
-function effortsOf(settings: AcpSettings): ReasoningEffort[] {
-  const option = optionIn(settings, "thought_level");
+function effortsIn(option: AcpConfigOption | undefined): ReasoningEffort[] {
   if (!option) return [];
   const values = choicesOf(option)
     .map((c) => c.value)
     .filter((v) => v !== "default");
-  const efforts = values.flatMap((v) => reasoningEffortSchema.safeParse(v).data ?? []);
+  const efforts = values.flatMap(
+    (v) => reasoningEffortSchema.safeParse(v).data ?? [],
+  );
   return efforts.length === values.length ? efforts : [];
 }
 
+function effortsOf(settings: AcpSettings): ReasoningEffort[] {
+  return effortsIn(optionIn(settings, "thought_level"));
+}
+
 /** The models a session offers, from its model option or the older model list. */
-export function modelsOf(settings: AcpSettings): AgentModel[] {
+export function modelsOf(
+  settings: AcpSettings,
+  effortsByModel?: ReadonlyMap<string, ReasoningEffort[]>,
+): AgentModel[] {
   const efforts = effortsOf(settings);
   const option = optionIn(settings, "model");
   const listed = option
-    ? choicesOf(option).map((c) => ({ id: c.value, name: c.name, description: c.description }))
+    ? choicesOf(option).map((c) => ({
+        id: c.value,
+        name: c.name,
+        description: c.description,
+      }))
     : (settings.models?.availableModels ?? []).map((m) => ({
         id: m.modelId,
         name: m.name || m.modelId,
@@ -45,8 +58,60 @@ export function modelsOf(settings: AcpSettings): AgentModel[] {
     id: m.id,
     name: m.name,
     description: (m.description ?? "").slice(0, 300),
-    efforts,
+    efforts:
+      option && effortsByModel ? (effortsByModel.get(m.id) ?? []) : efforts,
   }));
+}
+
+/**
+ * What each model offers for effort, which ACP tells only for the one a
+ * session runs: a probe switches the session through the rest to ask.
+ */
+export async function effortsForModels(
+  connection: AcpConnection,
+  session: { id: string; settings: AcpSettings },
+  timeoutMs: number,
+): Promise<Map<string, ReasoningEffort[]>> {
+  const found = new Map<string, ReasoningEffort[]>();
+  const model = optionIn(session.settings, "model");
+  if (!model) return found;
+
+  // A config_option_update can replace the original options during the survey.
+  const originalModel = model.currentValue;
+  if (typeof originalModel === "string")
+    found.set(originalModel, effortsOf(session.settings));
+
+  const deadline = performance.now() + timeoutMs;
+  for (const { value } of choicesOf(model)) {
+    if (value === originalModel) continue;
+    const remaining = Math.ceil(deadline - performance.now());
+    if (remaining <= 0) break;
+
+    try {
+      const reply = await withTimeout(
+        connection.request<{ configOptions?: unknown } | null>(
+          "session/set_config_option",
+          {
+            sessionId: session.id,
+            configId: model.id,
+            value,
+          },
+        ),
+        remaining,
+        "ACP model effort survey timed out.",
+      );
+      const configOptions = configOptionSchema
+        .array()
+        .safeParse(reply?.configOptions).data;
+      if (!configOptions) continue;
+      const updated = { configOptions };
+      if (optionIn(updated, "model")?.currentValue === value)
+        found.set(value, effortsOf(updated));
+    } catch {
+      // Leave this model unverified. A slow switch can spend the whole budget.
+    }
+  }
+  return found;
 }
 
 /** The model a session runs and its effort, as it says. */
