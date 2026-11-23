@@ -75,20 +75,18 @@ private fun paceColor(pace: String, fallback: Color) = when (pace) {
 
 private fun contextPace(used: Double) = if (used >= 90) "hot" else if (used >= 75) "warn" else "ok"
 
-class UsageState(val usage: ProviderUsage?, val reload: (force: Boolean) -> Unit)
+/** `failed` says the last ask didn't answer; `usage` is then what was read before it, if anything. */
+class UsageState(val usage: ProviderUsage?, val reload: (force: Boolean) -> Unit, val failed: Boolean = false)
 
 /** The agent's plan usage, looked up now and every few minutes while the app is in the foreground. */
 @Composable
 fun rememberUsage(client: RemoteClient?, computer: String?, online: Boolean, provider: String): UsageState {
     val key = "${computer.orEmpty()}:$provider"
-    var value by remember(key) { mutableStateOf(lastUsage[key]) }
+    var reading by remember(key) { mutableStateOf(usageReadings[key]) }
     val scope = rememberCoroutineScope()
     val load: (Boolean) -> Unit = { force ->
         if (reportsUsage(provider) && online && client != null) scope.launch {
-            runCatching { client.providerUsage(provider, force) }.onSuccess {
-                lastUsage[key] = it
-                value = it
-            }
+            reading = usageReadings.read(key) { client.providerUsage(provider, force) }
         }
     }
     val lifecycle = LocalLifecycleOwner.current.lifecycle
@@ -101,7 +99,8 @@ fun rememberUsage(client: RemoteClient?, computer: String?, online: Boolean, pro
             }
         }
     }
-    return UsageState(value ?: lastUsage[key], load)
+    val shown = reading ?: usageReadings[key]
+    return UsageState(shown?.usage, load, failed = shown?.failed == true)
 }
 
 private fun meters(usage: ProviderUsage?): List<UsageMeter> {
@@ -218,6 +217,8 @@ fun UsageSheet(
     onDismiss: () -> Unit,
     onRefresh: () -> Unit,
     onCompact: (suspend () -> Unit)?,
+    /** The last ask for the limits failed and none were read before it. */
+    unavailable: Boolean = false,
 ) {
     val c = RelayTheme.colors
     val scope = rememberCoroutineScope()
@@ -265,6 +266,7 @@ fun UsageSheet(
         }
         when {
             !reportsUsage(provider) -> Text("${agentName(provider)} doesn't report plan limits.", style = RelayTheme.type.xs, color = c.mutedForeground)
+            usage == null && unavailable -> Text("Couldn't read ${agentName(provider)}'s plan limits.", style = RelayTheme.type.xs, color = c.mutedForeground)
             usage == null -> Spinner(color = c.mutedForeground)
             list.isEmpty() -> Text(usage.message ?: "No usage limits reported", style = RelayTheme.type.xs, color = c.mutedForeground)
             else -> list.forEach { m ->

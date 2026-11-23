@@ -6,6 +6,8 @@ import java.time.Instant
 import java.time.ZoneId
 import java.time.temporal.ChronoUnit
 import java.util.Locale
+import java.util.concurrent.ConcurrentHashMap
+import kotlin.coroutines.cancellation.CancellationException
 import kotlin.math.ceil
 import kotlin.math.max
 import kotlin.math.min
@@ -40,6 +42,34 @@ data class ProviderUsage(
     val activeHours: List<Double>? = null,
     val credits: UsageCredits? = null,
 )
+
+/** What asking an agent's limits last came to on one computer: the limits, and whether the last ask failed. */
+data class UsageReading(val usage: ProviderUsage? = null, val failed: Boolean = false)
+
+/**
+ * The latest reading per computer and agent, so a thread opens with its meters drawn. A failed ask keeps
+ * the limits read before it and says it failed, so a computer that refuses an agent (an older Relay that
+ * doesn't know it as one with limits) shows as unavailable, not as loading for ever. Readings are kept per
+ * key, so one that failed for one computer or agent is nothing to another.
+ */
+class UsageReadings {
+    private val readings = ConcurrentHashMap<String, UsageReading>()
+
+    operator fun get(key: String): UsageReading? = readings[key]
+
+    /** Asks, and keeps what came of it under `key`. */
+    suspend fun read(key: String, ask: suspend () -> ProviderUsage): UsageReading {
+        val reading = try {
+            UsageReading(ask())
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            UsageReading(readings[key]?.usage, failed = true)
+        }
+        readings[key] = reading
+        return reading
+    }
+}
 
 /** "ok" | "warn" | "hot" | "spent" */
 data class UsageMeter(
