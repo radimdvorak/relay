@@ -138,8 +138,7 @@ export function presentWindow(
 ): UsageMeter {
   const used = clamp(window.usedPercent, 0, 100);
   const leftPercent = clamp(Math.round(100 - used), 0, 100);
-  const label = window.label ?? kindLabels[window.kind];
-  const base = { id: window.id, kind: window.kind, label, model: window.model };
+  const base = meterBase(window);
   const fresh =
     window.kind === "session" && window.resetsAt == null && used <= 0;
   const resetLabel = resetLabelFor(window, fresh, now);
@@ -218,6 +217,16 @@ export function presentWindow(
     pace: percentUsed >= 90 ? "hot" : percentUsed >= 80 ? "warn" : "ok",
     limitLabel: null,
     resetLabel,
+  };
+}
+
+/** What a meter says of its window, apart from how the burn is going. */
+function meterBase(window: UsageWindow) {
+  return {
+    id: window.id,
+    kind: window.kind,
+    label: window.label ?? kindLabels[window.kind],
+    model: window.model,
   };
 }
 
