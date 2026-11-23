@@ -18,6 +18,7 @@ import {
   type ProviderUsage,
   type UsageWindow,
 } from "../../../shared/provider-usage";
+import { readLocalServiceJson } from "./local-service-http";
 import {
   runningOpenCodeService,
   type OpenCodeService,
@@ -73,15 +74,13 @@ const empty = (message: string): ProviderUsage => ({
 export async function readOpenCodeUsage(): Promise<ProviderUsage> {
   const service = await runningOpenCodeService();
   if (!service) return empty("Shows while OpenCode is running");
-  const response = await askLimits(service);
-  if (response.status === 404) {
+  const { status, body } = await askLimits(service);
+  if (status === 404) {
     return empty("This OpenCode doesn't report Go limits");
   }
-  if (!response.ok)
-    throw new Error(`OpenCode usage failed: ${response.status}`);
-  const answer = limitsSchema.safeParse(
-    await response.json().catch(() => null),
-  );
+  if (status < 200 || status >= 300)
+    throw new Error(`OpenCode usage failed: ${status}`);
+  const answer = limitsSchema.safeParse(body);
   if (!answer.success) return empty("Couldn't read usage");
   const limits = answer.data.data;
   if (!limits) return empty("Go usage needs a Console workspace sign-in");
@@ -96,13 +95,7 @@ export async function readOpenCodeUsage(): Promise<ProviderUsage> {
 function askLimits(service: OpenCodeService) {
   const url = new URL(LIMITS_PATH, service.url);
   url.searchParams.set("location[directory]", homedir());
-  const headers: Record<string, string> = { accept: "application/json" };
-  if (service.authorization) headers.authorization = service.authorization;
-  return fetch(url, {
-    headers,
-    redirect: "manual",
-    signal: AbortSignal.timeout(REQUEST_TIMEOUT),
-  });
+  return readLocalServiceJson(url, service.authorization, REQUEST_TIMEOUT);
 }
 
 /**

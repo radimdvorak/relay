@@ -1,11 +1,16 @@
 import { homedir } from "node:os";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { providerUsageSchema } from "../../../shared/provider-usage";
 
 const snapshot = vi.hoisted(() => ({ running: vi.fn() }));
+const ask = vi.hoisted(() => vi.fn());
 
 vi.mock("./service-snapshot", () => ({
   runningOpenCodeService: snapshot.running,
+}));
+
+vi.mock("./local-service-http", () => ({
+  readLocalServiceJson: ask,
 }));
 
 const { monthBefore, openCodeGoWindows, readOpenCodeUsage } =
@@ -48,25 +53,15 @@ const service = {
   authorization: `Basic ${Buffer.from("opencode:pw").toString("base64")}`,
 };
 
-const ask = vi.fn();
-
 /** The service answers the limits request with this. */
 function answers(body: unknown, status = 200) {
-  ask.mockImplementation(
-    async () =>
-      new Response(typeof body === "string" ? body : JSON.stringify(body), {
-        status,
-      }),
-  );
+  ask.mockResolvedValue({ status, body });
 }
 
 beforeEach(() => {
   ask.mockReset();
   snapshot.running.mockReset().mockResolvedValue(service);
-  vi.stubGlobal("fetch", ask);
 });
-
-afterEach(() => vi.unstubAllGlobals());
 
 describe("openCodeGoWindows", () => {
   it("makes a window of each limit, resetting when OpenCode says", () => {
@@ -149,15 +144,12 @@ describe("readOpenCodeUsage", () => {
   it("asks the service it was found, with the password it was found with", async () => {
     answers(signedIn());
     const usage = await readOpenCodeUsage();
-    const [url, init] = ask.mock.calls[0] as [URL, RequestInit];
+    const [url, authorization, timeout] = ask.mock.calls[0];
     expect(url.origin).toBe("http://127.0.0.1:4096");
     expect(url.pathname).toBe("/api/experimental/usage/limits");
     expect(url.searchParams.get("location[directory]")).toBe(homedir());
-    expect(init.headers).toEqual({
-      accept: "application/json",
-      authorization: `Basic ${Buffer.from("opencode:pw").toString("base64")}`,
-    });
-    expect(init.redirect).toBe("manual");
+    expect(authorization).toBe(service.authorization);
+    expect(timeout).toBe(20_000);
     expect(usage.message).toBeNull();
     expect(usage.windows.map((window) => window.kind)).toEqual([
       "session",
@@ -170,8 +162,7 @@ describe("readOpenCodeUsage", () => {
     snapshot.running.mockResolvedValue({ url: service.url });
     answers(signedIn());
     await readOpenCodeUsage();
-    const [, init] = ask.mock.calls[0] as [URL, RequestInit];
-    expect(init.headers).toEqual({ accept: "application/json" });
+    expect(ask.mock.calls[0][1]).toBeUndefined();
   });
 
   it("hands back nothing of the workspace", async () => {

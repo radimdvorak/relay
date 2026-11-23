@@ -1,5 +1,7 @@
+import { execFile } from "node:child_process";
 import {
   createServer,
+  get,
   type IncomingMessage,
   type Server,
   type ServerResponse,
@@ -8,16 +10,22 @@ import type { AddressInfo } from "node:net";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { build } from "esbuild";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { readOpenCodeUsage } from "./go-usage";
 import { runningOpenCodeService } from "./service-snapshot";
 
 // The transport under the reader, with nothing of it mocked: OpenCode's
 // registration file in a folder of its own, real HTTP services on loopback,
-// and the real fetch. A spy only counts what is sent. No key is used.
+// and the real HTTP client. A spy only records what is sent. No key is used.
 
-const realFetch = globalThis.fetch;
+vi.mock("node:http", async (original) => {
+  const http = await original<typeof import("node:http")>();
+  return { ...http, get: vi.fn(http.get) };
+});
+
 const PASSWORD = "first-password";
+const requests = vi.mocked(get);
 
 const basic = (password: string) =>
   `Basic ${Buffer.from(`opencode:${password}`).toString("base64")}`;
@@ -54,7 +62,6 @@ type Listener = { url: string; hits: Hit[] };
 
 let state: string;
 let servers: Server[] = [];
-let spy: ReturnType<typeof vi.fn>;
 
 const json = (res: ServerResponse, body: unknown, status = 200) => {
   res.statusCode = status;
@@ -126,13 +133,12 @@ const closeAll = () =>
 beforeEach(async () => {
   state = await mkdtemp(join(tmpdir(), "opencode-transport-"));
   vi.stubEnv("XDG_STATE_HOME", state);
-  spy = vi.fn(realFetch);
-  vi.stubGlobal("fetch", spy);
+  requests.mockClear();
 });
 
 afterEach(async () => {
   vi.unstubAllEnvs();
-  vi.unstubAllGlobals();
+  vi.restoreAllMocks();
   await closeAll();
   servers = [];
   await rm(state, { recursive: true, force: true });
@@ -173,6 +179,13 @@ describe("a service on loopback with a password", () => {
     expect(await runningOpenCodeService()).toBeUndefined();
   });
 
+  it("keeps localhost on loopback", async () => {
+    const service = await listen();
+    await register(service.url.replace("127.0.0.1", "localhost"));
+    expect((await readOpenCodeUsage()).windows).toHaveLength(3);
+    expect(service.hits).toHaveLength(2);
+  });
+
   it("is found without a password when none is registered and none is wanted", async () => {
     const hits: Hit[] = [];
     const bare = createServer((req, res) => {
@@ -209,7 +222,7 @@ describe("an address that isn't a local HTTP service", () => {
       "OpenCode didn't report",
     );
     await expect(readOpenCodeUsage()).rejects.toThrow("OpenCode didn't report");
-    expect(spy).not.toHaveBeenCalled();
+    expect(requests).not.toHaveBeenCalled();
   });
 });
 
@@ -256,6 +269,7 @@ describe("a health response that isn't the registered service's", () => {
     ["null", (res) => json(res, "null")],
     ["an empty object", (res) => json(res, {})],
     ["a version that isn't text", (res) => json(res, { version: 2, pid: 1 })],
+    ["an empty version", (res) => json(res, { ...itself, version: "" })],
     ["a pid that isn't whole", (res) => json(res, { ...itself, pid: 1.5 })],
     [
       "another process",
@@ -285,6 +299,16 @@ describe("a health response that isn't the registered service's", () => {
     await register(service.url, { version: undefined });
     expect(await runningOpenCodeService()).toBeDefined();
   });
+
+  it.each(["", " \t "])(
+    "rejects the blank registered version %j",
+    async (version) => {
+      const service = await listen();
+      await register(service.url, { version });
+      expect(await readOpenCodeUsage()).toMatchObject(waiting);
+      expect(requests).not.toHaveBeenCalled();
+    },
+  );
 });
 
 describe("a service that isn't running", () => {
@@ -293,7 +317,7 @@ describe("a service that isn't running", () => {
     expect(service.url).toMatch(/^http:/);
     expect(await runningOpenCodeService()).toBeUndefined();
     expect(await readOpenCodeUsage()).toMatchObject(waiting);
-    expect(spy).not.toHaveBeenCalled();
+    expect(requests).not.toHaveBeenCalled();
     expect(service.hits).toEqual([]);
   });
 
@@ -312,22 +336,50 @@ describe("a service that isn't running", () => {
       await writeFile(join(state, "opencode", "service.json"), text);
       expect(await runningOpenCodeService()).toBeUndefined();
     }
-    expect(spy).not.toHaveBeenCalled();
+    expect(requests).not.toHaveBeenCalled();
   });
 });
 
 describe("how long a reading waits", () => {
-  it("lets the Console take its 15 seconds, and still stops short of provider-usage's 60", async () => {
-    const timeout = vi.spyOn(AbortSignal, "timeout");
-    const service = await listen();
-    await register(service.url);
-    await readOpenCodeUsage();
-    const [health, limitsRead] = timeout.mock.calls.map(([ms]) => ms);
-    expect(timeout).toHaveBeenCalledTimes(2);
-    expect(limitsRead).toBeGreaterThan(15_000);
-    expect(health + limitsRead).toBeLessThan(60_000);
-    timeout.mockRestore();
-  });
+  it.each(["info", "limits"] as const)(
+    "aborts an unfinished %s response body",
+    async (phase) => {
+      const sent = Promise.withResolvers<void>();
+      const closed = Promise.withResolvers<void>();
+      const service = await listen({
+        [phase]: (res: ServerResponse) => {
+          res.once("close", closed.resolve);
+          res.writeHead(200, { "content-type": "application/json" });
+          res.write("{");
+          sent.resolve();
+        },
+      });
+      const controller = new AbortController();
+      const timeout = vi.spyOn(AbortSignal, "timeout");
+      if (phase === "limits")
+        timeout.mockReturnValueOnce(new AbortController().signal);
+      timeout.mockReturnValueOnce(controller.signal);
+      await register(service.url);
+      const reading = readOpenCodeUsage();
+      const checked =
+        phase === "info"
+          ? expect(reading).resolves.toMatchObject(waiting)
+          : expect(reading).rejects.toMatchObject({ code: "ABORT_ERR" });
+      await sent.promise;
+      // Wait until the client starts consuming the partial body.
+      const request = requests.mock.results.at(-1)!.value;
+      await new Promise<void>((resolve) => {
+        request.once("response", (response: IncomingMessage) =>
+          response.once("data", () => resolve()),
+        );
+      });
+      controller.abort();
+      await Promise.all([checked, closed.promise]);
+      expect(timeout.mock.calls).toEqual(
+        phase === "info" ? [[2_000]] : [[2_000], [20_000]],
+      );
+    },
+  );
 });
 
 describe("a registration that changes while a reading is under way", () => {
@@ -347,12 +399,101 @@ describe("a registration that changes while a reading is under way", () => {
     expect(limitsHit?.authorization).toBe(basic(PASSWORD));
     // The new registration is read by the next reading, not this one.
     expect(other.hits).toEqual([]);
-    expect(spy.mock.calls.map(([url]) => new URL(String(url)).origin)).toEqual([
-      new URL(service.url).origin,
-      new URL(service.url).origin,
-    ]);
+    expect(
+      requests.mock.calls.map(([url]) => new URL(String(url)).origin),
+    ).toEqual([new URL(service.url).origin, new URL(service.url).origin]);
     const next = await runningOpenCodeService();
     expect(next?.url.origin).toBe(new URL(other.url).origin);
     expect(next?.authorization).toBe(basic("second-password"));
   });
 });
+
+it.skipIf(!process.allowedNodeEnvironmentFlags.has("--use-env-proxy"))(
+  "keeps both requests off the proxy even when Node routes global requests through it",
+  async () => {
+    const service = await listen();
+    await register(service.url);
+    const proxied: { target?: string; authorized: boolean }[] = [];
+    const proxy = createServer((req, res) => {
+      proxied.push({
+        target: req.url,
+        authorized: !!req.headers.authorization,
+      });
+      res.writeHead(502).end();
+    });
+    proxy.on("connect", (req, socket) => {
+      proxied.push({
+        target: req.url,
+        authorized: !!req.headers.authorization,
+      });
+      socket.end("HTTP/1.1 502 Bad Gateway\r\nConnection: close\r\n\r\n");
+    });
+    servers.push(proxy);
+    await new Promise<void>((resolve) => proxy.listen(0, "127.0.0.1", resolve));
+    const authority = `127.0.0.1:${(proxy.address() as AddressInfo).port}`;
+    const settings = Object.fromEntries(
+      Object.entries(process.env).filter(
+        ([name]) =>
+          !/^(?:https?_proxy|all_proxy|no_proxy|node_use_env_proxy|node_options)$/i.test(
+            name,
+          ),
+      ),
+    );
+    const bundle = await build({
+      stdin: {
+        contents: `
+          import { readOpenCodeUsage } from "./electron/agents/opencode/go-usage";
+          void (async () => {
+            await fetch(process.env.RELAY_TEST_PROXY).catch(() => {});
+            const usage = await readOpenCodeUsage();
+            console.log(usage.windows.length);
+          })().catch((error) => {
+            console.error(error);
+            process.exitCode = 1;
+          });
+        `,
+        resolveDir: process.cwd(),
+      },
+      bundle: true,
+      format: "cjs",
+      packages: "external",
+      platform: "node",
+      write: false,
+    });
+    // The global fetch above proves the proxy is active independently of the reader.
+    const proxyUrl = `http://${authority}`;
+    const stdout = await new Promise<string>((resolve, reject) => {
+      const child = execFile(
+        process.execPath,
+        ["--use-env-proxy", "--input-type=commonjs", "-"],
+        {
+          env: {
+            ...settings,
+            HTTP_PROXY: proxyUrl,
+            HTTPS_PROXY: proxyUrl,
+            ALL_PROXY: proxyUrl,
+            NO_PROXY: "",
+            NODE_USE_ENV_PROXY: "1",
+            RELAY_TEST_PROXY: proxyUrl,
+          },
+          timeout: 5_000,
+        },
+        (error, output) => {
+          if (error) reject(error);
+          else resolve(output);
+        },
+      );
+      child.stdin?.on("error", reject);
+      child.stdin?.end(bundle.outputFiles[0].text);
+    });
+    expect(stdout.trim()).toBe("3");
+    expect(proxied).toEqual([{ target: authority, authorized: false }]);
+    expect(service.hits).toEqual(
+      ["/api/info", "/api/experimental/usage/limits"].map((path) => ({
+        path,
+        authorization: basic(PASSWORD),
+      })),
+    );
+  },
+  10_000,
+);

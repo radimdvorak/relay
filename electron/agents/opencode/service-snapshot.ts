@@ -10,14 +10,17 @@ import { readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { z } from "zod";
+import { readLocalServiceJson } from "./local-service-http";
 import { localServiceUrl } from "./native-api";
 
 // As the SDK waits for the health check of a service on this computer.
 const HEALTH_TIMEOUT = 2_000;
 
 /** What OpenCode writes to its registration file when a service starts. */
+const versionSchema = z.string().refine((version) => version.trim().length > 0);
+
 const registrationSchema = z.object({
-  version: z.string().optional(),
+  version: versionSchema.optional(),
   url: z.string(),
   pid: z.number().int().min(0),
   password: z.string().optional(),
@@ -25,7 +28,7 @@ const registrationSchema = z.object({
 
 /** What the service says of itself at /api/info. */
 const identitySchema = z.object({
-  version: z.string(),
+  version: versionSchema,
   pid: z.number().int().min(0),
 });
 
@@ -67,7 +70,11 @@ export async function runningOpenCodeService(): Promise<
   if (!identity) return;
   // The process that registered is the one answering, as the SDK checks.
   if (identity.pid !== registration.pid) return;
-  if (registration.version && identity.version !== registration.version) return;
+  if (
+    registration.version !== undefined &&
+    identity.version !== registration.version
+  )
+    return;
   return { url, authorization };
 }
 
@@ -85,14 +92,11 @@ function parseRegistration(text: string) {
 
 /** The service's own account of itself; a service that isn't ready, or isn't OpenCode 2, has none. */
 async function askIdentity(url: URL, authorization: string | undefined) {
-  const response = await fetch(new URL("/api/info", url), {
-    headers: authorization ? { authorization } : {},
-    // A redirect would carry the password to another address.
-    redirect: "manual",
-    signal: AbortSignal.timeout(HEALTH_TIMEOUT),
-  }).catch(() => undefined);
-  if (!response?.ok) return;
-  const body = await response.json().catch(() => undefined);
-  const identity = identitySchema.safeParse(body);
+  const response = await readLocalServiceJson(
+    new URL("/api/info", url),
+    authorization,
+    HEALTH_TIMEOUT,
+  ).catch(() => undefined);
+  const identity = identitySchema.safeParse(response?.body);
   return identity.success ? identity.data : undefined;
 }
