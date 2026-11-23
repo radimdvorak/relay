@@ -10,7 +10,7 @@ import {
   type Ref,
 } from "react";
 import { Paperclip } from "lucide-react";
-import { reportsUsage, type AgentProvider } from "../../../shared/agents";
+import type { AgentProvider } from "../../../shared/agents";
 import type { CommandOption, RelayCommand } from "../../../shared/commands";
 import type { ComposedSend } from "../../../shared/compose-send";
 import type { ResumeSettings } from "../../../shared/projects";
@@ -55,15 +55,10 @@ import { SketchEditor } from "../images/ImageSketch";
 import { carriesImage } from "../images/image-drag";
 import { PastedTextDialog } from "./PastedTextCard";
 import { QuickSwitchHud } from "../quick-switch/QuickSwitchHud";
-import { UsageRing } from "./UsageRing";
-import { ThreadCostButton } from "./ThreadCost";
+import { usageControl } from "./UsageSlot";
 import type { ThreadCost } from "../../../shared/thread-cost";
 import { useThreadAccounts } from "../accounts/useThreadAccounts";
-import {
-  AccountControl,
-  accountUsageFooter,
-  accountUsageName,
-} from "../accounts/AccountSwitch";
+import { AccountControl, accountUsageFooter } from "../accounts/AccountSwitch";
 import type { ComposerConversation } from "./composer-conversation";
 import {
   ComposerBelow,
@@ -509,15 +504,12 @@ const ComposerBody = memo(function ComposerBody({
                   onInteractionMode={composer.setInteractionMode}
                 />
               ),
-              usage: reportsUsage(to) ? (
-                <UsageRing
-                  provider={to}
-                  account={accounts.of(to)}
-                  accountName={accountUsageName(to, accounts)}
-                />
-              ) : (
-                threadCost && <ThreadCostButton cost={threadCost} />
-              ),
+              usage: usageControl({
+                provider: to,
+                accounts,
+                computer,
+                cost: threadCost,
+              }),
               mic: (
                 <DictationButton
                   owner={sending.dictation}

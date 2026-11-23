@@ -138,7 +138,7 @@ struct UsageRings: View {
 }
 
 /// Thread settings' usage row: the context window and the plan's limits as thin bars,
-/// or what the thread billed for an agent without limits.
+/// and what the thread billed, which stays beside the limits.
 struct UsageBars: View {
     let provider: String
     let context: ContextUsage?
@@ -155,8 +155,9 @@ struct UsageBars: View {
         let used = contextPercent(context)
         let limits = reportsUsage(provider)
         let meters = limits ? usageMeters(connection.usage[provider], now: nowMs()) : []
-        // Like the desktop, an agent with plan limits shows those instead.
-        let spent = limits ? nil : cost
+        // Like the desktop, the price stays beside the limits: OpenCode prices an
+        // answer from a model outside its Go plan, and its limits can be unavailable.
+        let spent = cost
         HStack(spacing: 12) {
             if let used {
                 bar("Context", "\(used)%", Double(used), paceColor(contextPace(Double(used)), colors.muted))

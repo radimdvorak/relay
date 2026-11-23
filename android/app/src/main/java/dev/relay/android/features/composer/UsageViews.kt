@@ -125,8 +125,9 @@ fun UsageBar(provider: String, usage: ProviderUsage?, context: ContextUsage?, co
     val c = RelayTheme.colors
     val used = context?.maxTokens?.takeIf { it > 0 }?.let { minOf(100, (context.usedTokens * 100.0 / it).roundToInt()) }
     val list = if (reportsUsage(provider)) meters(usage) else emptyList()
-    // Like the desktop, an agent with plan limits shows those instead.
-    val spent = if (reportsUsage(provider)) null else cost
+    // Like the desktop, the price stays beside the limits: OpenCode prices an
+    // answer from a model outside its Go plan, and its limits can be unavailable.
+    val spent = cost
     if (used == null && list.isEmpty() && spent == null) return
     val label = listOfNotNull(
         used?.let { "Context $it% full" },
