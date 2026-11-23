@@ -162,4 +162,28 @@ struct UsageTests {
         // Another connection's readings start empty.
         #expect(UsageReadings().failed.isEmpty)
     }
+
+    @Test func aFailureReplacesAnEmptyStatusButKeepsMetersWhenAvailable() throws {
+        let provider = "opencode"
+        let ready = try JSONDecoder().decode(
+            ProviderUsage.self,
+            from: Data(#"{"provider":"opencode","windows":[{"kind":"weekly","usedPercent":40,"resetsAt":1800000000000,"periodMs":604800000}],"message":null}"#.utf8))
+        let empty = try JSONDecoder().decode(
+            ProviderUsage.self,
+            from: Data(#"{"provider":"opencode","windows":[],"message":"Shows while OpenCode is running"}"#.utf8))
+        var readings = UsageReadings()
+        readings.record(provider, ready)
+        #expect(!readings.unavailable(provider))
+        readings.record(provider, empty)
+        #expect(!readings.unavailable(provider))
+        readings.record(provider, nil)
+        #expect(readings.unavailable(provider))
+        #expect(!readings.unavailable("claude"))
+        readings.record(provider, ready)
+        #expect(!readings.unavailable(provider))
+        #expect(readings.usage[provider] == ready)
+        readings.record(provider, nil)
+        #expect(!readings.unavailable(provider))
+        #expect(readings.usage[provider] == ready)
+    }
 }

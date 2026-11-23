@@ -473,8 +473,8 @@ final class Connection {
         if self.client === client { readings.record(provider, reported) }
     }
 
-    /// Whether the last ask for the agent's plan limits failed.
-    func usageFailed(_ provider: String) -> Bool { readings.failed.contains(provider) }
+    /// Whether the last ask failed and left no plan meters to show.
+    func usageUnavailable(_ provider: String) -> Bool { readings.unavailable(provider) }
 
     /// Whether the conversation has an answer going: a reply's own, or the thread's.
     func running(_ chatId: String, rootId: String? = nil) -> Bool {

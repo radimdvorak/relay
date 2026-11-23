@@ -38,6 +38,7 @@ class UsageReadingsTest {
             val refusedAsk = readings.readFor { throw refused }
             assertNull(refusedAsk.usage)
             assertTrue(refusedAsk.failed)
+            assertTrue(refusedAsk.unavailable)
             assertEquals(refusedAsk, readings["mini", "opencode"])
             // Asking again once the host answers replaces the failure.
             val answered = readings.readFor { usage() }
@@ -54,6 +55,24 @@ class UsageReadingsTest {
             val failed = readings.readFor { throw refused }
             assertEquals(usage("opencode"), failed.usage)
             assertTrue(failed.failed)
+            assertFalse(failed.unavailable)
+        }
+    }
+
+    @Test fun aFailureReplacesAnEmptyStatusUntilTheNextSuccess() {
+        runBlocking {
+            val readings = UsageReadings()
+            val empty = ProviderUsage("opencode", message = "Shows while OpenCode is running")
+            assertFalse(readings.readFor { usage() }.unavailable)
+            val waiting = readings.readFor { empty }
+            assertEquals(empty, waiting.usage)
+            assertFalse(waiting.unavailable)
+            val failed = readings.readFor { throw refused }
+            assertTrue(failed.unavailable)
+            assertTrue(failed.usage?.windows.isNullOrEmpty())
+            val recovered = readings.readFor { usage(percent = 65.0) }
+            assertFalse(recovered.unavailable)
+            assertEquals(usage(percent = 65.0), recovered.usage)
         }
     }
 

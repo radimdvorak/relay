@@ -70,6 +70,11 @@ public struct UsageReadings: Equatable, Sendable {
 
     public init() {}
 
+    /// There are no meters to keep showing after the last ask failed.
+    public func unavailable(_ provider: String) -> Bool {
+        failed.contains(provider) && (usage[provider]?.windows.isEmpty ?? true)
+    }
+
     /// Keeps what asking `provider` came to: the limits it got, or nil when the ask failed.
     public mutating func record(_ provider: String, _ reported: ProviderUsage?) {
         guard let reported else {

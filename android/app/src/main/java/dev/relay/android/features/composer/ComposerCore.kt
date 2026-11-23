@@ -651,7 +651,7 @@ internal fun ComposerCore(
                     if (result is RunResult.Failed) error = result.message
                 }
             },
-            unavailable = usage.failed,
+            unavailable = usage.unavailable,
         )
         Sheet.Settings -> SheetView({ sheet = null }, title = "Thread settings") {
             Column {

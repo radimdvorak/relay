@@ -46,7 +46,9 @@ data class ProviderUsage(
 )
 
 /** What asking an agent's limits last came to on one computer: the limits, and whether the last ask failed. */
-data class UsageReading(val usage: ProviderUsage? = null, val failed: Boolean = false)
+data class UsageReading(val usage: ProviderUsage? = null, val failed: Boolean = false) {
+    val unavailable: Boolean get() = failed && usage?.windows.isNullOrEmpty()
+}
 
 /** A client and the computer it belongs to, captured together for a read. */
 data class UsageConnection<Client : Any>(val computer: String, val client: Client) {

@@ -79,8 +79,8 @@ private fun paceColor(pace: String, fallback: Color) = when (pace) {
 
 private fun contextPace(used: Double) = if (used >= 90) "hot" else if (used >= 75) "warn" else "ok"
 
-/** `failed` says the last ask didn't answer; `usage` is then what was read before it, if anything. */
-class UsageState(val usage: ProviderUsage?, val reload: (force: Boolean) -> Unit, val failed: Boolean = false)
+/** `unavailable` says the last ask failed and left no plan meters to show. */
+class UsageState(val usage: ProviderUsage?, val reload: (force: Boolean) -> Unit, val unavailable: Boolean = false)
 
 /** The agent's plan usage, looked up now and every few minutes while the app is in the foreground. */
 @Composable
@@ -114,7 +114,7 @@ fun rememberUsage(remote: Remote, provider: String): UsageState {
         }
     }
     val shown = reading ?: usageReadings[computer, provider]
-    return UsageState(shown?.usage, { force -> scope.launch { load(force) } }, failed = shown?.failed == true)
+    return UsageState(shown?.usage, { force -> scope.launch { load(force) } }, unavailable = shown?.unavailable == true)
 }
 
 private fun meters(usage: ProviderUsage?): List<UsageMeter> {
@@ -280,7 +280,7 @@ fun UsageSheet(
         }
         when {
             !reportsUsage(provider) -> Text("${agentName(provider)} doesn't report plan limits.", style = RelayTheme.type.xs, color = c.mutedForeground)
-            usage == null && unavailable -> Text("Couldn't read ${agentName(provider)}'s plan limits.", style = RelayTheme.type.xs, color = c.mutedForeground)
+            unavailable -> Text("Couldn't read ${agentName(provider)}'s plan limits.", style = RelayTheme.type.xs, color = c.mutedForeground)
             usage == null -> Spinner(color = c.mutedForeground)
             list.isEmpty() -> Text(usage.message ?: "No usage limits reported", style = RelayTheme.type.xs, color = c.mutedForeground)
             else -> list.forEach { m ->
