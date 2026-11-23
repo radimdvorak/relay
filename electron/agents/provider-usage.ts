@@ -94,17 +94,15 @@ export function readProviderUsage(
     LOAD_TIMEOUT,
     `${provider} usage took too long`,
   )
-    .catch((): ProviderUsage => ({
-      provider,
-      windows: [],
-      message: "Couldn't read usage",
-    }))
+    .catch(() => unreadable(provider))
     .then(async (value) => {
       const activeHours = await recordUsage(
         value,
         account === SYSTEM_ACCOUNT ? provider : key,
       ).catch(() => null);
-      const parsed = providerUsageSchema.parse({ ...value, activeHours });
+      // A reading that isn't valid mustn't reject what asks for every agent's.
+      const checked = providerUsageSchema.safeParse({ ...value, activeHours });
+      const parsed = checked.success ? checked.data : unreadable(provider);
       cache.set(key, { at: Date.now(), value: parsed });
       return parsed;
     })
@@ -112,6 +110,12 @@ export function readProviderUsage(
   pending.set(key, task);
   return task;
 }
+
+const unreadable = (provider: UsageProvider): ProviderUsage => ({
+  provider,
+  windows: [],
+  message: "Couldn't read usage",
+});
 
 async function loadClaude(account: string): Promise<ProviderUsage> {
   const usage = await readClaudeUsage(account);
