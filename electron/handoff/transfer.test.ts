@@ -1,9 +1,9 @@
 import { expect, it } from "vitest";
 import { readOnlyModeBridge } from "../../shared/remote";
 import type { RemoteClient } from "../../shared/remote-client";
-import type { ProjectChatSend } from "../../shared/projects";
+import type { ProjectChat, ProjectChatSend } from "../../shared/projects";
 import type { ComputerInfos } from "./computer-infos";
-import { sendFor, settingsOf } from "./transfer";
+import { firstSendOf, readReturned, sendFor, settingsOf } from "./transfer";
 
 const readOnly = {
   id: "11111111-1111-4111-8111-111111111111",
@@ -49,4 +49,53 @@ it("refuses a Read only message to a thread on a computer too old for it", async
     readOnly,
   );
   expect(sent.runtimeMode).toBe("read-only");
+});
+
+it("carries first-message audio clips in firstSendOf and preserves audio on hand-back", async () => {
+  const clipMeta = {
+    id: "22222222-2222-4222-8222-222222222222",
+    name: "voice.wav",
+    mimeType: "audio/wav" as const,
+    sizeBytes: 12,
+    durationSec: 1.4,
+    peaks: [0.2, 0.8],
+  };
+  const chat = {
+    id: "chat-1",
+    lastInput: {
+      ...readOnly,
+      provider: "antigravity" as const,
+      runtimeMode: "full-access" as const,
+    },
+    messages: [
+      {
+        id: "m1",
+        role: "user" as const,
+        body: "Listen to this",
+        status: "complete" as const,
+        created: 1,
+        version: 1,
+        provider: "antigravity" as const,
+        audio: [clipMeta],
+      },
+    ],
+  } as unknown as ProjectChat;
+
+  const sent = await firstSendOf(
+    chat,
+    async () => "data:image/png;base64,AA==",
+    async (id) => `data:audio/wav;base64,${id}`,
+  );
+  expect(sent.audio).toEqual([
+    {
+      name: "voice.wav",
+      mimeType: "audio/wav",
+      durationSec: 1.4,
+      peaks: [0.2, 0.8],
+      dataUrl: `data:audio/wav;base64,${clipMeta.id}`,
+    },
+  ]);
+
+  const returned = readReturned(JSON.stringify(chat.messages), "Build box");
+  expect(returned[0]?.audio).toEqual([clipMeta]);
 });

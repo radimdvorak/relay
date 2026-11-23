@@ -6,7 +6,9 @@ export const maxBatchedMessageBytes = 128 * 1024 * 1024;
 export function batchableMessage(method: string, args: unknown[]): boolean {
   return (
     method === "sendDraft" ||
-    (method === "desktop" && args[0] === "sendProjectChat")
+    method === "startInProject" ||
+    (method === "desktop" && args[0] === "sendProjectChat") ||
+    (method === "handoffCall" && args[1] === "sendProjectChat")
   );
 }
 

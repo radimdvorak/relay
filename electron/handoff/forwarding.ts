@@ -19,6 +19,8 @@ import {
   type ChatTriage,
   type ProjectChatSend,
 } from "../../shared/projects";
+import type { VideoPart } from "../../shared/answer-images";
+import { maxAudioBytes } from "../../shared/audio";
 import { errorMessage } from "../../shared/error-message";
 import type { SavedSecrets } from "../../shared/secret-request";
 import { sharedHandoffTriage } from "../../shared/handoff-triage";
@@ -132,6 +134,8 @@ export class HandoffForwarding {
       );
     if (method === "projectChatImage")
       return this.sentImage(sentTo, args as [string, string], here);
+    if (method === "projectChatAudio")
+      return this.sentAudio(sentTo, args as [string, string], here);
     if (method === "threadSecrets") return this.secretsThere(sentTo, args);
     if (folderMethods.has(method) && !sentTo.folder) {
       if (here) return here();
@@ -364,6 +368,52 @@ export class HandoffForwarding {
         console.warn("A thread's image from there wasn't kept:", e),
       );
     return image;
+  }
+
+  /**
+   * A sent audio clip of the thread, streamed from here once downloaded in
+   * chunks: the other computer's local media URL wouldn't resolve here, and
+   * keeping the bytes lets playback keep working while the link is down.
+   */
+  private async sentAudio(
+    sentTo: NonNullable<ChatSummary["sentTo"]>,
+    args: [chatId: string, audioId: string],
+    here?: () => unknown,
+  ) {
+    const kept = await Promise.resolve(here?.()).catch(() => undefined);
+    if (typeof kept === "string") return kept;
+    const chunks: Buffer[] = [];
+    let offset = 0;
+    let size = Infinity;
+    while (offset < size) {
+      const part = (await this.callThere(
+        sentTo.computerId,
+        sentTo.id,
+        "projectChatAudioPart",
+        [args[0], args[1], offset],
+      )) as VideoPart;
+      if (
+        !part ||
+        typeof part.size !== "number" ||
+        typeof part.data !== "string" ||
+        part.size <= 0 ||
+        part.size > maxAudioBytes
+      )
+        throw new Error(`${sentTo.computer} sent the audio back unreadable.`);
+      size = part.size;
+      const chunk = Buffer.from(part.data, "base64");
+      if (!chunk.length || offset + chunk.length > size)
+        throw new Error(`${sentTo.computer} sent the audio back incomplete.`);
+      chunks.push(chunk);
+      offset += chunk.length;
+    }
+    await this.chats.files.keepAudio(
+      args[0],
+      args[1],
+      Buffer.concat(chunks, size),
+    );
+    if (!here) throw new Error("Local audio handler is unavailable.");
+    return here();
   }
 
   /** What the thread's project has saved on the computer it runs on, which the answer names. */

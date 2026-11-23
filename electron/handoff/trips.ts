@@ -143,7 +143,11 @@ export class HandoffTrips {
    * goes after the thread, as every later one does.
    */
   private firstSend(chat: ProjectChat) {
-    return firstSendOf(chat, (image) => this.chats.files.image(chat.id, image));
+    return firstSendOf(
+      chat,
+      (image) => this.chats.files.image(chat.id, image),
+      (audio) => this.chats.files.audioDataUrl(chat.id, audio),
+    );
   }
 
   /** The other side stops, notes and commits; its work comes back into this worktree. */

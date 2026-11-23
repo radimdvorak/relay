@@ -16,6 +16,11 @@ import type { ProjectChatSend } from "../../../shared/projects";
 import { flattenSketch } from "../images/sketch";
 import { loadDraftImages, saveDraftImages } from "../images/draft-images";
 import {
+  audioSendItems,
+  loadDraftAudio,
+  saveDraftAudio,
+} from "../audio/draft-audio";
+import {
   clearDraftAttachments,
   loadDraftAttachments,
   withAttachments,
@@ -78,7 +83,10 @@ async function sendHeld({
   const composer = threadDraftKey(key);
   const thread = draftThread(key)?.chatId ?? key;
   const reply = !!draftThread(key)?.root;
-  const own = await loadDraftImages(composer).catch(() => []);
+  const [own, ownAudio] = await Promise.all([
+    loadDraftImages(composer).catch(() => []),
+    loadDraftAudio(composer).catch(() => []),
+  ]);
   // The phone's photos go after this computer's screenshots, which its tokens name.
   const outgoing = numberImages(send.body, [
     ...own,
@@ -89,6 +97,7 @@ async function sendHeld({
       "sketch" in image ? flattenSketch(image) : image,
     ),
   );
+  const audio = [...audioSendItems(ownAudio), ...(send.audio ?? [])];
   const attachments = reply ? undefined : loadDraftAttachments(thread);
   const base: ProjectChatSend = {
     ...send,
@@ -99,6 +108,7 @@ async function sendHeld({
       dataUrl,
       ...(browser ? { browser } : {}),
     })),
+    ...(audio.length ? { audio } : {}),
   };
   const value = attachments
     ? { ...withAttachments(base, attachments), id: send.id }
@@ -106,22 +116,7 @@ async function sendHeld({
   const attempt = attemptOf(key, send);
   let target = chatId ?? (await threadFromFailedSend(key, attempt));
   if (!target) {
-    const projectId = newDraftProject(key);
-    const project = (await api.projects()).find((p) => p.id === projectId);
-    if (!project) throw new Error("That project isn't in Relay anymore.");
-    const scope = loadDraftScope(key);
-    // A review starts from its setup, not from a message.
-    if (scope.kind === "review")
-      throw new Error("Start that review on the computer.");
-    const made = await api.createProjectChat(
-      project.id,
-      scope,
-      scope.kind === "project" ? loadDraftWorkspace(key, project) : undefined,
-      scope.kind === "project" ? draftWorktreeBranch(key, project) : undefined,
-      loadDraftLinks(key),
-      scope.kind === "project" ? draftWorktreeStart(key, project) : undefined,
-    );
-    target = made.id;
+    target = await createHeldThread(key);
     started.set(attempt, target);
   }
   await api.sendProjectChat(target, value);
@@ -130,13 +125,41 @@ async function sendHeld({
   const sent = new Set(
     outgoing.images.flatMap((image) => ("id" in image ? [image.id] : [])),
   );
+  const sentAudio = new Set(ownAudio.map((clip) => clip.id));
   await quietly(thread, async () => {
     if (attachments) clearDraftAttachments(thread, attachments);
     await saveDraftImages(
       composer,
       own.filter((image) => !sent.has(image.id)),
     ).catch(() => {});
+    await loadDraftAudio(composer)
+      .then((now) =>
+        saveDraftAudio(
+          composer,
+          now.filter((clip) => !sentAudio.has(clip.id)),
+        ),
+      )
+      .catch(() => {});
     if (!chatId) forgetNewThread(key);
   });
   return { chatId: target };
+}
+
+async function createHeldThread(key: string) {
+  const projectId = newDraftProject(key);
+  const project = (await api.projects()).find((p) => p.id === projectId);
+  if (!project) throw new Error("That project isn't in Relay anymore.");
+  const scope = loadDraftScope(key);
+  // A review starts from its setup, not from a message.
+  if (scope.kind === "review")
+    throw new Error("Start that review on the computer.");
+  const made = await api.createProjectChat(
+    project.id,
+    scope,
+    scope.kind === "project" ? loadDraftWorkspace(key, project) : undefined,
+    scope.kind === "project" ? draftWorktreeBranch(key, project) : undefined,
+    loadDraftLinks(key),
+    scope.kind === "project" ? draftWorktreeStart(key, project) : undefined,
+  );
+  return made.id;
 }

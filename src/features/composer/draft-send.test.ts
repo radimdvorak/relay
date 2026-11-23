@@ -7,6 +7,7 @@ import type {
   ProjectChatSend,
 } from "../../../shared/projects";
 import type { CodeReference } from "../../../shared/code-references";
+import type { DraftAudio } from "../audio/draft-audio";
 import type { DraftImage } from "../images/draft-images";
 import { threadDraftKey, threadStorage } from "../../lib/thread-storage";
 import { readDraft, writeDraft } from "./drafts";
@@ -18,6 +19,7 @@ import {
 } from "../agents/composer-settings";
 
 const images = new Map<string, DraftImage[]>();
+const audio = new Map<string, DraftAudio[]>();
 
 type Sent = ProjectChatSend & {
   thread: string;
@@ -28,6 +30,24 @@ type Sent = ProjectChatSend & {
 const sends: Sent[] = [];
 let lastInput: ProjectChatSend | undefined;
 let made = 0;
+
+vi.mock("../audio/draft-audio", () => ({
+  loadDraftAudio: async (key: string) => audio.get(key) ?? [],
+  saveDraftAudio: async (key: string, list: DraftAudio[]) =>
+    void audio.set(key, list),
+  draftAudioCount: (key: string) => audio.get(key)?.length ?? 0,
+  draftsWithAudio: () => [...audio.keys()],
+  readDraftAudioCounts: async () => {},
+  onDraftAudioCount: () => () => {},
+  audioSendItems: (clips: DraftAudio[]) =>
+    clips.map(({ name, mimeType, durationSec, peaks, dataUrl }) => ({
+      name,
+      mimeType,
+      durationSec,
+      peaks,
+      dataUrl,
+    })),
+}));
 
 vi.mock("../images/draft-images", () => ({
   loadDraftImages: async (key: string) => images.get(key) ?? [],
@@ -60,6 +80,7 @@ const store = new Map<string, string>();
 beforeEach(() => {
   store.clear();
   images.clear();
+  audio.clear();
   sends.length = 0;
   lastInput = undefined;
   made = 0;
@@ -273,4 +294,54 @@ describe("a new thread's draft whose send failed", () => {
     writeDraft(slot, "Rename the settings page");
     expect(await sendAgain()).toBe("made-2");
   });
+});
+
+it("sends an audio-only draft to Antigravity and keeps a clip attached while sending", async () => {
+  const clip = (id: string): DraftAudio => ({
+    id,
+    name: `${id}.wav`,
+    mimeType: "audio/wav",
+    sizeBytes: 12,
+    durationSec: 2,
+    peaks: [0.4, 0.8],
+    dataUrl: "data:audio/wav;base64,UklGRgAAAABXQVZFZm10IA==",
+  });
+  saveComposerSettings(chat.id, {
+    ...loadComposerSettings(chat.id),
+    provider: "antigravity",
+  });
+  audio.set(key, [clip("a")]);
+  const send = await sendHeldBack();
+  expect(sends[0].to).toBe("antigravity");
+  expect(sends[0].audio?.map((c) => c.name)).toEqual(["a.wav"]);
+
+  audio.set(key, [clip("a"), clip("b")]);
+  expect(await send.finish()).toBe(chat);
+  expect(audio.get(key)?.map((c) => c.id)).toEqual(["b"]);
+});
+
+it("refuses a background send when draft audio targets an agent that can't listen", async () => {
+  saveComposerSettings(chat.id, {
+    ...loadComposerSettings(chat.id),
+    provider: "claude",
+  });
+  audio.set(key, [
+    {
+      id: "a",
+      name: "note.wav",
+      mimeType: "audio/wav",
+      sizeBytes: 12,
+      dataUrl: "data:audio/wav;base64,UklGRgAAAABXQVZFZm10IA==",
+    },
+  ]);
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const result = await sendDraft(qc, {
+    key,
+    id: chat.id,
+    project,
+    chat,
+    reply: false,
+  });
+  expect(result).toBeNull();
+  expect(sends).toHaveLength(0);
 });

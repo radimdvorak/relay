@@ -59,8 +59,23 @@ it("waits for what an agent only takes at the start of a turn", () => {
   expect(steers(send("@codex this", { selection: {} as never }), running)).toBe(
     false,
   );
-  // A screenshot can steer.
+  // A screenshot can steer; audio starts a new turn.
   expect(steers(send("@codex look", { images: [image] }), running)).toBe(true);
+  const clip = {
+    name: "voice.wav",
+    mimeType: "audio/wav" as const,
+    dataUrl: "data:audio/wav;base64,UklGRg==",
+  };
+  const agy = send("@antigravity Listen", { provider: "antigravity" });
+  expect(
+    steers(
+      send("@antigravity Follow up", {
+        provider: "antigravity",
+        audio: [clip],
+      }),
+      agy,
+    ),
+  ).toBe(false);
 });
 
 it("steers with a skill for agents that run one mid-turn", () => {

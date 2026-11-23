@@ -5,6 +5,7 @@ import {
   type ChatSummary,
 } from "../../../shared/projects";
 import {
+  canReceiveAudio,
   draftRecipient,
   takesOver,
   threadContextAgent,
@@ -37,6 +38,12 @@ import {
   type DraftImage,
 } from "../images/draft-images";
 import {
+  audioSendItems,
+  loadDraftAudio,
+  saveDraftAudio,
+  type DraftAudio,
+} from "../audio/draft-audio";
+import {
   forgetNewThread,
   loadDraftLinks,
   loadDraftScope,
@@ -66,20 +73,26 @@ const started = new Map<string, { message: string; thread: ChatSummary }>();
 
 /**
  * Sends a thread's main draft the way its composer would, without opening
- * it: on the agent, models and modes last set there, with its screenshots
- * and attachments. Returns the thread it went to, or null when it needs its
- * thread open: a command, a review still to set up, or another agent taking over.
+ * it: on the agent, models and modes last set there, with its screenshots,
+ * audio and attachments. Returns the thread it went to, or null when it needs
+ * its thread open: a command, a review still to set up, unsupported audio, or
+ * another agent taking over.
  */
 export async function sendDraft(
   qc: QueryClient,
   { key, id, project, chat }: ActivityDraft,
 ): Promise<ChatSummary | null> {
   const text = readDraft(key).trim();
-  const draftImages = await loadDraftImages(key);
+  const [draftImages, draftAudio] = await Promise.all([
+    loadDraftImages(key),
+    loadDraftAudio(key),
+  ]);
   const scope = chat?.scope ?? loadDraftScope(id);
+  const hasMedia =
+    attachedImages(text, draftImages).length > 0 || draftAudio.length > 0;
   // Commands run in the composer; a review starts from its setup.
   if (
-    (!text && !attachedImages(text, draftImages).length) ||
+    (!text && !hasMedia) ||
     startsWithCommand(text) ||
     (scope.kind === "review" && !chat)
   )
@@ -105,24 +118,13 @@ export async function sendDraft(
   );
   const recipient = draftRecipient(text, provider);
   if (takesOver(recipient, holder) && !agentSwitchNoticeHidden()) return null;
+  // Open the thread when audio is attached for an agent that can't accept it.
+  if (draftAudio.length > 0 && !canReceiveAudio(recipient)) return null;
   // A message to the thread alone needs words.
   if (recipient === "message" && !text) return null;
   // A project on another computer runs that computer's agents.
   const home = project.computer;
-  const selected =
-    recipient === "codex"
-      ? supportedChoice(
-          settings.models.codex?.choice ?? codexQuestionChoice(ai),
-          await codexModels(qc, home?.id),
-        )
-      : undefined;
-  const pick = isPickAgent(recipient)
-    ? livePick(
-        settings.models[recipient],
-        await qc.query(agentModelsQuery(recipient, home?.id)).catch(() => []),
-      )
-    : { model: "", reasoningEffort: "" as const };
-  const choice = messageChoice(recipient, settings.models, selected, pick);
+  const choice = await resolveDraftChoice(qc, recipient, settings, ai, home?.id);
   if (!choice) return null;
   const outgoing = numberImages(text, draftImages);
   const images = await Promise.all(outgoing.images.map(flattenSketch));
@@ -144,9 +146,11 @@ export async function sendDraft(
         dataUrl,
         ...(browser ? { browser } : {}),
       })),
+      ...(draftAudio.length ? { audio: audioSendItems(draftAudio) } : {}),
     },
   );
-  const target = chat ?? (await startedThread(id, project, scope, outgoing));
+  const target =
+    chat ?? (await startedThread(id, project, scope, outgoing, draftAudio));
   const attachments = loadDraftAttachments(id);
   const messageId = crypto.randomUUID();
   // A new thread starts on the account picked in its composer.
@@ -176,18 +180,62 @@ export async function sendDraft(
   const left = unsent(readDraft(key), text);
   if (left !== readDraft(key)) writeDraft(key, left);
   clearDraftAttachments(id, attachments);
-  const sentImages = new Set(draftImages.map((image) => image.id));
-  await loadDraftImages(key)
-    .then((now) =>
-      saveDraftImages(
-        key,
-        now.filter((image) => !sentImages.has(image.id)),
-      ),
-    )
-    .catch(() => {});
+  await clearSentMedia(key, draftImages, draftAudio);
   await qc.invalidateQueries({ queryKey: ["project-chats"] });
   if (chat) await qc.invalidateQueries({ queryKey: ["project-chat", chat.id] });
   return target;
+}
+
+async function resolveDraftChoice(
+  qc: QueryClient,
+  recipient: ReturnType<typeof draftRecipient>,
+  settings: ReturnType<typeof loadComposerSettings>,
+  ai: Awaited<ReturnType<typeof api.aiSettings>>,
+  computerId: string | undefined,
+) {
+  const selected =
+    recipient === "codex"
+      ? supportedChoice(
+          settings.models.codex?.choice ?? codexQuestionChoice(ai),
+          await codexModels(qc, computerId),
+        )
+      : undefined;
+  const pick = isPickAgent(recipient)
+    ? livePick(
+        settings.models[recipient],
+        await qc
+          .query(agentModelsQuery(recipient, computerId))
+          .catch(() => []),
+      )
+    : { model: "", reasoningEffort: "" as const };
+  return messageChoice(recipient, settings.models, selected, pick);
+}
+
+async function clearSentMedia(
+  key: string,
+  draftImages: DraftImage[],
+  draftAudio: DraftAudio[],
+) {
+  const sentImages = new Set(draftImages.map((image) => image.id));
+  const sentAudio = new Set(draftAudio.map((clip) => clip.id));
+  await Promise.all([
+    loadDraftImages(key)
+      .then((now) =>
+        saveDraftImages(
+          key,
+          now.filter((image) => !sentImages.has(image.id)),
+        ),
+      )
+      .catch(() => {}),
+    loadDraftAudio(key)
+      .then((now) =>
+        saveDraftAudio(
+          key,
+          now.filter((clip) => !sentAudio.has(clip.id)),
+        ),
+      )
+      .catch(() => {}),
+  ]);
 }
 
 export { unsent };
@@ -198,10 +246,12 @@ async function startedThread(
   project: ActivityDraft["project"],
   scope: ChatScope,
   outgoing: { text: string; images: DraftImage[] },
+  draftAudio: DraftAudio[],
 ) {
   const message = JSON.stringify([
     outgoing.text,
     outgoing.images.map((image) => image.id),
+    draftAudio.map((clip) => clip.id),
   ]);
   const failed = started.get(id);
   const retry =

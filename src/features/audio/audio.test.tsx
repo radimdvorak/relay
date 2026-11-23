@@ -205,3 +205,53 @@ describe("AudioTile", () => {
     );
   });
 });
+
+describe("QueuedBody audio", () => {
+  it("renders queued audio clips as playable AudioTile rows even without text", async () => {
+    const { QueryClient, QueryClientProvider } =
+      await import("@tanstack/react-query");
+    const { QueuedBody } = await import("../thread/QueuedBody");
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    act(() => {
+      root.render(
+        <QueryClientProvider client={qc}>
+          <QueuedBody
+            input={{
+              id: "q1",
+              body: "",
+              provider: "antigravity",
+              choice: { model: "default", fast: false, reasoningEffort: "" },
+              runtimeMode: "auto",
+              interactionMode: "default",
+              audio: [
+                {
+                  name: "voice-memo.wav",
+                  mimeType: "audio/wav",
+                  durationSec: 12,
+                  peaks: [0.3, 0.7],
+                  dataUrl: "data:audio/wav;base64,UklGRg==",
+                },
+              ],
+            }}
+            projectRoot="/tmp/relay"
+            onOpenFile={() => {}}
+          />
+        </QueryClientProvider>,
+      );
+    });
+
+    expect(container.querySelector(".audio-tile-name")?.textContent).toBe(
+      "voice-memo.wav",
+    );
+    expect(container.querySelector(".audio-tile-time")?.textContent).toBe(
+      "0:12",
+    );
+    const playBtn = container.querySelector<HTMLButtonElement>(
+      'button[aria-label="Play voice-memo.wav"]',
+    )!;
+    await act(async () => {
+      playBtn.click();
+    });
+    expect(FakeAudio.instances[0]?.src).toBe("data:audio/wav;base64,UklGRg==");
+  });
+});

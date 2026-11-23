@@ -101,10 +101,14 @@ export class ChatSchedule {
       throw new Error("Schedule a message at most a year ahead.");
     if ((chat.scheduled?.length ?? 0) >= 20)
       throw new Error("This thread already has 20 scheduled messages.");
+    const hasAudio =
+      !!input.audio?.length ||
+      chat.scheduled?.some((s) => !!s.input.audio?.length);
+    const maxBytes = hasAudio ? 120 * 1024 * 1024 : 8 * 1024 * 1024;
     if (
       Buffer.byteLength(JSON.stringify(chat.scheduled ?? [])) +
         Buffer.byteLength(JSON.stringify(input)) >
-      8 * 1024 * 1024
+      maxBytes
     )
       throw new Error(
         "Too many scheduled attachments. Send or remove scheduled messages first.",

@@ -80,4 +80,48 @@ describe("a queued message back in the composer", () => {
     expect(restored.images).toHaveLength(12);
     expect(restored.images.slice(0, 2)).toEqual(mine);
   });
+
+  it("restores queued audio clips after draft audio and guards limits and side questions", () => {
+    const clip = {
+      name: "note.wav",
+      mimeType: "audio/wav" as const,
+      durationSec: 2.5,
+      peaks: [0.3, 0.7],
+      dataUrl: "data:audio/wav;base64,UklGRg==",
+    };
+    const mine = { ...clip, id: "mine-audio", sizeBytes: 4 };
+    const queued: ProjectChatSend = {
+      ...message("Check this clip"),
+      audio: [clip],
+    };
+    const back = returned("Existing note", [], queued, false, () => `new-${++counter}`, [
+      mine,
+    ]);
+    expect(back.audio).toHaveLength(2);
+    expect(back.audio[0]).toEqual(mine);
+    expect(back.audio[1]).toMatchObject({
+      name: "note.wav",
+      mimeType: "audio/wav",
+      durationSec: 2.5,
+      peaks: [0.3, 0.7],
+      sizeBytes: 4,
+    });
+    expect(back.audio[1]!.id).toMatch(/^new-/);
+
+    const side: ProjectChatSend = {
+      ...message("@antigravity Quick side check"),
+      side: true,
+    };
+    expect(() =>
+      returned("", [], side, false, () => `new-${++counter}`, [mine]),
+    ).toThrow("Send or clear the current draft");
+
+    const fullDraft = Array.from({ length: 10 }, (_, i) => ({
+      ...mine,
+      id: `a-${i}`,
+    }));
+    expect(() =>
+      returned("", [], queued, false, () => `new-${++counter}`, fullDraft),
+    ).toThrow("Send or remove draft audio");
+  });
 });

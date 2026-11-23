@@ -200,6 +200,12 @@ async function pairedComputers() {
           if (method === "cancelProjectChat") return mini.chats.cancel(id);
           if (method === "projectChatImage")
             return mini.chats.files.image(id, rest[0] as string);
+          if (method === "projectChatAudioPart")
+            return mini.chats.files.audioPart(
+              id,
+              rest[0] as string,
+              rest[1] as number,
+            );
           if (method === "triageProjectChat")
             return mini.chats.triage(id, rest[0] as never);
           if (method === "terminalSessions")
@@ -1098,6 +1104,49 @@ it("keeps here a screenshot sent to a thread on the other computer, once fetched
   expect(await sender.forward("projectChatImage", args, here)).toBe(dataUrl);
   computers.close();
   expect(await sender.forward("projectChatImage", args, here)).toBe(dataUrl);
+});
+
+it("keeps here an audio clip sent to a thread on the other computer, once fetched, for when it's offline", async () => {
+  const { laptop, computers, sender, thread } = await startedThread();
+  const wavBytes = Buffer.concat([
+    Buffer.from("RIFF"),
+    Buffer.alloc(4),
+    Buffer.from("WAVEfmt "),
+    Buffer.from("handoff-audio-bytes"),
+  ]);
+  const dataUrl = `data:audio/wav;base64,${wavBytes.toString("base64")}`;
+  const more = {
+    ...input("Voice note for this thread"),
+    audio: [
+      {
+        name: "memo.wav",
+        mimeType: "audio/wav" as const,
+        durationSec: 2.5,
+        dataUrl,
+      },
+    ],
+  };
+  await sender.forward("sendProjectChat", [thread.id, more]);
+  const sentAudio = async () =>
+    (await laptop.chats.get(thread.id)).messages.find((m) => m.id === more.id)
+      ?.audio?.[0];
+  await vi.waitFor(async () => expect(await sentAudio()).toBeTruthy());
+  const { id } = (await sentAudio())!;
+  const here = async () => {
+    const file = await laptop.chats.files.audioFile(thread.id, id);
+    return (await readFile(file.path)).toString("base64");
+  };
+  await expect(here()).rejects.toThrow();
+
+  const args = [thread.id, id];
+  expect(sender.forwards("projectChatAudio", args)).toBe(true);
+  expect(await sender.forward("projectChatAudio", args, here)).toBe(
+    wavBytes.toString("base64"),
+  );
+  computers.close();
+  expect(await sender.forward("projectChatAudio", args, here)).toBe(
+    wavBytes.toString("base64"),
+  );
 });
 
 it("keeps a started thread's first message when it's taken back without the other computer", async () => {

@@ -12,12 +12,58 @@ import { api } from "../../lib/api";
 import { moveQueued, newestQueued, type QueueDrop } from "./chat-queue";
 import { saveSentSettings } from "../agents/composer-settings";
 import { loadDraftImages, saveDraftImages } from "../images/draft-images";
+import { loadDraftAudio, saveDraftAudio } from "../audio/draft-audio";
 import { readDraft, writeDraft } from "../composer/drafts";
 import { threadDraftKey } from "../../lib/thread-storage";
 import type { ComposerAttachments } from "./useComposerAttachments";
 import type { ThreadHandle } from "./useThreadHandle";
 
 export type QueuedMessageActions = ReturnType<typeof useQueuedMessages>;
+
+/** Persists a queued message back into a composer draft before removing it, rolling back on failure. */
+async function restoreQueuedDraft(
+  chatId: string,
+  key: string,
+  input: ProjectChatSend,
+  reply: boolean,
+  hasSelection: boolean,
+) {
+  const old = readDraft(key);
+  const [oldImages, oldAudio] = await Promise.all([
+    loadDraftImages(key),
+    loadDraftAudio(key),
+  ]);
+  const back = returnedDraft(
+    old,
+    oldImages,
+    input,
+    reply,
+    () => crypto.randomUUID(),
+    oldAudio,
+  );
+  if (input.selection && hasSelection)
+    throw new Error(
+      "Remove the current code selection before restoring this message.",
+    );
+  // Persist the complete draft before removing the durable queue entry.
+  await Promise.all([
+    saveDraftImages(key, back.images),
+    saveDraftAudio(key, back.audio),
+  ]);
+  writeDraft(key, back.body);
+  try {
+    await api.projectChatQueueAction(chatId, "remove", input.id);
+  } catch (e) {
+    // It went out meanwhile: the draft goes back to what it was.
+    writeDraft(key, old);
+    await Promise.all([
+      saveDraftImages(key, oldImages),
+      saveDraftAudio(key, oldAudio),
+    ]);
+    throw e;
+  }
+  return back;
+}
 
 /** What can be done with a queued or scheduled message: send it now, move it, or take it back into the composer. */
 export function useQueuedMessages({
@@ -69,28 +115,16 @@ export function useQueuedMessages({
     await run(async () => {
       const parent = conversationOf(input);
       const key = threadDraftKey(id, parent);
-      const old = readDraft(key);
-      const oldImages = await loadDraftImages(key);
-      const back = returnedDraft(
-        old,
-        oldImages,
-        input,
-        !!parent,
-        () => crypto.randomUUID(),
-      );
-      if (input.selection && attachments.selection)
-        throw new Error(
-          "Remove the current code selection before restoring this message.",
-        );
-      // Persist the complete draft before removing the durable queue entry.
-      await saveDraftImages(key, back.images);
-      writeDraft(key, back.body);
+      let back;
       try {
-        await api.projectChatQueueAction(chat.id, "remove", input.id);
+        back = await restoreQueuedDraft(
+          chat.id,
+          key,
+          input,
+          !!parent,
+          !!attachments.selection,
+        );
       } catch (e) {
-        // It went out meanwhile: the draft goes back to what it was.
-        writeDraft(key, old);
-        await saveDraftImages(key, oldImages);
         void refetch();
         throw e;
       }

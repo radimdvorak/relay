@@ -5,7 +5,9 @@ import {
   type AudioMimeType,
 } from "../../../shared/audio";
 
-export interface DraftAudio {
+import type { ProjectChatSend } from "../../../shared/projects";
+
+export type DraftAudio = {
   id: string;
   name: string;
   mimeType: AudioMimeType;
@@ -13,7 +15,7 @@ export interface DraftAudio {
   durationSec?: number;
   peaks?: number[];
   dataUrl: string;
-}
+};
 
 const DB_NAME = "relay-draft-audio";
 const STORE = "drafts";
@@ -76,15 +78,33 @@ function workFallback<T>(mode: IDBTransactionMode): T {
   return (mode === "readonly" ? [] : undefined) as T;
 }
 
+const counts = new Map<string, number>();
+const written = new Set<string>();
+const countListeners = new Set<(key: string) => void>();
+const savedListeners = new Set<(key: string, audio: DraftAudio[]) => void>();
+let countsRead: Promise<void> | undefined;
 let channel: BroadcastChannel | undefined;
+
+function setCount(key: string, count: number) {
+  if ((counts.get(key) ?? 0) === count) return;
+  if (count > 0) counts.set(key, count);
+  else counts.delete(key);
+  countListeners.forEach((listener) => listener(key));
+}
 
 function changes() {
   if (channel || typeof BroadcastChannel === "undefined") return channel;
   channel = new BroadcastChannel(DB_NAME);
+  channel.addEventListener("message", (event: MessageEvent) => {
+    if (typeof event.data !== "string") return;
+    const key = event.data;
+    written.add(key);
+    void loadDraftAudio(key)
+      .then((saved) => setCount(key, saved.length))
+      .catch(() => {});
+  });
   return channel;
 }
-
-const savedListeners = new Set<(key: string, audio: DraftAudio[]) => void>();
 
 export function onDraftAudioChanged(listener: (key: string) => void) {
   const heard = (event: MessageEvent) => {
@@ -101,6 +121,36 @@ export function onDraftAudioSaved(
   return () => void savedListeners.delete(listener);
 }
 
+/** How many audio clips the draft holds, as far as is known yet. */
+export const draftAudioCount = (key: string) => counts.get(key) ?? 0;
+
+/** The draft keys known to hold at least one audio clip. */
+export const draftsWithAudio = () => [...counts.keys()];
+
+/** Told the draft key whose audio clip count changed. */
+export function onDraftAudioCount(notify: (key: string) => void) {
+  countListeners.add(notify);
+  changes();
+  return () => void countListeners.delete(notify);
+}
+
+/** Reads per-draft audio counts once on startup for Activity and draft sync. */
+export function readDraftAudioCounts(): Promise<void> {
+  changes();
+  return (countsRead ??= withDrafts("readonly", async (store) => {
+    const [keys, values] = await Promise.all([
+      requested(store.getAllKeys()),
+      requested(store.getAll() as IDBRequest<DraftAudio[][]>),
+    ]);
+    keys.forEach((key, i) => {
+      if (!written.has(String(key)))
+        setCount(String(key), values[i]?.length ?? 0);
+    });
+  }).catch(() => {
+    countsRead = undefined;
+  }));
+}
+
 export const loadDraftAudio = (key: string): Promise<DraftAudio[]> =>
   withDrafts("readonly", (store) =>
     requested(store.get(key)).then((saved) => saved ?? []),
@@ -110,12 +160,27 @@ export async function saveDraftAudio(
   key: string,
   audio: DraftAudio[],
 ): Promise<void> {
+  written.add(key);
   await withDrafts("readwrite", (store) => {
     if (audio.length) store.put(audio, key);
     else store.delete(key);
   });
+  setCount(key, audio.length);
   changes()?.postMessage(key);
   savedListeners.forEach((listener) => listener(key, audio));
+}
+
+/** Strips local draft bookkeeping before sending audio clips over IPC. */
+export function audioSendItems(
+  clips: DraftAudio[],
+): NonNullable<ProjectChatSend["audio"]> {
+  return clips.map(({ name, mimeType, durationSec, peaks, dataUrl }) => ({
+    name,
+    mimeType,
+    ...(durationSec !== undefined ? { durationSec } : {}),
+    ...(peaks?.length ? { peaks } : {}),
+    dataUrl,
+  }));
 }
 
 /** Resolves a file's canonical audio MIME type, avoiding video containers like `video/webm`. */

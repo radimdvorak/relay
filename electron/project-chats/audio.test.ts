@@ -101,6 +101,9 @@ describe("ChatAudioFiles", () => {
     });
     const path = files.path("chat-1", saved[0]!);
     expect(await readFile(path)).toEqual(wavBytes);
+    expect(await files.read("chat-1", saved[0]!)).toBe(
+      dataUrl("audio/wav", wavBytes),
+    );
 
     const messages: ChatMessage[] = [
       {

@@ -22,6 +22,18 @@ export const maxAudioDataUrlChars = Math.ceil(maxAudioBytes / 3) * 4 + 128;
 
 export const maxAudioAttachments = 10;
 
+/** How much of a saved audio clip one `projectChatAudioPart` call carries, before base64. */
+export const audioPartBytes = 1024 * 1024;
+
+/** Decoded byte length of a base64 audio data URL. */
+export function audioDataUrlBytes(dataUrl: string): number {
+  const comma = dataUrl.indexOf(",");
+  if (comma < 0) return 0;
+  const b64 = dataUrl.slice(comma + 1);
+  const padding = b64.endsWith("==") ? 2 : b64.endsWith("=") ? 1 : 0;
+  return Math.max(0, Math.floor((b64.length * 3) / 4) - padding);
+}
+
 const audioDataUrlPattern =
   /^data:audio\/(?:wav|mpeg|mp4|ogg|flac|webm|aac|opus);base64,[A-Za-z0-9+/]+={0,2}$/;
 

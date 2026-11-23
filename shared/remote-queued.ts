@@ -26,6 +26,7 @@ export function queuedForPhone(
     ...(q.created ? { created: q.created } : {}),
     ...(heldSteer(q, now) ? { held: true } : {}),
     ...(input.images?.length ? { images: input.images.length } : {}),
+    ...(input.audio?.length ? { audio: input.audio.length } : {}),
     ...(q.error ? { error: q.error } : {}),
     ...(input.parentId ? { parentId: input.parentId } : {}),
     to: recipient(input),

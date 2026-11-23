@@ -1,4 +1,4 @@
-import { copyFile, mkdir, rm, writeFile } from "node:fs/promises";
+import { copyFile, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 import { join } from "node:path";
 import {
@@ -76,6 +76,12 @@ export class ChatAudioFiles {
       chatId,
       `${clip.id}.${audioExtension(clip.mimeType)}`,
     );
+  }
+
+  /** A thread's saved audio clip as a base64 data URL. */
+  async read(chatId: string, clip: ChatAudio) {
+    const bytes = await readFile(this.path(chatId, clip));
+    return `data:${clip.mimeType};base64,${bytes.toString("base64")}`;
   }
 
   async save(

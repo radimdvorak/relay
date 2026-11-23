@@ -20,8 +20,16 @@ export function chatMediaHandlers({ projectChats }: ApiContext) {
       );
       return mediaUrl(path, dirname(path), mimeType);
     }),
+    projectChatAudioPart: takes(
+      [idSchema, idSchema, z.number().int().min(0)],
+      (id, audioId, offset) =>
+        projectChats.files.audioPart(id, audioId, offset),
+    ),
     projectChatQueuedImages: takes([idSchema, idSchema], (id, messageId) =>
       projectChats.queuedImages(id, messageId),
+    ),
+    projectChatQueuedAudio: takes([idSchema, idSchema], (id, messageId) =>
+      projectChats.reads.queuedAudio(id, messageId),
     ),
     projectChatReadImage: takes(
       [idSchema, idSchema, mediaPathSchema],

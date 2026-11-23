@@ -13,6 +13,7 @@ import {
   videoPartBytes,
   type VideoPart,
 } from "../../shared/answer-images";
+import { audioPartBytes, maxAudioBytes } from "../../shared/audio";
 import {
   dropRevert,
   redoRevert,
@@ -23,6 +24,7 @@ import { worktreeExists } from "../git/worktrees";
 import { linkedFileOnDisk } from "../platform/msys-path";
 import type { ChatCore } from "./core";
 import { writeFileAtomic } from "../util/atomic-write";
+import { audioMimeType } from "./audio";
 import { imageFileData, imageMimeType } from "./images";
 import type { ThreadWorktrees } from "./worktrees";
 
@@ -75,15 +77,61 @@ export class TurnFiles {
 
   /** A sent audio clip's file on disk and MIME type, for relay-media:// streaming. */
   async audioFile(chatId: string, audioId: string) {
+    const clip = await this.sentAudio(chatId, audioId);
+    return {
+      path: this.core.storage.audio.path(chatId, clip),
+      mimeType: clip.mimeType,
+    };
+  }
+
+  /** A sent audio clip as a base64 data URL, for handing off a thread before its first answer. */
+  async audioDataUrl(chatId: string, audioId: string): Promise<string> {
+    const clip = await this.sentAudio(chatId, audioId);
+    return this.core.storage.audio.read(chatId, clip);
+  }
+
+  /** A piece of a sent audio clip, for paired phones and handed-off threads. */
+  async audioPart(
+    chatId: string,
+    audioId: string,
+    offset: number,
+  ): Promise<VideoPart> {
+    const clip = await this.sentAudio(chatId, audioId);
+    const file = await open(this.core.storage.audio.path(chatId, clip));
+    try {
+      const { size } = await file.stat();
+      const length = Math.max(0, Math.min(audioPartBytes, size - offset));
+      const chunk = Buffer.alloc(length);
+      const { bytesRead } = await file.read(chunk, 0, length, offset);
+      return { size, data: chunk.subarray(0, bytesRead).toString("base64") };
+    } finally {
+      await file.close();
+    }
+  }
+
+  /**
+   * Saves here a sent audio clip of a thread live on another computer, so it
+   * streams locally and still plays while the link to it is down.
+   */
+  async keepAudio(chatId: string, audioId: string, bytes: Buffer) {
+    const clip = await this.sentAudio(chatId, audioId);
+    if (
+      audioMimeType(bytes, clip.mimeType) !== clip.mimeType ||
+      bytes.length > maxAudioBytes
+    )
+      throw new Error("The audio isn't the clip this message names.");
+    await writeFileAtomic(this.core.storage.audio.path(chatId, clip), bytes, {
+      mkdir: true,
+    });
+  }
+
+  private async sentAudio(chatId: string, audioId: string) {
     const chat = await this.core.storage.load(chatId);
     const clip = chat.messages
       .flatMap((message) => message.audio ?? [])
       .find((item) => item.id === audioId);
     if (!clip) throw new Error("Audio clip not found in this conversation.");
-    return {
-      path: this.core.storage.audio.path(chatId, clip),
-      mimeType: clip.mimeType,
-    };
+    return clip;
   }
 
   /** Only a path the turn itself read or its answer shows, so the renderer can't reach any other file on disk. */

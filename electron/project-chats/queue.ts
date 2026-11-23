@@ -55,6 +55,7 @@ export function steers(
     // Phones send without an advisor; theirs is the thread's.
     (!!next.advisor && !sameAdvisor(next.advisor, prior.advisor)) ||
     next.selection ||
+    !!next.audio?.length ||
     (!skillSteers.has(asked.provider) && mayMentionSkill(asked.question)) ||
     /(?:^|\s)\/skill:/.test(asked.question) ||
     /^\s*\//.test(asked.question)
@@ -121,10 +122,14 @@ export class ChatQueue {
       return;
     if ((chat.queue?.length ?? 0) >= 20)
       throw new Error("This thread already has 20 queued messages.");
+    const hasAudio =
+      !!input.audio?.length ||
+      chat.queue?.some((q) => !!q.input.audio?.length);
+    const maxBytes = hasAudio ? 120 * 1024 * 1024 : 8 * 1024 * 1024;
     if (
       Buffer.byteLength(JSON.stringify(chat.queue ?? [])) +
         Buffer.byteLength(JSON.stringify(input)) >
-      8 * 1024 * 1024
+      maxBytes
     )
       throw new Error(
         "The message queue is full. Send or remove queued attachments first.",

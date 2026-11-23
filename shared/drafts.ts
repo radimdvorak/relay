@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { maxAudioAttachments } from "./audio";
 import { chatWorkspaceSchema, type ChatWorkspace } from "./projects";
 
 /**
@@ -37,6 +38,8 @@ export interface DraftBody {
 export interface DraftExtras {
   /** Its screenshots, by their `[Image #n]` token; 0 for one without. */
   screenshots?: number[];
+  /** How many audio clips the computer holds for this draft. */
+  audio?: number;
   codeRefs?: number;
   selection?: true;
   workItem?: true;
@@ -101,6 +104,7 @@ const short = z.string().max(maxDraftText);
 const extrasSchema = z
   .object({
     screenshots: z.array(z.number().int().min(0).max(999)).max(20).optional(),
+    audio: z.number().int().min(1).max(maxAudioAttachments).optional(),
     codeRefs: z.number().int().min(1).max(1000).optional(),
     selection: z.literal(true).optional(),
     workItem: z.literal(true).optional(),

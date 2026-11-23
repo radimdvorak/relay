@@ -1,5 +1,6 @@
 import { parseCodeReferences, type CodeReference } from "./code-references";
 import { agentMention } from "./agents";
+import { audioDataUrlBytes, maxAudioAttachments } from "./audio";
 import { attachedImages, imagesAfter, nextImageNumber } from "./image-refs";
 import { pastesAfter } from "./pasted-texts";
 import type { ProjectChatSend } from "./projects";
@@ -10,23 +11,47 @@ export type ReturnedImage = NonNullable<ProjectChatSend["images"]>[number] & {
   n?: number;
 };
 
+/** An audio clip restored from a queued message into a composer draft. */
+export type ReturnedAudio = NonNullable<ProjectChatSend["audio"]>[number] & {
+  id: string;
+  sizeBytes: number;
+};
+
 /**
- * A queued message taken back into a draft that holds `draft` and `images`:
- * it goes after the draft's text, its pastes and screenshots numbered on from
- * the draft's own. Throws when the two won't fit in one message. A reply's
- * code references stay in its text: side conversations attach none. `newId`
- * names the message's screenshots as they join the draft.
+ * A queued message taken back into a draft that holds `draft`, `images` and
+ * `audio`: it goes after the draft's text, its pastes and screenshots numbered
+ * on from the draft's own. Throws when the two won't fit in one message. A
+ * reply's code references stay in its text: side conversations attach none.
+ * `newId` names the message's screenshots and audio clips as they join the draft.
  */
 export function returnedDraft(
   draft: string,
   images: ReturnedImage[],
-  input: Pick<ProjectChatSend, "body" | "images" | "side">,
+  input: Pick<ProjectChatSend, "body" | "images" | "audio" | "side">,
   reply: boolean,
   newId: () => string,
-): { body: string; images: ReturnedImage[]; codeRefs: CodeReference[] } {
-  if (input.side && (draft.trim() || attachedImages(draft, images).length))
+  audio: ReturnedAudio[] = [],
+): {
+  body: string;
+  images: ReturnedImage[];
+  audio: ReturnedAudio[];
+  codeRefs: CodeReference[];
+} {
+  if (
+    input.side &&
+    (draft.trim() || attachedImages(draft, images).length || audio.length)
+  )
     throw new Error(
       "Send or clear the current draft before restoring this side question.",
+    );
+  const incomingAudio = (input.audio ?? []).map((clip) => ({
+    ...clip,
+    id: newId(),
+    sizeBytes: audioDataUrlBytes(clip.dataUrl),
+  }));
+  if (audio.length + incomingAudio.length > maxAudioAttachments)
+    throw new Error(
+      "Send or remove draft audio before restoring this message.",
     );
   const code = input.side
     ? {
@@ -47,5 +72,10 @@ export function returnedDraft(
       "Send or shorten the current draft before restoring this message.",
     );
   const restored = [...attachedImages(draft, images), ...back.images];
-  return { body, images: restored, codeRefs: code.refs };
+  return {
+    body,
+    images: restored,
+    audio: [...audio, ...incomingAudio],
+    codeRefs: code.refs,
+  };
 }
