@@ -75,7 +75,7 @@ export const bigFunctions: Record<string, number> = {
   "electron/project-chats/terminal-continue.ts › make": 96,
   "electron/project-chats/thread-list.ts › live": 84,
   "electron/project-chats/turn-files.ts › rewind": 89,
-  "electron/project-chats/turn-flows/send.ts › sendNow": 134,
+  "electron/project-chats/turn-flows/send.ts › sendNow": 116,
   "electron/project-chats/turn-flows/send.ts › start": 184,
   "electron/project-chats/turn-prompt.ts › turnPrompt": 185,
   "electron/projects/project-icon.ts › imageInfo": 81,
