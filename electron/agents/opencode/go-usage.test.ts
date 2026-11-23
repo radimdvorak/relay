@@ -2,9 +2,11 @@ import { homedir } from "node:os";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { providerUsageSchema } from "../../../shared/provider-usage";
 
-const sdk = vi.hoisted(() => ({ discover: vi.fn() }));
+const snapshot = vi.hoisted(() => ({ running: vi.fn() }));
 
-vi.mock("@opencode/client/service", () => ({ discover: sdk.discover }));
+vi.mock("./service-snapshot", () => ({
+  runningOpenCodeService: snapshot.running,
+}));
 
 const { monthBefore, openCodeGoWindows, readOpenCodeUsage } =
   await import("./go-usage");
@@ -39,9 +41,11 @@ const signedIn = (extra: object = { go }) => ({
   data: { workspace, budgets: [], ...extra },
 });
 
+// What a service found from its registration comes to; its transport is
+// tested in go-usage-transport.test.ts.
 const service = {
-  url: "http://127.0.0.1:4096",
-  auth: { type: "basic", username: "opencode", password: "pw" },
+  url: new URL("http://127.0.0.1:4096"),
+  authorization: `Basic ${Buffer.from("opencode:pw").toString("base64")}`,
 };
 
 const ask = vi.fn();
@@ -58,7 +62,7 @@ function answers(body: unknown, status = 200) {
 
 beforeEach(() => {
   ask.mockReset();
-  sdk.discover.mockReset().mockResolvedValue(service);
+  snapshot.running.mockReset().mockResolvedValue(service);
   vi.stubGlobal("fetch", ask);
 });
 
@@ -142,7 +146,7 @@ describe("monthBefore", () => {
 });
 
 describe("readOpenCodeUsage", () => {
-  it("asks the discovered service, with the password it was found with", async () => {
+  it("asks the service it was found, with the password it was found with", async () => {
     answers(signedIn());
     const usage = await readOpenCodeUsage();
     const [url, init] = ask.mock.calls[0] as [URL, RequestInit];
@@ -163,7 +167,7 @@ describe("readOpenCodeUsage", () => {
   });
 
   it("sends no password the service didn't register", async () => {
-    sdk.discover.mockResolvedValue({ url: service.url, auth: undefined });
+    snapshot.running.mockResolvedValue({ url: service.url });
     answers(signedIn());
     await readOpenCodeUsage();
     const [, init] = ask.mock.calls[0] as [URL, RequestInit];
@@ -184,7 +188,7 @@ describe("readOpenCodeUsage", () => {
   });
 
   it("waits for OpenCode when no service is registered or answering", async () => {
-    sdk.discover.mockResolvedValue(undefined);
+    snapshot.running.mockResolvedValue(undefined);
     expect(await readOpenCodeUsage()).toEqual({
       provider: "opencode",
       windows: [],
@@ -273,20 +277,5 @@ describe("readOpenCodeUsage", () => {
     expect(edge.message).toBeNull();
     expect(Number.isFinite(edge.windows[2].periodMs)).toBe(true);
     expect(() => providerUsageSchema.parse(edge)).not.toThrow();
-  });
-
-  it("won't send the password anywhere but a local HTTP service", async () => {
-    for (const url of [
-      "https://127.0.0.1:4096",
-      "http://example.com:4096",
-      "http://user:secret@127.0.0.1:4096",
-      "not a url",
-    ]) {
-      sdk.discover.mockResolvedValue({ ...service, url });
-      await expect(readOpenCodeUsage()).rejects.toThrow(
-        "OpenCode didn't report",
-      );
-    }
-    expect(ask).not.toHaveBeenCalled();
   });
 });

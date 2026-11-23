@@ -3,14 +3,14 @@
 // sees a key. The route is experimental: when it changes, the ring says it
 // couldn't read usage and nothing else breaks.
 //
-// Reading limits never starts OpenCode or changes its configuration. The SDK's
-// discover() reads the service's registration file once, probes the service it
-// names and hands back its address and password together, so a restart can't
-// pair one service's address with another's password, and no process is run.
-// It looks where released OpenCode registers, service.json in the state folder;
-// a build on a channel of its own registers elsewhere and reads as not running.
+// Reading limits never starts OpenCode or changes its configuration. The
+// service is found from one reading of its registration file (see
+// service-snapshot.ts), so a restart can't pair one service's address with
+// another's password, nothing is sent to an address that isn't a local HTTP
+// service, no redirect is followed and no process is run. It looks where
+// released OpenCode registers, service.json in the state folder; a build on a
+// channel of its own registers elsewhere and reads as not running.
 import { homedir } from "node:os";
-import { discover } from "@opencode/client/service";
 import { z } from "zod";
 import {
   SESSION_MS,
@@ -18,14 +18,16 @@ import {
   type ProviderUsage,
   type UsageWindow,
 } from "../../../shared/provider-usage";
-import { localServiceUrl } from "./native-api";
+import {
+  runningOpenCodeService,
+  type OpenCodeService,
+} from "./service-snapshot";
 
 const REQUEST_TIMEOUT = 10_000;
 const LIMITS_PATH = "/api/experimental/usage/limits";
 // The furthest moments a JavaScript Date can hold.
 const DATE_LIMIT = 8.64e15;
 
-type Service = NonNullable<Awaited<ReturnType<typeof discover>>>;
 type Go = z.infer<typeof goSchema>;
 type Meter = z.infer<typeof meterSchema>;
 
@@ -66,7 +68,7 @@ const empty = (message: string): ProviderUsage => ({
 
 /** The Go plan's limits, for the usage ring. */
 export async function readOpenCodeUsage(): Promise<ProviderUsage> {
-  const service = await discover();
+  const service = await runningOpenCodeService();
   if (!service) return empty("Shows while OpenCode is running");
   const response = await askLimits(service);
   if (response.status === 404) {
@@ -88,15 +90,11 @@ export async function readOpenCodeUsage(): Promise<ProviderUsage> {
   };
 }
 
-function askLimits(service: Service) {
-  const url = new URL(LIMITS_PATH, localServiceUrl(service.url));
+function askLimits(service: OpenCodeService) {
+  const url = new URL(LIMITS_PATH, service.url);
   url.searchParams.set("location[directory]", homedir());
   const headers: Record<string, string> = { accept: "application/json" };
-  if (service.auth) {
-    const { username, password } = service.auth;
-    const login = Buffer.from(`${username}:${password}`).toString("base64");
-    headers.authorization = `Basic ${login}`;
-  }
+  if (service.authorization) headers.authorization = service.authorization;
   return fetch(url, {
     headers,
     redirect: "manual",
