@@ -105,6 +105,8 @@ export interface AudioTileProps {
   load?: () => Promise<string>;
   onRemove?: () => void;
   removeDisabled?: boolean;
+  /** Current composer recipient cannot receive audio attachments. */
+  unsupported?: boolean;
 }
 
 function PlayIcon({ loading, playing }: { loading: boolean; playing: boolean }) {
@@ -123,6 +125,7 @@ export function AudioTile({
   load,
   onRemove,
   removeDisabled,
+  unsupported,
 }: AudioTileProps) {
   const { loading, playing, failed, currentTime, duration, togglePlay, seekTo } =
     useAudioPlayer({ src, load, durationSec });
@@ -139,6 +142,7 @@ export function AudioTile({
       className="audio-tile"
       data-playing={playing || undefined}
       data-removable={onRemove ? "true" : undefined}
+      data-unsupported={unsupported || undefined}
     >
       <div className="audio-tile-top">
         <button

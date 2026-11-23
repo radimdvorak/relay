@@ -1,4 +1,10 @@
-import { X } from "lucide-react";
+import { AlertTriangle, X } from "lucide-react";
+import { agentName, type AgentProvider } from "../../../shared/agents";
+import {
+  canReceiveAudio,
+  defaultAudioAgent,
+  type Recipient,
+} from "../../../shared/recipient";
 import { Spinner } from "../../ui/ui";
 import { flattenSketch } from "../images/sketch";
 import type { ComposerDraft } from "./useComposerDraft";
@@ -59,54 +65,122 @@ function ImageAttachmentTile({
   );
 }
 
-/** The draft's screenshots, audio clips, and long pastes, as cards above the input. */
+function AudioUnsupportedWarning({
+  to,
+  disabled,
+  onSwitchAgent,
+  onClearAudio,
+}: {
+  to: Recipient;
+  disabled: boolean;
+  onSwitchAgent?: (provider: AgentProvider) => void;
+  onClearAudio: () => void;
+}) {
+  const audioAgent = defaultAudioAgent();
+  const reason =
+    to === "message"
+      ? "Notes can't include audio."
+      : `${agentName(to)} can't listen to audio.`;
+
+  return (
+    <div className="composer-audio-warning" role="alert">
+      <AlertTriangle
+        size={14}
+        className="composer-audio-warning-icon"
+        aria-hidden
+      />
+      <span className="composer-audio-warning-text">{reason}</span>
+      <div className="composer-audio-warning-actions">
+        {audioAgent && onSwitchAgent && (
+          <button
+            type="button"
+            disabled={disabled}
+            onClick={() => onSwitchAgent(audioAgent)}
+          >
+            Use {agentName(audioAgent)}
+          </button>
+        )}
+        <button type="button" disabled={disabled} onClick={onClearAudio}>
+          Remove audio
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/** The draft's screenshots, audio clips, long pastes, and attachment warnings above the input. */
 export function ComposerAttachmentStrip({
   draft,
+  to,
+  onSwitchAgent,
   onOpenPaste,
   onRemovePaste,
 }: {
   draft: ComposerDraft;
+  to: Recipient;
+  onSwitchAgent?: (provider: AgentProvider) => void;
   onOpenPaste: (index: number) => void;
   onRemovePaste: (index: number) => void;
 }) {
-  const { attached, audio, pastes, incoming } = draft;
-  if (!attached.length && !audio.length && !pastes.length && !incoming)
-    return null;
+  const { attached, audio, pastes, incoming, error } = draft;
+  const hasCards =
+    attached.length > 0 || audio.length > 0 || pastes.length > 0 || incoming > 0;
+  const audioUnsupported = audio.length > 0 && !canReceiveAudio(to);
+  if (!hasCards && !error) return null;
+
   return (
-    <div className="composer-images" aria-label="Attachments">
-      {attached.map((image) => (
-        <ImageAttachmentTile key={image.id} image={image} draft={draft} />
-      ))}
-      {audio.map((clip) => (
-        <AudioTile
-          key={clip.id}
-          name={clip.name}
-          mimeType={clip.mimeType}
-          durationSec={clip.durationSec}
-          peaks={clip.peaks}
-          src={clip.dataUrl}
-          onRemove={() => draft.removeAudio(clip)}
-          removeDisabled={draft.preparing}
-        />
-      ))}
-      {Array.from({ length: incoming }, (_, i) => (
-        <div
-          key={`incoming-${i}`}
-          className="composer-image incoming"
-          role="status"
-          aria-label="Preparing attachment"
-        >
-          <Spinner size={16} />
+    <>
+      {hasCards && (
+        <div className="composer-images" aria-label="Attachments">
+          {attached.map((image) => (
+            <ImageAttachmentTile key={image.id} image={image} draft={draft} />
+          ))}
+          {audio.map((clip) => (
+            <AudioTile
+              key={clip.id}
+              name={clip.name}
+              mimeType={clip.mimeType}
+              durationSec={clip.durationSec}
+              peaks={clip.peaks}
+              src={clip.dataUrl}
+              unsupported={audioUnsupported}
+              onRemove={() => draft.removeAudio(clip)}
+              removeDisabled={draft.preparing}
+            />
+          ))}
+          {Array.from({ length: incoming }, (_, i) => (
+            <div
+              key={`incoming-${i}`}
+              className="composer-image incoming"
+              role="status"
+              aria-label="Preparing attachment"
+            >
+              <Spinner size={16} />
+            </div>
+          ))}
+          {pastes.map((paste, index) => (
+            <PastedTextCard
+              key={index}
+              paste={paste}
+              onOpen={() => onOpenPaste(index)}
+              onRemove={() => onRemovePaste(index)}
+            />
+          ))}
         </div>
-      ))}
-      {pastes.map((paste, index) => (
-        <PastedTextCard
-          key={index}
-          paste={paste}
-          onOpen={() => onOpenPaste(index)}
-          onRemove={() => onRemovePaste(index)}
+      )}
+      {audioUnsupported && (
+        <AudioUnsupportedWarning
+          to={to}
+          disabled={draft.preparing}
+          onSwitchAgent={onSwitchAgent}
+          onClearAudio={draft.clearAudio}
         />
-      ))}
-    </div>
+      )}
+      {error && (
+        <p className="composer-image-error" role="alert">
+          {error}
+        </p>
+      )}
+    </>
   );
 }

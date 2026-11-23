@@ -485,3 +485,52 @@ it("sends an audio-only draft with its audio metadata", async () => {
   );
   expect(outgoing.forget).toHaveBeenCalledOnce();
 });
+
+it.each(["claude", "message"] as const)(
+  "blocks sending to %s while audio clips are attached",
+  async (to) => {
+    const onSend = vi.fn(async (_value: unknown) => true);
+    const choice = { model: "", reasoningEffort: "" as const, fast: false };
+    const clip = {
+      id: "clip-1",
+      name: "voice.wav",
+      mimeType: "audio/wav" as const,
+      sizeBytes: 64,
+      dataUrl: "data:audio/wav;base64,UklGRg==",
+    };
+    const sending = mount(() =>
+      useComposerSend({
+        draft: {
+          text: "/btw Please listen to this",
+          attached: [],
+          images: [],
+          audio: [clip],
+          hasAttachments: true,
+          preparing: false,
+          isPreparing: () => false,
+          skills: () => [],
+          take: vi.fn(),
+        } as never,
+        state: { saveLastModel: vi.fn() } as never,
+        runs: {
+          sendSettings: () => ({
+            to,
+            choice,
+            runtimeMode: "default",
+            interactionMode: "default",
+          }),
+          choiceFor: () => choice,
+          contextFor: () => ({}),
+        } as never,
+        to,
+        conversation: { busy: false, running: false },
+        complete: false,
+        intercept: () => false,
+        onSend,
+      }),
+    );
+    expect(sending().disabled).toBe(true);
+    await sending().send();
+    expect(onSend).not.toHaveBeenCalled();
+  },
+);

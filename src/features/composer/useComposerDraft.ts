@@ -1,7 +1,11 @@
 import { useEffect, useMemo, useState, type RefObject } from "react";
-import { agentInfo, agentMentionPattern } from "../../../shared/agents";
+import { agentMentionPattern } from "../../../shared/agents";
 import { pastedTexts } from "../../../shared/pasted-texts";
-import { draftRecipient, type Recipient } from "../../../shared/recipient";
+import {
+  canReceiveAudio,
+  draftRecipient,
+  type Recipient,
+} from "../../../shared/recipient";
 import { pickedSkills } from "../../../shared/skill-mentions";
 import { unsent } from "../../../shared/drafts";
 import { draftChips } from "../../lib/thread-storage";
@@ -70,7 +74,7 @@ export function useComposerDraft(
   const audio = useDraftAudio(key, setError);
   const imagePills = useImagePills();
   const to = draftRecipient(text, provider);
-  const acceptsAudio = to !== "message" && !!agentInfo(to).audio;
+  const acceptsAudio = canReceiveAudio(to);
   // Paste pills live in the draft text; their cards mirror them in order.
   const pastes = useMemo(() => pastedTexts(text), [text]);
   // A refused paste leaves the draft as it was; the next edit moves on from it.
@@ -121,6 +125,7 @@ export function useComposerDraft(
       screenshots.removeImage(image);
     },
     removeAudio: audio.removeAudio,
+    clearAudio: audio.clearAudio,
     /** The skills picked as pills that `text` still mentions. */
     skills: (text: string) => pickedSkills(text, draftChips(key).skills.load()),
     /**

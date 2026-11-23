@@ -50,6 +50,16 @@ export function useDraftAudio(
           return next;
         });
     },
+    clearAudio() {
+      if (!audio.length) return;
+      setAudio([]);
+      audioQueue.current = saveDraftAudio(key, [])
+        .then(() => [])
+        .catch(() => {
+          setError("Could not remove audio from the draft.");
+          return [];
+        });
+    },
     take: () =>
       takeAudio(audio, {
         queue: audioQueue,

@@ -107,3 +107,29 @@ it("keeps dropped audio files as plain file paths when the active agent lacks au
   expect(draft().audio).toEqual([]);
   expect(insertFiles).toHaveBeenCalledWith(["/tmp/voice.wav"], undefined);
 });
+
+it("clears all attached audio clips cleanly via clearAudio", async () => {
+  const { useComposerDraft } = await import("./useComposerDraft");
+  const draft = mount(() =>
+    useComposerDraft(
+      "chat-draft:clear",
+      { current: { insertFiles() {}, insertImages() {} } as never },
+      "antigravity",
+    ),
+  );
+  await flush();
+
+  update(() =>
+    draft().addFiles([
+      audioFile("one.wav", "/tmp/one.wav"),
+      audioFile("two.wav", "/tmp/two.wav"),
+    ]),
+  );
+  await flush();
+  expect(draft().audio).toHaveLength(2);
+
+  update(() => draft().clearAudio());
+  await flush();
+  expect(draft().audio).toEqual([]);
+  expect(savedAudio.has("chat-draft:clear")).toBe(false);
+});

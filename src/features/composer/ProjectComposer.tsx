@@ -374,14 +374,11 @@ const ComposerBody = memo(function ComposerBody({
           <ComposerSlot name="attached" />
           <ComposerAttachmentStrip
             draft={draft}
+            to={to}
+            onSwitchAgent={runs.pickAgent}
             onOpenPaste={setViewingPaste}
             onRemovePaste={(index) => promptInput.current?.removePaste(index)}
           />
-          {draft.error && (
-            <p className="composer-image-error" role="alert">
-              {draft.error}
-            </p>
-          )}
           <ComposerPromptInput
             inputRef={input}
             handleRef={promptInput}

@@ -6,7 +6,10 @@ import {
   planGoAhead,
   type ComposedSend,
 } from "../../../shared/compose-send";
-import type { Recipient } from "../../../shared/recipient";
+import {
+  canReceiveAudio,
+  type Recipient,
+} from "../../../shared/recipient";
 import type { DraftImage } from "../images/draft-images";
 import { numberImages } from "../../../shared/image-refs";
 import { flattenSketch } from "../images/sketch";
@@ -56,8 +59,10 @@ export function useComposerSend({
 }) {
   const sending = useRef(false);
   const settings = runs.sendSettings(to);
+  const audioBlocked = draft.audio.length > 0 && !canReceiveAudio(to);
   const disabled =
     busy ||
+    audioBlocked ||
     (!draft.text.trim() && !draft.hasAttachments && !complete) ||
     // A note to the thread has no agent to show attachments to.
     (to === "message" && !draft.text.trim()) ||
@@ -75,7 +80,7 @@ export function useComposerSend({
       to !== "message" &&
       agentInfo(to).side
     ) {
-      if (busy || sending.current || !settings) return;
+      if (busy || audioBlocked || sending.current || !settings) return;
       sending.current = true;
       try {
         const prepared = await preparedAttachments(draft, btw.args);
