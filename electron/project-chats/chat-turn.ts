@@ -81,6 +81,12 @@ export function turnRules(turn: ChatTurn) {
       kind !== "compact" &&
       !message.handoff &&
       (kind !== "reply" || turn.caughtUp !== false),
+    /**
+     * An answer that moved the thread to a folder its agent's file tools
+     * can't reach yet is carried on there; a handoff note or a compaction
+     * doesn't work in it, and a side question moves nothing.
+     */
+    carriesOnAfterMove: kind === "reply" || kind === "adopt",
     /** A thread's first answer names it. */
     titles: kind !== "compact",
   };

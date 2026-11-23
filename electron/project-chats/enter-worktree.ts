@@ -13,6 +13,7 @@ import {
 } from "../git/worktrees";
 import { carriedOn } from "./carry-on";
 import type { ChatCore } from "./core";
+import { endAnswerAfterMove } from "./start-folder";
 import type { WorktreeSetup } from "./worktree-setup";
 import type { ThreadWorktrees } from "./worktrees";
 
@@ -86,6 +87,7 @@ export class WorktreeEntry {
       const sharing = threadsSharing(this.core.store.get().chats ?? [], chat);
       const setup = freshFolder && this.setup.command(chat);
       const env = await this.setup.env(chat);
+      const endNow = endAnswerAfterMove(caller && sentAgent(caller), made.path);
       return {
         folder: made.path,
         branch: made.branch,
@@ -97,6 +99,7 @@ export class WorktreeEntry {
         ...(request.uncommitted ? { uncommittedFilesCopied: copied } : {}),
         ...(setup ? { setupCommand: setup } : {}),
         ...(Object.keys(env).length ? { environment: env } : {}),
+        ...(endNow ? { endThisAnswer: endNow } : {}),
       };
     });
   }

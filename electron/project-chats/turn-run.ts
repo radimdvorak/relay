@@ -17,6 +17,7 @@ import type { ChatCore } from "./core";
 import { agentSession, dropSession, sessionFor } from "./sessions";
 import type { ThreadTitles } from "./titles";
 import { holdQueueBack } from "./queue";
+import { heldToStartFolder, queueCarryOn } from "./start-folder";
 import { judgeGuess } from "./turn-check";
 import { turnOptions, type TurnOptions } from "./turn-options";
 import { TurnSnapshot } from "./turn-snapshot";
@@ -230,8 +231,10 @@ export class TurnRunner {
       await snapshot.finish(chat, answer.message, provider);
       // The agent's session started in the folder it left; the next turn
       // starts it again in the worktree.
-      if (snapshot.counted !== root && !this.core.active.hasSide(chat.id))
+      if (snapshot.counted !== root && !this.core.active.hasSide(chat.id)) {
         this.core.sessions.close(chat.id);
+        t.movedTo = snapshot.counted;
+      }
     }
   }
 
@@ -350,6 +353,24 @@ export class TurnRunner {
     }
   }
 
+  /**
+   * Where the agent carries on in a new session: the folder it moved the
+   * thread to, which its file tools can't reach before one opens there.
+   * Only after a finished answer; a stopped or failed one leaves carrying
+   * on to the user.
+   */
+  private carryOnFolder(t: TurnState) {
+    const { rules, answer, provider, replyTo, movedTo } = t;
+    const finished = answer.message.status === "complete";
+    const mainConversation = !replyTo;
+    const carriesOn =
+      finished &&
+      mainConversation &&
+      rules.carriesOnAfterMove &&
+      heldToStartFolder(provider);
+    return carriesOn ? movedTo : undefined;
+  }
+
   /** However the turn went: settles the thread, saves it, and lets the sidebar know. */
   private async end(t: TurnState, committed: boolean) {
     const { chat, input, turn, rules, answer, provider, replyTo } = t;
@@ -361,6 +382,8 @@ export class TurnRunner {
         sessionFor(chat, provider, replyTo).through = ended.id;
       if (turn.kind === "reply") turn.briefed?.();
     }
+    const carryOn = this.carryOnFolder(t);
+    if (carryOn) queueCarryOn(chat, input, provider, carryOn);
     // A stopped answer ended when it was stopped, not when its agent let go.
     ended.ended = answer.stopped ? (ended.ended ?? Date.now()) : Date.now();
     // A finished answer is new activity: it reorders the thread and can

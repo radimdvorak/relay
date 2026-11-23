@@ -4,6 +4,7 @@ import { sentAgent } from "../../shared/recipient";
 import { noteWorkspaceMove } from "../../shared/workspace-moves";
 import type { ChatCore } from "./core";
 import { assertHere, awaitsReturn } from "./handoff";
+import { endAnswerAfterMove } from "./start-folder";
 
 /** Where a thread went: its id and the project it's in now. */
 export interface ProjectMove {
@@ -73,7 +74,13 @@ export class ProjectMoves {
       else this.core.sessions.close(id);
       for (const listener of this.listeners)
         listener({ chatId: id, projectId });
-      return { project: { id: target.id, name: target.name }, folder: to };
+      const endNow =
+        active?.input && endAnswerAfterMove(sentAgent(active.input), to);
+      return {
+        project: { id: target.id, name: target.name },
+        folder: to,
+        ...(endNow ? { endThisAnswer: endNow } : {}),
+      };
     });
   }
 

@@ -49,6 +49,8 @@ export interface TurnState {
   /** Where the agent's session stood at the end, to fork from later. */
   point?: string;
   limit?: AgentError;
+  /** The folder the agent moved the thread to, whose session was closed for it. */
+  movedTo?: string;
 }
 
 /** What a turn's steps reach beyond the turn itself. */
