@@ -18,6 +18,8 @@ const usageWindowSchema = z.object({
   usedPercent: z.number().min(0).max(100),
   resetsAt: z.number().nullable(),
   periodMs: z.number().positive(),
+  /** The period's start isn't known, so the pace over it is a guess. */
+  periodEstimated: z.boolean().optional(),
 });
 
 const usageCreditsSchema = z.object({
@@ -76,6 +78,8 @@ export type UsageMeter = {
   id?: string;
   label: string;
   model?: string;
+  /** The pace is a guess: the window's start isn't known. */
+  paceEstimated?: boolean;
   leftPercent: number;
   /** Percent that would be left now at an even burn to the reset, if known. */
   paceLeftPercent: number | null;
@@ -227,6 +231,7 @@ function meterBase(window: UsageWindow) {
     kind: window.kind,
     label: window.label ?? kindLabels[window.kind],
     model: window.model,
+    paceEstimated: window.periodEstimated,
   };
 }
 
@@ -243,8 +248,9 @@ function resetLabelFor(window: UsageWindow, fresh: boolean, now: number) {
 export function paceGap(meter: UsageMeter): string | null {
   if (meter.paceLeftPercent == null || meter.pace === "spent") return null;
   const gap = meter.leftPercent - Math.round(meter.paceLeftPercent);
-  if (gap === 0) return "On pace";
-  return gap > 0 ? `${gap}% ahead` : `${-gap}% behind`;
+  if (gap === 0) return meter.paceEstimated ? "Est. on pace" : "On pace";
+  const text = gap > 0 ? `${gap}% ahead` : `${-gap}% behind`;
+  return meter.paceEstimated ? `Est. ${text}` : text;
 }
 
 /** A point either side of the pace mark is spending evenly, not running hot. */
