@@ -1,40 +1,62 @@
 // OpenCode Go's plan limits. OpenCode 2's local service already reads them for
 // its own /usage, with the sign-in it owns, so Relay asks the service and never
 // sees a key. The route is experimental: when it changes, the ring says it
-// couldn't read usage and nothing else breaks. Only a service that is already
-// running is asked, so reading limits never starts OpenCode.
+// couldn't read usage and nothing else breaks.
+//
+// Reading limits never starts OpenCode or changes its configuration. The SDK's
+// discover() reads the service's registration file once, probes the service it
+// names and hands back its address and password together, so a restart can't
+// pair one service's address with another's password, and no process is run.
+// It looks where released OpenCode registers, service.json in the state folder;
+// a build on a channel of its own registers elsewhere and reads as not running.
 import { homedir } from "node:os";
+import { discover } from "@opencode/client/service";
 import { z } from "zod";
-import { NotInstalledError } from "../../platform/executables";
 import {
   SESSION_MS,
   WEEK_MS,
   type ProviderUsage,
   type UsageWindow,
 } from "../../../shared/provider-usage";
-import { OpenCodeStoppedError, openCodeNativeApi } from "./native-api";
+import { localServiceUrl } from "./native-api";
+
+const REQUEST_TIMEOUT = 10_000;
+const LIMITS_PATH = "/api/experimental/usage/limits";
+// The furthest moments a JavaScript Date can hold.
+const DATE_LIMIT = 8.64e15;
+
+type Service = NonNullable<Awaited<ReturnType<typeof discover>>>;
+type Go = z.infer<typeof goSchema>;
+type Meter = z.infer<typeof meterSchema>;
 
 const meterSchema = z.object({
   percent: z.number(),
   /** Go refuses requests until the window resets. */
   limited: z.boolean(),
-  resetsAt: z.number(),
+  resetsAt: z.number().int().min(-DATE_LIMIT).max(DATE_LIMIT),
 });
 
 const goSchema = z.object({
   rolling: meterSchema,
   weekly: meterSchema,
-  monthly: meterSchema,
+  monthly: meterSchema.refine((meter) =>
+    Number.isFinite(monthBefore(meter.resetsAt)),
+  ),
 });
 
-// `data` is null when OpenCode isn't signed in to a Console workspace, and
-// `go` is left out when that workspace has no Go subscription.
+// What the service answers when it can read the Console: `data` is null when
+// OpenCode has no workspace sign-in to ask with, otherwise it names the
+// workspace and its budgets, and carries `go` only when Go reports limits for
+// it. An answer without that envelope isn't the service's.
 const limitsSchema = z.object({
-  data: z.object({ go: goSchema.optional() }).nullable(),
+  data: z
+    .object({
+      workspace: z.object({ id: z.string() }),
+      budgets: z.array(z.unknown()),
+      go: goSchema.optional(),
+    })
+    .nullable(),
 });
-
-type Meter = z.infer<typeof meterSchema>;
-type Go = z.infer<typeof goSchema>;
 
 const empty = (message: string): ProviderUsage => ({
   provider: "opencode",
@@ -44,29 +66,21 @@ const empty = (message: string): ProviderUsage => ({
 
 /** The Go plan's limits, for the usage ring. */
 export async function readOpenCodeUsage(): Promise<ProviderUsage> {
-  const query = new URLSearchParams({ "location[directory]": homedir() });
-  let answer: unknown;
-  try {
-    answer = await openCodeNativeApi(
-      "GET",
-      `/api/experimental/usage/limits?${query}`,
-      undefined,
-      { passive: true },
-    );
-  } catch (error) {
-    if (error instanceof NotInstalledError) {
-      return empty("OpenCode isn't installed");
-    }
-    if (error instanceof OpenCodeStoppedError) {
-      return empty("Shows while OpenCode is running");
-    }
-    throw error;
+  const service = await discover();
+  if (!service) return empty("Shows while OpenCode is running");
+  const response = await askLimits(service);
+  if (response.status === 404) {
+    return empty("This OpenCode doesn't report Go limits");
   }
-  const parsed = limitsSchema.safeParse(answer);
-  if (!parsed.success) return empty("Couldn't read usage");
-  const limits = parsed.data.data;
-  if (!limits) return empty("Sign in with OpenCode");
-  if (!limits.go) return empty("No OpenCode Go plan");
+  if (!response.ok)
+    throw new Error(`OpenCode usage failed: ${response.status}`);
+  const answer = limitsSchema.safeParse(
+    await response.json().catch(() => null),
+  );
+  if (!answer.success) return empty("Couldn't read usage");
+  const limits = answer.data.data;
+  if (!limits) return empty("Go usage needs a Console workspace sign-in");
+  if (!limits.go) return empty("No Go limits reported for this workspace");
   return {
     provider: "opencode",
     windows: openCodeGoWindows(limits.go),
@@ -74,20 +88,40 @@ export async function readOpenCodeUsage(): Promise<ProviderUsage> {
   };
 }
 
+function askLimits(service: Service) {
+  const url = new URL(LIMITS_PATH, localServiceUrl(service.url));
+  url.searchParams.set("location[directory]", homedir());
+  const headers: Record<string, string> = { accept: "application/json" };
+  if (service.auth) {
+    const { username, password } = service.auth;
+    const login = Buffer.from(`${username}:${password}`).toString("base64");
+    headers.authorization = `Basic ${login}`;
+  }
+  return fetch(url, {
+    headers,
+    redirect: "manual",
+    signal: AbortSignal.timeout(REQUEST_TIMEOUT),
+  });
+}
+
 /**
  * Go's three limits, each resetting when OpenCode says: the 5-hour window,
- * the week (Monday 00:00 UTC) and the paid month.
+ * the week (Monday 00:00 UTC) and the paid month. Go doesn't say when the
+ * month began, so that window's length is a guess for the pace.
  */
 export function openCodeGoWindows(go: Go): UsageWindow[] {
   const { monthly } = go;
   return [
     goWindow("session", go.rolling, SESSION_MS),
     goWindow("weekly", go.weekly, WEEK_MS),
-    goWindow(
-      "monthly",
-      monthly,
-      monthly.resetsAt - monthBefore(monthly.resetsAt),
-    ),
+    {
+      ...goWindow(
+        "monthly",
+        monthly,
+        monthly.resetsAt - monthBefore(monthly.resetsAt),
+      ),
+      periodEstimated: true,
+    },
   ];
 }
 
@@ -106,8 +140,8 @@ function goWindow(
 }
 
 /**
- * The same moment a calendar month earlier, in UTC. A month has no fixed
- * length, and the paid month is the one pace is measured over.
+ * The same moment a calendar month earlier, in UTC; NaN past what a Date holds.
+ * A billing day the shorter month lacks is the shorter month's last day.
  */
 export function monthBefore(at: number) {
   const end = new Date(at);

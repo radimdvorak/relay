@@ -22,14 +22,7 @@ export function staleService(installed: string, info: string) {
   return !!version && typeof running === "string" && running !== version;
 }
 
-/** A passive lookup found no service running, and didn't start one. */
-export class OpenCodeStoppedError extends Error {}
-
-/**
- * Where OpenCode's local service listens. A passive lookup only reads what is
- * running: it doesn't start a stopped service, or restart one that's stale.
- */
-export async function openCodeEndpoint(options: { passive?: boolean } = {}) {
+export async function openCodeEndpoint() {
   const executable = await findExecutable("opencode");
   const cli = async (args: string[]) => {
     const line = executableCommand(executable, args);
@@ -50,8 +43,6 @@ export async function openCodeEndpoint(options: { passive?: boolean } = {}) {
   };
   let address = await cli(["service", "status"]);
   if (address === "stopped") {
-    if (options.passive)
-      throw new OpenCodeStoppedError("OpenCode isn't running.");
     // The CLI ensures a service exists and reuses one of another version.
     // Unlike `service start`, this does not replace an existing service.
     await cli(["api", "GET", "/api/info"]);
@@ -59,17 +50,22 @@ export async function openCodeEndpoint(options: { passive?: boolean } = {}) {
   }
   // A service an older OpenCode started outlives an update Relay didn't run,
   // and can't read what the new one writes: long histories fail with HTTP 500.
-  if (!options.passive) {
-    const installed = await openCodeVersion();
-    if (!current.has(`${address} ${installed}`)) {
-      const running = await cli(["api", "GET", "/api/info"]);
-      if (staleService(installed, running)) {
-        await cli(["service", "restart"]);
-        address = await cli(["service", "status"]);
-      }
-      current.add(`${address} ${installed}`);
+  const installed = await openCodeVersion();
+  if (!current.has(`${address} ${installed}`)) {
+    const running = await cli(["api", "GET", "/api/info"]);
+    if (staleService(installed, running)) {
+      await cli(["service", "restart"]);
+      address = await cli(["service", "status"]);
     }
+    current.add(`${address} ${installed}`);
   }
+  const url = localServiceUrl(address);
+  const password = await cli(["service", "get", "password"]);
+  return { url, password };
+}
+
+/** The service's address as OpenCode reports it, held to a local HTTP service. */
+export function localServiceUrl(address: string) {
   let url: URL;
   try {
     url = new URL(address);
@@ -85,8 +81,7 @@ export async function openCodeEndpoint(options: { passive?: boolean } = {}) {
     url.password
   )
     throw new Error("OpenCode didn't report a local HTTP service.");
-  const password = await cli(["service", "get", "password"]);
-  return { url, password };
+  return url;
 }
 
 /**
@@ -98,9 +93,8 @@ export async function openCodeNativeApi(
   method: "GET" | "POST" | "DELETE",
   path: string,
   body?: object,
-  options: { passive?: boolean } = {},
 ): Promise<unknown> {
-  const { url, password } = await openCodeEndpoint(options);
+  const { url, password } = await openCodeEndpoint();
   const payload = body === undefined ? undefined : JSON.stringify(body);
   return new Promise((resolve, reject) => {
     const req = request(

@@ -1,21 +1,17 @@
 import { homedir } from "node:os";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { providerUsageSchema } from "../../../shared/provider-usage";
-import { NotInstalledError } from "../../platform/executables";
 
-const service = vi.hoisted(() => ({ ask: vi.fn() }));
+const sdk = vi.hoisted(() => ({ discover: vi.fn() }));
 
-vi.mock("./native-api", async (actual) => ({
-  ...(await actual<typeof import("./native-api")>()),
-  openCodeNativeApi: service.ask,
-}));
+vi.mock("@opencode/client/service", () => ({ discover: sdk.discover }));
 
 const { monthBefore, openCodeGoWindows, readOpenCodeUsage } =
   await import("./go-usage");
-const { OpenCodeStoppedError } = await import("./native-api");
 
 const HOUR = 60 * 60 * 1000;
 const DAY = 24 * HOUR;
+const DATE_LIMIT = 8.64e15;
 
 // The shape OpenCode 2.3.2's service answers with; the numbers are made up.
 const go = {
@@ -32,22 +28,41 @@ const go = {
   },
 };
 
-const answer = (data: unknown) => ({ location: { directory: "/home" }, data });
+const workspace = {
+  id: "wrk_1",
+  name: "Sample",
+  usageURL: "https://example.test/wrk_1/activity/overview",
+};
 
-const signedIn = (limits: unknown) =>
-  answer({
-    workspace: {
-      id: "wrk_1",
-      name: "Sample",
-      usageURL: "https://example.test",
-    },
-    budgets: [],
-    ...(limits === undefined ? {} : { go: limits }),
-  });
+const signedIn = (extra: object = { go }) => ({
+  location: { directory: "/home" },
+  data: { workspace, budgets: [], ...extra },
+});
+
+const service = {
+  url: "http://127.0.0.1:4096",
+  auth: { type: "basic", username: "opencode", password: "pw" },
+};
+
+const ask = vi.fn();
+
+/** The service answers the limits request with this. */
+function answers(body: unknown, status = 200) {
+  ask.mockImplementation(
+    async () =>
+      new Response(typeof body === "string" ? body : JSON.stringify(body), {
+        status,
+      }),
+  );
+}
 
 beforeEach(() => {
-  service.ask.mockReset();
+  ask.mockReset();
+  sdk.discover.mockReset().mockResolvedValue(service);
+  vi.stubGlobal("fetch", ask);
 });
+
+afterEach(() => vi.unstubAllGlobals());
 
 describe("openCodeGoWindows", () => {
   it("makes a window of each limit, resetting when OpenCode says", () => {
@@ -68,10 +83,17 @@ describe("openCodeGoWindows", () => {
         kind: "monthly",
         usedPercent: 49,
         resetsAt: go.monthly.resetsAt,
-        // 17 November to 17 December.
+        // 17 November to 17 December, if the month began on the 17th.
         periodMs: 30 * DAY,
+        periodEstimated: true,
       },
     ]);
+  });
+
+  it("calls only the month's length a guess", () => {
+    const [session, weekly] = openCodeGoWindows(go);
+    expect(session.periodEstimated).toBeUndefined();
+    expect(weekly.periodEstimated).toBeUndefined();
   });
 
   it("shows a limit Go refuses requests for as used up", () => {
@@ -105,7 +127,7 @@ describe("monthBefore", () => {
     expect(monthBefore(at(2026, 5, 31))).toBe(at(2026, 4, 30));
   });
 
-  it("measures the month Go bills, whatever its length", () => {
+  it("measures the month before the reset, whatever its length", () => {
     const [, , monthly] = openCodeGoWindows({
       ...go,
       monthly: { ...go.monthly, resetsAt: at(2026, 3, 1) },
@@ -113,19 +135,25 @@ describe("monthBefore", () => {
     // February 2026.
     expect(monthly.periodMs).toBe(28 * DAY);
   });
+
+  it("has no answer past what a Date holds", () => {
+    expect(monthBefore(-DATE_LIMIT)).toBeNaN();
+  });
 });
 
 describe("readOpenCodeUsage", () => {
-  it("asks a running service, and only that, for the usual folder", async () => {
-    service.ask.mockResolvedValue(signedIn(go));
+  it("asks the discovered service, with the password it was found with", async () => {
+    answers(signedIn());
     const usage = await readOpenCodeUsage();
-    const [method, path, body, options] = service.ask.mock.calls[0];
-    expect(method).toBe("GET");
-    expect(body).toBeUndefined();
-    expect(options).toEqual({ passive: true });
-    expect(path).toBe(
-      `/api/experimental/usage/limits?${new URLSearchParams({ "location[directory]": homedir() })}`,
-    );
+    const [url, init] = ask.mock.calls[0] as [URL, RequestInit];
+    expect(url.origin).toBe("http://127.0.0.1:4096");
+    expect(url.pathname).toBe("/api/experimental/usage/limits");
+    expect(url.searchParams.get("location[directory]")).toBe(homedir());
+    expect(init.headers).toEqual({
+      accept: "application/json",
+      authorization: `Basic ${Buffer.from("opencode:pw").toString("base64")}`,
+    });
+    expect(init.redirect).toBe("manual");
     expect(usage.message).toBeNull();
     expect(usage.windows.map((window) => window.kind)).toEqual([
       "session",
@@ -134,66 +162,131 @@ describe("readOpenCodeUsage", () => {
     ]);
   });
 
+  it("sends no password the service didn't register", async () => {
+    sdk.discover.mockResolvedValue({ url: service.url, auth: undefined });
+    answers(signedIn());
+    await readOpenCodeUsage();
+    const [, init] = ask.mock.calls[0] as [URL, RequestInit];
+    expect(init.headers).toEqual({ accept: "application/json" });
+  });
+
   it("hands back nothing of the workspace", async () => {
-    service.ask.mockResolvedValue(signedIn(go));
+    answers(signedIn());
     expect(JSON.stringify(await readOpenCodeUsage())).not.toMatch(
       /wrk_1|Sample|example\.test/,
     );
   });
 
   it("gives a reading the usage schema accepts", async () => {
-    service.ask.mockResolvedValue(
-      signedIn({ ...go, weekly: { ...go.weekly, percent: -3 } }),
-    );
+    answers(signedIn({ go: { ...go, weekly: { ...go.weekly, percent: -3 } } }));
     const usage = await readOpenCodeUsage();
     expect(() => providerUsageSchema.parse(usage)).not.toThrow();
   });
 
-  it("says so when the workspace has no Go plan", async () => {
-    service.ask.mockResolvedValue(signedIn(undefined));
-    expect(await readOpenCodeUsage()).toEqual({
-      provider: "opencode",
-      windows: [],
-      message: "No OpenCode Go plan",
-    });
-  });
-
-  it("asks to sign in when OpenCode isn't signed in to a workspace", async () => {
-    service.ask.mockResolvedValue(answer(null));
-    expect(await readOpenCodeUsage()).toEqual({
-      provider: "opencode",
-      windows: [],
-      message: "Sign in with OpenCode",
-    });
-  });
-
-  it("waits for OpenCode when its service isn't running", async () => {
-    service.ask.mockRejectedValue(new OpenCodeStoppedError("stopped"));
+  it("waits for OpenCode when no service is registered or answering", async () => {
+    sdk.discover.mockResolvedValue(undefined);
     expect(await readOpenCodeUsage()).toEqual({
       provider: "opencode",
       windows: [],
       message: "Shows while OpenCode is running",
     });
+    // Nothing is asked, so nothing is started.
+    expect(ask).not.toHaveBeenCalled();
   });
 
-  it("says so when OpenCode isn't installed", async () => {
-    service.ask.mockRejectedValue(new NotInstalledError("opencode"));
-    expect((await readOpenCodeUsage()).message).toBe(
-      "OpenCode isn't installed",
-    );
-  });
-
-  it("couldn't read an answer it doesn't recognise", async () => {
-    service.ask.mockResolvedValue(answer({ go: { rolling: "30%" } }));
+  it("asks for a Console workspace sign-in when there's none to read with", async () => {
+    answers({ location: { directory: "/home" }, data: null });
     expect(await readOpenCodeUsage()).toEqual({
       provider: "opencode",
       windows: [],
-      message: "Couldn't read usage",
+      message: "Go usage needs a Console workspace sign-in",
     });
   });
 
-  it("leaves other failures to the usual couldn't-read message", async () => {
-    service.ask.mockRejectedValue(new Error("HTTP 404"));
-    await expect(readOpenCodeUsage()).rejects.toThrow("HTTP 404");
+  it("doesn't claim a missing plan when Go just reports no limits", async () => {
+    answers(signedIn({}));
+    expect(await readOpenCodeUsage()).toEqual({
+      provider: "opencode",
+      windows: [],
+      message: "No Go limits reported for this workspace",
+    });
+  });
+
+  it("says when OpenCode is too old to have the route", async () => {
+    answers({ message: "Not found" }, 404);
+    expect((await readOpenCodeUsage()).message).toBe(
+      "This OpenCode doesn't report Go limits",
+    );
+  });
+
+  it("doesn't take an empty or partial answer for a state", async () => {
+    for (const body of [
+      "",
+      "not json",
+      "null",
+      {},
+      { data: {} },
+      { data: { go } },
+      { data: { workspace: {}, budgets: [], go } },
+      { data: { workspace, go } },
+      { data: { workspace, budgets: [], go: { rolling: "30%" } } },
+      { data: { workspace, budgets: [], go: { ...go, weekly: undefined } } },
+    ]) {
+      answers(body);
+      expect(await readOpenCodeUsage()).toEqual({
+        provider: "opencode",
+        windows: [],
+        message: "Couldn't read usage",
+      });
+    }
+  });
+
+  it("is unavailable when the service refuses or fails", async () => {
+    for (const status of [401, 403, 500, 503]) {
+      answers({ error: "nope" }, status);
+      await expect(readOpenCodeUsage()).rejects.toThrow(String(status));
+    }
+  });
+
+  it("isn't taken in by a reset a Date can't hold", async () => {
+    const reading = (resetsAt: unknown) => {
+      answers(
+        signedIn({
+          go: { ...go, monthly: { ...go.monthly, resetsAt } },
+        }),
+      );
+      return readOpenCodeUsage();
+    };
+    for (const resetsAt of [
+      1e20,
+      DATE_LIMIT + 1,
+      -DATE_LIMIT,
+      -1e20,
+      1.5,
+      "1796000000000",
+      null,
+    ]) {
+      expect((await reading(resetsAt)).message).toBe("Couldn't read usage");
+    }
+    // The furthest a Date goes is still a reading, with a length it can pace.
+    const edge = await reading(DATE_LIMIT);
+    expect(edge.message).toBeNull();
+    expect(Number.isFinite(edge.windows[2].periodMs)).toBe(true);
+    expect(() => providerUsageSchema.parse(edge)).not.toThrow();
+  });
+
+  it("won't send the password anywhere but a local HTTP service", async () => {
+    for (const url of [
+      "https://127.0.0.1:4096",
+      "http://example.com:4096",
+      "http://user:secret@127.0.0.1:4096",
+      "not a url",
+    ]) {
+      sdk.discover.mockResolvedValue({ ...service, url });
+      await expect(readOpenCodeUsage()).rejects.toThrow(
+        "OpenCode didn't report",
+      );
+    }
+    expect(ask).not.toHaveBeenCalled();
   });
 });
