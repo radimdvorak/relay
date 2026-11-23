@@ -25,6 +25,8 @@ data class UsageWindow(
     val label: String? = null,
     /** Only this model's turns count against it; the rings leave it out. */
     val model: String? = null,
+    /** The period's start isn't known, so the pace over it is a guess. */
+    val periodEstimated: Boolean = false,
 )
 
 @Serializable
@@ -48,6 +50,8 @@ data class UsageMeter(
     val pace: String,
     val limitLabel: String?,
     val resetLabel: String?,
+    /** The pace is a guess: the window's start isn't known. */
+    val paceEstimated: Boolean = false,
 )
 
 private const val FIVE_MINUTES = 5 * 60 * 1000L
@@ -122,7 +126,10 @@ private fun kindLabel(kind: String) = when (kind) {
  * Whole-percent meter for one usage window, including the pace warning. With
  * the hours someone usually works, the week's burn and pace only count those.
  */
-fun presentWindow(window: UsageWindow, now: Long, activeHours: List<Double>? = null): UsageMeter {
+fun presentWindow(window: UsageWindow, now: Long, activeHours: List<Double>? = null): UsageMeter =
+    meterFor(window, now, activeHours).copy(paceEstimated = window.periodEstimated)
+
+private fun meterFor(window: UsageWindow, now: Long, activeHours: List<Double>?): UsageMeter {
     val used = clamp(window.usedPercent, 0.0, 100.0)
     val left = clamp((100 - used).roundToInt().toDouble(), 0.0, 100.0).toInt()
     val label = window.label ?: kindLabel(window.kind)
@@ -196,12 +203,17 @@ private fun runsOutIn(used: Double, rate: Double, now: Long, resetsAt: Long, clo
     return null
 }
 
-/** "5% ahead" with more left than an even burn would leave, "3% behind" running hot. */
+/**
+ * "5% ahead" with more left than an even burn would leave, "3% behind" running
+ * hot; "Est. 5% ahead" when the window's start isn't known and the pace is a guess.
+ */
 fun paceGap(meter: UsageMeter): String? {
     val pace = meter.paceLeftPercent ?: return null
     if (meter.pace == "spent") return null
     val gap = meter.leftPercent - pace.roundToInt()
-    return if (gap == 0) "On pace" else if (gap > 0) "$gap% ahead" else "${-gap}% behind"
+    if (gap == 0) return if (meter.paceEstimated) "Est. on pace" else "On pace"
+    val text = if (gap > 0) "$gap% ahead" else "${-gap}% behind"
+    return if (meter.paceEstimated) "Est. $text" else text
 }
 
 private fun grouped(n: Double) = NumberFormat.getIntegerInstance(Locale.US).format(n.roundToLong())

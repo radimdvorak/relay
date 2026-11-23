@@ -101,4 +101,34 @@ struct UsageTests {
         #expect(creditsLabel(UsageCredits(balance: 62_500, unlimited: false)) == "62,500 credits")
         #expect(creditsReach(UsageCredits(balance: 1, unlimited: false, messages: [3, 8])) == "~3–8 messages")
     }
+
+    @Test func callsAGuessedPaceAnEstimate() {
+        let day: Int64 = 24 * 60 * 60 * 1000
+        let now: Int64 = 1_000_000_000_000
+        func monthly(_ used: Double, estimated: Bool?) -> UsageMeter {
+            presentWindow(
+                UsageWindow(kind: "monthly", usedPercent: used, resetsAt: now + 15 * day, periodMs: 30 * day, periodEstimated: estimated),
+                now: now, zone: prague)
+        }
+        #expect(paceGap(monthly(45, estimated: true)) == "Est. 5% ahead")
+        #expect(paceGap(monthly(53, estimated: true)) == "Est. 3% behind")
+        #expect(paceGap(monthly(50, estimated: true)) == "Est. on pace")
+        #expect(monthly(45, estimated: true).paceEstimated)
+        // A known period keeps the plain wording.
+        #expect(paceGap(monthly(45, estimated: nil)) == "5% ahead")
+        #expect(!monthly(45, estimated: false).paceEstimated)
+        // Nothing to compare once the limit is reached.
+        #expect(paceGap(monthly(100, estimated: true)) == nil)
+    }
+
+    @Test func readsTheEstimateFlagFromTheHost() throws {
+        let flagged = try JSONDecoder().decode(
+            UsageWindow.self,
+            from: Data(#"{"kind":"monthly","usedPercent":49,"resetsAt":1796000000000,"periodMs":2592000000,"periodEstimated":true}"#.utf8))
+        #expect(flagged.periodEstimated == true)
+        // A host from before the flag leaves it out.
+        let plain = try JSONDecoder().decode(
+            UsageWindow.self, from: Data(#"{"kind":"weekly","usedPercent":49,"resetsAt":null,"periodMs":604800000}"#.utf8))
+        #expect(plain.periodEstimated == nil)
+    }
 }

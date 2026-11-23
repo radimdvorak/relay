@@ -14,8 +14,10 @@ public struct UsageWindow: Codable, Sendable, Equatable {
     public var usedPercent: Double
     public var resetsAt: Int64?
     public var periodMs: Int64
+    /// The period's start isn't known, so the pace over it is a guess.
+    public var periodEstimated: Bool?
 
-    public init(kind: String, usedPercent: Double, resetsAt: Int64?, periodMs: Int64, id: String? = nil, label: String? = nil, model: String? = nil) {
+    public init(kind: String, usedPercent: Double, resetsAt: Int64?, periodMs: Int64, id: String? = nil, label: String? = nil, model: String? = nil, periodEstimated: Bool? = nil) {
         self.id = id
         self.label = label
         self.model = model
@@ -23,6 +25,7 @@ public struct UsageWindow: Codable, Sendable, Equatable {
         self.usedPercent = usedPercent
         self.resetsAt = resetsAt
         self.periodMs = periodMs
+        self.periodEstimated = periodEstimated
     }
 }
 
@@ -72,6 +75,8 @@ public struct UsageMeter: Equatable, Sendable {
     public let pace: Pace
     public let limitLabel: String?
     public let resetLabel: String?
+    /// The pace is a guess: the window's start isn't known.
+    public let paceEstimated: Bool
 }
 
 private let fiveMinutes: Int64 = 5 * 60 * 1000
@@ -161,7 +166,7 @@ public func presentWindow(_ window: UsageWindow, now: Int64, activeHours: [Doubl
     func meter(_ left: Int, _ pace: UsageMeter.Pace, _ limit: String?) -> UsageMeter {
         UsageMeter(
             kind: window.kind, label: label, leftPercent: left, paceLeftPercent: fresh ? nil : paceLeft, pace: pace,
-            limitLabel: limit, resetLabel: resetLabel)
+            limitLabel: limit, resetLabel: resetLabel, paceEstimated: window.periodEstimated ?? false)
     }
     if fresh { return meter(100, .ok, nil) }
     if left <= 0 { return meter(0, .spent, "Limit reached") }
@@ -230,11 +235,14 @@ private func runsOutIn(_ used: Double, _ rate: Double, now: Int64, resetsAt: Int
     return nil
 }
 
-/// "5% ahead" with more left than an even burn would leave, "3% behind" running hot.
+/// "5% ahead" with more left than an even burn would leave, "3% behind" running hot;
+/// "Est. 5% ahead" when the window's start isn't known and the pace is a guess.
 public func paceGap(_ meter: UsageMeter) -> String? {
     guard let pace = meter.paceLeftPercent, meter.pace != .spent else { return nil }
     let gap = meter.leftPercent - Int(pace.rounded())
-    return gap == 0 ? "On pace" : gap > 0 ? "\(gap)% ahead" : "\(-gap)% behind"
+    if gap == 0 { return meter.paceEstimated ? "Est. on pace" : "On pace" }
+    let text = gap > 0 ? "\(gap)% ahead" : "\(-gap)% behind"
+    return meter.paceEstimated ? "Est. \(text)" : text
 }
 
 /// The meters for what an agent reported.
