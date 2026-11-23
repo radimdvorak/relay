@@ -23,7 +23,10 @@ import {
   type OpenCodeService,
 } from "./service-snapshot";
 
-const REQUEST_TIMEOUT = 10_000;
+// OpenCode gives its Console reads 15 seconds, so a reading that's slow but
+// valid has room to arrive; a service that never answers is still let go well
+// inside the 60 seconds provider-usage allows a reading.
+const REQUEST_TIMEOUT = 20_000;
 const LIMITS_PATH = "/api/experimental/usage/limits";
 // The furthest moments a JavaScript Date can hold.
 const DATE_LIMIT = 8.64e15;

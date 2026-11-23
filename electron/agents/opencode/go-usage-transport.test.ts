@@ -316,6 +316,20 @@ describe("a service that isn't running", () => {
   });
 });
 
+describe("how long a reading waits", () => {
+  it("lets the Console take its 15 seconds, and still stops short of provider-usage's 60", async () => {
+    const timeout = vi.spyOn(AbortSignal, "timeout");
+    const service = await listen();
+    await register(service.url);
+    await readOpenCodeUsage();
+    const [health, limitsRead] = timeout.mock.calls.map(([ms]) => ms);
+    expect(timeout).toHaveBeenCalledTimes(2);
+    expect(limitsRead).toBeGreaterThan(15_000);
+    expect(health + limitsRead).toBeLessThan(60_000);
+    timeout.mockRestore();
+  });
+});
+
 describe("a registration that changes while a reading is under way", () => {
   it("doesn't move the reading: its address, password and identity are one snapshot", async () => {
     const other = await listen({}, "second-password");
