@@ -12,6 +12,7 @@ import { adoptReviewers, dropThinkers } from "./migrations";
 import { keyedQueue } from "../util/keyed-queue";
 import type { Store } from "../app/store";
 import { RenderFiles } from "../html-renders";
+import { ChatAudioFiles } from "./audio";
 import { ChatImageFiles } from "./chat-images";
 import { chatSummary } from "./chat-summaries";
 import {
@@ -75,6 +76,7 @@ export class ChatStorage {
   /** The pages answers showed with show_html. */
   readonly renders: RenderFiles;
   readonly shown: ShownImages;
+  readonly audio: ChatAudioFiles;
   private readonly images: ChatImageFiles;
 
   constructor(
@@ -85,6 +87,7 @@ export class ChatStorage {
   ) {
     this.renders = new RenderFiles(join(dir, "renders"));
     this.shown = new ShownImages(join(dir, "images"));
+    this.audio = new ChatAudioFiles(dir);
     this.images = new ChatImageFiles(dir);
   }
 
@@ -229,6 +232,11 @@ export class ChatStorage {
       .removeAll(chat.id)
       .catch((e) =>
         console.warn("Could not remove a dropped thread's images:", e),
+      );
+    await this.audio
+      .removeAll(chat.id)
+      .catch((e) =>
+        console.warn("Could not remove a dropped thread's audio:", e),
       );
     await this.renders
       .removeAll(chat.id)
@@ -450,6 +458,21 @@ export class ChatStorage {
     images: NonNullable<ProjectChatSend["images"]>,
   ) {
     return this.images.save(chatId, images);
+  }
+
+  /** Saves a sent message's images and audio clips on disk. */
+  async saveAttachments(
+    chatId: string,
+    input: Pick<ProjectChatSend, "images" | "audio">,
+  ) {
+    return {
+      ...(input.images?.length
+        ? { images: await this.images.save(chatId, input.images) }
+        : {}),
+      ...(input.audio?.length
+        ? { audio: await this.audio.save(chatId, input.audio) }
+        : {}),
+    };
   }
 
   /** A fork's copies of the screenshots its messages carry over. */

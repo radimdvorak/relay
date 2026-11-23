@@ -15,14 +15,17 @@ import {
   withoutImageTokens,
 } from "../../../shared/image-refs";
 import type { BrowserAnnotation } from "../../../shared/browser-annotations";
+import { maxAudioAttachments } from "../../../shared/audio";
 import { api } from "../../lib/api";
 import { draftChips } from "../../lib/thread-storage";
+import { isAudioFile, prepareAudioFile } from "../audio/draft-audio";
 import { isScreenshot, prepareScreenshot } from "../images/draft-images";
 import { copiedImages } from "../images/image-clipboard";
 import { droppedImage } from "../images/image-drag";
 import { textIsTheContent, textPasteRoute } from "./clipboard-text";
 import { appendToDraft, readDraft } from "./drafts";
 import { fileMarkdown } from "./prompt-text";
+import type { useDraftAudio } from "./useDraftAudio";
 import type { useDraftImages } from "./useDraftImages";
 
 type Point = { left: number; top: number };
@@ -62,10 +65,15 @@ function clipboardFiles(data: DataTransfer): File[] {
  * on disk can't be mentioned, so the text they came with pastes instead, and
  * so does text that a picture of it came along with.
  */
-function pastesAsFiles(files: File[], data: DataTransfer, html: string) {
+function pastesAsFiles(
+  files: File[],
+  data: DataTransfer,
+  html: string,
+  acceptsAudio: boolean,
+) {
   const plain = data.getData("text/plain");
   const onClipboard = files.map((file) => ({
-    image: isScreenshot(file),
+    image: isScreenshot(file) || (acceptsAudio && isAudioFile(file)),
     onDisk: !!api.pathForFile(file),
   }));
   if (
@@ -93,11 +101,84 @@ function textPasted(data: DataTransfer, files: File[]) {
   return { pasted, route };
 }
 
+type DraftAudioHandle = Pick<
+  ReturnType<typeof useDraftAudio>,
+  "read" | "save"
+>;
+
+async function attachAudioFiles(
+  files: File[],
+  audio: DraftAudioHandle,
+  setError: (error: string | undefined) => void,
+) {
+  try {
+    const existing = await audio.read();
+    if (existing.length + files.length > maxAudioAttachments)
+      throw new Error(
+        `Attach up to ${maxAudioAttachments} audio files per message.`,
+      );
+    const prepared = [];
+    for (const file of files) prepared.push(await prepareAudioFile(file));
+    const now = await audio.read();
+    await audio.save([...now, ...prepared]);
+  } catch (error) {
+    setError(
+      error instanceof Error ? error.message : "Could not attach audio.",
+    );
+  }
+}
+
+async function spillPasteFile(
+  key: string,
+  pasted: string,
+  isShown: () => boolean,
+  editor: RefObject<DraftEditor | null>,
+  setError: (error: string | undefined) => void,
+) {
+  setError(undefined);
+  try {
+    const path = await api.savePaste(pasted, nextPasteFile(readDraft(key)));
+    if (isShown() && editor.current) {
+      if (!editor.current.pasteFile(path)) setError(PASTE_TOO_LONG);
+    } else {
+      const chips = draftChips(key).files;
+      chips.save([...new Set([...chips.load(), path])]);
+      appendToDraft(key, fileMarkdown(path));
+    }
+  } catch (error) {
+    setError(
+      error instanceof Error
+        ? `Could not save the paste: ${error.message}`
+        : "Could not save the paste.",
+    );
+  }
+}
+
+function insertDroppedPaths(
+  files: File[],
+  point: Point | undefined,
+  editor: RefObject<DraftEditor | null>,
+  setError: (error: string | undefined) => void,
+) {
+  const paths = files.map((file) => api.pathForFile(file));
+  const missing = files.find((_, i) => !paths[i]);
+  if (missing) {
+    setError(
+      `Relay can't tell where "${missing.name}" is saved. Save it to disk and drop it again.`,
+    );
+    return;
+  }
+  setError(undefined);
+  editor.current?.insertFiles(paths, point);
+}
+
 /** Files and pasted text entering one draft; queued work keeps its original key. */
 export function draftIntake({
   key,
   editor,
   screenshots,
+  audio,
+  acceptsAudio,
   imagePills,
   setError,
   queuePreparation,
@@ -108,6 +189,8 @@ export function draftIntake({
     ReturnType<typeof useDraftImages>,
     "images" | "read" | "save" | "reset" | "isShown"
   >;
+  audio: DraftAudioHandle;
+  acceptsAudio: boolean;
   imagePills: boolean;
   setError: (error: string | undefined) => void;
   queuePreparation: (attach: () => Promise<void>, screenshots?: number) => void;
@@ -239,47 +322,25 @@ export function draftIntake({
       if (!editor.current.insertPaste(words)) setError(PASTE_TOO_LONG);
     } else if (!editor.current.pasteText(words)) setError(PASTE_TOO_LONG);
   }
-  /**
-   * A paste too big for the message, or big enough to cost the agent's
-   * context for nothing, is saved as a file and goes in as its path, which
-   * the agent reads as much of as it needs.
-   */
-  async function spillPaste(pasted: string) {
-    setError(undefined);
-    try {
-      const path = await api.savePaste(pasted, nextPasteFile(readDraft(key)));
-      if (screenshots.isShown() && editor.current) {
-        if (!editor.current.pasteFile(path)) setError(PASTE_TOO_LONG);
-      } else {
-        const chips = draftChips(key).files;
-        chips.save([...new Set([...chips.load(), path])]);
-        appendToDraft(key, fileMarkdown(path));
-      }
-    } catch (error) {
-      setError(
-        error instanceof Error
-          ? `Could not save the paste: ${error.message}`
-          : "Could not save the paste.",
-      );
-    }
-  }
-  /** Screenshots attach; any other file goes in as its path, which the agent reads itself. */
+  const spillPaste = (pasted: string) =>
+    spillPasteFile(key, pasted, screenshots.isShown, editor, setError);
+  /** Screenshots (and audio for capable agents) attach; other files go in as paths. */
   function addFiles(files: File[], point?: Point) {
-    const others = files.filter((file) => !isScreenshot(file));
-    if (others.length) insertPaths(others, point);
-    void addImages(files.filter(isScreenshot), point);
-  }
-  function insertPaths(files: File[], point?: Point) {
-    const paths = files.map((file) => api.pathForFile(file));
-    const missing = files.find((_, i) => !paths[i]);
-    if (missing) {
-      setError(
-        `Relay can't tell where "${missing.name}" is saved. Save it to disk and drop it again.`,
-      );
-      return;
+    const images: File[] = [];
+    const clips: File[] = [];
+    const others: File[] = [];
+    for (const file of files) {
+      if (isScreenshot(file)) images.push(file);
+      else if (acceptsAudio && isAudioFile(file)) clips.push(file);
+      else others.push(file);
     }
-    setError(undefined);
-    editor.current?.insertFiles(paths, point);
+    if (others.length) insertDroppedPaths(others, point, editor, setError);
+    if (images.length) void addImages(images, point);
+    if (clips.length)
+      queuePreparation(
+        () => attachAudioFiles(clips, audio, setError),
+        clips.length,
+      );
   }
   return {
     addFiles,
@@ -310,7 +371,7 @@ export function draftIntake({
         return;
       }
       const files = clipboardFiles(event.clipboardData);
-      if (pastesAsFiles(files, event.clipboardData, html)) {
+      if (pastesAsFiles(files, event.clipboardData, html, acceptsAudio)) {
         event.preventDefault();
         event.stopPropagation();
         addFiles(files);

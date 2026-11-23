@@ -23,6 +23,7 @@ import {
 /** What Relay reads off an agent's `initialize`. */
 const capsSchema = z.object({
   image: z.boolean(),
+  audio: z.boolean().optional(),
   http: z.boolean(),
   load: z.boolean(),
   resume: z.boolean(),
@@ -211,6 +212,7 @@ async function initialize(agent: AcpAgent) {
   const caps = init.agentCapabilities;
   agent.caps = {
     image: !!caps?.promptCapabilities?.image,
+    audio: !!caps?.promptCapabilities?.audio,
     http: !!caps?.mcpCapabilities?.http,
     load: !!caps?.loadSession,
     resume: caps?.sessionCapabilities?.resume != null,

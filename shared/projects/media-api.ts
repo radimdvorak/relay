@@ -4,6 +4,8 @@ import type { ProjectChatSend } from "./send";
 /** The pictures and videos a thread's messages hold, read or show. */
 export interface ChatMediaApi {
   projectChatImage(id: string, imageId: string): Promise<string>;
+  /** Where the player streams an audio clip attached to a user message. */
+  projectChatAudio(id: string, audioId: string): Promise<string>;
   /** The screenshots of a queued or scheduled message, to take it back with them. */
   projectChatQueuedImages(
     id: string,

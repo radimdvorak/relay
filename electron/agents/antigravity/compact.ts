@@ -32,6 +32,7 @@ export async function compactAntigravity(
     interactionMode: "default",
     readOnly: true,
     images: undefined,
+    audio: undefined,
     relayTools: undefined,
     context: undefined,
     onRequest: undefined,

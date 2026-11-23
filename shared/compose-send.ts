@@ -27,6 +27,7 @@ export interface SendOptions {
   side?: boolean;
   parentId?: string;
   images?: NonNullable<ProjectChatSend["images"]>;
+  audio?: NonNullable<ProjectChatSend["audio"]>;
   skills?: SentSkill[];
   /** Compact first, or not, whatever Settings say; see ProjectChatSend. */
   compact?: boolean;
@@ -69,6 +70,7 @@ export function buildSend(
     ...(options.side ? { side: true } : {}),
     ...(options.parentId ? { parentId: options.parentId } : {}),
     ...(options.images?.length ? { images: options.images } : {}),
+    ...(options.audio?.length ? { audio: options.audio } : {}),
     ...(options.skills?.length ? { skills: options.skills } : {}),
     ...(options.compact === undefined ? {} : { compact: options.compact }),
   };

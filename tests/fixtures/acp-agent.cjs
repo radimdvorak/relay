@@ -170,7 +170,10 @@ require("node:readline")
             protocolVersion: 1,
             agentCapabilities: {
               loadSession: false,
-              promptCapabilities: { image: false },
+              promptCapabilities: {
+                image: !!scenario.image,
+                audio: !!scenario.audio,
+              },
               mcpCapabilities: { http: true },
               sessionCapabilities:
                 scenario.resume || scenario.nativeUrl ? { resume: {} } : {},

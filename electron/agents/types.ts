@@ -164,6 +164,10 @@ export interface AgentOptions {
     path: string;
     mimeType: "image/png" | "image/jpeg" | "image/webp";
   }[];
+  audio?: {
+    path: string;
+    mimeType: import("../../shared/audio").AudioMimeType;
+  }[];
   runtimeMode?: AgentRuntimeMode;
   interactionMode?: InteractionMode;
   /** A deep review's reviewer: it may read and run anything but changes no files. */

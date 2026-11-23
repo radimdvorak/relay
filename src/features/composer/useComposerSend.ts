@@ -58,8 +58,8 @@ export function useComposerSend({
   const settings = runs.sendSettings(to);
   const disabled =
     busy ||
-    (!draft.text.trim() && !draft.attached.length && !complete) ||
-    // A note to the thread has no agent to show a screenshot to.
+    (!draft.text.trim() && !draft.hasAttachments && !complete) ||
+    // A note to the thread has no agent to show attachments to.
     (to === "message" && !draft.text.trim()) ||
     !settings;
   const whenReady = useSendWhenReady(draft, send);
@@ -78,7 +78,7 @@ export function useComposerSend({
       if (busy || sending.current || !settings) return;
       sending.current = true;
       try {
-        const prepared = await preparedImages(draft, btw.args);
+        const prepared = await preparedAttachments(draft, btw.args);
         if (!prepared) return;
         const outgoing = draft.take(true);
         const sent = await onSend(
@@ -101,9 +101,9 @@ export function useComposerSend({
     if (disabled || sending.current || !settings) return;
     sending.current = true;
     try {
-      const prepared = await preparedImages(draft, draft.text.trim());
+      const prepared = await preparedAttachments(draft, draft.text.trim());
       if (!prepared) return;
-      const { body, images } = prepared;
+      const { body, images, audio } = prepared;
       const outgoing = draft.take(true);
       const sent = await onSend(
         buildSend(settings, body, {
@@ -112,21 +112,19 @@ export function useComposerSend({
           skills: draft.skills(body),
           compact,
           images,
+          audio,
         }),
         outgoing.dispatch,
       );
-      if (!sent) {
-        outgoing.restore();
-      } else if (to !== "message")
+      if (!sent) return outgoing.restore();
+      if (to !== "message")
         state.saveLastModel(to, {
           choice: runs.choiceFor(to)!,
           ...runs.contextFor(to),
         });
-      if (sent) {
-        if (parseGoalCommand(body)?.type === "set") noteUsed("goal");
-        await outgoing.forget();
-        after?.();
-      }
+      if (parseGoalCommand(body)?.type === "set") noteUsed("goal");
+      await outgoing.forget();
+      after?.();
     } finally {
       sending.current = false;
     }
@@ -193,10 +191,10 @@ export function useComposerSend({
 }
 
 /**
- * The draft's screenshots as `text` numbers them, each drawing applied, and
- * the text they're numbered in. Undefined when a drawing couldn't be applied.
+ * The draft's screenshots (numbered and flattened) and audio clips ready for send.
+ * Undefined when a drawing couldn't be applied.
  */
-async function preparedImages(draft: ComposerDraft, text: string) {
+async function preparedAttachments(draft: ComposerDraft, text: string) {
   const numbered = numberImages(text, draft.images);
   let flattened: DraftImage[];
   try {
@@ -211,5 +209,14 @@ async function preparedImages(draft: ComposerDraft, text: string) {
     dataUrl,
     ...(browser ? { browser } : {}),
   }));
-  return { body: numbered.text, images };
+  const audio = draft.audio.map(
+    ({ name, mimeType, durationSec, peaks, dataUrl }) => ({
+      name,
+      mimeType,
+      ...(durationSec !== undefined ? { durationSec } : {}),
+      ...(peaks?.length ? { peaks } : {}),
+      dataUrl,
+    }),
+  );
+  return { body: numbered.text, images, audio };
 }

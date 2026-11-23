@@ -81,6 +81,8 @@ export interface AgentInfo {
   modelGroups: boolean;
   /** Runs from something Relay downloads (an SDK, a server), not a CLI it finds on the machine. */
   sdk?: true;
+  /** Accepts native audio attachments in prompts. */
+  audio?: true;
   /**
    * The CLI's own sign-in, as arguments to run in a terminal. Agents without
    * one sign in through Relay: Settings → Agents.
@@ -215,6 +217,7 @@ export const agents = {
     usage: true,
     modelGroups: false,
     sdk: true,
+    audio: true,
   },
 } as const satisfies Record<BuiltinProvider, AgentInfo>;
 

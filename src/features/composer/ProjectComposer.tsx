@@ -159,7 +159,7 @@ const ComposerBody = memo(function ComposerBody({
   });
   const catalogs = useModelCatalogs(projectId, computer?.id);
   const promptInput = useRef<PromptInputHandle>(null);
-  const draft = useComposerDraft(keys.draft, promptInput);
+  const draft = useComposerDraft(keys.draft, promptInput, composer.provider);
   // Typing only hides it until the draft is empty again. A note isn't
   // what the agent guessed: it was guessing what it would be asked.
   const guess = useNextGuess(
@@ -167,7 +167,7 @@ const ComposerBody = memo(function ComposerBody({
     conversation.prediction,
     composer.provider !== "message" &&
       !draft.text.trim() &&
-      !draft.attached.length,
+      !draft.hasAttachments,
   );
   const ghost = guess.text;
   const takeGhost = () => {
@@ -535,7 +535,7 @@ const ComposerBody = memo(function ComposerBody({
                 {(!running ||
                   !onStop ||
                   !!draft.text.trim() ||
-                  !!draft.attached.length) && (
+                  draft.hasAttachments) && (
                   <SendButton
                     disabled={sending.disabled}
                     compactsFirst={compact.tokens}

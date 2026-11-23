@@ -70,6 +70,15 @@ async function promptBlocks(
         data: (await readFile(image.path)).toString("base64"),
       });
   }
+  if (options.audio?.length) {
+    if (!agent.caps?.audio) throw new Error(`${name} can't listen to audio.`);
+    for (const clip of options.audio)
+      blocks.push({
+        type: "audio",
+        mimeType: clip.mimeType,
+        data: (await readFile(clip.path)).toString("base64"),
+      });
+  }
   return blocks;
 }
 

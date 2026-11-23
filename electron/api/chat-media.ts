@@ -13,6 +13,13 @@ export function chatMediaHandlers({ projectChats }: ApiContext) {
     projectChatImage: takes([idSchema, idSchema], (id, imageId) =>
       projectChats.files.image(id, imageId),
     ),
+    projectChatAudio: takes([idSchema, idSchema], async (id, audioId) => {
+      const { path, mimeType } = await projectChats.files.audioFile(
+        id,
+        audioId,
+      );
+      return mediaUrl(path, dirname(path), mimeType);
+    }),
     projectChatQueuedImages: takes([idSchema, idSchema], (id, messageId) =>
       projectChats.queuedImages(id, messageId),
     ),

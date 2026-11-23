@@ -73,6 +73,19 @@ export class TurnFiles {
     return image;
   }
 
+  /** A sent audio clip's file on disk and MIME type, for relay-media:// streaming. */
+  async audioFile(chatId: string, audioId: string) {
+    const chat = await this.core.storage.load(chatId);
+    const clip = chat.messages
+      .flatMap((message) => message.audio ?? [])
+      .find((item) => item.id === audioId);
+    if (!clip) throw new Error("Audio clip not found in this conversation.");
+    return {
+      path: this.core.storage.audio.path(chatId, clip),
+      mimeType: clip.mimeType,
+    };
+  }
+
   /** Only a path the turn itself read or its answer shows, so the renderer can't reach any other file on disk. */
   async turnImagePath(chatId: string, messageId: string, path: string) {
     const chat = await this.core.storage.load(chatId);

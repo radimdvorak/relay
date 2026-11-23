@@ -153,6 +153,7 @@ export class TurnSends {
       questionMessageId: undefined,
       pageAnswer: undefined,
       images: undefined,
+      audio: undefined,
       selection: undefined,
       delivery: undefined,
     };
@@ -217,9 +218,7 @@ export class TurnSends {
         ...(chat.handover?.kickoff === input.id && {
           handedOver: true as const,
         }),
-        ...(input.images?.length
-          ? { images: await this.core.storage.saveImages(id, input.images) }
-          : {}),
+        ...(await this.core.storage.saveAttachments(id, input)),
         ...(input.parentId ? { parentId: input.parentId } : {}),
         ...sentBy(input),
         ...(asked ? { sentSettings: sentSettingsOf(input) } : {}),
@@ -247,7 +246,8 @@ export class TurnSends {
       ));
       if (chat.messages.length === 1 && !chat.renamed)
         chat.title = promptTitle(input.body);
-      if (!answer) chat.lastInput = { ...input, images: undefined };
+      if (!answer)
+        chat.lastInput = { ...input, images: undefined, audio: undefined };
       this.core.storage.keep(chat);
       await this.core.storage.checkpoint(chat); // the turn's end saves it whole
       this.core.emit({ chatId: id, message: user });
@@ -391,7 +391,7 @@ export class TurnSends {
       const answer = (begun = streamingAnswer(asked.provider, {
         ...(input.parentId ? { parentId: input.parentId } : {}),
       }));
-      chat.lastInput = { ...input, images: undefined };
+      chat.lastInput = { ...input, images: undefined, audio: undefined };
       chat.messages.push(answer);
       await this.core.storage.checkpoint(chat);
       this.core.emit({ chatId: id, message: structuredClone(answer) });

@@ -156,6 +156,7 @@ export interface ChatMessage {
    */
   side?: boolean;
   images?: ChatImage[];
+  audio?: ChatAudio[];
   /** Skills picked as pills in the composer; their `$name` mentions show as pills. */
   skills?: SentSkill[];
   activity?: AgentActivity[];
@@ -233,6 +234,15 @@ export interface ChatImage {
   mimeType: "image/png" | "image/jpeg" | "image/webp";
   sizeBytes: number;
   browser?: import("../browser-annotations").BrowserAnnotation;
+}
+
+export interface ChatAudio {
+  id: string;
+  name: string;
+  mimeType: import("../audio").AudioMimeType;
+  sizeBytes: number;
+  durationSec?: number;
+  peaks?: number[];
 }
 
 export interface AgentActivity {

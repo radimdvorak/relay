@@ -171,7 +171,6 @@ export const bigFunctions: Record<string, number> = {
   "src/features/composer/draft-intake.ts › draftIntake": 244,
   "src/features/composer/draft-send.ts › sendDraft": 119,
   "src/features/composer/useAgentRuns.ts › useAgentRuns": 258,
-  "src/features/composer/useComposerDraft.ts › useComposerDraft": 85,
   "src/features/composer/useComposerSend.ts › useComposerSend": 159,
   "src/features/composer/useComposerSettings.ts › useComposerSettings": 117,
   "src/features/composer/useDraftImages.ts › useDraftImages": 160,
