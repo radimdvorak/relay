@@ -4,11 +4,27 @@ import type { ProjectChatSend } from "./send";
 /** The pictures and videos a thread's messages hold, read or show. */
 export interface ChatMediaApi {
   projectChatImage(id: string, imageId: string): Promise<string>;
+  /** Where the player streams an audio clip attached to a user message. */
+  projectChatAudio(id: string, audioId: string): Promise<string>;
+  /**
+   * `audioPartBytes` of an attached audio clip from `offset` (base64), and its
+   * whole size, for paired phones and handed-off threads.
+   */
+  projectChatAudioPart(
+    id: string,
+    audioId: string,
+    offset: number,
+  ): Promise<VideoPart>;
   /** The screenshots of a queued or scheduled message, to take it back with them. */
   projectChatQueuedImages(
     id: string,
     messageId: string,
   ): Promise<NonNullable<ProjectChatSend["images"]>>;
+  /** The audio clips of a queued or scheduled message, to take it back with them. */
+  projectChatQueuedAudio(
+    id: string,
+    messageId: string,
+  ): Promise<NonNullable<ProjectChatSend["audio"]>>;
   /** An image file the agent read during the turn `messageId`, as a data URL. */
   projectChatReadImage(
     id: string,

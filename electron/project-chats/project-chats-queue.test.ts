@@ -1046,3 +1046,66 @@ it("holds a steer you send for a moment, to be taken back before the agent gets 
   // ...nor cuts off the tools this thread runs; your own steer does.
   expect(steer.mock.calls.map((call) => call[4])).toEqual([false, true]);
 });
+
+it("reads waiting audio, copies sent audio on fork, and transfers clips via audioPart/keepAudio", async () => {
+  const wavBytes = Buffer.concat([
+    Buffer.from("RIFF"),
+    Buffer.alloc(4),
+    Buffer.from("WAVEfmt "),
+    Buffer.from("slice3-audio-payload"),
+  ]);
+  const dataUrl = `data:audio/wav;base64,${wavBytes.toString("base64")}`;
+  const clip = {
+    name: "voice.wav",
+    mimeType: "audio/wav" as const,
+    durationSec: 4.5,
+    peaks: [0.2, 0.9],
+    dataUrl,
+  };
+
+  // Sent audio is copied on fork and survives chunked transfer via audioPart/keepAudio.
+  const chat = await chats.create(projectId, { kind: "project" });
+  const note = { ...input("Note with audio"), audio: [clip] };
+  await chats.send(chat.id, note);
+  const saved = await chats.get(chat.id);
+  const sentClip = saved.messages[0]?.audio?.[0];
+  expect(sentClip?.name).toBe("voice.wav");
+
+  const part = await chats.files.audioPart(chat.id, sentClip!.id, 0);
+  expect(part.size).toBe(wavBytes.length);
+  expect(Buffer.from(part.data, "base64")).toEqual(wavBytes);
+  expect(await chats.files.audioDataUrl(chat.id, sentClip!.id)).toBe(dataUrl);
+
+  await chats.send(chat.id, input("@codex Acknowledge"));
+  await vi.waitFor(async () =>
+    expect((await chats.get(chat.id)).messages.at(-1)).toMatchObject({
+      role: "assistant",
+      status: "complete",
+    }),
+  );
+  const answer = (await chats.get(chat.id)).messages.at(-1)!;
+  const forked = await chats.fork(chat.id, answer.id);
+  const forkedFile = await chats.files.audioFile(forked.id, sentClip!.id);
+  expect(await readFile(forkedFile.path)).toEqual(wavBytes);
+
+  // keepAudio validates MIME before overwriting on disk.
+  await expect(
+    chats.files.keepAudio(forked.id, sentClip!.id, Buffer.from("not wav")),
+  ).rejects.toThrow("clip this message names");
+  await chats.files.keepAudio(forked.id, sentClip!.id, wavBytes);
+
+  // Waiting scheduled audio can be read until removed.
+  const scheduled = {
+    ...input("Later"),
+    audio: [clip],
+    sendAt: Date.now() + 3_600_000,
+  };
+  await chats.send(chat.id, scheduled);
+  const waiting = await chats.reads.queuedAudio(chat.id, scheduled.id);
+  expect(waiting).toHaveLength(1);
+  expect(waiting[0]).toMatchObject({ name: "voice.wav", dataUrl });
+  await chats.queueAction(chat.id, "remove", scheduled.id);
+  await expect(
+    chats.reads.queuedAudio(chat.id, scheduled.id),
+  ).rejects.toThrow("no longer waiting");
+});

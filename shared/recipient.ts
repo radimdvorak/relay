@@ -1,12 +1,23 @@
 import {
+  agentInfo,
   agentMention,
   agentMentionPattern,
+  agentProviders,
+  isRegistryProvider,
   type AgentProvider,
 } from "./agents";
 import type { ChatMessage, ChatSummary, ProjectChatSend } from "./projects";
 
 /** Who a message goes to: an agent, or "message", a note no agent answers. */
 export type Recipient = AgentProvider | "message";
+
+/** Whether `to` accepts audio attachments (built-ins with `audio: true`, or custom ACP registry agents checked at runtime). */
+export const canReceiveAudio = (to: Recipient): boolean =>
+  to !== "message" && (isRegistryProvider(to) || !!agentInfo(to).audio);
+
+/** First built-in agent that supports native audio attachments, if any. */
+export const defaultAudioAgent = (): AgentProvider | undefined =>
+  agentProviders.find((provider) => agentInfo(provider).audio);
 
 /**
  * Who answers a sent message. Its `to` says; a message without one, from an

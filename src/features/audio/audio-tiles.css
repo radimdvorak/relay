@@ -1,0 +1,193 @@
+/* 74px audio waveform tile, matching screenshot and pasted-text cards. */
+.message-audio {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 9px;
+}
+
+.project-message.user > .message-audio {
+  margin: 0 0 9px;
+}
+
+.audio-tile {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  box-sizing: border-box;
+  width: 224px;
+  height: 74px;
+  padding: 9px 10px 8px;
+  border: 1px solid color-mix(in srgb, var(--text) 20%, transparent);
+  border-radius: 9px;
+  background: var(--surface);
+  color: var(--text);
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.audio-tile[data-playing="true"] {
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
+}
+
+.audio-tile-top {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+}
+
+.audio-tile[data-removable="true"] .audio-tile-top {
+  padding-right: 22px;
+}
+
+.audio-tile-play {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: var(--send);
+  color: var(--send-foreground);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: opacity 120ms ease, transform 120ms ease;
+}
+
+.audio-tile-play:hover:not(:disabled) {
+  opacity: 0.9;
+}
+
+.audio-tile-play:active:not(:disabled) {
+  transform: scale(0.95);
+}
+
+.audio-tile-play:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.audio-tile-play-icon {
+  margin-left: 1.5px;
+}
+
+.audio-tile-name {
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.25;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.audio-tile-format {
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: var(--hover);
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  line-height: 1.4;
+  flex-shrink: 0;
+}
+
+.audio-tile-bottom {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.audio-tile-wave {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  height: 22px;
+  cursor: pointer;
+  border-radius: 4px;
+  padding: 2px 0;
+  box-sizing: border-box;
+}
+
+.audio-tile-wave:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.audio-tile-bar {
+  flex: 1;
+  min-width: 2px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--text) 24%, transparent);
+  transition: background-color 120ms ease;
+}
+
+.audio-tile-bar[data-active="true"] {
+  background: var(--accent);
+}
+
+.audio-tile-wave:hover .audio-tile-bar:not([data-active="true"]) {
+  background: color-mix(in srgb, var(--text) 38%, transparent);
+}
+
+.audio-tile-time {
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.audio-tile-remove {
+  top: 4px;
+  right: 4px;
+}
+
+.audio-tile[data-unsupported="true"] {
+  border-color: color-mix(in srgb, var(--danger) 42%, var(--border));
+  background: color-mix(in srgb, var(--danger) 4%, var(--surface));
+}
+
+.composer-audio-warning {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 8px 16px 0;
+  padding: 6px 8px 6px 10px;
+  border: 1px solid color-mix(in srgb, var(--danger) 30%, var(--border));
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--danger) 8%, var(--toolbar));
+  font-size: 12px;
+  color: var(--text);
+}
+
+.composer-audio-warning-icon {
+  flex: none;
+  color: var(--danger);
+}
+
+.composer-audio-warning-text {
+  flex: 1;
+  min-width: 140px;
+}
+
+.composer-audio-warning-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+}
+
+.composer-audio-warning button {
+  padding: 3px 9px;
+  font-size: 11.5px;
+  line-height: 1.4;
+}

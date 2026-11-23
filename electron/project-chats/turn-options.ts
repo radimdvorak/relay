@@ -58,10 +58,6 @@ export async function turnOptions(
       : {}),
   };
   const links = await linksOf(core, chat, root);
-  const attached = [
-    ...((turn.kind === "reply" && turn.carried) || []),
-    ...(chat.messages.find((m) => m.id === input.id)?.images ?? []),
-  ];
   const watch = watchFor(core, t);
   const predict = predictFor(core, t);
   return {
@@ -93,10 +89,7 @@ export async function turnOptions(
     choice: input.choice,
     account: t.account,
     signal: abort.signal,
-    images: attached.map((image) => ({
-      path: core.storage.imagePath(chat.id, image),
-      mimeType: image.mimeType,
-    })),
+    ...attachmentsOf(core, t),
     ...access.options,
     ...answerCallbacks(deps, t),
     ...goalOptions(core, t),
@@ -116,6 +109,33 @@ export async function turnOptions(
       },
       onUnprompted: () => host.unprompted(chat, root, t.provider, t.replyTo),
     },
+  };
+}
+
+/** Images and audio clips this turn's user message carries to the agent. */
+function attachmentsOf(
+  core: ChatCore,
+  { chat, input, turn }: TurnState,
+): Pick<AgentOptions, "images" | "audio"> {
+  const sentMessage = chat.messages.find((m) => m.id === input.id);
+  const attached = [
+    ...((turn.kind === "reply" && turn.carried) || []),
+    ...(sentMessage?.images ?? []),
+  ];
+  const audio = sentMessage?.audio ?? [];
+  return {
+    images: attached.map((image) => ({
+      path: core.storage.imagePath(chat.id, image),
+      mimeType: image.mimeType,
+    })),
+    ...(audio.length
+      ? {
+          audio: audio.map((clip) => ({
+            path: core.storage.audio.path(chat.id, clip),
+            mimeType: clip.mimeType,
+          })),
+        }
+      : {}),
   };
 }
 

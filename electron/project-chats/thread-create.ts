@@ -228,6 +228,7 @@ export class ThreadCreate {
     if (notes) chat.notes = notes;
     chat.forkedAt = chat.messages.at(-1)!.id;
     await this.core.storage.copyImages(source.id, chat.id, kept);
+    await this.core.storage.audio.copy(source.id, chat.id, kept);
     await this.core.storage.shown.copy(
       source.id,
       chat.id,

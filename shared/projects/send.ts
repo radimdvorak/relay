@@ -11,6 +11,7 @@ import { browserAnnotationSchema } from "../browser-annotations";
 import { scheduleMessageSchema } from "../schedules";
 import { secondOpinionAskedSchema } from "../second-opinion";
 import { threadAdvisorSchema } from "../advisor";
+import { maxAudioAttachments, pastedAudioSchema } from "../audio";
 
 const imageMimeSchema = z.enum(["image/png", "image/jpeg", "image/webp"]);
 const pastedImageSchema = z
@@ -70,6 +71,7 @@ export const projectChatSendSchema = z
     viewing: filePathSchema.optional(),
     selection: lineQuestionSchema.optional(),
     images: z.array(pastedImageSchema).optional(),
+    audio: z.array(pastedAudioSchema).max(maxAudioAttachments).optional(),
     /** Sent by the agent in another thread, through Relay's tools; see electron/started-threads. */
     fromThread: z
       .object({

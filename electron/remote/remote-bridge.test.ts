@@ -943,3 +943,63 @@ it("leaves a finished turn's steps out for a phone that asks, and hands them ove
   expect(command && command.detailCut).toBe(400);
   expect(await b.handle("messageSteps", [chatId, randomUUID()])).toBeNull();
 });
+
+it("reports queued audio count without leaking data URLs and forwards audio media calls", async () => {
+  const dispatched: { method: string; args: unknown[] }[] = [];
+  const dataUrl = "data:audio/wav;base64,UklGRgAAAABXQVZFZm10IA==";
+  const msgId = randomUUID();
+  const b = new RemoteBridge(
+    {
+      projects: async () => [],
+      projectPath: () => "/r",
+      chats: () => [],
+      chat: async () => ({
+        id: chatId,
+        projectId,
+        title: "Audio",
+        scope: { kind: "project" },
+        created: 1,
+        updated: 2,
+        messages: [],
+        queue: [
+          {
+            input: {
+              id: msgId,
+              body: "",
+              audio: [
+                {
+                  name: "clip.wav",
+                  mimeType: "audio/wav",
+                  sizeBytes: 12,
+                  dataUrl,
+                },
+              ],
+            },
+            queuedAt: 5,
+          },
+        ],
+      }),
+      dispatch: async (method: string, args: unknown[]) => {
+        dispatched.push({ method, args });
+        return { ok: true };
+      },
+      name: () => "Studio",
+    } as unknown as RemoteHost,
+    () => {},
+  );
+
+  const remoteChat = (await b.handle("chat", [chatId])) as {
+    queue?: { id: string; audio?: number }[];
+  };
+  expect(remoteChat.queue).toEqual([
+    expect.objectContaining({ id: msgId, audio: 1 }),
+  ]);
+  expect(JSON.stringify(remoteChat)).not.toContain(dataUrl);
+
+  await b.handle("desktop", ["projectChatAudioPart", [chatId, "a1", 0]]);
+  await b.handle("desktop", ["projectChatQueuedAudio", [chatId, msgId]]);
+  expect(dispatched).toEqual([
+    { method: "projectChatAudioPart", args: [chatId, "a1", 0] },
+    { method: "projectChatQueuedAudio", args: [chatId, msgId] },
+  ]);
+});

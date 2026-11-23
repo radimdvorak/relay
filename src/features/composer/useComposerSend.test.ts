@@ -39,6 +39,8 @@ it("preserves Send later when the draft starts with /btw", async () => {
         text: "/btw Does this support caching?",
         attached: [],
         images: [],
+        audio: [],
+        hasAttachments: false,
         preparing: false,
         isPreparing: () => false,
         take: () => outgoing,
@@ -87,6 +89,8 @@ it("sends the draft's screenshot with a /btw", async () => {
         text: "/btw What's on this screen?",
         attached: [screenshot],
         images: [screenshot],
+        audio: [],
+        hasAttachments: true,
         preparing: false,
         isPreparing: () => false,
         take,
@@ -122,7 +126,13 @@ it("sends a meme's line once while the first send is on its way", async () => {
   };
   const sending = mount(() =>
     useComposerSend({
-      draft: { text: "/meme dew", attached: [], images: [] } as never,
+      draft: {
+        text: "/meme dew",
+        attached: [],
+        images: [],
+        audio: [],
+        hasAttachments: false,
+      } as never,
       state: {} as never,
       runs: { codex: true, sendSettings: () => settings } as never,
       to: "codex",
@@ -156,6 +166,8 @@ it.each(["Read this", "/btw Read this"])(
           text,
           attached: [],
           images: [],
+          audio: [],
+          hasAttachments: false,
           preparing: false,
           isPreparing: () => true,
           settled: () => new Promise(() => {}),
@@ -187,6 +199,8 @@ it.each(["claude", "message"] as const)(
           text: "Continue",
           attached: [],
           images: [],
+          audio: [],
+          hasAttachments: false,
           preparing: false,
           isPreparing: () => false,
           skills: () => [],
@@ -246,6 +260,8 @@ function messageSender(
         text: "Continue",
         attached: [],
         images: [],
+        audio: [],
+        hasAttachments: false,
         preparing: false,
         isPreparing: () => false,
         skills: () => [],
@@ -336,6 +352,8 @@ function preparingSender() {
         ...draft,
         attached: [],
         images: [],
+        audio: [],
+        hasAttachments: false,
         isPreparing: () => draft.preparing,
         skills: () => [],
         take: () => outgoing,
@@ -399,3 +417,120 @@ it("doesn't send another thread's draft when the thread changed while preparing"
   await prepared({ key: "thread-b", text: "Unrelated draft" });
   expect(onSend).not.toHaveBeenCalled();
 });
+
+it("sends an audio-only draft with its audio metadata", async () => {
+  const onSend = vi.fn(async (_value: unknown) => true);
+  const choice = { model: "", reasoningEffort: "" as const, fast: false };
+  const outgoing = {
+    dispatch: vi.fn(),
+    restore: vi.fn(),
+    forget: vi.fn(async () => {}),
+  };
+  const clip = {
+    id: "clip-1",
+    name: "voice.wav",
+    mimeType: "audio/wav" as const,
+    sizeBytes: 64,
+    durationSec: 4.2,
+    peaks: [0.3, 0.9],
+    dataUrl: "data:audio/wav;base64,UklGRg==",
+  };
+  const sending = mount(() =>
+    useComposerSend({
+      draft: {
+        text: "",
+        attached: [],
+        images: [],
+        audio: [clip],
+        hasAttachments: true,
+        preparing: false,
+        isPreparing: () => false,
+        skills: () => [],
+        take: () => outgoing,
+      } as never,
+      state: { saveLastModel: vi.fn() } as never,
+      runs: {
+        sendSettings: () => ({
+          to: "antigravity",
+          choice,
+          runtimeMode: "default",
+          interactionMode: "default",
+        }),
+        choiceFor: () => choice,
+        contextFor: () => ({}),
+      } as never,
+      to: "antigravity",
+      conversation: { busy: false, running: false },
+      complete: false,
+      intercept: () => false,
+      onSend,
+    }),
+  );
+  expect(sending().disabled).toBe(false);
+  await sending().send();
+  expect(onSend).toHaveBeenCalledWith(
+    expect.objectContaining({
+      to: "antigravity",
+      audio: [
+        {
+          name: "voice.wav",
+          mimeType: "audio/wav",
+          durationSec: 4.2,
+          peaks: [0.3, 0.9],
+          dataUrl: "data:audio/wav;base64,UklGRg==",
+        },
+      ],
+    }),
+    outgoing.dispatch,
+  );
+  expect(outgoing.forget).toHaveBeenCalledOnce();
+});
+
+it.each(["claude", "message"] as const)(
+  "blocks sending to %s while audio clips are attached",
+  async (to) => {
+    const onSend = vi.fn(async (_value: unknown) => true);
+    const choice = { model: "", reasoningEffort: "" as const, fast: false };
+    const clip = {
+      id: "clip-1",
+      name: "voice.wav",
+      mimeType: "audio/wav" as const,
+      sizeBytes: 64,
+      dataUrl: "data:audio/wav;base64,UklGRg==",
+    };
+    const sending = mount(() =>
+      useComposerSend({
+        draft: {
+          text: "/btw Please listen to this",
+          attached: [],
+          images: [],
+          audio: [clip],
+          hasAttachments: true,
+          preparing: false,
+          isPreparing: () => false,
+          skills: () => [],
+          take: vi.fn(),
+        } as never,
+        state: { saveLastModel: vi.fn() } as never,
+        runs: {
+          sendSettings: () => ({
+            to,
+            choice,
+            runtimeMode: "default",
+            interactionMode: "default",
+          }),
+          choiceFor: () => choice,
+          contextFor: () => ({}),
+        } as never,
+        to,
+        conversation: { busy: false, running: false },
+        complete: false,
+        intercept: () => false,
+        onSend,
+      }),
+    );
+    expect(sending().disabled).toBe(true);
+    await sending().send();
+    expect(onSend).not.toHaveBeenCalled();
+  },
+);

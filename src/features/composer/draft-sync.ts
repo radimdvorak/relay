@@ -32,6 +32,12 @@ import {
   type DraftImageMetadata,
 } from "../images/draft-images";
 import {
+  draftAudioCount,
+  draftsWithAudio,
+  onDraftAudioSaved,
+  readDraftAudioCounts,
+} from "../audio/draft-audio";
+import {
   draftSentAt,
   draftTaken,
   forgetNewThread,
@@ -126,13 +132,17 @@ function localOf(thread: string): Map<string, LocalDraft> {
       body.text,
       (images.get(composerKey(key)) ?? []).map((n) => ({ n })),
     ).map((i) => i.n ?? 0);
+    const audioCount = draftAudioCount(composerKey(key));
     const all = compact({
       screenshots: shots.length ? shots : undefined,
+      audio: audioCount || undefined,
       ...(reply ? {} : mainExtras(record, fresh)),
     });
     // As Activity counts drafts: a scope or a selected line alone is none.
     const extras =
-      body.text.trim() || all?.screenshots || all?.links ? all : undefined;
+      body.text.trim() || all?.screenshots || all?.audio || all?.links
+        ? all
+        : undefined;
     out.set(key, {
       body: draftBody({
         ...body,
@@ -360,6 +370,9 @@ export function startDraftSync({ takes }: { takes: boolean }) {
   onDraftImagesSaved((key) => {
     if (key.startsWith(DRAFT_PREFIX)) schedule(recordOf(sharedKey(key)));
   });
+  onDraftAudioSaved((key) => {
+    if (key.startsWith(DRAFT_PREFIX)) schedule(recordOf(sharedKey(key)));
+  });
   api.onSharedDraft((change) => heard(change, takes));
   // Mid-pause on the way out: the next start pushes it.
   window.addEventListener("beforeunload", () => {
@@ -382,9 +395,12 @@ export function startDraftSync({ takes }: { takes: boolean }) {
 async function catchUp(takes: boolean) {
   const changed = (catchingUp = new Set<string>());
   try {
-    const metadata = await readDraftImageMetadata();
+    const [metadata] = await Promise.all([
+      readDraftImageMetadata(),
+      readDraftAudioCounts(),
+    ]);
     for (const [key, value] of metadata) readImages(key, value);
-    const keys = [...metadata.keys()];
+    const keys = [...metadata.keys(), ...draftsWithAudio()];
     const list = await api.sharedDrafts();
     // The snapshot can predate a write or live event received while awaiting it.
     // Keep those changes, including removals, rather than restoring the old copy.

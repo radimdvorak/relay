@@ -167,6 +167,8 @@ export interface RemoteQueued {
   body: string;
   /** How many screenshots it holds; `projectChatQueuedImages` hands them over. */
   images?: number;
+  /** How many audio clips it holds; `projectChatQueuedAudio` hands them over. */
+  audio?: number;
   /** Why a steer was refused; it holds the queue until dealt with. */
   error?: string;
   /** When it was sent; older desktops leave it out. */

@@ -43,9 +43,11 @@ export const phoneDesktopMethods = [
   "setLimitResume",
   "closeWatchNote",
   "projectChatImage",
+  "projectChatAudioPart",
   "projectChatReadImage",
   "projectChatVideoPart",
   "projectChatQueuedImages",
+  "projectChatQueuedAudio",
   "threadNotes",
   "tickThreadNote",
   "removeThreadNote",
@@ -253,7 +255,8 @@ export const slowPhoneMethods: readonly PhoneDesktopMethod[] = [
   "comment",
   // Makes a thread, maybe a worktree, and carries the question's screenshots.
   "askSecondOpinion",
-  // A megabyte of video, which a slow link takes longer than a quarter to carry.
+  // A megabyte of media, which a slow link takes longer than a quarter to carry.
+  "projectChatAudioPart",
   "projectChatVideoPart",
 ];
 

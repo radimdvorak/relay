@@ -1,13 +1,5 @@
-import {
-  copyFile,
-  mkdir,
-  readFile,
-  rm,
-  stat,
-  writeFile,
-} from "node:fs/promises";
+import { mkdir, readFile, rm, stat } from "node:fs/promises";
 import { join } from "node:path";
-import { randomUUID } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
 import type {
   ChatImage,
@@ -16,11 +8,12 @@ import type {
   ProjectChat,
   ProjectChatSend,
 } from "../../shared/projects";
-import { reviewerTitle } from "../../shared/deep-review";
+import { adoptReviewers, dropThinkers } from "./migrations";
 import { keyedQueue } from "../util/keyed-queue";
 import type { Store } from "../app/store";
 import { RenderFiles } from "../html-renders";
-import { imageMimeType } from "./images";
+import { ChatAudioFiles } from "./audio";
+import { ChatImageFiles } from "./chat-images";
 import { chatSummary } from "./chat-summaries";
 import {
   liveTurn,
@@ -83,6 +76,8 @@ export class ChatStorage {
   /** The pages answers showed with show_html. */
   readonly renders: RenderFiles;
   readonly shown: ShownImages;
+  readonly audio: ChatAudioFiles;
+  private readonly images: ChatImageFiles;
 
   constructor(
     private store: Store,
@@ -92,6 +87,8 @@ export class ChatStorage {
   ) {
     this.renders = new RenderFiles(join(dir, "renders"));
     this.shown = new ShownImages(join(dir, "images"));
+    this.audio = new ChatAudioFiles(dir);
+    this.images = new ChatImageFiles(dir);
   }
 
   /** Loads wait for `ready` from here on. */
@@ -231,12 +228,16 @@ export class ChatStorage {
       await rm(this.file(chat.id), { force: true });
       await rm(this.file(chat.id, true), { force: true });
     });
-    await rm(join(this.dir, "images", chat.id), {
-      recursive: true,
-      force: true,
-    }).catch((e) =>
-      console.warn("Could not remove a dropped thread's images:", e),
-    );
+    await this.images
+      .removeAll(chat.id)
+      .catch((e) =>
+        console.warn("Could not remove a dropped thread's images:", e),
+      );
+    await this.audio
+      .removeAll(chat.id)
+      .catch((e) =>
+        console.warn("Could not remove a dropped thread's audio:", e),
+      );
     await this.renders
       .removeAll(chat.id)
       .catch((e) =>
@@ -351,8 +352,16 @@ export class ChatStorage {
    * the agent history are backfilled once from their conversations too.
    */
   async reconcile(storeSavedAt: number) {
-    await this.dropThinkers();
-    await this.adoptReviewers();
+    await dropThinkers(
+      this.store,
+      (id) => this.forget(id),
+      (id, live) => this.file(id, live),
+    );
+    await adoptReviewers(
+      this.store,
+      (id) => this.peek(id),
+      (chat) => this.save(chat),
+    );
     const listed = this.store.get().chats ?? [];
     const recent = await Promise.all(
       listed.map(async ({ id, providers }) => {
@@ -372,65 +381,6 @@ export class ChatStorage {
         await this.syncSummary(await this.load(id));
       } catch {
         // An unreadable thread surfaces when it is opened.
-      }
-    }
-  }
-
-  /** Ultraplan is gone; the hidden threads its thinkers worked in would only show up as strays. */
-  private async dropThinkers() {
-    const isThinker = (c: object) => !!(c as { thinker?: unknown }).thinker;
-    const strays = (this.store.get().chats ?? []).filter(isThinker);
-    if (!strays.length) return;
-    for (const { id } of strays) {
-      this.forget(id);
-      await Promise.all(
-        [this.file(id), this.file(id, true)].map((path) =>
-          rm(path, { force: true }).catch((e) =>
-            console.warn("Could not remove a retired thinker thread:", e),
-          ),
-        ),
-      );
-    }
-    await this.store.update((s) => {
-      s.chats = (s.chats ?? []).filter((c) => !isThinker(c));
-    });
-  }
-
-  /**
-   * Deep reviewers once worked in hidden threads; now they're listed under
-   * their review, as threads its agent started are. Older ones join it the
-   * same way, named for what they ran on and settled with it if it is, so
-   * an old review doesn't come back to Activity with them. One whose review
-   * is gone stays unlisted.
-   */
-  private async adoptReviewers() {
-    const listed = this.store.get().chats ?? [];
-    const byId = new Map(listed.map((c) => [c.id, c]));
-    // Read without caching: a long history of reviews needn't sit in memory.
-    const read = (id: string) => this.peek(id);
-    for (const stray of listed) {
-      const review = stray.reviewer && byId.get(stray.reviewer.parent);
-      if (!review || stray.startedBy) continue;
-      try {
-        const [parent, chat] = await Promise.all([
-          read(review.id),
-          read(stray.id),
-        ]);
-        // Reviewers from before rounds all belong to the first one.
-        const state = parent.reviews?.[0];
-        const slot = chat.reviewer?.slot ?? -1;
-        const reviewer = state?.reviewers[slot];
-        chat.startedBy = {
-          chatId: parent.id,
-          agent: state?.lead.provider ?? review.provider ?? "claude",
-        };
-        if (reviewer?.chatId === chat.id)
-          chat.title = reviewerTitle(slot, reviewer);
-        if (review.settledAt && !chat.settledAt)
-          chat.settledAt = review.settledAt;
-        await this.save(chat);
-      } catch (e) {
-        console.warn("Could not list an older reviewer under its review:", e);
       }
     }
   }
@@ -495,67 +445,38 @@ export class ChatStorage {
   }
 
   imagePath(chatId: string, image: ChatImage) {
-    if (
-      !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
-        image.id,
-      )
-    )
-      throw new Error("Invalid saved screenshot identity.");
-    const ext =
-      image.mimeType === "image/jpeg" ? "jpg" : image.mimeType.split("/")[1];
-    return join(this.dir, "images", chatId, `${image.id}.${ext}`);
+    return this.images.path(chatId, image);
   }
 
   /** A thread's screenshot as a data URL. */
-  async image(chatId: string, image: ChatImage) {
-    const bytes = await readFile(this.imagePath(chatId, image));
-    return `data:${image.mimeType};base64,${bytes.toString("base64")}`;
+  image(chatId: string, image: ChatImage) {
+    return this.images.read(chatId, image);
   }
 
-  async saveImages(
+  saveImages(
     chatId: string,
     images: NonNullable<ProjectChatSend["images"]>,
   ) {
-    const checked = images.map(({ name, mimeType, dataUrl, browser }) => {
-      const bytes = Buffer.from(
-        dataUrl.slice(dataUrl.indexOf(",") + 1),
-        "base64",
-      );
-      if (imageMimeType(bytes) !== mimeType || bytes.length > 800_000)
-        throw new Error("Screenshot is invalid or exceeds the 800 KB limit.");
-      return {
-        meta: {
-          id: randomUUID(),
-          name,
-          mimeType,
-          sizeBytes: bytes.length,
-          ...(browser ? { browser } : {}),
-        } as ChatImage,
-        bytes,
-      };
-    });
-    await this.imageFolder(chatId);
-    for (const { meta, bytes } of checked)
-      await writeFile(this.imagePath(chatId, meta), bytes, {
-        flag: "wx",
-        mode: 0o600,
-      });
-    return checked.map(({ meta }) => meta);
+    return this.images.save(chatId, images);
+  }
+
+  /** Saves a sent message's images and audio clips on disk. */
+  async saveAttachments(
+    chatId: string,
+    input: Pick<ProjectChatSend, "images" | "audio">,
+  ) {
+    return {
+      ...(input.images?.length
+        ? { images: await this.images.save(chatId, input.images) }
+        : {}),
+      ...(input.audio?.length
+        ? { audio: await this.audio.save(chatId, input.audio) }
+        : {}),
+    };
   }
 
   /** A fork's copies of the screenshots its messages carry over. */
-  async copyImages(from: string, to: string, messages: ChatMessage[]) {
-    const images = messages.flatMap((m) => m.images ?? []);
-    if (!images.length) return;
-    await this.imageFolder(to);
-    for (const image of images)
-      await copyFile(this.imagePath(from, image), this.imagePath(to, image));
-  }
-
-  private imageFolder(chatId: string) {
-    return mkdir(join(this.dir, "images", chatId), {
-      recursive: true,
-      mode: 0o700,
-    });
+  copyImages(from: string, to: string, messages: ChatMessage[]) {
+    return this.images.copy(from, to, messages);
   }
 }

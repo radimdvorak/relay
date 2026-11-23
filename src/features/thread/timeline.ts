@@ -21,6 +21,12 @@ export interface TimelineTurn {
 const isRow = (m: ChatMessage) =>
   !!(m.compaction || m.handoff || m.reload || m.worktreeCommand);
 
+function emptyPromptLabel(m: ChatMessage) {
+  if (m.images?.length) return "Image";
+  if (m.audio?.length) return "Audio";
+  return "Empty prompt";
+}
+
 /** Markdown read as the sentence it says, for a few lines of preview. */
 export function plainText(markdown: string, limit = 280) {
   // The start is all a preview shows; the whole of a long answer would be
@@ -133,7 +139,7 @@ export function timelineTurns(listed: ChatMessage[]) {
         id: m.id,
         ...(text?.agent && { agent: text.agent }),
         prompt: text
-          ? text.said || (m.images?.length ? "Image" : "Empty prompt")
+          ? text.said || emptyPromptLabel(m)
           : "Started on its own",
         answer: "",
         answering: false,

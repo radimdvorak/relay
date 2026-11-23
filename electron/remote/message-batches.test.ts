@@ -55,13 +55,27 @@ it("holds every piece until the last and returns the original request under the 
   expect(() => batches.accept(last())).toThrow(/expired/);
 });
 
-it("also assembles shared-draft sends through the same path", () => {
+it("also assembles shared-draft, handoff and remote-project sends through the same path", () => {
   const batches = receiver();
   batches.accept(first());
   expect(
     batches.accept(last(1, "sendDraft", ["draft", null, { body: "hi" }]))
       ?.method,
   ).toBe("sendDraft");
+  batches.accept(first());
+  expect(
+    batches.accept(
+      last(1, "handoffCall", ["h1", "sendProjectChat", ["c1", { body: "hi" }]]),
+    )?.method,
+  ).toBe("handoffCall");
+  batches.accept(first());
+  expect(
+    batches.accept(last(1, "startInProject", ["p1", { body: "hi" }]))?.method,
+  ).toBe("startInProject");
+  batches.accept(first());
+  expect(() =>
+    batches.accept(last(1, "handoffCall", ["h1", "projectGitAction", []])),
+  ).toThrow(/Only messages/);
 });
 
 it("discards an out-of-order upload before allowing a fresh retry", () => {

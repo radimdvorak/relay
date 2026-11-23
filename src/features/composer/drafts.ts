@@ -35,6 +35,12 @@ import {
   onDraftImageCount,
   readDraftImageCounts,
 } from "../images/draft-images";
+import {
+  draftAudioCount,
+  draftsWithAudio,
+  onDraftAudioCount,
+  readDraftAudioCounts,
+} from "../audio/draft-audio";
 import { readText, writeJson, writeText } from "../../lib/persisted-store";
 
 // Chat drafts live outside React state so a keystroke re-renders only the
@@ -62,11 +68,14 @@ function changedRecord(id: string, wasDraft: boolean) {
   if (wasDraft !== isReviewDraft(id)) reindex();
 }
 
-// A screenshot makes a draft as text does.
-onDraftImageCount((key) => {
+// A screenshot or audio clip makes a draft as text does.
+const onMediaCount = (key: string) => {
   listeners.get(key)?.forEach((notify) => notify());
   reindex();
-});
+};
+
+onDraftImageCount(onMediaCount);
+onDraftAudioCount(onMediaCount);
 
 export function writeDraft(key: string, value: string) {
   const had = !!readDraft(key).trim();
@@ -204,7 +213,9 @@ function readIndex(): string[] {
     // Storage is a convenience here.
     keys = [];
   }
-  return [...new Set([...keys, ...draftsWithImages()])].sort();
+  return [
+    ...new Set([...keys, ...draftsWithImages(), ...draftsWithAudio()]),
+  ].sort();
 }
 
 const draftKeys = () => (index ??= readIndex());
@@ -231,11 +242,12 @@ if (typeof window !== "undefined")
   window.addEventListener("storage", heardFromOtherWindow);
 const subscribeIndex = (notify: () => void) => {
   void readDraftImageCounts();
+  void readDraftAudioCounts();
   indexListeners.add(notify);
   return () => indexListeners.delete(notify);
 };
 
-/** The storage keys of every draft with text or a screenshot, or set up as a deep review, sorted. */
+/** The storage keys of every draft with text, a screenshot or audio, or set up as a deep review, sorted. */
 export const useDraftKeys = () =>
   useSyncExternalStore(subscribeIndex, draftKeys);
 
@@ -262,6 +274,7 @@ const isReviewDraft = (id: string) => reviewSetUp(id, loadThreadDraft(id));
 export const hasDraft = (id: string) =>
   !!readDraft(threadDraftKey(id)).trim() ||
   !!draftImageCount(threadDraftKey(id)) ||
+  !!draftAudioCount(threadDraftKey(id)) ||
   !!loadDraftLinks(id).length ||
   isReviewDraft(id);
 

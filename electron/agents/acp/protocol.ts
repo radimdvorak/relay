@@ -39,6 +39,7 @@ export const initializeResultSchema = z
             z
               .object({
                 image: lenient(z.boolean()),
+                audio: lenient(z.boolean()),
                 embeddedContext: lenient(z.boolean()),
               })
               .loose(),

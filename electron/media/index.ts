@@ -8,6 +8,7 @@ import { within } from "../util/paths";
 import { Readable } from "node:stream";
 import { protocol, session } from "electron";
 import { imageMime, videoMime } from "../../shared/project-files";
+import { audioMimeFromName } from "../../shared/audio";
 
 const SCHEME = "relay-media";
 
@@ -16,6 +17,13 @@ const picture = (path: string) => {
   const mime = imageMime(path);
   return mime && mime !== "image/svg+xml" ? mime : undefined;
 };
+
+const mediaMime = ({ full, mimeType }: Grant) =>
+  mimeType ??
+  videoMime(full) ??
+  picture(full) ??
+  audioMimeFromName(full) ??
+  "application/octet-stream";
 
 /** Before the app is ready: a player needs a streaming, fetchable scheme. */
 export function registerMediaScheme() {
@@ -35,6 +43,7 @@ export function registerMediaScheme() {
 interface Grant {
   root: string;
   full: string;
+  mimeType?: string;
 }
 
 // Only files a caller checked get a token, so a page can't name any other.
@@ -67,15 +76,19 @@ async function openGranted({ root, full }: Grant) {
 }
 
 /** A checked file inside its approved root; later requests revalidate the same boundary. */
-export async function mediaUrl(full: string, root: string) {
+export async function mediaUrl(full: string, root: string, mimeType?: string) {
   const path = within(root, full);
   if (!isAbsolute(root) || !isAbsolute(full) || !path)
     throw new Error("Choose media inside its approved folder.");
   const canonicalRoot = await realpath(root);
-  const grant = { root: canonicalRoot, full: join(canonicalRoot, path) };
+  const grant: Grant = {
+    root: canonicalRoot,
+    full: join(canonicalRoot, path),
+    ...(mimeType ? { mimeType } : {}),
+  };
   const { handle } = await openGranted(grant);
   await handle.close();
-  const key = `${grant.root}\0${grant.full}`;
+  const key = `${grant.root}\0${grant.full}\0${mimeType ?? ""}`;
   let token = byPath.get(key);
   if (!token) {
     token = randomUUID();
@@ -116,8 +129,7 @@ export function serveMedia() {
     const { full } = grant;
     const { handle, info } = opened;
     const headers = {
-      "content-type":
-        videoMime(full) ?? picture(full) ?? "application/octet-stream",
+      "content-type": mediaMime(grant),
       "accept-ranges": "bytes",
       "cache-control": "no-store",
     };

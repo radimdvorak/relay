@@ -35,6 +35,7 @@ import type { TurnHandoffs } from "./handoff-notes";
 import { forkFor, type TurnRunner } from "../turn-run";
 import type { ThreadWorktrees } from "../worktrees";
 import { errorMessage } from "../../../shared/error-message";
+import { validateSend } from "./send-validation";
 
 /** How long a new worktree's first turn waits for the title it's named after. */
 const TITLE_WAIT_MS = 8000;
@@ -152,6 +153,7 @@ export class TurnSends {
       questionMessageId: undefined,
       pageAnswer: undefined,
       images: undefined,
+      audio: undefined,
       selection: undefined,
       delivery: undefined,
     };
@@ -187,25 +189,7 @@ export class TurnSends {
         : undefined;
       input = { ...input, parentId: parent?.id };
       active.input = input;
-      if (asked && !asked.question && !input.images?.length)
-        throw new Error("Add a question after the agent mention.");
-      const goal = asked && parseGoalCommand(asked.question);
-      if (goal) {
-        if (asked.provider !== "codex" && asked.provider !== "claude")
-          throw new Error(
-            "Only Codex and Claude Code keep working toward a goal.",
-          );
-        // Claude would take the word for a new objective.
-        if (
-          asked.provider === "claude" &&
-          (goal.type === "pause" || goal.type === "resume")
-        )
-          throw new Error(
-            "Claude Code can't pause or resume a goal. /goal clear ends it.",
-          );
-        if (parent)
-          throw new Error("Set a goal in the thread's main conversation.");
-      }
+      validateSend(asked, input, parent);
       let evidence: unknown;
       if (input.selection && asked) {
         if (!this.evidence || chat.scope.kind !== "pr")
@@ -234,9 +218,7 @@ export class TurnSends {
         ...(chat.handover?.kickoff === input.id && {
           handedOver: true as const,
         }),
-        ...(input.images?.length
-          ? { images: await this.core.storage.saveImages(id, input.images) }
-          : {}),
+        ...(await this.core.storage.saveAttachments(id, input)),
         ...(input.parentId ? { parentId: input.parentId } : {}),
         ...sentBy(input),
         ...(asked ? { sentSettings: sentSettingsOf(input) } : {}),
@@ -264,7 +246,8 @@ export class TurnSends {
       ));
       if (chat.messages.length === 1 && !chat.renamed)
         chat.title = promptTitle(input.body);
-      if (!answer) chat.lastInput = { ...input, images: undefined };
+      if (!answer)
+        chat.lastInput = { ...input, images: undefined, audio: undefined };
       this.core.storage.keep(chat);
       await this.core.storage.checkpoint(chat); // the turn's end saves it whole
       this.core.emit({ chatId: id, message: user });
@@ -408,7 +391,7 @@ export class TurnSends {
       const answer = (begun = streamingAnswer(asked.provider, {
         ...(input.parentId ? { parentId: input.parentId } : {}),
       }));
-      chat.lastInput = { ...input, images: undefined };
+      chat.lastInput = { ...input, images: undefined, audio: undefined };
       chat.messages.push(answer);
       await this.core.storage.checkpoint(chat);
       this.core.emit({ chatId: id, message: structuredClone(answer) });

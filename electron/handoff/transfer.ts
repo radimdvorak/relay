@@ -59,11 +59,12 @@ export function settingsOf(
 
 /**
  * The send a thread nothing answered yet starts with on the computer it went
- * to: its first message as it was sent, screenshots included.
+ * to: its first message as it was sent, screenshots and audio included.
  */
 export async function firstSendOf(
   chat: ProjectChat,
   image: (imageId: string) => Promise<string>,
+  audio?: (audioId: string) => Promise<string>,
 ): Promise<ProjectChatSend> {
   const first = chat.messages.find((m) => m.role === "user" && !m.parentId);
   const input = chat.lastInput;
@@ -77,11 +78,25 @@ export async function firstSendOf(
       ...(browser ? { browser } : {}),
     })),
   );
+  const clips = audio
+    ? await Promise.all(
+        (first.audio ?? []).map(
+          async ({ id, name, mimeType, durationSec, peaks }) => ({
+            name,
+            mimeType,
+            ...(durationSec !== undefined ? { durationSec } : {}),
+            ...(peaks?.length ? { peaks } : {}),
+            dataUrl: await audio(id),
+          }),
+        ),
+      )
+    : [];
   return {
     ...input,
     id: first.id,
     body: first.body,
     ...(images.length ? { images } : {}),
+    ...(clips.length ? { audio: clips } : {}),
   };
 }
 

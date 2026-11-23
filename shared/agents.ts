@@ -81,6 +81,8 @@ export interface AgentInfo {
   modelGroups: boolean;
   /** Runs from something Relay downloads (an SDK, a server), not a CLI it finds on the machine. */
   sdk?: true;
+  /** Accepts native audio attachments in prompts. */
+  audio?: true;
   /**
    * Its file tools reach only the folder its session opened in, and nothing
    * moves that mid-answer: a thread moved to another folder carries it on in
@@ -221,6 +223,7 @@ export const agents = {
     usage: true,
     modelGroups: false,
     sdk: true,
+    audio: true,
     heldToStartFolder: true,
   },
 } as const satisfies Record<BuiltinProvider, AgentInfo>;

@@ -18,6 +18,7 @@ import { pilledImages, sentPills, UserText } from "./UserText";
 import type { SentImage } from "./SentPills";
 import { SentMemes, useSentMemes } from "../memes/SentMemes";
 import { asksUltrathink } from "../composer/ultrathink";
+import { AudioTile } from "../audio/AudioTile";
 
 function userImage(chatId: string, image: ChatImage): PreviewImage {
   return {
@@ -25,6 +26,51 @@ function userImage(chatId: string, image: ChatImage): PreviewImage {
     name: image.name,
     load: () => api.projectChatImage(chatId, image.id),
   };
+}
+
+function MessageThumbnails({
+  thumbnails,
+  onOpen,
+}: {
+  thumbnails: ReturnType<typeof useImageViewer>["images"];
+  onOpen: (key: string) => void;
+}) {
+  if (!thumbnails.length) return null;
+  return (
+    <div className="message-images">
+      {thumbnails.map((image) => (
+        <ImageThumbnail
+          key={image.key}
+          image={image}
+          onOpen={() => onOpen(image.key)}
+        />
+      ))}
+    </div>
+  );
+}
+
+function MessageAudio({
+  chatId,
+  audio,
+}: {
+  chatId: string;
+  audio: ChatMessage["audio"];
+}) {
+  if (!audio?.length || !chatId) return null;
+  return (
+    <div className="message-audio">
+      {audio.map((clip) => (
+        <AudioTile
+          key={clip.id}
+          name={clip.name}
+          mimeType={clip.mimeType}
+          durationSec={clip.durationSec}
+          peaks={clip.peaks}
+          load={() => api.projectChatAudio(chatId, clip.id)}
+        />
+      ))}
+    </div>
+  );
 }
 
 export interface UserMessageProps {
@@ -117,18 +163,8 @@ export function UserMessage({
           />
         )}
       </header>
-      {/* Your images sit above what you wrote. */}
-      {!!thumbnails.length && (
-        <div className="message-images">
-          {thumbnails.map((image) => (
-            <ImageThumbnail
-              key={image.key}
-              image={image}
-              onOpen={() => open(image.key)}
-            />
-          ))}
-        </div>
-      )}
+      {/* Your attachments sit above what you wrote. */}
+      <MessageThumbnails thumbnails={thumbnails} onOpen={open} />
       {sentImages
         .filter((sent) => sent.image.browser)
         .map(({ image, preview }) => (
@@ -139,6 +175,7 @@ export function UserMessage({
             onOpen={() => open(preview.key)}
           />
         ))}
+      <MessageAudio chatId={chatId} audio={m.audio} />
       {!!parsed.refs.length && (
         <CodeReferenceList
           references={parsed.refs}

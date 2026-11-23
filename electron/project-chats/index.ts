@@ -117,7 +117,7 @@ export class ProjectChats {
   private compactions: TurnCompactions;
   private control = threadControl();
   private questions: AsyncQuestions;
-  private reads: ChatReads;
+  readonly reads: ChatReads;
   private sending: SendRouting;
   private disposing = false;
   private leakCheck: ReturnType<typeof setInterval>;
