@@ -5,6 +5,7 @@ import {
   type UsageProvider,
 } from "../../../shared/agents";
 import type { Category, MessageProvider } from "./model-picker-catalog";
+import { usageShownFor } from "./provider-usage";
 import { ModelReload, reloadsModels } from "./ModelReload";
 import { NoUsageStrip, UsageStrip } from "./UsageStrip";
 import type { usePickerUsage } from "./usePickerUsage";
@@ -44,7 +45,7 @@ export function ModelPickerFooter({
         reloadsModels(category) && (
           <ModelReload key={category} provider={category} computer={computer} />
         )}
-      {reportsUsage(footerAgent) ? (
+      {usageShownFor(footerAgent, computer) ? (
         (account?.footer(footerAgent, now, container) ?? (
           <UsageStrip
             usage={usage[footerAgent]}
@@ -55,7 +56,14 @@ export function ModelPickerFooter({
         ))
       ) : footerAgent !== "message" &&
         !(category === footerAgent && reloadsModels(footerAgent)) ? (
-        <NoUsageStrip name={agentName(footerAgent)} />
+        <NoUsageStrip
+          name={agentName(footerAgent)}
+          status={
+            reportsUsage(footerAgent)
+              ? "Not read from other computers"
+              : undefined
+          }
+        />
       ) : null}
       {category === "message" && (
         <p className="model-picker-note">
