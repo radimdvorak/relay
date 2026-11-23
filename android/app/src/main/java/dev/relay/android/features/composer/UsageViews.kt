@@ -31,8 +31,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.repeatOnLifecycle
 import dev.relay.android.features.composer.logic.ProviderUsage
+import dev.relay.android.features.composer.logic.UsageConnection
 import dev.relay.android.features.composer.logic.UsageMeter
 import dev.relay.android.features.composer.logic.agentName
 import dev.relay.android.features.composer.logic.formatCost
@@ -40,6 +42,8 @@ import dev.relay.android.features.composer.logic.formatTokens
 import dev.relay.android.features.composer.logic.paceGap
 import dev.relay.android.features.composer.logic.presentWindow
 import dev.relay.android.features.composer.logic.reportsUsage
+import dev.relay.android.remote.Remote
+import dev.relay.android.remote.client.LinkState
 import dev.relay.android.remote.client.RemoteClient
 import dev.relay.android.remote.model.ContextUsage
 import dev.relay.android.remote.model.ThreadCost
@@ -80,18 +84,28 @@ class UsageState(val usage: ProviderUsage?, val reload: (force: Boolean) -> Unit
 
 /** The agent's plan usage, looked up now and every few minutes while the app is in the foreground. */
 @Composable
-fun rememberUsage(client: RemoteClient?, computer: String?, online: Boolean, provider: String): UsageState {
-    val key = "${computer.orEmpty()}:$provider"
-    var reading by remember(key) { mutableStateOf(usageReadings[key]) }
-    val scope = rememberCoroutineScope()
-    val load: (Boolean) -> Unit = { force ->
-        if (reportsUsage(provider) && online && client != null) scope.launch {
-            reading = usageReadings.read(key) { client.providerUsage(provider, force) }
-        }
+fun rememberUsage(remote: Remote, provider: String): UsageState {
+    val computer by remote.active.collectAsStateWithLifecycle()
+    val client by remote.client.collectAsStateWithLifecycle()
+    val status by remote.status.collectAsStateWithLifecycle()
+    val connection = client?.let { connected ->
+        connected.credentials?.key?.let { UsageConnection(it, connected) }
     }
+    val online = status.state == LinkState.Online
+    var reading by remember(computer, connection, provider) { mutableStateOf(usageReadings[computer, provider]) }
+    val scope = rememberCoroutineScope()
+    fun current(source: UsageConnection<RemoteClient>) =
+        source.matches(remote.active.value, remote.client.value) && remote.status.value.state == LinkState.Online
+
+    suspend fun load(force: Boolean) {
+        if (connection == null || connection.computer != computer || !online || !reportsUsage(provider)) return
+        val result = usageReadings.read(connection, provider, ::current) { it.providerUsage(provider, force) }
+        if (result != null && current(connection)) reading = result
+    }
+
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     // Not with the phone in a pocket: relay-watch keeps the app alive there.
-    LaunchedEffect(key, online, client, lifecycle) {
+    LaunchedEffect(computer, connection, provider, online, lifecycle) {
         lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
             while (true) {
                 load(false)
@@ -99,8 +113,8 @@ fun rememberUsage(client: RemoteClient?, computer: String?, online: Boolean, pro
             }
         }
     }
-    val shown = reading ?: usageReadings[key]
-    return UsageState(shown?.usage, load, failed = shown?.failed == true)
+    val shown = reading ?: usageReadings[computer, provider]
+    return UsageState(shown?.usage, { force -> scope.launch { load(force) } }, failed = shown?.failed == true)
 }
 
 private fun meters(usage: ProviderUsage?): List<UsageMeter> {

@@ -7,6 +7,8 @@ import java.time.ZoneId
 import java.time.temporal.ChronoUnit
 import java.util.Locale
 import java.util.concurrent.ConcurrentHashMap
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlin.coroutines.cancellation.CancellationException
 import kotlin.math.ceil
 import kotlin.math.max
@@ -46,6 +48,11 @@ data class ProviderUsage(
 /** What asking an agent's limits last came to on one computer: the limits, and whether the last ask failed. */
 data class UsageReading(val usage: ProviderUsage? = null, val failed: Boolean = false)
 
+/** A client and the computer it belongs to, captured together for a read. */
+data class UsageConnection<Client : Any>(val computer: String, val client: Client) {
+    fun matches(computer: String?, client: Client?) = this.computer == computer && this.client === client
+}
+
 /**
  * The latest reading per computer and agent, so a thread opens with its meters drawn. A failed ask keeps
  * the limits read before it and says it failed, so a computer that refuses an agent (an older Relay that
@@ -53,21 +60,44 @@ data class UsageReading(val usage: ProviderUsage? = null, val failed: Boolean = 
  * key, so one that failed for one computer or agent is nothing to another.
  */
 class UsageReadings {
-    private val readings = ConcurrentHashMap<String, UsageReading>()
+    private data class Key(val computer: String, val provider: String)
+    private data class Entry(val request: Any, val reading: UsageReading?)
+    private val readings = ConcurrentHashMap<Key, Entry>()
 
-    operator fun get(key: String): UsageReading? = readings[key]
+    operator fun get(computer: String?, provider: String): UsageReading? =
+        computer?.let { readings[Key(it, provider)]?.reading }
 
-    /** Asks, and keeps what came of it under `key`. */
-    suspend fun read(key: String, ask: suspend () -> ProviderUsage): UsageReading {
-        val reading = try {
-            UsageReading(ask())
+    /** Keeps completed reads only while their connection and request are current. */
+    suspend fun <Client : Any> read(
+        connection: UsageConnection<Client>,
+        provider: String,
+        isCurrent: (UsageConnection<Client>) -> Boolean,
+        ask: suspend (Client) -> ProviderUsage,
+    ): UsageReading? {
+        currentCoroutineContext().ensureActive()
+        if (!isCurrent(connection)) return null
+        val key = Key(connection.computer, provider)
+        val request = Any()
+        readings.compute(key) { _, previous -> Entry(request, previous?.reading) }
+        val reported = try {
+            ask(connection.client)
         } catch (e: CancellationException) {
             throw e
-        } catch (e: Exception) {
-            UsageReading(readings[key]?.usage, failed = true)
+        } catch (_: Exception) {
+            null
         }
-        readings[key] = reading
-        return reading
+        currentCoroutineContext().ensureActive()
+        if (!isCurrent(connection)) return null
+        val saved = readings.computeIfPresent(key) { _, previous ->
+            if (previous.request !== request) return@computeIfPresent previous
+            val reading = if (reported == null) {
+                UsageReading(previous.reading?.usage, failed = true)
+            } else {
+                UsageReading(reported)
+            }
+            Entry(request, reading)
+        }
+        return saved?.takeIf { it.request === request }?.reading
     }
 }
 
