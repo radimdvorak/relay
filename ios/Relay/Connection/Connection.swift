@@ -29,7 +29,9 @@ final class Connection {
     /// Each agent's models, asked once per connection.
     private(set) var catalogs: ModelCatalogs = [:]
     /// Each agent's plan limits, as last reported.
-    private(set) var usage: [String: ProviderUsage] = [:]
+    /// What asking each agent's plan limits last came to on this computer.
+    private(set) var readings = UsageReadings()
+    var usage: [String: ProviderUsage] { readings.usage }
     /// The agents' own commands, by project and agent.
     private var commandLists: [String: [ProviderCommand]] = [:]
     /// Agents' pages, by computer, thread, page set and page.
@@ -194,7 +196,7 @@ final class Connection {
         present = nil
         catalogs = [:]
         commandLists = [:]
-        usage = [:]
+        readings = UsageReadings()
         newThread = nil
         listedModels = []
         askedNewThread = false
@@ -461,13 +463,18 @@ final class Connection {
     /// Asks the agent's plan limits again; `force` past the desktop's copy.
     func loadUsage(_ provider: String, force: Bool = false) async {
         guard reportsUsage(provider), let client, status.state == .online else { return }
+        var reported: ProviderUsage?
         do {
-            let reported = try await client.providerUsage(provider, force: force)
-            if self.client === client { usage[provider] = reported }
+            reported = try await client.providerUsage(provider, force: force)
         } catch {
             log.error("Couldn't read \(provider, privacy: .public)'s usage: \(String(describing: error), privacy: .public)")
         }
+        // Only for the computer asked: after the app moves to another, an answer or a failure isn't its.
+        if self.client === client { readings.record(provider, reported) }
     }
+
+    /// Whether the last ask for the agent's plan limits failed.
+    func usageFailed(_ provider: String) -> Bool { readings.failed.contains(provider) }
 
     /// Whether the conversation has an answer going: a reply's own, or the thread's.
     func running(_ chatId: String, rootId: String? = nil) -> Bool {

@@ -131,4 +131,35 @@ struct UsageTests {
             UsageWindow.self, from: Data(#"{"kind":"weekly","usedPercent":49,"resetsAt":null,"periodMs":604800000}"#.utf8))
         #expect(plain.periodEstimated == nil)
     }
+
+    @Test func showsAnAskAnOlderHostRefusedAsFailedAndReadsOnOnceItAnswers() throws {
+        let opencode = try JSONDecoder().decode(
+            ProviderUsage.self,
+            from: Data(#"{"provider":"opencode","windows":[{"kind":"weekly","usedPercent":40,"resetsAt":1800000000000,"periodMs":604800000}],"message":null}"#.utf8))
+        var readings = UsageReadings()
+        // An older Relay doesn't know OpenCode as an agent with limits and refuses the ask.
+        readings.record("opencode", nil)
+        #expect(readings.usage["opencode"] == nil)
+        #expect(readings.failed == ["opencode"])
+        // Asking again once the host answers replaces the failure.
+        readings.record("opencode", opencode)
+        #expect(readings.usage["opencode"] == opencode)
+        #expect(readings.failed.isEmpty)
+    }
+
+    @Test func keepsTheLimitsReadBeforeAFailureAndAFailureToItsOwnAgent() throws {
+        let claude = try JSONDecoder().decode(
+            ProviderUsage.self, from: Data(#"{"provider":"claude","windows":[],"message":"No usage limits reported"}"#.utf8))
+        var readings = UsageReadings()
+        readings.record("claude", claude)
+        readings.record("opencode", nil)
+        #expect(readings.usage["claude"] == claude)
+        #expect(readings.failed == ["opencode"])
+        // A failed ask after a good one keeps the limits and says it failed.
+        readings.record("claude", nil)
+        #expect(readings.usage["claude"] == claude)
+        #expect(readings.failed == ["claude", "opencode"])
+        // Another connection's readings start empty.
+        #expect(UsageReadings().failed.isEmpty)
+    }
 }

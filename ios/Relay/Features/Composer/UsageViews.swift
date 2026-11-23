@@ -315,6 +315,8 @@ struct UsagePage: View {
             Section {
                 if !reportsUsage(provider) {
                     Text("\(agentName(provider)) doesn't report plan limits.").foregroundStyle(colors.muted)
+                } else if usage == nil && connection.usageFailed(provider) {
+                    Text("Couldn't read \(agentName(provider))'s plan limits.").foregroundStyle(colors.muted)
                 } else if usage == nil {
                     Spinner(size: 20).frame(maxWidth: .infinity)
                 } else if meters.isEmpty {

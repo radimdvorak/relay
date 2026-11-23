@@ -60,6 +60,27 @@ public struct ProviderUsage: Codable, Sendable, Equatable {
     }
 }
 
+/// What asking each agent's plan limits last came to on one computer: the limits read, and the agents
+/// whose last ask failed. A failed ask keeps the limits read before it. A computer that refuses an agent
+/// (an older Relay that doesn't know it as one with limits) shows as unavailable, not as loading for
+/// ever. It's kept per agent and per connection, so a failure isn't another agent's or computer's.
+public struct UsageReadings: Equatable, Sendable {
+    public private(set) var usage: [String: ProviderUsage] = [:]
+    public private(set) var failed: Set<String> = []
+
+    public init() {}
+
+    /// Keeps what asking `provider` came to: the limits it got, or nil when the ask failed.
+    public mutating func record(_ provider: String, _ reported: ProviderUsage?) {
+        guard let reported else {
+            failed.insert(provider)
+            return
+        }
+        usage[provider] = reported
+        failed.remove(provider)
+    }
+}
+
 /// One limit, whole percent, with how its burn is going.
 public struct UsageMeter: Equatable, Sendable {
     public enum Pace: Int, Comparable, Sendable {
