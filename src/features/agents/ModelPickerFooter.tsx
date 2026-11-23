@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import {
   agentName,
   reportsUsage,
+  type AgentProvider,
   type UsageProvider,
 } from "../../../shared/agents";
 import type { Category, MessageProvider } from "./model-picker-catalog";
@@ -18,6 +19,26 @@ export type PickerAccount = {
     container?: HTMLElement,
   ) => ReactNode;
 };
+
+/**
+ * Where an agent's limits aren't shown. An agent with limits this computer
+ * can't read says so on every tab, beside its reload button; one with none
+ * keeps its own tab for the reload button.
+ */
+function NoUsageNote({
+  category,
+  agent,
+}: {
+  category: Category;
+  agent: AgentProvider;
+}) {
+  const name = agentName(agent);
+  if (reportsUsage(agent)) {
+    return <NoUsageStrip name={name} status="Not read from other computers" />;
+  }
+  if (category === agent && reloadsModels(agent)) return null;
+  return <NoUsageStrip name={name} />;
+}
 
 /** Under the list: the agent's usage, or how to reload its models. */
 export function ModelPickerFooter({
@@ -54,16 +75,8 @@ export function ModelPickerFooter({
             container={container}
           />
         ))
-      ) : footerAgent !== "message" &&
-        !(category === footerAgent && reloadsModels(footerAgent)) ? (
-        <NoUsageStrip
-          name={agentName(footerAgent)}
-          status={
-            reportsUsage(footerAgent)
-              ? "Not read from other computers"
-              : undefined
-          }
-        />
+      ) : footerAgent !== "message" ? (
+        <NoUsageNote category={category} agent={footerAgent} />
       ) : null}
       {category === "message" && (
         <p className="model-picker-note">

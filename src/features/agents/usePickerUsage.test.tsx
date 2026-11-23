@@ -6,6 +6,7 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { usageProviders } from "../../../shared/agents";
 import { api } from "../../lib/api";
 import { ModelPickerFooter } from "./ModelPickerFooter";
+import type { Category } from "./model-picker-catalog";
 import { usageShownFor } from "./provider-usage";
 import { usePickerUsage } from "./usePickerUsage";
 
@@ -79,23 +80,50 @@ it("doesn't read this computer's OpenCode for a project on another", async () =>
   expect(latest.usage.claude?.message).toBe("claude says");
 });
 
-it("says the limits aren't read from other computers, rather than that OpenCode reports none", async () => {
-  const footer = (computer?: { id: string; name: string }) => (
-    <ModelPickerFooter
-      category="favorites"
-      provider="opencode"
-      computer={computer}
-      usage={{ usage: {}, now: Date.now() }}
-    />
-  );
-  await render(footer({ id: "mini", name: "Mini" }));
+const mini = { id: "mini", name: "Mini" };
+
+/** The footer of a tab, for a thread whose agent is OpenCode. */
+const footer = (category: Category, computer?: typeof mini) => (
+  <ModelPickerFooter
+    category={category}
+    provider="opencode"
+    computer={computer}
+    usage={{ usage: {}, now: Date.now() }}
+  />
+);
+
+it.each(["favorites", "opencode"] as const)(
+  "says the limits aren't read from other computers on the %s tab, rather than that OpenCode reports none",
+  async (category) => {
+    await render(footer(category, mini));
+    expect(host.textContent).toContain("Not read from other computers");
+    expect(host.textContent).not.toContain("Doesn't report usage");
+  },
+);
+
+it("keeps the reload button on OpenCode's own tab beside that note, and only there", async () => {
+  await render(footer("opencode", mini));
+  expect(host.textContent).toContain("Refresh models");
   expect(host.textContent).toContain("Not read from other computers");
-  expect(host.textContent).not.toContain("Doesn't report usage");
   await act(async () => root.unmount());
   root = createRoot(host);
-  await render(footer());
-  expect(host.textContent).not.toContain("Not read from other computers");
+  // Favorites never carried the button.
+  await render(footer("favorites", mini));
+  expect(host.textContent).not.toContain("Refresh models");
 });
+
+it.each(["favorites", "opencode"] as const)(
+  "has no such note for a project on this computer, on the %s tab",
+  async (category) => {
+    await render(footer(category));
+    expect(host.textContent).not.toContain("Not read from other computers");
+    expect(host.textContent).not.toContain("Doesn't report usage");
+    expect(host.textContent).toContain("Checking usage");
+    expect(host.textContent?.includes("Refresh models")).toBe(
+      category === "opencode",
+    );
+  },
+);
 
 it("knows which agents' limits are the project computer's", () => {
   expect(usageShownFor("opencode")).toBe(true);
