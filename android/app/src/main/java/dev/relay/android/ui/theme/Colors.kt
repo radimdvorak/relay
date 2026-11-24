@@ -59,69 +59,6 @@ data class RelayColors(
 ) {
     /** A quiet container on the surface: settings groups, toasts. Follows tool, so contrast moves it too. */
     val container: Color get() = lerp(surface, tool, 0.6f)
-
-    @Deprecated("use surface", ReplaceWith("surface"))
-    val background: Color get() = surface
-
-    @Deprecated("use ink", ReplaceWith("ink"))
-    val foreground: Color get() = ink
-
-    @Deprecated("use raised", ReplaceWith("raised"))
-    val card: Color get() = raised
-
-    @Deprecated("use raised", ReplaceWith("raised"))
-    val popover: Color get() = raised
-
-    @Deprecated("use strong", ReplaceWith("strong"))
-    val primary: Color get() = strong
-
-    @Deprecated("use onStrong", ReplaceWith("onStrong"))
-    val onPrimary: Color get() = onStrong
-
-    @Deprecated("use tool", ReplaceWith("tool"))
-    val muted: Color get() = tool
-
-    @Deprecated("use inkSoft", ReplaceWith("inkSoft"))
-    val mutedForeground: Color get() = inkSoft
-
-    @Deprecated("use inkFaint", ReplaceWith("inkFaint"))
-    val faint: Color get() = inkFaint
-
-    @Deprecated("hairlines are mostly gone; use line where one is really needed", ReplaceWith("line"))
-    val border: Color get() = line
-
-    @Deprecated("use line", ReplaceWith("line"))
-    val input: Color get() = line
-
-    @Deprecated("use inkFaint", ReplaceWith("inkFaint"))
-    val ring: Color get() = inkFaint
-
-    @Deprecated("use chrome", ReplaceWith("chrome"))
-    val sidebar: Color get() = chrome
-
-    @Deprecated("use danger", ReplaceWith("danger"))
-    val destructive: Color get() = danger
-
-    @Deprecated("use onDanger", ReplaceWith("onDanger"))
-    val onDestructive: Color get() = onDanger
-
-    @Deprecated("use bubble for a soft tinted fill, selected for a chosen row", ReplaceWith("bubble"))
-    val accentSoft: Color get() = bubble
-
-    @Deprecated("use addedBg", ReplaceWith("addedBg"))
-    val diffAddition: Color get() = addedBg
-
-    @Deprecated("use removedBg", ReplaceWith("removedBg"))
-    val diffDeletion: Color get() = removedBg
-
-    @Deprecated("use added", ReplaceWith("added"))
-    val additionText: Color get() = added
-
-    @Deprecated("use removed", ReplaceWith("removed"))
-    val deletionText: Color get() = removed
-
-    @Deprecated("pressed rows light up in selected; buttons in tool", ReplaceWith("selected"))
-    val hover: Color get() = selected
 }
 
 private val waitingColor = Color(0xFFD99A2B)
@@ -191,9 +128,3 @@ val RelayPaperDark = RelayColors(
     addedBg = Color(0xFF12321F),
     removedBg = Color(0xFF3A1722),
 )
-
-@Deprecated("the default palette is Relay paper now", ReplaceWith("RelayPaperLight"))
-val HextaLight get() = RelayPaperLight
-
-@Deprecated("the default palette is Relay paper now", ReplaceWith("RelayPaperDark"))
-val HextaDark get() = RelayPaperDark

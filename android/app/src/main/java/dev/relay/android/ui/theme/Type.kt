@@ -12,7 +12,7 @@ import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import dev.relay.android.R
 
-/** Between regular and medium: Hexta's "book". */
+/** Between regular and medium. */
 val Book = FontWeight(520)
 
 private fun inter(weight: FontWeight) = Font(
@@ -47,7 +47,7 @@ val JetBrainsMono = FontFamily(
     Font(R.font.jetbrains_mono_medium, FontWeight.Medium),
 )
 
-/** The type scale in docs/expressive/design-brief.md ("Type"), plus the old Hexta names as aliases. */
+/** The type scale in docs/expressive/design-brief.md ("Type"). */
 @Immutable
 data class RelayType(
     /** Newsreader 27/34: the empty home's line, empty states. The drawer's title is this at 22. */
@@ -72,43 +72,7 @@ data class RelayType(
     val code: TextStyle,
     /** JetBrains Mono 11/16: code in dense places (diff gutters, tool rows). */
     val codeSmall: TextStyle,
-) {
-    @Deprecated("use small", ReplaceWith("small"))
-    val xs: TextStyle get() = small
-
-    @Deprecated("use meta", ReplaceWith("meta"))
-    val sm: TextStyle get() = meta
-
-    @Deprecated("use body", ReplaceWith("body"))
-    val base: TextStyle get() = body
-
-    @Deprecated("use row", ReplaceWith("row"))
-    val lg: TextStyle get() = row
-
-    @Deprecated("use heading (20/26 at 600)")
-    val xl: TextStyle get() = heading.copy(fontWeight = FontWeight.Medium)
-
-    @Deprecated("use title", ReplaceWith("title"))
-    val xxl: TextStyle get() = title
-
-    @Deprecated("use greeting or title")
-    val xxxl: TextStyle get() = title.copy(fontSize = 29.sp, lineHeight = 36.sp)
-
-    @Deprecated("use greeting or title")
-    val xxxxl: TextStyle get() = title.copy(fontSize = 35.sp, lineHeight = 42.sp)
-
-    @Deprecated("use label", ReplaceWith("label"))
-    val caption: TextStyle get() = label
-
-    @Deprecated("use row", ReplaceWith("row"))
-    val input: TextStyle get() = row
-
-    @Deprecated("use code", ReplaceWith("code"))
-    val mono: TextStyle get() = code
-
-    @Deprecated("use codeSmall", ReplaceWith("codeSmall"))
-    val monoSm: TextStyle get() = codeSmall
-}
+)
 
 private val centred = LineHeightStyle(LineHeightStyle.Alignment.Center, LineHeightStyle.Trim.None)
 

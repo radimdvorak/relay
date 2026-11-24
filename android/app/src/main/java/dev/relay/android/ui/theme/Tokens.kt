@@ -38,23 +38,6 @@ object RelayShapes {
     val bubble = 22.dp
 }
 
-/** The old Hexta corner steps, moved onto the softer scale. */
-@Deprecated("use RelayTheme.shapes (RelayShapes)")
-@Immutable
-object Radii {
-    val sm = 8.dp
-    val md = 12.dp
-    val lg = 16.dp
-    val xl = 20.dp
-    val xxl = 28.dp
-
-    val smShape = RoundedCornerShape(sm)
-    val mdShape = RoundedCornerShape(md)
-    val lgShape = RoundedCornerShape(lg)
-    val xlShape = RoundedCornerShape(xl)
-    val xxlShape = RoundedCornerShape(xxl)
-}
-
 /** The 4dp grid; screens pad their sides by [lg]. */
 @Immutable
 object Space {

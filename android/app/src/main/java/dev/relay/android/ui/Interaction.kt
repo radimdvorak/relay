@@ -38,7 +38,7 @@ import dev.relay.android.ui.theme.RelayTheme
 fun Modifier.ring(color: Color = RelayTheme.colors.line, shape: Shape): Modifier =
     border(BorderStroke(RelayTheme.hairline, color), shape)
 
-/** Hexta's tactile press: scale to 0.97 and sink 1dp while held. */
+/** A tactile press: scale to 0.97 and sink 1dp while held. */
 @Composable
 fun Modifier.pressScale(interaction: MutableInteractionSource, enabled: Boolean = true): Modifier {
     val pressed by interaction.collectIsPressedAsState()

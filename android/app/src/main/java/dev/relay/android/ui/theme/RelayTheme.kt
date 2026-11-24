@@ -49,10 +49,6 @@ object RelayTheme {
     val shapes get() = RelayShapes
     val motion get() = RelayMotion
     val space get() = Space
-
-    @Deprecated("use shapes", ReplaceWith("shapes"))
-    @Suppress("DEPRECATION")
-    val radii get() = Radii
 }
 
 /** Which colours a mode wears, given the desktop's appearance if it has sent one. */

@@ -38,7 +38,6 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
-import dev.relay.android.ui.SectionHeader
 import dev.relay.android.ui.listPadding
 import dev.relay.android.ui.ribbon.RibbonRefreshBox
 

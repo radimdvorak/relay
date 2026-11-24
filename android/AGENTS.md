@@ -59,9 +59,6 @@ your task says so.
   Recurring motion uses the standard springs; `RelayTheme.motion.hero` only for
   the brief's few hero moments. Chips are controls, never decoration: no
   pill/chip badges (status is a coloured glyph or coloured text).
-- Hexta's old token names (`foreground`, `mutedForeground`, `Radii`,
-  `type.sm` …) are deprecated aliases onto the new roles; move a screen off
-  them when you rework it.
 - State: ViewModel + StateFlow, `collectAsStateWithLifecycle`. Manual DI via
   `AppContainer`. Navigation 3 with a typed back stack.
 - Edge-to-edge with `WindowInsets.safeDrawing`, IME with `imePadding()`.
