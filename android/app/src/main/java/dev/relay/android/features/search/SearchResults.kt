@@ -175,8 +175,8 @@ internal fun SearchRow(
     ) {
         if (leading != null) Box(Modifier.size(20.dp), contentAlignment = Alignment.Center) { leading() }
         Column(Modifier.weight(1f)) {
-            MatchedText(title, terms, RelayTheme.type.row, titleColor)
-            if (subtitle != null) MatchedText(subtitle, terms, RelayTheme.type.meta, c.inkSoft)
+            MatchedText(title, terms, RelayTheme.type.listTitle, titleColor)
+            if (subtitle != null) MatchedText(subtitle, terms, RelayTheme.type.listMeta, c.inkSoft)
         }
         meta?.invoke()
     }

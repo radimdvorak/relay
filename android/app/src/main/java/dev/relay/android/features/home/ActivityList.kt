@@ -274,7 +274,7 @@ private fun NewDraftRow(draft: ListedDraft, project: RemoteProject, modifier: Mo
     ) {
         ProjectCardBadge(project.id, project.name, size = 28.dp)
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text("New thread in ${project.name}", style = RelayTheme.type.row, maxLines = 1)
+            Text("New thread in ${project.name}", style = RelayTheme.type.listTitle, maxLines = 1)
             DraftLine(draft, Modifier.heightIn(min = 20.dp))
         }
     }

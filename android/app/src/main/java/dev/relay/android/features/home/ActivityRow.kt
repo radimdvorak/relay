@@ -36,7 +36,6 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import dev.relay.android.remote.model.RemoteChatSummary
 import dev.relay.android.ui.Icon
 import dev.relay.android.ui.ProviderIcon
@@ -141,7 +140,7 @@ private fun CompactRow(chat: RemoteChatSummary, unread: Boolean, draft: Boolean,
 @Composable
 private fun RowTitle(title: String, news: Boolean, modifier: Modifier = Modifier) = Text(
     title, modifier,
-    style = RelayTheme.type.row.copy(fontWeight = if (news) FontWeight.Medium else FontWeight.Normal), maxLines = 1,
+    style = RelayTheme.type.listTitle.copy(fontWeight = if (news) FontWeight.Medium else FontWeight.Normal), maxLines = 1,
 )
 
 /** "relay · needs input · fix/rotate", the state in its own colour. */
@@ -158,7 +157,7 @@ private fun StateLine(chat: RemoteChatSummary, projectName: String, now: Long) {
         val branch = if (chat.scope == "pr") "Pull request" else chat.branch
         if (branch != null) append(" · $branch")
     }
-    MaterialText(line, style = RelayTheme.type.meta, color = c.inkSoft, maxLines = 1, overflow = TextOverflow.Ellipsis)
+    MaterialText(line, style = RelayTheme.type.listMeta, color = c.inkSoft, maxLines = 1, overflow = TextOverflow.Ellipsis)
 }
 
 internal enum class StateTone { Quiet, Waiting, Limit, News }
@@ -190,7 +189,7 @@ internal fun threadState(chat: RemoteChatSummary, now: Long): ThreadState? {
 @Composable
 private fun FamilyLine(projectName: String, family: RowFamily) {
     Row(verticalAlignment = Alignment.CenterVertically) {
-        Text("$projectName · ", style = RelayTheme.type.meta, color = RelayTheme.colors.inkSoft, maxLines = 1)
+        Text("$projectName · ", style = RelayTheme.type.listMeta, color = RelayTheme.colors.inkSoft, maxLines = 1)
         FamilyFold(family)
     }
 }
@@ -220,7 +219,7 @@ private fun FamilyFold(family: RowFamily) {
                 tint = c.inkSoft,
                 size = 14.dp,
             )
-            Text(familyLine(family.started), style = RelayTheme.type.meta, color = c.inkSoft, maxLines = 1)
+            Text(familyLine(family.started), style = RelayTheme.type.listMeta, color = c.inkSoft, maxLines = 1)
         }
     }
 }
@@ -269,7 +268,7 @@ private fun RowTime(chat: RemoteChatSummary, unread: Boolean, now: Long) {
 }
 
 @Composable
-private fun timeStyle() = RelayTheme.type.meta.copy(fontSize = 13.sp, fontFeatureSettings = "tnum")
+private fun timeStyle() = RelayTheme.type.listMeta.copy(fontFeatureSettings = "tnum")
 
 /** "4m 12s"; ticks by itself so only this label redraws. */
 @Composable
@@ -307,7 +306,7 @@ fun ShelfRow(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         ProjectCardBadge(chat.projectId, projectName, size = MarkSize)
-        Text(chat.title, Modifier.weight(1f), style = RelayTheme.type.row, maxLines = 1)
+        Text(chat.title, Modifier.weight(1f), style = RelayTheme.type.listTitle, maxLines = 1)
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(label, style = timeStyle(), color = c.inkSoft, maxLines = 1)
             Box(

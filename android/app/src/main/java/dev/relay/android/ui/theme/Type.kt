@@ -52,7 +52,7 @@ val JetBrainsMono = FontFamily(
 data class RelayType(
     /** Newsreader 27/34: the empty home's line, empty states. */
     val greeting: TextStyle,
-    /** 24/30 at 500: a tab's title on the chrome (Projects, PRs). */
+    /** 22/28 at 500: a tab's title on the chrome (Projects, PRs). */
     val title: TextStyle,
     /** 20/26 at 600: markdown H1–H2, headings inside a screen. */
     val heading: TextStyle,
@@ -60,9 +60,13 @@ data class RelayType(
     val sheetTitle: TextStyle,
     /** 15/24: answers, messages, paragraphs. */
     val body: TextStyle,
-    /** 16/22: list row titles, the composer's text, inputs. */
+    /** 16/22: the composer's text, inputs, a card's title. */
     val row: TextStyle,
-    /** 14/18: subtitles, descriptions, times. */
+    /** 15/20: a list row's title; no louder than the text it opens. */
+    val listTitle: TextStyle,
+    /** 13/17: what's under it, and times. */
+    val listMeta: TextStyle,
+    /** 14/18: descriptions and notes outside lists. */
     val meta: TextStyle,
     /** 12/16: the smallest text, for dense rows. */
     val small: TextStyle,
@@ -93,11 +97,13 @@ private fun style(
 
 val DefaultType = RelayType(
     greeting = style(27, 34, tracking = (-0.01).em, family = Newsreader),
-    title = style(24, 30, FontWeight.Medium, (-0.02).em),
+    title = style(22, 28, FontWeight.Medium, (-0.02).em),
     heading = style(20, 26, FontWeight.SemiBold, (-0.01).em),
     sheetTitle = style(17, 22, FontWeight.Medium),
     body = style(15, 24),
     row = style(16, 22),
+    listTitle = style(15, 20),
+    listMeta = style(13, 17),
     meta = style(14, 18),
     small = style(12, 16),
     label = style(12, 16, FontWeight.Medium),

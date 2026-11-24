@@ -35,7 +35,7 @@ internal fun Foundations() {
     }
     Section("Type") {
         Text("What should we work on?", style = RelayTheme.type.greeting)
-        Text("Title 24/30", style = RelayTheme.type.title)
+        Text("Title 22/28", style = RelayTheme.type.title)
         Text("Heading 20/26", style = RelayTheme.type.heading)
         Text("Row 16/22", style = RelayTheme.type.row)
         Text("Body 15/24: answers and messages read like this, with room between the lines.")

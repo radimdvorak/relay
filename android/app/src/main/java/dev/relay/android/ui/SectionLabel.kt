@@ -10,7 +10,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import dev.relay.android.ui.theme.RelayTheme
 
 /**
@@ -27,7 +26,7 @@ fun SectionLabel(
     action: (@Composable () -> Unit)? = null,
 ) {
     val c = RelayTheme.colors
-    val style = RelayTheme.type.meta.copy(fontSize = 13.sp)
+    val style = RelayTheme.type.listMeta
     Row(
         modifier.fillMaxWidth().heightIn(min = 36.dp).padding(start = RowTextInset, end = RowTextInset, top = 12.dp),
         verticalAlignment = Alignment.CenterVertically,

@@ -166,7 +166,7 @@ private fun Entry(
     RowPatch(onClick, modifier, minHeight = if (subtitle == null) 48.dp else 60.dp) {
         Icon(icon, null, tint = c.inkSoft, size = 20.dp)
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
-            Text(title, style = RelayTheme.type.row, maxLines = 1, overflow = TextOverflow.MiddleEllipsis)
+            Text(title, style = RelayTheme.type.listTitle, maxLines = 1, overflow = TextOverflow.MiddleEllipsis)
             if (subtitle != null) Text(subtitle, style = rowMeta, color = subtitleColor, maxLines = 1)
         }
         trailing()

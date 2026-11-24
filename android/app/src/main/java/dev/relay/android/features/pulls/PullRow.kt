@@ -73,7 +73,7 @@ fun PullRow(p: ListedPull, signals: PullSignals?, selected: Boolean, onClick: ()
     ).joinToString(" · ")
     RowPatch(onClick, modifier, selected) {
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(p.hit.title, style = RelayTheme.type.row, maxLines = 2)
+            Text(p.hit.title, style = RelayTheme.type.listTitle, maxLines = 2)
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text(about, Modifier.weight(1f, fill = false), style = rowMeta, color = c.inkSoft, maxLines = 1, overflow = TextOverflow.MiddleEllipsis)
                 if (signals != null) DiffCounts(signals.additions, signals.deletions)

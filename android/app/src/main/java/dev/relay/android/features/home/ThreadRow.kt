@@ -99,7 +99,7 @@ fun DraftLine(draft: ListedDraft, modifier: Modifier = Modifier) {
     }
     Row(modifier, horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically) {
         Icon(icon, started, tint = c.waiting, size = 13.dp)
-        Text(draftText(draft), style = RelayTheme.type.meta, color = c.inkSoft, maxLines = 1)
+        Text(draftText(draft), style = RelayTheme.type.listMeta, color = c.inkSoft, maxLines = 1)
     }
 }
 
@@ -153,12 +153,12 @@ fun ThreadRow(
             }
         }
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(chat.title, style = RelayTheme.type.row, maxLines = 1)
+            Text(chat.title, style = RelayTheme.type.listTitle, maxLines = 1)
             Row(verticalAlignment = Alignment.CenterVertically) {
                 MaterialText(
                     meta,
                     Modifier.then(if (draft != null) Modifier.widthIn(max = 220.dp) else Modifier),
-                    style = RelayTheme.type.meta,
+                    style = RelayTheme.type.listMeta,
                     color = c.inkSoft,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,

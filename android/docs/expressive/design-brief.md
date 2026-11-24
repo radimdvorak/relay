@@ -49,11 +49,12 @@ raised → `surfaceContainerLowest` …) so stock M3 components look right witho
 | Style | Font | Size / line | Use |
 |---|---|---|---|
 | `greeting` | Newsreader 400 | 27 / 34 | empty home, empty states |
-| `title` | Inter 500 | 24 / 30 | tab titles (Projects, PRs) |
+| `title` | Inter 500 | 22 / 28 | tab titles (Projects, PRs) |
 | `heading` | Inter 600 | 20 / 26 | markdown H1–H2, screen headings |
 | `body` | Inter 400 | 15 / 24 | answers, user messages |
-| `row` | Inter 400–500 | 16 / 22 | list row titles, composer text |
-| `meta` | Inter 400 | 13–14 / 18 | subtitles, times, descriptions |
+| `row` | Inter 400–500 | 16 / 22 | composer text, inputs |
+| `listTitle` / `listMeta` | Inter 400–500 | 15 / 20, 13 / 17 | list rows: no louder than the text they open |
+| `meta` | Inter 400 | 14 / 18 | descriptions outside lists |
 | `label` | Inter 500 | 12 / 16 | chips, tooltips, section labels (13) |
 | `code` | JetBrains Mono | 13 / 20 | code blocks, paths |
 
@@ -88,7 +89,7 @@ motion uses **standard** springs and only a few hero moments use **expressive** 
 ```
 ┌ status bar ───────────────────────────┐
 │ chrome: computer ⌄      (≡) (🔍|⚙)   │  header, 44dp circles
-│ Threads                               │  the tab's title, 24sp
+│ Threads                               │  the tab's title, 22sp
 │╭─────────────── surface ─────────────╮│  24dp top corners
 ││  screen content                     ││
 ││                                     ││

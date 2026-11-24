@@ -22,7 +22,6 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import dev.relay.android.remote.model.RemoteChatSummary
 import dev.relay.android.remote.model.RemoteOverview
 import dev.relay.android.remote.model.RemoteProject
@@ -144,7 +143,7 @@ fun ProjectsList(
 @Composable
 private fun ProjectRow(project: RemoteProject, chats: List<RemoteChatSummary>, now: Long, selected: Boolean, onClick: () -> Unit) {
     val c = RelayTheme.colors
-    val meta = RelayTheme.type.meta.copy(fontSize = 13.sp)
+    val meta = RelayTheme.type.listMeta
     // Its computer isn't paired anymore, so nothing in it opens until it is.
     val gone = project.computer?.gone == true
     RowPatch(onClick, selected = selected) {
@@ -152,7 +151,7 @@ private fun ProjectRow(project: RemoteProject, chats: List<RemoteChatSummary>, n
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
             Text(
                 project.name,
-                style = RelayTheme.type.row,
+                style = RelayTheme.type.listTitle,
                 color = if (gone) c.inkSoft else c.ink,
                 maxLines = 1,
                 overflow = TextOverflow.MiddleEllipsis,

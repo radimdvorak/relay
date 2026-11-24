@@ -118,16 +118,16 @@ fun ListRow(
             leadingIcon != null -> Icon(leadingIcon, null, tint = c.inkSoft, size = 20.dp)
         }
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(title, style = RelayTheme.type.row, color = titleColor, maxLines = titleLines, overflow = TextOverflow.Ellipsis)
+            Text(title, style = RelayTheme.type.listTitle, color = titleColor, maxLines = titleLines, overflow = TextOverflow.Ellipsis)
             if (subtitle != null) Text(
                 subtitle,
-                style = RelayTheme.type.meta,
+                style = RelayTheme.type.listMeta,
                 color = c.inkSoft,
                 maxLines = subtitleLines,
                 overflow = TextOverflow.Ellipsis,
             )
         }
-        if (meta != null) Text(meta, style = RelayTheme.type.meta, color = c.inkSoft, maxLines = 1)
+        if (meta != null) Text(meta, style = RelayTheme.type.listMeta, color = c.inkSoft, maxLines = 1)
         if (trailing != null) trailing()
         if (chevron) Icon(TablerIcons.Outline.ChevronRight, null, tint = c.inkFaint, size = 16.dp)
     }

@@ -6,12 +6,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import dev.relay.android.ui.Text
 import dev.relay.android.ui.theme.RelayTheme
 
 /** A row's quiet second line: 13sp. */
-internal val rowMeta: TextStyle @Composable get() = RelayTheme.type.meta.copy(fontSize = 13.sp)
+internal val rowMeta: TextStyle @Composable get() = RelayTheme.type.listMeta
 
 /** "+46 −31" in the diff's colours; a side with nothing is left out. */
 @Composable
