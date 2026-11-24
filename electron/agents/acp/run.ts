@@ -72,6 +72,38 @@ export async function runAcp(
   }
 }
 
+/** Opens the thread's session, or a new one, in the turn's modes and model; returns its id. */
+async function openTurnSession(
+  profile: AcpProfile,
+  options: AgentOptions,
+  agent: AcpAgent,
+  name: string,
+) {
+  const { job } = options;
+  const opened = await openSession(agent, {
+    id: job.kind === "helper" ? undefined : options.session?.id,
+    cwd: options.cwd,
+    mcpServers: mcpServers(options, agent),
+  });
+  if (opened.id !== options.session?.id) await options.session?.onId(opened.id);
+  if (opened.lost)
+    options.onCommentary?.(
+      `${profile.provider}-lost`,
+      `${name} couldn't open the earlier conversation, so this turn starts a new one.`,
+    );
+  await applySettings(
+    agent.connection,
+    agent.session!,
+    profile.wishes({
+      runtime: options.runtimeMode,
+      interaction: options.interactionMode,
+      readOnly: options.readOnly || job.kind === "helper",
+    }),
+    options.choice,
+  );
+  return opened.id;
+}
+
 async function runAcpTurn(
   profile: AcpProfile,
   options: AgentOptions,
@@ -160,32 +192,10 @@ async function runAcpTurn(
         connection.resume();
       }
     } else {
-      const opened = await openSession(agent, {
-        id: job.kind === "helper" ? undefined : options.session?.id,
-        cwd: options.cwd,
-        mcpServers: mcpServers(options, agent),
-      });
-      sessionId = opened.id;
-      if (opened.id !== options.session?.id)
-        await options.session?.onId(opened.id);
-      if (opened.lost)
-        options.onCommentary?.(
-          `${profile.provider}-lost`,
-          `${name} couldn't open the earlier conversation, so this turn starts a new one.`,
-        );
-      await applySettings(
-        connection,
-        agent.session!,
-        profile.wishes({
-          runtime: options.runtimeMode,
-          interaction: options.interactionMode,
-          readOnly: options.readOnly || job.kind === "helper",
-        }),
-        options.choice,
-      );
+      sessionId = await openTurnSession(profile, options, agent, name);
       const prompt = await promptBlocks(options, agent, name, profile);
       signal.throwIfAborted();
-      connection.listen(opened.id, hear);
+      connection.listen(sessionId, hear);
       observer = await observe?.(agent, steered);
       signal.throwIfAborted();
       const id = connection.reserve();
@@ -195,11 +205,7 @@ async function runAcpTurn(
           ? { compaction: true }
           : {}),
       });
-      reply = connection.request(
-        "session/prompt",
-        { sessionId: opened.id, prompt },
-        id,
-      );
+      reply = connection.request("session/prompt", { sessionId, prompt }, id);
     }
     void reply.catch(() => {});
     // The agent reports the cancel; if it doesn't, stop waiting anyway.
