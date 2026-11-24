@@ -1,9 +1,7 @@
 package dev.relay.android.features.thread
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
@@ -14,32 +12,22 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.relay.android.features.thread.logic.requestCardMaxHeightDp
-import dev.relay.android.remote.model.AgentQuestion
 import dev.relay.android.remote.model.AgentRequest
 import dev.relay.android.ui.Button
 import dev.relay.android.ui.ButtonVariant
@@ -47,20 +35,18 @@ import dev.relay.android.ui.Haptic
 import dev.relay.android.ui.Icon
 import dev.relay.android.ui.IconButton
 import dev.relay.android.ui.Text
-import dev.relay.android.ui.TextField
-import dev.relay.android.ui.pressable
 import dev.relay.android.ui.rememberHaptics
-import dev.relay.android.ui.theme.Radii
 import dev.relay.android.ui.theme.RelayTheme
 import io.github.lyxnx.compose.ui.tablericons.TablerIcons
-import io.github.lyxnx.compose.ui.tablericons.outline.Check
 import io.github.lyxnx.compose.ui.tablericons.outline.Dots
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
+import dev.relay.android.ui.ButtonSize
+import io.github.lyxnx.compose.ui.tablericons.filled.MessageCircle
+import io.github.lyxnx.compose.ui.tablericons.filled.ShieldLock
+import androidx.compose.ui.graphics.lerp
 
 // The desktop's wording, from src/features/thread/AgentRequestCard.tsx.
 private val decisionLabels = mapOf(
@@ -114,37 +100,40 @@ fun RequestCard(
     }
     val c = RelayTheme.colors
     val head: @Composable ColumnScope.() -> Unit = {
-        Text(request.title, style = RelayTheme.type.base.copy(fontWeight = FontWeight.SemiBold))
+        RequestHeading(request.kind, request.title)
         if (more > 0) Hint("$more more waiting after this")
         if (!request.note.isNullOrEmpty()) Hint(request.note)
         if (!request.detail.isNullOrEmpty()) SelectionContainer(
-            Modifier.fillMaxWidth().heightIn(max = 160.dp).background(c.code, Radii.smShape)
-                .border(RelayTheme.hairline, c.border, Radii.smShape).verticalScroll(rememberScrollState()).padding(10.dp),
+            Modifier.fillMaxWidth().heightIn(max = 160.dp).background(c.surface, RelayTheme.shapes.field)
+                .verticalScroll(rememberScrollState()).padding(12.dp),
         ) {
-            Text(request.detail, style = RelayTheme.type.monoSm.copy(fontSize = 12.sp, lineHeight = 17.sp))
+            Text(request.detail, style = traceCode())
         }
     }
     Column(
-        modifier.padding(horizontal = 12.dp).padding(bottom = 8.dp).fillMaxWidth().heightIn(max = maxHeight)
-            .border(1.dp, c.accent, RoundedCornerShape(14.dp)).background(c.card, RoundedCornerShape(14.dp)).padding(14.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
+        modifier.padding(horizontal = DockInset).padding(bottom = 8.dp).fillMaxWidth().heightIn(max = maxHeight)
+            .dockCard(tint = c.waiting).padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         val questions = request.questions
         if (request.kind == "question" && !questions.isNullOrEmpty()) {
             Questions(questions, busy, head = head, onAnswer = { respond(mapOf("kind" to "question", "answers" to it)) })
         } else {
             Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp), content = head)
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            // Full words on full-width buttons: the one place a wrong tap runs something.
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                 for (decision in listOf("decline", "acceptForSession", "accept").filter { it in decisions }) Button(
                     if (decision == "accept" && canRemember) "Once" else decisionLabels.getValue(decision),
                     onClick = { respond(mapOf("kind" to "approval", "decision" to decision)) },
-                    variant = if (decision == "accept") ButtonVariant.Default else ButtonVariant.Outline,
+                    modifier = Modifier.weight(1f),
+                    variant = if (decision == "accept") ButtonVariant.Default else ButtonVariant.Secondary,
+                    size = ButtonSize.Lg,
                     enabled = !busy,
                 )
                 if ("cancel" in decisions) IconButton(TablerIcons.Outline.Dots, "More approval options", { moreOptions = true }, enabled = !busy)
             }
         }
-        error?.let { Hint(it, color = c.destructive) }
+        error?.let { Hint(it, color = c.danger) }
     }
     if (moreOptions) MenuSheet(
         listOf(MenuItem(decisionLabels.getValue("cancel")) { respond(mapOf("kind" to "approval", "decision" to "cancel")) }),
@@ -152,130 +141,24 @@ fun RequestCard(
     )
 }
 
+/** Who is being waited on, in the colour the app keeps for that, then what it's about. */
 @Composable
-internal fun Hint(text: String, modifier: Modifier = Modifier, color: androidx.compose.ui.graphics.Color = RelayTheme.colors.mutedForeground) {
-    Text(text, modifier, style = RelayTheme.type.xs, color = color)
+private fun RequestHeading(kind: String, title: String) {
+    val c = RelayTheme.colors
+    val question = kind != "approval"
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(TraceGap)) {
+        Icon(if (question) TablerIcons.Filled.MessageCircle else TablerIcons.Filled.ShieldLock, null, size = 18.dp, tint = c.waiting)
+        Text(
+            if (question) "Waiting for your answer" else "Needs your approval",
+            style = RelayTheme.type.label.copy(fontSize = 13.sp, fontWeight = FontWeight.SemiBold),
+            // Amber alone is too pale for words on a light card.
+            color = lerp(c.waiting, c.ink, 0.45f),
+        )
+    }
+    Text(title, style = RelayTheme.type.row.copy(fontWeight = FontWeight.SemiBold))
 }
 
-/**
- * An agent's questions, one at a time. [deferred]: the agent keeps working, so
- * nothing goes out until Send; a tap only picks. [capped]: the parent has a
- * height cap and the question scrolls within it; in the thread's list there is
- * none, and a weighted child of an unbounded column measures 0 high.
- */
 @Composable
-fun ColumnScope.Questions(
-    questions: List<AgentQuestion>,
-    busy: Boolean,
-    deferred: Boolean = false,
-    capped: Boolean = true,
-    head: (@Composable ColumnScope.() -> Unit)? = null,
-    onAnswer: (Map<String, List<String>>) -> Unit,
-) {
-    val haptics = rememberHaptics()
-    val scope = rememberCoroutineScope()
-    var index by remember(questions) { mutableIntStateOf(0) }
-    val answers = remember(questions) { mutableStateMapOf<String, List<String>>() }
-    var timer by remember { mutableStateOf<Job?>(null) }
-    val question = questions[index.coerceAtMost(questions.lastIndex)]
-    val options = question.options.orEmpty()
-    // Moved on to one only words answer: the field is ready to type in.
-    val writeOnly = options.isEmpty()
-    val focus = remember { FocusRequester() }
-    LaunchedEffect(index, writeOnly) {
-        if (index > 0 && writeOnly) runCatching { focus.requestFocus() }
-    }
-    val chosen = answers[question.id].orEmpty()
-    val labels = options.map { it.value ?: it.label }.toSet()
-    val typed = chosen.filter { it !in labels }.joinToString(", ")
-    fun advance() {
-        if (index < questions.lastIndex) index++ else onAnswer(answers.toMap())
-    }
-    fun select(label: String) {
-        if (busy) return
-        haptics.perform(Haptic.Selection)
-        answers[question.id] = when {
-            question.multiple == true -> if (label in chosen) chosen - label else chosen + label
-            else -> listOf(label)
-        }
-        timer?.cancel()
-        // A single choice answers it; the short pause shows which one was picked.
-        if (question.multiple != true && !deferred) timer = scope.launch {
-            delay(200)
-            advance()
-        }
-    }
-    val c = RelayTheme.colors
-    Column(
-        if (capped) Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()) else Modifier,
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        head?.invoke(this)
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Text(
-                (question.header?.takeIf { it.isNotEmpty() } ?: "Question").uppercase(),
-                style = RelayTheme.type.xs.copy(fontWeight = FontWeight.SemiBold), color = c.accent,
-            )
-            if (questions.size > 1) Hint("${index + 1} of ${questions.size}")
-        }
-        Text(question.question, style = RelayTheme.type.base)
-        for (option in options) {
-            val on = (option.value ?: option.label) in chosen
-            Row(
-                Modifier.fillMaxWidth().border(1.dp, if (on) c.accent else c.border, Radii.mdShape)
-                    .background(if (on) c.accentSoft else androidx.compose.ui.graphics.Color.Transparent, Radii.mdShape)
-                    .pressable(onClick = { select(option.value ?: option.label) }, enabled = !busy, scale = false).padding(11.dp),
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-            ) {
-                Box(
-                    Modifier.padding(top = 1.dp).size(18.dp).border(1.5.dp, if (on) c.accent else c.faint, RoundedCornerShape(5.dp)),
-                    contentAlignment = Alignment.Center,
-                ) { if (on) Icon(TablerIcons.Outline.Check, null, size = 12.dp, tint = c.accent) }
-                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text(option.label, style = RelayTheme.type.base)
-                    option.description?.takeIf { it.isNotEmpty() }?.let { Hint(it) }
-                }
-            }
-        }
-    }
-    val placeholder = if (options.isNotEmpty()) "Or write your own answer…" else "Your answer…"
-    val write: (String) -> Unit = { text ->
-        timer?.cancel()
-        answers[question.id] = listOf(text)
-    }
-    if (question.allowCustomAnswer != false) {
-        if (question.isSecret == true) SecretField(typed, write, placeholder, !busy, focus)
-        else TextField(typed, write, placeholder = placeholder, enabled = !busy, singleLine = false, maxLines = 5, focusRequester = focus)
-    }
-    val answered = chosen.any { it.isNotBlank() }
-    if (deferred || question.multiple == true || options.isEmpty() || typed.isNotEmpty()) Button(
-        if (index < questions.lastIndex) "Next" else "Send answer",
-        onClick = {
-            timer?.cancel()
-            advance()
-        },
-        modifier = Modifier.fillMaxWidth(),
-        enabled = !busy && answered,
-    )
-}
-
-/** The ui TextField has no hidden entry; a secret answer stays dotted, as on the desktop. */
-@Composable
-private fun SecretField(value: String, onChange: (String) -> Unit, placeholder: String, enabled: Boolean, focus: FocusRequester) {
-    val c = RelayTheme.colors
-    BasicTextField(
-        value, onChange,
-        Modifier.fillMaxWidth().focusRequester(focus).border(1.dp, c.border, Radii.mdShape).padding(horizontal = 12.dp, vertical = 10.dp),
-        enabled = enabled,
-        singleLine = true,
-        textStyle = RelayTheme.type.base.copy(color = c.foreground),
-        cursorBrush = SolidColor(c.foreground),
-        visualTransformation = PasswordVisualTransformation(),
-        decorationBox = { inner ->
-            Box {
-                if (value.isEmpty()) Text(placeholder, style = RelayTheme.type.base, color = c.faint)
-                inner()
-            }
-        },
-    )
+internal fun Hint(text: String, modifier: Modifier = Modifier, color: androidx.compose.ui.graphics.Color = RelayTheme.colors.inkSoft) {
+    Text(text, modifier, style = RelayTheme.type.meta, color = color)
 }
