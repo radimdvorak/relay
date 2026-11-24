@@ -47,7 +47,7 @@ const bridges = new Map(
 );
 
 /** Desktop calls the phones never make, so they have no reason to list them. */
-const notCalledByPhones = new Set(["agentTools"]);
+const notCalledByPhones = new Set(["agentTools", "projectChatAudioPart"]);
 
 describe.each(Object.entries(phones))("the %s app's bridge", (_, source) => {
   it("names each desktop gate it knows with the desktop's number", () => {
