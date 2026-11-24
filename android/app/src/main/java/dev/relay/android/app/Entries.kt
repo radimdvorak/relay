@@ -32,6 +32,7 @@ import dev.relay.android.features.thread.SubagentRunScreen
 import dev.relay.android.features.thread.ThreadScreen
 import dev.relay.android.features.search.SearchScreen
 import dev.relay.android.lib.navigation.FADES_IN
+import dev.relay.android.lib.navigation.LocalOpenDrawer
 import dev.relay.android.lib.navigation.MORPHS_IN
 import dev.relay.android.lib.navigation.Route
 import dev.relay.android.ui.LocalScreenAnimation
@@ -68,7 +69,10 @@ fun EntryProviderScope<NavKey>.appEntries(container: AppContainer, shell: ShellS
         container.threadSeen.markSeen(id, updated)
         container.notifications.clearThread(id)
     }
-    entry<Route.Thread> { ThreadScreen(it.id, container.remote, locked = container.lock.locked.collectAsState().value, onSeen = seen) }
+    entry<Route.Thread> {
+        val locked = container.lock.locked.collectAsState().value
+        ThreadScreen(it.id, container.remote, locked = locked, onSeen = seen, onMenu = LocalOpenDrawer.current)
+    }
     entry<Route.Reply> {
         ThreadScreen(it.id, container.remote, rootId = it.rootId, locked = container.lock.locked.collectAsState().value, onSeen = seen)
     }
