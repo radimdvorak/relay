@@ -21,7 +21,7 @@ to [hello@relaycode.io](mailto:hello@relaycode.io).
 ## Run locally
 
 You need Node.js 22+, npm and Git. Fork the repository, clone your fork and create
-a branch for your change, then run:
+a branch for your change from `dev`, then run:
 
 ```sh
 npm ci
@@ -100,11 +100,12 @@ changes have Python checks in `tests/packaging/`. See
 
 ## Send a pull request
 
-Target `main` with a small, focused change. Explain the problem, the resulting
-behavior and how you checked it. Link the relevant issue and call out any checks
-you could not run, platform limitations, or changes to saved data. Add a
-regression test when it catches a meaningful failure; documentation-only changes
-do not need application tests.
+Target `dev` with a small, focused change. Work lands on `dev` first and reaches
+`main` when it is released, so `main` is always the last release. Explain the
+problem, the resulting behavior and how you checked it. Link the relevant issue
+and call out any checks you could not run, platform limitations, or changes to
+saved data. Add a regression test when it catches a meaningful failure;
+documentation-only changes do not need application tests.
 
 AI-assisted contributions follow the same standard: review the generated diff,
 understand what it does and verify it yourself. Never include credentials,
