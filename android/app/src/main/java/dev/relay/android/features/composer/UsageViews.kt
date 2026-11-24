@@ -1,10 +1,12 @@
 package dev.relay.android.features.composer
 
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -12,8 +14,10 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.requiredHeight
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -23,12 +27,18 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -48,32 +58,25 @@ import dev.relay.android.remote.client.RemoteClient
 import dev.relay.android.remote.model.ContextUsage
 import dev.relay.android.remote.model.ThreadCost
 import dev.relay.android.ui.Button
+import dev.relay.android.ui.ButtonVariant
+import dev.relay.android.ui.Group
 import dev.relay.android.ui.Sheet
 import dev.relay.android.ui.Spinner
 import dev.relay.android.ui.Text
 import dev.relay.android.ui.pressable
+import dev.relay.android.ui.theme.RelayColors
 import dev.relay.android.ui.theme.RelayTheme
+import kotlin.math.roundToInt
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import kotlin.math.roundToInt
-import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.drawscope.Stroke
 
 // The desktop's usage meters and context meter (mobile/src/ui/Usage.tsx).
 
 private val rank = mapOf("ok" to 0, "warn" to 1, "hot" to 2, "spent" to 3)
-private val warn = Color(0xFFE3A23A)
-private val hot = Color(0xFFEF6A5A)
 
-private fun paceColor(pace: String, fallback: Color) = when (pace) {
-    "warn" -> warn
-    "hot", "spent" -> hot
+private fun paceColor(pace: String, fallback: Color, c: RelayColors) = when (pace) {
+    "warn" -> c.waiting
+    "hot", "spent" -> c.danger
     else -> fallback
 }
 
@@ -145,9 +148,9 @@ fun UsageBar(provider: String, usage: ProviderUsage?, context: ContextUsage?, co
     val spent = cost
     if (used == null && list.isEmpty() && spent == null) return
     val bars = buildList {
-        if (used != null) add(UsageBarItem("Context", "$used%", used, paceColor(contextPace(used.toDouble()), c.mutedForeground)))
+        if (used != null) add(UsageBarItem("Context", "$used%", used, paceColor(contextPace(used.toDouble()), c.inkSoft, c)))
         list.forEach { m ->
-            add(UsageBarItem(m.label, "${m.leftPercent}% left", m.leftPercent, paceColor(m.pace, if (m.kind == "session") c.accent else c.mutedForeground)))
+            add(UsageBarItem(m.label, "${m.leftPercent}% left", m.leftPercent, paceColor(m.pace, if (m.kind == "session") c.strong else c.inkSoft, c)))
         }
     }
     val rows = if (bars.size > 3) bars.chunked(2) else if (bars.isNotEmpty()) listOf(bars) else emptyList()
@@ -157,20 +160,22 @@ fun UsageBar(provider: String, usage: ProviderUsage?, context: ContextUsage?, co
         spent?.let { "This thread cost ${formatCost(it.usd)}" },
     ).joinToString(", ")
     Column(
-        modifier.fillMaxWidth().padding(top = 8.dp, start = 4.dp, end = 4.dp)
+        modifier.fillMaxWidth()
             .semantics { contentDescription = label }
-            .pressable(onClick = onClick, role = Role.Button),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+            .pressable(onClick = onClick)
+            .clip(RelayTheme.shapes.card).background(c.container)
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         rows.forEach { row ->
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                 row.forEach { item -> BarMeter(item.label, item.value, item.percent, item.color) }
                 if (bars.size > 3 && row.size == 1) Box(Modifier.weight(1f))
             }
         }
         if (spent != null) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text("This thread", style = RelayTheme.type.xs, color = c.faint, maxLines = 1)
-            Text(formatCost(spent.usd), style = RelayTheme.type.xs, color = c.mutedForeground, maxLines = 1)
+            Text("This thread", Modifier.weight(1f), style = RelayTheme.type.small, color = c.inkSoft, maxLines = 1)
+            Text(formatCost(spent.usd), style = RelayTheme.type.small, color = c.ink, maxLines = 1)
         }
     }
 }
@@ -200,9 +205,9 @@ fun UsageRings(provider: String, usage: ProviderUsage?, onClick: () -> Unit, mod
                 val inset = stroke / 2 + i * step
                 val at = Offset(inset, inset)
                 val box = Size(size.width - 2 * inset, size.height - 2 * inset)
-                drawArc(c.border, 0f, 360f, false, at, box, style = Stroke(stroke))
+                drawArc(c.selected, 0f, 360f, false, at, box, style = Stroke(stroke))
                 val m = list.getOrNull(i) ?: continue
-                val color = paceColor(m.pace, if (m.kind == "session") c.accent else c.mutedForeground)
+                val color = paceColor(m.pace, if (m.kind == "session") c.strong else c.inkSoft, c)
                 if (m.leftPercent > 0) drawArc(color, -90f, 360f * m.leftPercent / 100f, false, at, box, style = Stroke(stroke, cap = StrokeCap.Round))
             }
         }
@@ -212,24 +217,26 @@ fun UsageRings(provider: String, usage: ProviderUsage?, onClick: () -> Unit, mod
 @Composable
 private fun RowScope.BarMeter(label: String, value: String, percent: Int, color: Color) {
     val c = RelayTheme.colors
-    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-        Row {
-            Text(label, Modifier.weight(1f), style = RelayTheme.type.xs, color = c.faint, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(value, style = RelayTheme.type.xs, color = c.mutedForeground, maxLines = 1)
+    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text(label, Modifier.weight(1f), style = RelayTheme.type.small, color = c.inkSoft, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(value, style = RelayTheme.type.small, color = c.ink, maxLines = 1)
         }
-        Track(percent.toDouble(), color, height = 2)
+        Track(percent.toDouble(), color, height = 4)
     }
 }
 
+/** A round bar; [mark] is where an even pace would leave it. */
 @Composable
-private fun Track(percent: Double, color: Color, mark: Double? = null, height: Int = 4) {
+private fun Track(percent: Double, color: Color, mark: Double? = null, height: Int = 8) {
     val c = RelayTheme.colors
-    BoxWithConstraints(Modifier.fillMaxWidth().height(height.dp).background(c.border, RoundedCornerShape(height.dp))) {
+    val shape = RelayTheme.shapes.circle
+    BoxWithConstraints(Modifier.fillMaxWidth().height(height.dp).background(c.selected, shape)) {
         val p = (percent.coerceIn(0.0, 100.0) / 100).toFloat()
-        Box(Modifier.fillMaxHeight().fillMaxWidth(p).background(color, RoundedCornerShape(height.dp)))
+        Box(Modifier.fillMaxHeight().fillMaxWidth(p).background(color, shape))
         if (mark != null) {
             val x = maxWidth * (mark.coerceIn(0.0, 100.0) / 100).toFloat()
-            Box(Modifier.offset(x = x - 1.dp).width(2.dp).height(height.dp + 4.dp).align(Alignment.CenterStart).background(c.foreground))
+            Box(Modifier.offset(x = x - 1.dp).requiredHeight(height.dp + 6.dp).width(2.dp).align(Alignment.CenterStart).background(c.ink, shape))
         }
     }
 }
@@ -247,73 +254,105 @@ fun UsageSheet(
     /** The last ask for the limits failed and none were read before it. */
     unavailable: Boolean = false,
 ) {
-    val c = RelayTheme.colors
     val scope = rememberCoroutineScope()
     var compacting by remember { mutableStateOf(false) }
-    val list = meters(usage)
     Sheet(onDismiss, title = "${agentName(provider)} usage") {
-        if (context != null) Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            val used = context.maxTokens?.takeIf { it > 0 }?.let { minOf(100.0, context.usedTokens * 100.0 / it) }
-            Row {
-                Text("Context", Modifier.weight(1f), style = RelayTheme.type.label)
-                Text(
-                    formatTokens(context.usedTokens) + (context.maxTokens?.let { " of ${formatTokens(it)}" } ?: "") +
-                        (used?.let { " · ${it.roundToInt()}% full" } ?: ""),
-                    color = c.mutedForeground,
-                )
-            }
-            if (used != null) Track(used, paceColor(contextPace(used), c.accent))
-            context.totalTokens?.let { Text("${formatTokens(it)} tokens through the session so far", style = RelayTheme.type.xs, color = c.mutedForeground) }
-            if (onCompact != null) Button(
-                if (compacting) "Compacting…" else "Compact now",
-                onClick = {
+        UsageContent(
+            provider, usage, context, cost, onRefresh,
+            onCompact = onCompact?.let { compact ->
+                {
                     compacting = true
                     scope.launch {
-                        try { onCompact() } finally {
+                        try { compact() } finally {
                             compacting = false
                             onDismiss()
                         }
                     }
-                },
-                enabled = !compacting,
-            )
+                }
+            },
+            compacting = compacting,
+            unavailable = unavailable,
+        )
+    }
+}
+
+@Composable
+internal fun UsageContent(
+    provider: String,
+    usage: ProviderUsage?,
+    context: ContextUsage?,
+    cost: ThreadCost?,
+    onRefresh: () -> Unit,
+    onCompact: (() -> Unit)?,
+    compacting: Boolean = false,
+    unavailable: Boolean = false,
+) {
+    val c = RelayTheme.colors
+    val list = meters(usage)
+    Group {
+        if (context != null) item { ContextTile(context, onCompact, compacting) }
+        if (cost != null) item { CostTile(cost) }
+    }
+    val note = when {
+        !reportsUsage(provider) -> "${agentName(provider)} doesn't report plan limits."
+        unavailable -> "Couldn't read ${agentName(provider)}'s plan limits."
+        usage != null && list.isEmpty() -> usage.message ?: "No usage limits reported"
+        else -> null
+    }
+    when {
+        note != null -> Text(note, Modifier.padding(horizontal = 16.dp), style = RelayTheme.type.meta, color = c.inkSoft)
+        usage == null -> Spinner(Modifier.padding(16.dp), color = c.inkSoft)
+        else -> Group(label = "Plan limits") { list.forEach { m -> item { MeterTile(m) } } }
+    }
+    if (reportsUsage(provider)) Button("Check again", onRefresh, variant = ButtonVariant.Secondary)
+}
+
+@Composable
+private fun UsageTile(title: String, value: String, valueColor: Color = RelayTheme.colors.inkSoft, content: @Composable ColumnScope.() -> Unit) {
+    Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(title, Modifier.weight(1f), style = RelayTheme.type.row, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(value, style = RelayTheme.type.meta, color = valueColor, maxLines = 1)
         }
-        if (cost != null) Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        content()
+    }
+}
+
+@Composable
+private fun Hint(text: String) = Text(text, style = RelayTheme.type.meta.copy(fontSize = 13.sp), color = RelayTheme.colors.inkSoft)
+
+@Composable
+private fun ContextTile(context: ContextUsage, onCompact: (() -> Unit)?, compacting: Boolean) {
+    val c = RelayTheme.colors
+    val used = context.maxTokens?.takeIf { it > 0 }?.let { minOf(100.0, context.usedTokens * 100.0 / it) }
+    val size = formatTokens(context.usedTokens) + (context.maxTokens?.let { " of ${formatTokens(it)}" } ?: "")
+    UsageTile("Context", size + (used?.let { " · ${it.roundToInt()}% full" } ?: "")) {
+        if (used != null) Track(used, paceColor(contextPace(used), c.strong, c))
+        context.totalTokens?.let { Hint("${formatTokens(it)} tokens through the session so far") }
+        if (onCompact != null) Button(if (compacting) "Compacting…" else "Compact now", onCompact, enabled = !compacting, variant = ButtonVariant.Secondary)
+    }
+}
+
+@Composable
+private fun CostTile(cost: ThreadCost) {
+    val c = RelayTheme.colors
+    UsageTile("This thread", formatCost(cost.usd)) {
+        cost.models.forEach { m ->
             Row {
-                Text("This thread", Modifier.weight(1f), style = RelayTheme.type.label)
-                Text(formatCost(cost.usd), color = c.mutedForeground)
-            }
-            cost.models.forEach { m ->
-                Row {
-                    Text(m.name, Modifier.weight(1f), color = c.mutedForeground, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    Text(formatCost(m.usd), color = c.mutedForeground)
-                }
-            }
-            Text("${cost.answers} ${if (cost.answers == 1) "answer" else "answers"} · priced by the agent", style = RelayTheme.type.xs, color = c.mutedForeground)
-        }
-        when {
-            !reportsUsage(provider) -> Text("${agentName(provider)} doesn't report plan limits.", style = RelayTheme.type.xs, color = c.mutedForeground)
-            unavailable -> Text("Couldn't read ${agentName(provider)}'s plan limits.", style = RelayTheme.type.xs, color = c.mutedForeground)
-            usage == null -> Spinner(color = c.mutedForeground)
-            list.isEmpty() -> Text(usage.message ?: "No usage limits reported", style = RelayTheme.type.xs, color = c.mutedForeground)
-            else -> list.forEach { m ->
-                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Row {
-                        Text(m.label, Modifier.weight(1f), style = RelayTheme.type.label)
-                        Text("${m.leftPercent}% left", color = paceColor(m.pace, c.mutedForeground))
-                    }
-                    Track(m.leftPercent.toDouble(), paceColor(m.pace, c.accent), m.paceLeftPercent)
-                    val hint = listOfNotNull(paceGap(m), m.limitLabel, m.resetLabel).joinToString(" · ")
-                    if (hint.isNotEmpty()) Text(hint, style = RelayTheme.type.xs, color = c.mutedForeground)
-                }
+                Text(m.name, Modifier.weight(1f), style = RelayTheme.type.meta, color = c.inkSoft, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(formatCost(m.usd), style = RelayTheme.type.meta, color = c.inkSoft)
             }
         }
-        if (reportsUsage(provider)) {
-            Text(
-                "Check again",
-                Modifier.pressable(onClick = onRefresh, role = Role.Button).padding(vertical = 4.dp),
-                style = RelayTheme.type.label, color = c.accent,
-            )
-        }
+        Hint("${cost.answers} ${if (cost.answers == 1) "answer" else "answers"} · priced by the agent")
+    }
+}
+
+@Composable
+private fun MeterTile(m: UsageMeter) {
+    val c = RelayTheme.colors
+    UsageTile(m.label, "${m.leftPercent}% left", paceColor(m.pace, c.inkSoft, c)) {
+        Track(m.leftPercent.toDouble(), paceColor(m.pace, c.strong, c), m.paceLeftPercent)
+        val hint = listOfNotNull(paceGap(m), m.limitLabel, m.resetLabel).joinToString(" · ")
+        if (hint.isNotEmpty()) Hint(hint)
     }
 }
