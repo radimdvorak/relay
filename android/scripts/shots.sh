@@ -16,6 +16,6 @@ pattern="dev.relay.android.shots.*"
 [ -n "$filter" ] && pattern="dev.relay.android.shots.*${filter}*"
 
 # --rerun: the PNGs are the point, so an up-to-date test task still draws them.
-"$here/gradlew" -p "$here" :app:testDebugUnitTest -Pshots --tests "$pattern" --rerun --quiet
+"$here/scripts/gradle-slot.sh" :app:testDebugUnitTest -Pshots --tests "$pattern" --rerun --quiet
 
 find "$out" -name '*.png' | sort

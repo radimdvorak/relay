@@ -80,3 +80,6 @@ scripts/shots.sh 'HomeShots.activity' # one test
   test; a picture shows that moment.
 - These are for looking, not baselines: nothing is committed or compared.
   Plain `testDebugUnitTest` skips them; `-Pshots` runs them.
+- Build through `scripts/gradle-slot.sh <tasks>` (shots.sh already does):
+  parallel worktrees share a few machine-wide build slots instead of all
+  compiling at once.
