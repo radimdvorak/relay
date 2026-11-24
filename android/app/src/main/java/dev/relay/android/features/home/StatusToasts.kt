@@ -154,11 +154,12 @@ internal fun StatusToastHost(
     val toasts = LocalToasts.current
     // Out of the way of a message toast ("Settled · Undo"), which spans the same edge.
     val over = if (toasts.toasts.isEmpty()) 0.dp else 76.dp
+    // The spring dips a little past where it's going, below zero too, and padding can't.
     val lift by animateDpAsState(toasts.clearance + over, MaterialTheme.motionScheme.defaultSpatialSpec(), label = "status-lift")
     val arrive = scaleIn(RelayTheme.motion.hero.fastSpatialSpec(), 0.85f, TransformOrigin(1f, 1f)) +
         slideInVertically(RelayTheme.motion.hero.fastSpatialSpec()) { it / 4 } +
         fadeIn(RelayTheme.motion.hero.fastEffectsSpec())
-    Box(modifier.fillMaxWidth().padding(16.dp).padding(bottom = lift), contentAlignment = Alignment.BottomEnd) {
+    Box(modifier.fillMaxWidth().padding(16.dp).padding(bottom = lift.coerceAtLeast(0.dp)), contentAlignment = Alignment.BottomEnd) {
         AnimatedContent(
             shown,
             transitionSpec = { ContentTransform(arrive, fadeOut(tween(100)), sizeTransform = null) },
