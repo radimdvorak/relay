@@ -17,6 +17,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
+import dev.relay.android.ui.BarGlyph
 import dev.relay.android.ui.BarTab
 import dev.relay.android.ui.BarTooltip
 import dev.relay.android.ui.BottomBar
@@ -38,10 +39,7 @@ import dev.relay.android.ui.theme.RelayTheme
 import io.github.lyxnx.compose.ui.tablericons.TablerIcons
 import io.github.lyxnx.compose.ui.tablericons.outline.ArrowUp
 import io.github.lyxnx.compose.ui.tablericons.outline.Edit
-import io.github.lyxnx.compose.ui.tablericons.outline.Folder
-import io.github.lyxnx.compose.ui.tablericons.outline.GitPullRequest
 import io.github.lyxnx.compose.ui.tablericons.outline.Menu2
-import io.github.lyxnx.compose.ui.tablericons.outline.Messages
 import io.github.lyxnx.compose.ui.tablericons.outline.Plus
 import io.github.lyxnx.compose.ui.tablericons.outline.Search
 
@@ -69,9 +67,9 @@ internal fun ShellBlocks() {
                     )
                     BottomBar(
                         listOf(
-                            BarTab(0, TablerIcons.Outline.Messages, "Threads"),
-                            BarTab(1, TablerIcons.Outline.Folder, "Projects", dot = true),
-                            BarTab(2, TablerIcons.Outline.GitPullRequest, "Pull requests"),
+                            BarTab(0, BarGlyph.Threads, "Threads"),
+                            BarTab(1, BarGlyph.Projects, "Projects", dot = true),
+                            BarTab(2, BarGlyph.Pulls, "PRs", "Pull requests"),
                         ),
                         tab,
                         { tab = it },

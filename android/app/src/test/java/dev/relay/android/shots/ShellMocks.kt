@@ -19,6 +19,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import dev.relay.android.ui.BarGlyph
 import dev.relay.android.ui.BarTab
 import dev.relay.android.ui.BottomBar
 import dev.relay.android.ui.Chip
@@ -36,15 +37,10 @@ import dev.relay.android.ui.PairShapes
 import dev.relay.android.ui.Text
 import dev.relay.android.ui.theme.RelayTheme
 import io.github.lyxnx.compose.ui.tablericons.TablerIcons
-import io.github.lyxnx.compose.ui.tablericons.filled.Folders
-import io.github.lyxnx.compose.ui.tablericons.filled.Messages
 import io.github.lyxnx.compose.ui.tablericons.outline.ArrowUp
 import io.github.lyxnx.compose.ui.tablericons.outline.ChevronDown
 import io.github.lyxnx.compose.ui.tablericons.outline.Edit
-import io.github.lyxnx.compose.ui.tablericons.outline.Folders as FoldersOutline
-import io.github.lyxnx.compose.ui.tablericons.outline.GitPullRequest
 import io.github.lyxnx.compose.ui.tablericons.outline.Menu2
-import io.github.lyxnx.compose.ui.tablericons.outline.Messages as MessagesOutline
 import io.github.lyxnx.compose.ui.tablericons.outline.Microphone
 import io.github.lyxnx.compose.ui.tablericons.outline.Plus
 import io.github.lyxnx.compose.ui.tablericons.outline.Search
@@ -57,9 +53,9 @@ import io.github.lyxnx.compose.ui.tablericons.outline.Search
 enum class SampleTab { Threads, Projects, Prs }
 
 val sampleTabs = listOf(
-    BarTab(SampleTab.Threads, TablerIcons.Outline.MessagesOutline, "Threads", TablerIcons.Filled.Messages),
-    BarTab(SampleTab.Projects, TablerIcons.Outline.FoldersOutline, "Projects", TablerIcons.Filled.Folders, dot = true),
-    BarTab(SampleTab.Prs, TablerIcons.Outline.GitPullRequest, "Pull requests"),
+    BarTab(SampleTab.Threads, BarGlyph.Threads, "Threads"),
+    BarTab(SampleTab.Projects, BarGlyph.Projects, "Projects", dot = true),
+    BarTab(SampleTab.Prs, BarGlyph.Pulls, "PRs", "Pull requests"),
 )
 
 @Composable

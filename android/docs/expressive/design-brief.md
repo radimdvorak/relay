@@ -98,8 +98,9 @@ motion uses **standard** springs and only a few hero moments use **expressive** 
 ╰┴─────────────────────────────────────┴╯
 ```
 
-- Bottom bar: **Threads, Projects, PRs**. Icons only, long-press/tap shows a `strong` tooltip
-  label. Settings is the gear in the header, beside search.
+- Bottom bar: **Threads, Projects, PRs** in equal thirds of the composer's width, nothing behind
+  the bar itself. The chosen one has an accent-tinted pill, a two-tone icon that makes its own move,
+  and its label; a long-press shows a `strong` tooltip. Settings is the gear in the header, beside search.
 - **No drawer.** We built one and dropped it: it repeated the thread list, search and new thread.
   Every thread is on the Threads tab, and a new one starts only in its composer. On a Fold's inner
   screen Home is a pane beside the detail.

@@ -151,6 +151,17 @@ class ShellShots : ShotTest() {
     }
 
     @Test
+    fun bar() {
+        for (tab in HomeTab.entries) {
+            Shot("bar-${tab.name}") { Home(tab) }
+            Shot("bar-desk-${tab.name}") { Desk { Home(tab) } }
+        }
+        Shot("bar-dark", dark = true) { Home(HomeTab.Threads) }
+        Shot("bar-large") { LargeText { Home(HomeTab.Projects) } }
+        Shot("bar-narrow") { Box(Modifier.width(240.dp)) { Home(HomeTab.Pulls) } }
+    }
+
+    @Test
     fun home() {
         for (dark in listOf(false, true)) {
             Shot("shell-home", dark = dark) { Home(HomeTab.Threads) }
@@ -252,7 +263,13 @@ class ShellShots : ShotTest() {
     @Test
     fun stripTabs() {
         var tab by mutableStateOf(HomeTab.Threads)
-        strip("tabs", 14, { tab = HomeTab.Projects }) { Home(tab) }
+        strip("tabs", 18, { tab = HomeTab.Projects }) { Home(tab) }
+        tab = HomeTab.Pulls
+        Snapshot.sendApplyNotifications()
+        frames("tabs", 19, 18)
+        tab = HomeTab.Threads
+        Snapshot.sendApplyNotifications()
+        frames("tabs", 37, 18)
     }
 
     @Test
