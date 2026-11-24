@@ -12,12 +12,14 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
@@ -25,6 +27,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import io.github.lyxnx.compose.ui.tablericons.TablerIcons
 import io.github.lyxnx.compose.ui.tablericons.outline.ChevronRight
+import dev.relay.android.ui.theme.RelayShapes
 import dev.relay.android.ui.theme.RelayTheme
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.widthIn
@@ -82,6 +85,9 @@ fun MediaTile(
 /** Default rows hold a title and a subtitle; Sm one line; Xs is for menus and dense lists. */
 enum class RowSize(val minHeight: Dp, val padY: Dp) { Default(60.dp, 10.dp), Sm(48.dp, 8.dp), Xs(40.dp, 6.dp) }
 
+/** The corners of a [ListRow]'s highlight. A [Group] squares them off: its tiles clip their rows. */
+val LocalRowShape = compositionLocalOf<Shape> { RelayShapes.row }
+
 /**
  * A list row: a leading icon (20dp, soft ink) or slot, a 16sp title, a subtitle in the soft ink,
  * then [meta] (a time, a count) and whatever trails. Pressed it lights up; [selected] keeps it lit.
@@ -99,6 +105,7 @@ fun ListRow(
     selected: Boolean = false,
     size: RowSize = RowSize.Default,
     titleColor: Color = RelayTheme.colors.ink,
+    titleLines: Int = 1,
     subtitleLines: Int = 2,
     onClick: (() -> Unit)? = null,
     onLongClick: (() -> Unit)? = null,
@@ -111,7 +118,7 @@ fun ListRow(
     Row(
         modifier
             .fillMaxWidth()
-            .clip(RelayTheme.shapes.row)
+            .clip(LocalRowShape.current)
             .semantics { this.selected = selected }
             .background(if (lit) c.selected else Color.Transparent)
             .then(if (tappable) Modifier.pressable(onClick ?: {}, onLongClick = onLongClick, scale = false, interaction = interaction) else Modifier)
@@ -125,7 +132,7 @@ fun ListRow(
             leadingIcon != null -> Icon(leadingIcon, null, tint = c.inkSoft, size = 20.dp)
         }
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(title, style = RelayTheme.type.row, color = titleColor, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(title, style = RelayTheme.type.row, color = titleColor, maxLines = titleLines, overflow = TextOverflow.Ellipsis)
             if (subtitle != null) Text(
                 subtitle,
                 style = RelayTheme.type.meta,
