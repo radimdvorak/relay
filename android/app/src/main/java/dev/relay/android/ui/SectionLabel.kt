@@ -33,8 +33,8 @@ fun SectionLabel(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Text(text, Modifier.weight(1f), style = style, color = c.inkFaint, maxLines = 1, overflow = overflow)
-        if (count != null) Text(count, style = style, color = c.inkFaint)
+        Text(text, Modifier.weight(1f), style = style, color = c.inkSoft, maxLines = 1, overflow = overflow)
+        if (count != null) Text(count, style = style, color = c.inkSoft)
         if (action != null) action()
     }
 }

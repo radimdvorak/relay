@@ -28,6 +28,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.layout.onPlaced
 import androidx.compose.ui.layout.positionInParent
 import androidx.compose.ui.platform.LocalDensity
@@ -95,7 +96,7 @@ fun <T> SegmentedTabs(
         if (w > 0.dp) Box(
             Modifier.offset(x = x).width(w).fillMaxHeight().then(
                 if (primary) Modifier.background(c.send, pill)
-                else Modifier.background(if (c.isDark) c.selected else c.raised, pill),
+                else Modifier.background(if (c.isDark) lerp(c.tool, c.ink, 0.14f) else c.raised, pill),
             ),
         )
         Row(
