@@ -58,11 +58,13 @@ test("Antigravity asks fixed questions in full access, compacts, plans, and offe
     JSON.stringify({ auth: { type: "oauth-personal" } }),
   );
   await writeFile(
-    join(home, "antigravity-acp", "acp_token.json"),
+    join(home, "antigravity-acp", "antigravity-oauth-token"),
     JSON.stringify({
-      client_id: "fixture",
-      client_secret: "fixture",
-      refresh_token: "fixture",
+      token: {
+        access_token: "fixture",
+        refresh_token: "fixture",
+        expiry: "2099-01-01T00:00:00Z",
+      },
     }),
   );
   execFileSync("git", ["init", "-q", "-b", "main", repo]);
@@ -175,12 +177,11 @@ test("Antigravity asks fixed questions in full access, compacts, plans, and offe
   });
   try {
     const page = await app.firstWindow();
-    await app.evaluate(({ net }) => {
+    await app.evaluate(({ net, shell }) => {
+      shell.openExternal = async () => {};
       net.fetch = async () => new Response(null, { status: 503 });
       globalThis.fetch = async (input) => {
         const url = String(input);
-        if (url === "https://oauth2.googleapis.com/token")
-          return Response.json({ access_token: "fixture", expires_in: 3600 });
         if (url.endsWith(":retrieveUserQuotaSummary"))
           return Response.json({
             buckets: [
@@ -323,6 +324,10 @@ test("Antigravity asks fixed questions in full access, compacts, plans, and offe
     await agents
       .getByRole("button", { name: "Sign in with Antigravity", exact: true })
       .click();
+    await agents
+      .getByRole("textbox", { name: "Sign-in code" })
+      .fill("fixture-code");
+    await agents.getByRole("button", { name: "Sign in", exact: true }).click();
     const workRow = agents
       .locator(".accounts-row")
       .filter({ hasText: "Work Google" });

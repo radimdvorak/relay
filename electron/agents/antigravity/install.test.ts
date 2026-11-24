@@ -1,137 +1,157 @@
+import { createHash } from "node:crypto";
 import { mkdir, mkdtemp, readdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
+  cliTarget,
   installAntigravity,
   installedAntigravity,
-  registryTarget,
-  releaseIn,
+  releaseFrom,
 } from "./install";
 
-const archive = (version: string) =>
-  `https://dl.google.com/agy-extensions/releases/macos/agy-acp-server-${version}-darwin-arm64.zip`;
-const registry = (version: string, build: Record<string, unknown> = {}) => ({
-  agents: [
-    {
-      id: "gemini",
-      version: "0.62.0",
-      distribution: { npx: { package: "x" } },
-    },
-    {
-      id: "antigravity-acp",
-      name: "Antigravity",
-      version,
-      distribution: {
-        binary: {
-          "darwin-aarch64": {
-            archive: archive(version),
-            cmd: "./agy_acp_server.par",
-            ...build,
-          },
-        },
-      },
-    },
-  ],
+const bucket =
+  "https://storage.googleapis.com/antigravity-public/antigravity-cli";
+const tarball = (version: string) =>
+  `${bucket}/${version}-5250855658717184/darwin-arm/cli_mac_arm64.tar.gz`;
+const sha512 = (text: string) =>
+  createHash("sha512").update(text).digest("hex");
+const manifest = (version: string, body = `cli ${version}`) => ({
+  version,
+  url: tarball(version),
+  sha512: sha512(body),
 });
 
-describe("Antigravity in the ACP registry", () => {
-  it("names this machine the way the registry does", () => {
-    expect(registryTarget("darwin", "arm64")).toBe("darwin-aarch64");
-    expect(registryTarget("win32", "x64")).toBe("windows-x86_64");
+describe("Antigravity's CLI releases", () => {
+  it("names this machine the way Google's manifests do", () => {
+    expect(cliTarget("darwin", "arm64")).toBe("darwin_arm64");
+    expect(cliTarget("win32", "x64")).toBe("windows_amd64");
+    expect(cliTarget("linux", "x64", true)).toBe("linux_amd64_musl");
+    expect(cliTarget("linux", "riscv64")).toBeUndefined();
   });
 
-  it("reads Google's build for the machine", () => {
-    expect(releaseIn(registry("1.3.0"), "darwin-aarch64")).toMatchObject({
-      version: "1.3.0",
-      archive: archive("1.3.0"),
-      cmd: "agy_acp_server.par",
-      args: [],
+  it("reads Google's release, and runs the CLI out of it", () => {
+    expect(releaseFrom(manifest("1.5.16") )).toMatchObject({
+      version: "1.5.16",
+      archive: tarball("1.5.16"),
+      cmd: "antigravity",
     });
-    expect(() => releaseIn(registry("1.3.0"), "linux-riscv64")).toThrow(
-      /no build for linux-riscv64/,
-    );
+    const windows = {
+      ...manifest("1.5.16"),
+      url: `${bucket}/1.5.16-1/windows-x64/cli_windows_x64.exe`,
+    };
+    expect(releaseFrom(windows, "win32").cmd).toBe("agy.exe");
   });
 
-  it("won't download from anywhere but Google, or run a path out of the archive", () => {
-    expect(() =>
-      releaseIn(
-        registry("1.3.0", { archive: "https://example.com/agy.zip" }),
-        "darwin-aarch64",
-      ),
-    ).toThrow(/Refusing to download/);
-    expect(() =>
-      releaseIn(registry("1.3.0", { cmd: "../../bin/sh" }), "darwin-aarch64"),
-    ).toThrow(/won't run/);
+  it("won't download from anywhere but Google's bucket", () => {
+    const elsewhere = {
+      ...manifest("1.5.16"),
+      url: "https://example.com/cli.tar.gz",
+    };
+    expect(() => releaseFrom(elsewhere )).toThrow(
+      /Refusing to download/,
+    );
+    expect(() => releaseFrom(manifest("1.5.16"), "win32")).toThrow(
+      /Refusing to download/,
+    );
   });
 });
 
 describe("installing Antigravity", () => {
-  /** The registry at `version`, and a zip whose "unpacking" writes the server. */
-  function google(state: { version: string; fail?: boolean }) {
+  /** Google's manifest at `version`, and a tarball whose "unpacking" writes the CLI. */
+  function google(state: { version: string; body?: string; fail?: boolean }) {
     const downloads: string[] = [];
     const fetch = async (url: string) => {
-      if (url.includes("registry.json"))
-        return Response.json(registry(state.version));
+      if (url.endsWith("/darwin_arm64.json"))
+        return Response.json(manifest(state.version));
       downloads.push(url);
       return state.fail
         ? new Response("gone", { status: 404 })
-        : new Response("zip bytes");
+        : new Response(state.body ?? `cli ${state.version}`);
     };
-    const extract = async (_zip: string, out: string) => {
-      await mkdir(out, { recursive: true });
-      await writeFile(join(out, "agy_acp_server.par"), "server");
-      await writeFile(join(out, "localharness_external"), "harness");
-    };
-    return { fetch, extract, downloads };
+    return { fetch, downloads };
   }
-  const target = "darwin-aarch64";
+
+  const extract = async (_tarball: string, out: string) => {
+    await mkdir(out, { recursive: true });
+    await writeFile(join(out, "antigravity"), "cli");
+  };
+
+  const mac = { platform: "darwin" as const, arch: "arm64", extract };
 
   it("unpacks the newest release and runs it from there, keeping the one before", async () => {
     const root = await mkdtemp(join(tmpdir(), "relay-agy-"));
-    const { fetch, extract } = google({ version: "1.2.1" });
-    await installAntigravity(root, fetch, { target, extract });
-    expect(await installedAntigravity(root)).toEqual({
-      version: "1.2.1",
-      command: join(root, "1.2.1", "agy_acp_server.par"),
+    await installAntigravity(root, google({ version: "1.5.13" }).fetch, mac);
+    expect(await installedAntigravity(root )).toEqual({
+      version: "1.5.13",
+      command: join(root, "1.5.13", "antigravity"),
       args: [],
     });
 
-    for (const version of ["1.3.0", "1.4.0"])
-      await installAntigravity(root, google({ version }).fetch, {
-        target,
-        extract,
-      });
-    expect((await installedAntigravity(root))?.version).toBe("1.4.0");
+    for (const version of ["1.5.15", "1.5.16"])
+      await installAntigravity(root, google({ version }).fetch, mac);
+    expect((await installedAntigravity(root ))?.version).toBe(
+      "1.5.16",
+    );
     expect((await readdir(root)).sort()).toEqual([
-      "1.3.0",
-      "1.4.0",
+      "1.5.15",
+      "1.5.16",
       "current.json",
     ]);
   });
 
-  it("keeps the installed one when a download fails", async () => {
+  it("replaces the old ACP server Relay used to download, even at the same version", async () => {
     const root = await mkdtemp(join(tmpdir(), "relay-agy-"));
-    const { extract } = google({ version: "1.3.0" });
-    await installAntigravity(root, google({ version: "1.3.0" }).fetch, {
-      target,
-      extract,
-    });
-    await expect(
-      installAntigravity(root, google({ version: "1.4.0", fail: true }).fetch, {
-        target,
-        extract,
+    await mkdir(join(root, "1.5.2"));
+    await writeFile(join(root, "1.5.2", "agy_acp_server.par"), "server");
+    await writeFile(
+      join(root, "current.json"),
+      JSON.stringify({
+        version: "1.5.2",
+        cmd: "./agy_acp_server.par",
+        args: [],
       }),
-    ).rejects.toThrow(/failed \(404\)/);
-    expect((await installedAntigravity(root))?.version).toBe("1.3.0");
-    expect(await readdir(root)).toEqual(["1.3.0", "current.json"]);
+    );
+    expect(await installedAntigravity(root )).toBeUndefined();
+
+    await installAntigravity(root, google({ version: "1.5.2" }).fetch, mac);
+    expect(await installedAntigravity(root )).toEqual({
+      version: "1.5.2",
+      command: join(root, "1.5.2", "antigravity"),
+      args: [],
+    });
   });
 
-  it("won't install a version the registry no longer offers", async () => {
+  it("throws away a download that doesn't match Google's checksum", async () => {
     const root = await mkdtemp(join(tmpdir(), "relay-agy-"));
-    const { fetch, extract, downloads } = google({ version: "1.3.0" });
+    await installAntigravity(root, google({ version: "1.5.13" }).fetch, mac);
+    const tampered = google({ version: "1.5.16", body: "something else" });
+    await expect(installAntigravity(root, tampered.fetch, mac)).rejects.toThrow(
+      /doesn't match its published checksum/,
+    );
+    expect((await installedAntigravity(root ))?.version).toBe(
+      "1.5.13",
+    );
+  });
+
+  it("keeps the installed one when a download fails", async () => {
+    const root = await mkdtemp(join(tmpdir(), "relay-agy-"));
+    await installAntigravity(root, google({ version: "1.5.13" }).fetch, mac);
     await expect(
-      installAntigravity(root, fetch, { version: "1.2.1", target, extract }),
+      installAntigravity(
+        root,
+        google({ version: "1.5.16", fail: true }).fetch,
+        mac,
+      ),
+    ).rejects.toThrow(/failed \(404\)/);
+    expect(await readdir(root)).toEqual(["1.5.13", "current.json"]);
+  });
+
+  it("won't install a version Google no longer offers", async () => {
+    const root = await mkdtemp(join(tmpdir(), "relay-agy-"));
+    const { fetch, downloads } = google({ version: "1.5.16" });
+    await expect(
+      installAntigravity(root, fetch, { ...mac, version: "1.5.13" }),
     ).rejects.toThrow(/isn't offered any more/);
     expect(downloads).toEqual([]);
   });

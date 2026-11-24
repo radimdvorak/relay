@@ -58,6 +58,8 @@ export type AgentPlan = {
       /** The file in the archive to run, relative to it. */
       cmd: string;
       sha256?: string;
+      /** For downloads that name a SHA-512 instead, like Antigravity's CLI. */
+      sha512?: string;
     }
   | {
       kind: "npm" | "uv";

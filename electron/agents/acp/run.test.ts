@@ -53,22 +53,6 @@ afterEach(() => {
   vi.unstubAllEnvs();
 });
 
-it.each(["antigravity", "amp", "opencode"] as const)(
-  "uses the Antigravity model compatibility identity only for Antigravity (%s)",
-  async (provider) => {
-    const { acp, root, sent } = await agent({}, { provider });
-    await acquireAcpAgent(acp, undefined, root);
-    expect(
-      (await sent()).find((message) => message.method === "initialize")?.params
-        .clientInfo,
-    ).toEqual({
-      name: provider === "antigravity" ? "zed" : "relay",
-      title: "Relay",
-      version: "0.1.0",
-    });
-  },
-);
-
 it("shows native fixed choices in full access, preserving duplicate labels and recording readable answers", async () => {
   const id = "interaction_choose";
   const { acp, root, sent } = await agent({
@@ -642,6 +626,20 @@ it("splits text before a tool call into commentary and reports edits, cost and s
   const prompt = (await sent()).find((m) => m.method === "session/prompt");
   expect(prompt?.params.prompt).toEqual([{ type: "text", text: "Hi" }]);
 });
+
+it.each([true, false])(
+  "gives an agent that doesn't advertise HTTP MCP Relay's tools only when its profile takes them (%s)",
+  async (takesHttpMcp) => {
+    const { acp, root, sent } = await agent(
+      { hidesHttpMcp: true, turn: [say("Done.")] },
+      { takesHttpMcp },
+    );
+    const relayTools = { url: "http://127.0.0.1:1/mcp", token: "t" };
+    await runAcp(acp, options(root, { relayTools }));
+    const opened = (await sent()).find((m) => m.method === "session/new");
+    expect(opened?.params.mcpServers).toHaveLength(takesHttpMcp ? 1 : 0);
+  },
+);
 
 it("adds thinking to the output only when the agent's total leaves it out", () => {
   const usage = { inputTokens: 10, outputTokens: 2, thoughtTokens: 3 };

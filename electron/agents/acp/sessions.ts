@@ -182,12 +182,8 @@ async function initialize(agent: AcpAgent) {
         // Without it OpenCode cancels its question tool before anyone sees it.
         elicitation: { form: {} },
       },
-      // Antigravity 1.4.1 hardcodes third-party model support by client name.
-      // Its "zed" identity exposes the account's Claude/GPT models; "relay"
-      // filters them out and rejects selecting them. Remove when Google lets
-      // Relay opt in without a compatibility identity.
       clientInfo: {
-        name: profile.provider === "antigravity" ? "zed" : "relay",
+        name: "relay",
         title: "Relay",
         version: "0.1.0",
       },
@@ -213,7 +209,7 @@ async function initialize(agent: AcpAgent) {
   agent.caps = {
     image: !!caps?.promptCapabilities?.image,
     audio: !!caps?.promptCapabilities?.audio,
-    http: !!caps?.mcpCapabilities?.http,
+    http: !!caps?.mcpCapabilities?.http || !!profile.takesHttpMcp,
     load: !!caps?.loadSession,
     resume: caps?.sessionCapabilities?.resume != null,
     auth: (init.authMethods ?? []).filter(signsInItself).map((m) => m.id),

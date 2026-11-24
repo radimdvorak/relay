@@ -1,6 +1,5 @@
 import { createHash } from "node:crypto";
 import { readFile, stat } from "node:fs/promises";
-import { join } from "node:path";
 import { z } from "zod";
 import { SYSTEM_ACCOUNT } from "../../../shared/agent-accounts";
 import {
@@ -11,18 +10,26 @@ import {
 } from "../../../shared/provider-usage";
 import { runExecutable } from "../../platform/executables";
 import { profileDir, usualHome } from "../accounts/profiles";
-import { antigravityAuthMethod } from "./account";
+import { antigravityAuthMethod, keychainItem, tokenFile } from "./account";
 
-const tokenSchema = z.object({
-  client_id: z.string().min(1),
-  client_secret: z.string().min(1),
-  refresh_token: z.string().min(1),
-  project_id: z.string().optional(),
+/** How the CLI saves a Google sign-in (Go's oauth2 token), in its file or keyring item. */
+const savedLoginSchema = z.object({
+  token: z.object({
+    access_token: z.string().min(1),
+    refresh_token: z.string().optional(),
+    expiry: z.string().optional(),
+  }),
 });
 
-type Token = z.infer<typeof tokenSchema>;
-export type QuotaCredential = { token: Token; fingerprint: string };
-type Access = { fingerprint: string; token: string; until: number };
+/**
+ * The CLI's current access token. It saves no OAuth client, so Relay can't
+ * refresh it; the CLI does, whenever it runs.
+ */
+export type QuotaCredential = {
+  fingerprint: string;
+  accessToken: string;
+  expiresAt: number;
+};
 
 const endpoints = [
   "https://daily-cloudcode-pa.googleapis.com",
@@ -150,45 +157,62 @@ export function mapGeminiModelQuota(raw: unknown): UsageWindow[] {
   ];
 }
 
+/** Go's keyring stores the secret encoded, behind a prefix naming how. */
+function decodeKeyringSecret(text: string) {
+  const [prefix, encoding] = text.startsWith("go-keyring-base64:")
+    ? ["go-keyring-base64:", "base64" as const]
+    : text.startsWith("go-keyring-encoded:")
+      ? ["go-keyring-encoded:", "hex" as const]
+      : ["", undefined];
+  if (!encoding) return text;
+  return Buffer.from(text.slice(prefix.length), encoding).toString("utf8");
+}
+
+/** The saved sign-in's text: the profile's file, else on macOS the shared Keychain item. */
+async function savedLogin(home: string, fileStorage: boolean) {
+  const path = tokenFile(home);
+  const info = await stat(path).catch(() => undefined);
+  if (info?.isFile() && info.size < 64_000) return readFile(path, "utf8");
+  if (info || fileStorage || process.platform !== "darwin") return;
+  const found = await runExecutable(
+    "/usr/bin/security",
+    ["find-generic-password", ...keychainItem, "-w"],
+    12_000,
+  ).catch(() => undefined);
+  return found?.code === 0 ? decodeKeyringSecret(found.stdout.trim()) : undefined;
+}
+
 /** Read afresh on every operation, so an external sign-in is picked up without restarting. */
 export async function readQuotaCredential(
   home: string,
   fileStorage: boolean,
 ): Promise<QuotaCredential | undefined> {
   const method = await antigravityAuthMethod(home);
-  if (method !== "oauth-personal" && method !== "oauth-business") return;
-  const path = join(home, "antigravity-acp", "acp_token.json");
-  const info = await stat(path).catch(() => undefined);
-  let text: string | undefined;
-  if (info?.isFile() && info.size < 64_000) text = await readFile(path, "utf8");
-  else if (!info && !fileStorage && process.platform === "darwin") {
-    text = (
-      await runExecutable(
-        "/usr/bin/security",
-        [
-          "find-generic-password",
-          "-s",
-          "gemini",
-          "-a",
-          "antigravity-acp",
-          "-w",
-        ],
-        12_000,
-      ).catch(() => undefined)
-    )?.stdout;
-  }
+  if (method && method !== "oauth-personal" && method !== "oauth-business")
+    return;
+  const text = await savedLogin(home, fileStorage);
   if (!text || text.length > 64_000) return;
-  const token = tokenSchema.safeParse(JSON.parse(text)).data;
+  let saved: unknown;
+  try {
+    saved = JSON.parse(text);
+  } catch {
+    return;
+  }
+  const token = savedLoginSchema.safeParse(saved).data?.token;
   if (!token) return;
   return {
-    token,
+    accessToken: token.access_token,
+    expiresAt: Date.parse(token.expiry ?? "") || 0,
     fingerprint: createHash("sha256")
-      .update(JSON.stringify(token))
+      .update(token.refresh_token || token.access_token)
       .digest("hex"),
   };
 }
 
 class QuotaAuthError extends Error {}
+
+/** The CLI's saved token ran out; it renews it on its next turn. */
+class QuotaExpiredError extends Error {}
 
 type Request = (url: string, init: RequestInit) => Promise<Response>;
 
@@ -196,7 +220,6 @@ async function readEndpoint(
   request: Request,
   endpoint: string,
   bearer: string,
-  project: string | undefined,
 ): Promise<UsageWindow[]> {
   const init = {
     method: "POST",
@@ -206,7 +229,7 @@ async function readEndpoint(
       // Google gates the Gemini Models group (including weekly) on a current hub version.
       "User-Agent": ANTIGRAVITY_USER_AGENT,
     },
-    body: JSON.stringify(project ? { project } : {}),
+    body: "{}",
   };
   const response = await request(
     `${endpoint}/v1internal:retrieveUserQuotaSummary`,
@@ -235,73 +258,33 @@ const unavailable = (message: string): ProviderUsage => ({
   message,
 });
 
-/** Owns only derived access tokens. Saved Google logins and API keys are never removed. */
+/** Reads limits with the CLI's own access token; never changes or removes a saved login. */
 export function createAntigravityUsageReader(
   read: () => Promise<QuotaCredential | undefined>,
   fetcher: typeof fetch = fetch,
   now = Date.now,
 ) {
-  let cached: Access | undefined;
-  let generation = 0;
   const request = (url: string, init: RequestInit) =>
     fetcher(url, {
       ...init,
       redirect: "manual",
       signal: AbortSignal.timeout(12_000),
     });
-  const access = async (credential: QuotaCredential, started: number) => {
-    if (
-      cached?.fingerprint === credential.fingerprint &&
-      cached.until > now() + 60_000
-    )
-      return cached;
-    const response = await request("https://oauth2.googleapis.com/token", {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({
-        client_id: credential.token.client_id,
-        client_secret: credential.token.client_secret,
-        refresh_token: credential.token.refresh_token,
-        grant_type: "refresh_token",
-      }).toString(),
-    });
-    if (!response.ok) {
-      const error = (await response.json().catch(() => null)) as {
-        error?: string;
-      } | null;
-      if (response.status === 400 && error?.error === "invalid_grant")
-        throw new QuotaAuthError();
-      throw new Error("Google token refresh failed.");
-    }
-    const token = z
-      .object({
-        access_token: z.string().min(1),
-        expires_in: z.number().positive(),
-      })
-      .parse(await response.json());
-    const result = {
-      fingerprint: credential.fingerprint,
-      token: token.access_token,
-      until: now() + token.expires_in * 1000,
-    };
-    if (generation === started) cached = result;
-    return result;
+  const bearerOf = (credential: QuotaCredential) => {
+    if (credential.expiresAt <= now() + 60_000) throw new QuotaExpiredError();
+    return credential.accessToken;
   };
   return async (): Promise<ProviderUsage> => {
-    const started = ++generation;
     try {
       let credential = await read();
-      if (!credential) {
-        if (generation === started) cached = undefined;
+      if (!credential)
         return unavailable("Sign in with Google to see Antigravity limits.");
-      }
       // A quota read is safe to retry once after a documented bearer-token refusal.
       for (let attempt = 0; attempt < 2; attempt++) {
-        const auth = await access(credential, started);
-        const project = credential.token.project_id;
+        const bearer = bearerOf(credential);
         const responses = await Promise.allSettled(
           endpoints.map((endpoint) =>
-            readEndpoint(request, endpoint, auth.token, project),
+            readEndpoint(request, endpoint, bearer),
           ),
         );
         const windows = new Map<string, UsageWindow>();
@@ -315,9 +298,7 @@ export function createAntigravityUsageReader(
         const refused = responses.some(
           (r) => r.status === "rejected" && r.reason instanceof QuotaAuthError,
         );
-        // An old response must not clear a token cached by a newer operation.
-        if (refused && cached === auth && generation === started)
-          cached = undefined;
+        // The CLI may have renewed its token since; read it again once.
         if (refused && attempt === 0) {
           credential = await read();
           if (!credential)
@@ -339,12 +320,10 @@ export function createAntigravityUsageReader(
         );
       }
     } catch (error) {
-      if (error instanceof QuotaAuthError) {
-        if (generation === started) cached = undefined;
+      if (error instanceof QuotaExpiredError)
         return unavailable(
-          "Sign in with Google again to read Antigravity limits.",
+          "Antigravity's sign-in needs renewing. Send it a message, then refresh.",
         );
-      }
       return unavailable(
         "Couldn't read Antigravity limits. Refresh to try again.",
       );

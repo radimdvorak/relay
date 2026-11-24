@@ -26,7 +26,7 @@ describe("installing a download", () => {
     const dir = await folder();
     const plan = binary("https://example.com/goose", { sha256: sha("the real one") });
     await expect(installInto(dir, plan, { fetch: download("something else") })).rejects.toThrow(
-      /doesn't match the checksum/,
+      /doesn't match its published checksum/,
     );
     expect(await readdir(dir)).toEqual([]);
   });

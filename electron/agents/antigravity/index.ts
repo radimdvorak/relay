@@ -5,6 +5,7 @@ export {
   newestAntigravity,
   updateAntigravity,
 } from "./install";
+export { antigravityCommand } from "./command";
 export { discoverAntigravitySkills } from "./skills";
 export {
   antigravityHome,

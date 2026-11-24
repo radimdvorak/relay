@@ -100,7 +100,7 @@ async function recording(provider: AgentProvider, scenario: string) {
     env.GEMINI_HOME = clean;
     if (fresh) {
       await mkdir(join(clean, "antigravity-acp"), { recursive: true });
-      for (const file of ["acp_token.json", "settings.json"])
+      for (const file of ["antigravity-oauth-token", "settings.json"])
         await symlink(
           join(homedir(), ".gemini", "antigravity-acp", file),
           join(clean, "antigravity-acp", file),

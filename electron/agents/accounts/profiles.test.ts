@@ -124,7 +124,7 @@ it("isolates Google credentials while sharing conversations and skills without c
     join(native, "settings.json"),
     JSON.stringify({ auth: { type: "gemini-api-key" }, apiKey: "private" }),
   );
-  await writeFile(join(native, "acp_token.json"), "private");
+  await writeFile(join(native, "antigravity-oauth-token"), "private");
   await writeFile(join(google, "oauth_creds.json"), "Gemini CLI secret");
   process.env.GEMINI_HOME = google;
   process.env.GEMINI_API_KEY = "ambient-key";
@@ -136,7 +136,7 @@ it("isolates Google credentials while sharing conversations and skills without c
     ),
   ).toEqual({ auth: { type: "oauth-personal" } });
   await expect(
-    lstat(join(profile, "antigravity-acp", "acp_token.json")),
+    lstat(join(profile, "antigravity-acp", "antigravity-oauth-token")),
   ).rejects.toThrow();
   await expect(lstat(join(profile, "oauth_creds.json"))).rejects.toThrow();
   expect((await lstat(join(profile, "config"))).isSymbolicLink()).toBe(true);
@@ -151,15 +151,15 @@ it("isolates Google credentials while sharing conversations and skills without c
   expect(env.GEMINI_API_KEY).toBeUndefined();
   expect(env.GOOGLE_APPLICATION_CREDENTIALS).toBeUndefined();
   await writeFile(
-    join(profile, "antigravity-acp", "acp_token.json"),
+    join(profile, "antigravity-acp", "antigravity-oauth-token"),
     "work-token",
   );
   await prepareProfile("antigravity", "work");
   expect(
-    await readFile(join(profile, "antigravity-acp", "acp_token.json"), "utf8"),
+    await readFile(join(profile, "antigravity-acp", "antigravity-oauth-token"), "utf8"),
   ).toBe("work-token");
   await removeProfile("antigravity", "work");
-  expect(await readFile(join(native, "acp_token.json"), "utf8")).toBe(
+  expect(await readFile(join(native, "antigravity-oauth-token"), "utf8")).toBe(
     "private",
   );
   expect((await lstat(join(native, "conversations"))).isDirectory()).toBe(true);

@@ -9,6 +9,8 @@ export interface AgentAccountsApi {
   addAgentAccount(provider: AccountProvider, label: string): Promise<void>;
   signInAgentAccount(provider: AccountProvider, id: string): Promise<void>;
   cancelAgentAccountSignIn(): Promise<void>;
+  /** The code Google showed, for a sign-in waiting on one. */
+  enterAgentAccountSignInCode(code: string): Promise<void>;
   renameAgentAccount(
     provider: AccountProvider,
     id: string,

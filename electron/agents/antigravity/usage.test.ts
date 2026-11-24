@@ -1,20 +1,19 @@
+import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { afterEach, expect, it, vi } from "vitest";
 import {
   createAntigravityUsageReader,
   mapAntigravityUsage,
   mapGeminiModelQuota,
+  readQuotaCredential,
   type QuotaCredential,
 } from "./usage";
 
-const credential = (id: string): QuotaCredential => ({
-  fingerprint: id,
-  token: {
-    client_id: "client",
-    client_secret: "secret",
-    refresh_token: id,
-    project_id: "project",
-  },
-});
+const credential = (
+  accessToken: string,
+  expiresAt = Date.now() + 3_600_000,
+): QuotaCredential => ({ fingerprint: accessToken, accessToken, expiresAt });
 
 const bucket = (
   bucketId: string,
@@ -47,7 +46,6 @@ const json = (body: unknown, status = 200) =>
     status,
     headers: { "Content-Type": "application/json" },
   });
-const token = (name: string) => json({ access_token: name, expires_in: 3600 });
 const urlOf = (url: Parameters<typeof fetch>[0]) => String(url);
 
 afterEach(() => vi.restoreAllMocks());
@@ -77,146 +75,83 @@ it("keeps the independent Gemini and Claude/GPT windows, and ignores disabled, m
   ]);
 });
 
-it("reuses access tokens, rereads the credential source and recovers after a cached token is refused", async () => {
+it("reads the access token the CLI saved, from the profile's file", async () => {
+  const home = await mkdtemp(join(tmpdir(), "relay-agy-usage-"));
+  await mkdir(join(home, "antigravity-acp"));
+  await writeFile(
+    join(home, "antigravity-acp", "antigravity-oauth-token"),
+    JSON.stringify({
+      token: {
+        access_token: "access",
+        refresh_token: "refresh",
+        expiry: "2026-11-24T16:00:00Z",
+      },
+    }),
+  );
+  expect(await readQuotaCredential(home, true)).toMatchObject({
+    accessToken: "access",
+    expiresAt: Date.parse("2026-11-24T16:00:00Z"),
+  });
+});
+
+it("sends the CLI's own token, and rereads it once after Google refuses it", async () => {
   let saved = credential("first");
   const read = vi.fn(async () => saved);
   const sent: string[] = [];
-  let refuse = false;
-  const fetcher = vi.fn<typeof fetch>(async (url, init) => {
-    if (urlOf(url).endsWith("/token")) {
-      const refresh = new URLSearchParams(String(init!.body)).get(
-        "refresh_token",
-      );
-      return token(refresh === "first" ? "access-first" : "access-second");
-    }
+  const fetcher = vi.fn<typeof fetch>(async (_url, init) => {
     const bearer = (init!.headers as Record<string, string>).Authorization;
     sent.push(bearer);
-    if (refuse && bearer === "Bearer access-first") {
-      saved = credential("second");
+    if (bearer === "Bearer first") {
+      saved = credential("renewed");
       return json({}, 401);
     }
     return json(summary);
   });
   const service = createAntigravityUsageReader(read, fetcher);
   expect((await service()).windows).toHaveLength(4);
-  expect((await service()).windows).toHaveLength(4);
-  expect(
-    fetcher.mock.calls.filter(([url]) => urlOf(url).endsWith("/token")),
-  ).toHaveLength(1);
-  refuse = true;
-  expect((await service()).windows).toHaveLength(4);
-  expect(read).toHaveBeenCalledTimes(4); // each operation, plus the bounded auth retry
-  expect(sent.slice(-2)).toEqual([
-    "Bearer access-second",
-    "Bearer access-second",
-  ]);
-  expect(
-    fetcher.mock.calls.filter(([url]) => urlOf(url).endsWith("/token")),
-  ).toHaveLength(2);
+  expect(read).toHaveBeenCalledTimes(2);
+  expect(sent.slice(-2)).toEqual(["Bearer renewed", "Bearer renewed"]);
 });
 
 it.each([403, 429, 500])(
-  "does not sign out or refresh cached credentials after HTTP %i",
+  "doesn't call it a sign-out after HTTP %i",
   async (status) => {
-    const read = vi.fn(async () => credential("same"));
-    let fail = false;
-    const fetcher = vi.fn<typeof fetch>(async (url) =>
-      urlOf(url).endsWith("/token")
-        ? token("kept")
-        : fail
-          ? json({}, status)
-          : json(summary),
+    const service = createAntigravityUsageReader(
+      async () => credential("same"),
+      vi.fn<typeof fetch>(async () => json({}, status)),
     );
-    const service = createAntigravityUsageReader(read, fetcher);
-    await service();
-    fail = true;
     const failed = await service();
     expect(failed.windows).toEqual([]);
     expect(failed.message).not.toMatch(/sign in/i);
-    fail = false;
-    await service();
-    expect(
-      fetcher.mock.calls.filter(([url]) => urlOf(url).endsWith("/token")),
-    ).toHaveLength(1);
-    expect(read).toHaveBeenCalledTimes(3);
   },
 );
 
-it("does not let a late refusal discard a newer account's cached token", async () => {
-  let saved = credential("old");
-  let late = false;
-  const pending: ((response: Response) => void)[] = [];
-  const read = vi.fn(async () => saved);
-  const sent: string[] = [];
-  const fetcher = vi.fn<typeof fetch>(async (url, init) => {
-    if (urlOf(url).endsWith("/token"))
-      return token(
-        new URLSearchParams(String(init!.body)).get("refresh_token")!,
-      );
-    const bearer = (init!.headers as Record<string, string>).Authorization;
-    sent.push(bearer);
-    if (late && bearer === "Bearer old")
-      return new Promise<Response>((resolve) => pending.push(resolve));
-    return json(summary);
-  });
-  const service = createAntigravityUsageReader(read, fetcher);
-  await service();
-  late = true;
-  const old = service();
-  await vi.waitFor(() => expect(pending).toHaveLength(2));
-  saved = credential("new");
-  expect((await service()).windows).toHaveLength(4);
-  for (const finish of pending) finish(json({}, 401));
-  expect((await old).windows).toHaveLength(4);
-  await service();
-  expect(sent.slice(-6)).toEqual(Array(6).fill("Bearer new"));
-  expect(
-    fetcher.mock.calls.filter(([url]) => urlOf(url).endsWith("/token")),
-  ).toHaveLength(2);
-});
-
 it("bounds auth retries and picks up a removed or replaced login on the next operation", async () => {
   let saved: QuotaCredential | undefined = credential("old");
-  let refuse = true;
   const read = vi.fn(async () => saved);
-  const fetcher = vi.fn<typeof fetch>(async (url) =>
-    urlOf(url).endsWith("/token")
-      ? token("access")
-      : refuse
-        ? json({}, 401)
-        : json(summary),
+  const fetcher = vi.fn<typeof fetch>(async (_url, init) =>
+    (init!.headers as Record<string, string>).Authorization === "Bearer old"
+      ? json({}, 401)
+      : json(summary),
   );
   const service = createAntigravityUsageReader(read, fetcher);
   expect((await service()).message).toMatch(/sign in.*again/i);
-  expect(
-    fetcher.mock.calls.filter(([url]) => !urlOf(url).endsWith("/token")),
-  ).toHaveLength(4);
+  expect(fetcher).toHaveBeenCalledTimes(4);
   expect(read).toHaveBeenCalledTimes(2);
   saved = undefined;
   expect((await service()).windows).toEqual([]);
   saved = credential("replacement");
-  refuse = false;
   expect((await service()).windows).toHaveLength(4);
 });
 
-it("keeps the cached access token after a network failure and resumes without another refresh", async () => {
-  let offline = false;
-  const read = vi.fn(async () => credential("same"));
-  const fetcher = vi.fn<typeof fetch>(async (url) => {
-    if (urlOf(url).endsWith("/token")) return token("access");
-    if (offline) throw new TypeError("offline");
-    return json(summary);
-  });
-  const service = createAntigravityUsageReader(read, fetcher);
-  await service();
-  offline = true;
-  expect((await service()).message).not.toMatch(/sign in/i);
-  offline = false;
-  expect((await service()).windows).toHaveLength(4);
-  expect(read).toHaveBeenCalledTimes(3);
-  expect(
-    fetcher.mock.calls.filter(([url]) => urlOf(url).endsWith("/token")),
-  ).toHaveLength(1);
+it("asks for a turn to renew a token that ran out, without sending it to Google", async () => {
+  const fetcher = vi.fn<typeof fetch>(async () => json(summary));
+  const service = createAntigravityUsageReader(
+    async () => credential("stale", Date.now() - 1000),
+    fetcher,
+  );
+  expect((await service()).message).toMatch(/needs renewing/);
+  expect(fetcher).not.toHaveBeenCalled();
 });
 
 it("reads Gemini's pool from the model list when the summary covers only Claude and GPT", async () => {
@@ -239,7 +174,6 @@ it("reads Gemini's pool from the model list when the summary covers only Claude 
     },
   };
   const fetcher = vi.fn<typeof fetch>(async (url) => {
-    if (urlOf(url).endsWith("/token")) return token("access");
     if (urlOf(url).endsWith(":fetchAvailableModels")) return json(models);
     return json({ groups: [summary.groups[1]] });
   });
@@ -310,8 +244,7 @@ it("sorts 5h before weekly, unwraps response envelopes, keeps separate Gemini gr
 
 it("identifies as a current antigravity hub client so Google includes the Gemini quota group", async () => {
   const agents: string[] = [];
-  const fetcher = vi.fn<typeof fetch>(async (url, init) => {
-    if (urlOf(url).endsWith("/token")) return token("access");
+  const fetcher = vi.fn<typeof fetch>(async (_url, init) => {
     agents.push((init!.headers as Record<string, string>)["User-Agent"]);
     return json(summary);
   });

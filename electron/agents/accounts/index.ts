@@ -153,6 +153,7 @@ export class AgentAccounts {
         provider: this.signIn.provider,
         id: this.signIn.id,
         label: this.signIn.label,
+        asksForCode: !!this.signIn.enterCode,
       },
       signInError: this.signInError,
     };
@@ -180,6 +181,13 @@ export class AgentAccounts {
 
   cancelSignIn() {
     this.signIn?.cancel();
+  }
+
+  /** The code Google showed, for a sign-in that asks for one. */
+  enterSignInCode(code: string) {
+    if (!this.signIn?.enterCode)
+      throw new Error("No sign-in is waiting for a code.");
+    this.signIn.enterCode(code);
   }
 
   private async runSignIn(

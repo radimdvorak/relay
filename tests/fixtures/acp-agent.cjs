@@ -13,6 +13,7 @@
 //     { ask: { toolCall, options } }  a request_permission, waited on
 //     { elicit: { mode, message, toolCallId, requestedSchema } }  an elicitation/create, waited on
 //     { waitCancel: true }  waits for session/cancel and stops as cancelled
+//   hidesHttpMcp: doesn't say it takes MCP servers over HTTP, as Antigravity's CLI doesn't
 //   stopReason, usage: how session/prompt ends ("end_turn" by default)
 //   spend: dollars each turn adds; the turn ends with one usage_update
 //     carrying the session's total, as OpenCode 2 reports it
@@ -64,11 +65,32 @@ const native = async (path, body) => {
   });
   return res.json();
 };
+const googleLogin = JSON.stringify({
+  token: { access_token: "fixture", refresh_token: "fixture-login", expiry: "2099-01-01T00:00:00Z" },
+});
+
+// `agy acp --login`: prints Google's link, then reads the code its page shows.
+if (process.argv.includes("--login")) {
+  const home = process.argv[process.argv.indexOf("--gemini-dir") + 1];
+  console.log("Open this link in a browser to log in with Google:\n\n  https://accounts.google.com/o/oauth2/auth?fixture\n");
+  require("node:readline").createInterface({ input: process.stdin }).once("line", (code) => {
+    if (code !== "fixture-code") {
+      process.stderr.write("couldn't log in: Malformed auth code.\n");
+      process.exit(1);
+    }
+    const dir = require("node:path").join(home, "antigravity-acp");
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(require("node:path").join(dir, "antigravity-oauth-token"), googleLogin);
+    process.exit(0);
+  });
+  return;
+}
+
 // Like Antigravity, a process started after a saved Google login is signed in.
 const savedGoogleLogin = () =>
   !!scenario.saveGoogleLogin &&
   fs.existsSync(
-    require("node:path").join(process.env.GEMINI_HOME, "antigravity-acp", "acp_token.json"),
+    require("node:path").join(process.env.GEMINI_HOME, "antigravity-acp", "antigravity-oauth-token"),
   );
 let signedIn = scenario.signedIn ?? (!scenario.signIn || savedGoogleLogin());
 let nextId = 1000;
@@ -174,7 +196,7 @@ require("node:readline")
                 image: !!scenario.image,
                 audio: !!scenario.audio,
               },
-              mcpCapabilities: { http: true },
+              mcpCapabilities: { http: !scenario.hidesHttpMcp },
               sessionCapabilities:
                 scenario.resume || scenario.nativeUrl ? { resume: {} } : {},
             },
@@ -201,7 +223,7 @@ require("node:readline")
         if (signedIn && scenario.saveGoogleLogin) {
           const dir = require("node:path").join(process.env.GEMINI_HOME, "antigravity-acp");
           fs.mkdirSync(dir, { recursive: true });
-          fs.writeFileSync(require("node:path").join(dir, "acp_token.json"), JSON.stringify({ refresh_token: "fixture-login" }));
+          fs.writeFileSync(require("node:path").join(dir, "antigravity-oauth-token"), googleLogin);
         }
         return send({ id: m.id, result: {} });
       case "session/new": {

@@ -163,10 +163,20 @@ async function unpack(file: string, out: string, kind: "zip" | "tar") {
   await runProgram(program, args, {});
 }
 
-async function sha256Of(file: string) {
-  const hash = createHash("sha256");
+async function digestOf(file: string, algorithm: "sha256" | "sha512") {
+  const hash = createHash(algorithm);
   await pipeline(createReadStream(file), hash);
   return hash.digest("hex");
+}
+
+/** Whether the download is what its publisher said, by whichever checksum they gave. */
+async function matchesChecksum(
+  file: string,
+  plan: Extract<AgentPlan, { kind: "binary" }>,
+) {
+  if (plan.sha512) return (await digestOf(file, "sha512")) === plan.sha512;
+  if (plan.sha256) return (await digestOf(file, "sha256")) === plan.sha256;
+  return true;
 }
 
 /** Downloads and unpacks `plan` into `out`; returns the file to run, relative to `out`. */
@@ -184,9 +194,9 @@ async function getBinary(
     Readable.fromWeb(response.body as import("node:stream/web").ReadableStream),
     createWriteStream(download),
   );
-  if (plan.sha256 && (await sha256Of(download)) !== plan.sha256)
+  if (!(await matchesChecksum(download, plan)))
     throw new Error(
-      `The ${plan.id} download doesn't match the checksum in the ACP registry; Relay threw it away.`,
+      `The ${plan.id} download doesn't match its published checksum; Relay threw it away.`,
     );
   const kind = archiveKind(plan.archive);
   if (kind === "file") {
@@ -327,7 +337,10 @@ async function install(
   const via: RegistryVia = plan.kind === "binary" ? "download" : plan.kind;
   const write = (found: Pointer) =>
     writeFile(pointer(dir), JSON.stringify({ ...found, ...label }));
-  if (previous?.version === plan.version && previous.via === via) {
+  const sameProgram =
+    plan.kind !== "binary" ||
+    previous?.command === join(dir, plan.version, plan.cmd);
+  if (previous?.version === plan.version && previous.via === via && sameProgram) {
     const raw = JSON.parse(await readFile(pointer(dir), "utf8"));
     await write(raw);
     return (await installedIn(dir))!;

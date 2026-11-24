@@ -8,6 +8,7 @@ import {
   antigravityAuthMethod,
   readAntigravityAccount,
   antigravityHome,
+  antigravityCommand,
   compactPrompt,
 } from "../antigravity";
 import { discoverAntigravitySkills } from "../antigravity";
@@ -72,6 +73,8 @@ export interface AcpProfile {
    * out only when it surely is; undefined when Relay can't tell.
    */
   account?(): Promise<AcpAccount | undefined>;
+  /** Takes MCP servers over HTTP without saying so when it starts. */
+  takesHttpMcp?: boolean;
   /** The prompt that compacts its session, when it has one. */
   compact?: string;
   /** Native command that enters its planning workflow. */
@@ -128,36 +131,39 @@ const amp: AcpProfile = {
   failure: (answer) => /^Error: (.+)/s.exec(answer.trim())?.[1],
 };
 
-/** Google's Antigravity ACP server, which Relay downloads; see antigravity-install. */
+async function antigravityLine(home: string, fileStorage: boolean) {
+  const found = await currentAntigravity();
+  if (!found)
+    throw new Error(
+      "Antigravity isn't downloaded yet. Set it up in Settings → Agents.",
+    );
+  return antigravityCommand(found, home, fileStorage);
+}
+
+/** Google's Antigravity CLI, which Relay downloads; see antigravity/install. */
 const antigravity: AcpProfile = {
   provider: "antigravity",
   name: "Antigravity",
   setUp: async () => {
     await ensureAntigravity();
   },
-  command: async () => {
-    const found = await currentAntigravity();
-    if (!found)
-      throw new Error(
-        "Antigravity isn't downloaded yet. Set it up in Settings → Agents.",
-      );
-    return { command: found.command, args: found.args };
-  },
-  // Planning uses /plan, not a permission mode. Read-only work still denies writes.
+  command: () =>
+    antigravityLine(
+      antigravityHome(),
+      !!process.env.AGY_ACP_FORCE_FILE_STORAGE,
+    ),
+  // Planning uses /plan, not a permission mode. Full access is Relay approving
+  // every ask: the CLI has no mode that skips them.
   wishes: ({ runtime, interaction, readOnly }) => {
-    if (readOnly || interaction === "plan")
-      return [{ option: "mode", value: "default" }];
-    switch (runtime) {
-      case "auto-accept-edits":
-        return [{ option: "mode", value: "auto_edit" }];
-      case "full-access":
-        return [{ option: "mode", value: "yolo" }];
-      default:
-        return [{ option: "mode", value: "default" }];
-    }
+    const editsAccepted =
+      runtime === "auto-accept-edits" && !readOnly && interaction !== "plan";
+    return [
+      { option: "mode", value: editsAccepted ? "accept-edits" : "default" },
+    ];
   },
   authMethod: async () => (await antigravityAuthMethod()) ?? "oauth-personal",
   account: readAntigravityAccount,
+  takesHttpMcp: true,
   compact: compactPrompt,
   plan: "/plan",
   skills: (cwd) => discoverAntigravitySkills(cwd),
@@ -202,15 +208,16 @@ export function antigravityProfile(
   accountKey: string,
 ): AcpProfile {
   const home = antigravityHome(env);
+  const fileStorage = !!env.AGY_ACP_FORCE_FILE_STORAGE;
   return {
     ...antigravity,
     accountKey,
     home,
     environment: env,
+    command: () => antigravityLine(home, fileStorage),
     authMethod: async () =>
       (await antigravityAuthMethod(home)) ?? "oauth-personal",
-    account: () =>
-      readAntigravityAccount(home, !!env.AGY_ACP_FORCE_FILE_STORAGE),
+    account: () => readAntigravityAccount(home, fileStorage),
     skills: (cwd) => discoverAntigravitySkills(cwd, home),
   };
 }
