@@ -2,6 +2,7 @@ package dev.relay.android.features.pulls
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -9,15 +10,20 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import dev.relay.android.features.git.CiMark
+import dev.relay.android.features.git.DiffCounts
+import dev.relay.android.features.git.FileNames
+import dev.relay.android.features.git.FileRowHeight
+import dev.relay.android.features.git.ListNote
+import dev.relay.android.features.git.plural
+import dev.relay.android.features.git.rowMeta
 import dev.relay.android.features.home.ThreadRow
 import dev.relay.android.features.home.ago
 import dev.relay.android.features.home.rememberNow
@@ -31,8 +37,11 @@ import dev.relay.android.remote.model.RemoteChatSummary
 import dev.relay.android.ui.Button
 import dev.relay.android.ui.ButtonSize
 import dev.relay.android.ui.ButtonVariant
-import dev.relay.android.ui.Card
 import dev.relay.android.ui.Icon
+import dev.relay.android.ui.ListInset
+import dev.relay.android.ui.RowPatch
+import dev.relay.android.ui.RowTextInset
+import dev.relay.android.ui.SectionLabel
 import dev.relay.android.ui.Text
 import dev.relay.android.ui.pressable
 import dev.relay.android.ui.theme.RelayTheme
@@ -44,41 +53,30 @@ import io.github.lyxnx.compose.ui.tablericons.outline.MessageQuestion
 import io.github.lyxnx.compose.ui.tablericons.outline.Robot
 import io.github.lyxnx.compose.ui.tablericons.outline.Tool
 
-@Composable
-private fun CardTitle(text: String, trailing: String? = null) {
-    val c = RelayTheme.colors
-    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        Text(text, Modifier.weight(1f), style = RelayTheme.type.sm.copy(fontWeight = FontWeight.SemiBold), color = c.foreground)
-        if (trailing != null) Text(trailing, style = RelayTheme.type.xs, color = c.faint)
-    }
-}
+/** Where a PR page's reading starts: level with the section labels and the groups' text. */
+private val Inset = 8.dp + RowTextInset
 
 /** State, title, who wants what merged where, and how big it is. */
 @Composable
 fun PullHeader(pull: PullDetail) {
     val c = RelayTheme.colors
     val now = rememberNow(60_000)
-    Column(Modifier.fillMaxWidth().padding(horizontal = 4.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-            PullStateIcon(pull.state, pull.draft, pull.merged, size = 14.dp)
-            val state = when {
-                pull.merged -> "Merged"
-                pull.state == "closed" -> "Closed"
-                pull.draft -> "Draft"
-                else -> "Open"
-            }
-            Text("$state · ${pull.owner}/${pull.name} #${pull.number}", style = RelayTheme.type.xs, color = c.mutedForeground, maxLines = 1)
+    val state = when {
+        pull.merged -> "Merged"
+        pull.state == "closed" -> "Closed"
+        pull.draft -> "Draft"
+        else -> "Open"
+    }
+    Column(Modifier.fillMaxWidth().padding(horizontal = Inset), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            PullStateIcon(pull.state, pull.draft, pull.merged)
+            Text("$state · ${pull.user.login} · ${ago(isoMs(pull.updated_at), now)}", style = rowMeta, color = c.inkSoft, maxLines = 1)
         }
-        Text(pull.title, style = RelayTheme.type.lg.copy(fontWeight = FontWeight.SemiBold, lineHeight = 24.sp), color = c.foreground)
-        Text(
-            "${pull.user.login} wants ${pull.head.ref} → ${pull.base.ref} · ${ago(isoMs(pull.updated_at), now)}",
-            style = RelayTheme.type.xs,
-            color = c.mutedForeground,
-        )
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("+${pull.additions}", style = RelayTheme.type.monoSm, color = c.additionText)
-            Text("−${pull.deletions}", style = RelayTheme.type.monoSm, color = c.deletionText)
-            Text("${pull.changed_files} ${if (pull.changed_files == 1) "file" else "files"}", style = RelayTheme.type.xs, color = c.mutedForeground)
+        Text(pull.title, style = RelayTheme.type.heading)
+        Text("${pull.head.ref} → ${pull.base.ref}", style = rowMeta, color = c.inkSoft, maxLines = 2)
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text(plural(pull.changed_files, "file"), style = rowMeta, color = c.inkSoft)
+            DiffCounts(pull.additions, pull.deletions)
         }
     }
 }
@@ -88,7 +86,7 @@ fun PullHeader(pull: PullDetail) {
  * into a thread on the PR's branch in one tap. Says so when no project here is the repo.
  */
 @Composable
-fun AgentCard(
+fun AgentSection(
     page: PullPage,
     projectName: String?,
     busy: Boolean,
@@ -96,29 +94,44 @@ fun AgentCard(
     onAddress: () -> Unit,
     onAsk: () -> Unit,
 ) {
-    val c = RelayTheme.colors
     val failing = page.ci?.runs.orEmpty().any { it.state == "failure" }
     val changes = verdictOf(page.reviews) == "changes"
-    Card(Modifier.fillMaxWidth(), padding = 16.dp, gap = 10.dp) {
-        CardTitle("Hand it to an agent", projectName?.let { "in $it" })
+    Section("Hand it to an agent", projectName?.let { "in $it" }) {
         if (projectName == null) {
-            Text("No project on your computer is a checkout of ${page.pull.name}. Add it there to start threads from here.", style = RelayTheme.type.xs, color = c.mutedForeground)
-            return@Card
+            Quiet("No project on your computer is a checkout of ${page.pull.name}. Add it there to start threads from here.")
+            return@Section
         }
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            if (failing) Button("Fix CI", onFixCi, variant = ButtonVariant.Default, size = ButtonSize.Sm, leadingIcon = TablerIcons.Outline.Tool, enabled = !busy)
+            if (failing) Button("Fix CI", onFixCi, variant = ButtonVariant.Default, leadingIcon = TablerIcons.Outline.Tool, enabled = !busy)
             if (changes) Button(
                 "Address review",
                 onAddress,
                 variant = if (failing) ButtonVariant.Secondary else ButtonVariant.Default,
-                size = ButtonSize.Sm,
                 leadingIcon = TablerIcons.Outline.Robot,
                 enabled = !busy,
             )
-            Button("Ask about it", onAsk, variant = ButtonVariant.Outline, size = ButtonSize.Sm, leadingIcon = TablerIcons.Outline.MessageQuestion, enabled = !busy, loading = busy)
+            Button("Ask about it", onAsk, variant = ButtonVariant.Secondary, leadingIcon = TablerIcons.Outline.MessageQuestion, enabled = !busy, loading = busy)
         }
-        Text("Starts a thread in a worktree on ${page.pull.head.ref}.", style = RelayTheme.type.xs, color = c.faint)
+        Quiet("Starts a thread in a worktree on ${page.pull.head.ref}")
     }
+}
+
+/** A labelled stretch of the page, straight on the sheet. */
+@Composable
+private fun Section(title: String, count: String? = null, content: @Composable ColumnScope.() -> Unit) {
+    Column(Modifier.fillMaxWidth()) {
+        SectionLabel(title, Modifier.padding(horizontal = 8.dp), count = count)
+        Column(
+            Modifier.fillMaxWidth().padding(horizontal = Inset, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+            content = content,
+        )
+    }
+}
+
+@Composable
+private fun Quiet(text: String) {
+    Text(text, style = rowMeta, color = RelayTheme.colors.inkSoft)
 }
 
 /** Each workflow's latest run, the failures first; a tap opens its run on the host. */
@@ -129,16 +142,16 @@ fun CheckRows(ci: CiStatus) {
     val order = mapOf("failure" to 0, "running" to 1, "success" to 2)
     for (run in ci.runs.sortedBy { order[it.state] ?: 3 }) {
         Row(
-            Modifier.fillMaxWidth().pressable(onClick = { uri.openUri(run.url) }, scale = false).padding(vertical = 7.dp),
+            Modifier.fillMaxWidth().pressable(onClick = { uri.openUri(run.url) }, scale = false).padding(vertical = 8.dp),
             horizontalArrangement = Arrangement.spacedBy(10.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            CiMark(run.state, 15.dp)
+            CiMark(run.state, 18.dp)
             Column(Modifier.weight(1f)) {
-                Text(run.workflow, style = RelayTheme.type.sm, color = c.foreground, maxLines = 1)
-                run.failedJob?.let { Text(it, style = RelayTheme.type.xs, color = c.destructive, maxLines = 1) }
+                Text(run.workflow, style = RelayTheme.type.meta, color = c.ink, maxLines = 1)
+                run.failedJob?.let { Text(it, style = rowMeta, color = c.danger, maxLines = 1) }
             }
-            Icon(TablerIcons.Outline.ChevronRight, null, tint = c.faint, size = 14.dp)
+            Icon(TablerIcons.Outline.ChevronRight, null, tint = c.inkFaint, size = 14.dp)
         }
     }
 }
@@ -160,83 +173,72 @@ fun standingReviews(reviews: List<PullReview>) = reviews.filter { it.state != "P
 fun ReviewRows(latest: List<PullReview>) {
     val c = RelayTheme.colors
     val now = rememberNow(60_000)
-    for (r in latest) Column(Modifier.padding(vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+    for (r in latest) Column(Modifier.padding(vertical = 5.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
             when (r.state) {
-                "APPROVED" -> Icon(TablerIcons.Outline.CircleCheck, "Approved", tint = c.additionText, size = 15.dp)
-                "REQUEST_CHANGES" -> Icon(TablerIcons.Outline.CircleX, "Changes requested", tint = c.destructive, size = 15.dp)
-                else -> Icon(TablerIcons.Outline.MessageQuestion, "Commented", tint = c.mutedForeground, size = 15.dp)
+                "APPROVED" -> Icon(TablerIcons.Outline.CircleCheck, "Approved", tint = c.success, size = 18.dp)
+                "REQUEST_CHANGES" -> Icon(TablerIcons.Outline.CircleX, "Changes requested", tint = c.danger, size = 18.dp)
+                else -> Icon(TablerIcons.Outline.MessageQuestion, "Commented", tint = c.inkSoft, size = 18.dp)
             }
-            Text(r.user.login, style = RelayTheme.type.sm.copy(fontWeight = FontWeight.Medium), color = c.foreground)
-            Text(ago(isoMs(r.submitted_at), now), style = RelayTheme.type.xs, color = c.faint)
+            Said(r.user.login, ago(isoMs(r.submitted_at), now))
         }
-        if (r.body.isNotBlank()) Markdown(r.body.trim(), Modifier.padding(start = 23.dp), small = true)
+        if (r.body.isNotBlank()) Markdown(r.body.trim(), Modifier.padding(start = 26.dp), small = true)
     }
 }
 
 /** Threads here already on the PR's branch, so you go back to the one that made it. */
 @Composable
-fun BranchThreadsCard(chats: List<RemoteChatSummary>, onOpen: (RemoteChatSummary) -> Unit) {
+fun BranchThreads(chats: List<RemoteChatSummary>, onOpen: (RemoteChatSummary) -> Unit) {
     if (chats.isEmpty()) return
-    Card(Modifier.fillMaxWidth(), padding = 8.dp, gap = 0.dp) {
-        Column(Modifier.padding(start = 8.dp, end = 8.dp, top = 8.dp, bottom = 4.dp)) { CardTitle("Threads on this branch", "${chats.size}") }
+    Column(Modifier.fillMaxWidth().padding(horizontal = ListInset)) {
+        SectionLabel("Threads on this branch", count = "${chats.size}")
         for (chat in chats) ThreadRow(chat, null, { onOpen(chat) })
     }
 }
 
 @Composable
-fun DescriptionCard(body: String?) {
-    val c = RelayTheme.colors
-    var all by remember { mutableStateOf(false) }
-    Card(Modifier.fillMaxWidth(), padding = 16.dp, gap = 8.dp) {
-        CardTitle("Description")
+fun DescriptionSection(body: String?) {
+    var all by rememberSaveable { mutableStateOf(false) }
+    Section("Description") {
         val text = body?.trim().orEmpty()
-        if (text.isEmpty()) Text("No description.", style = RelayTheme.type.xs, color = c.mutedForeground)
-        else {
-            // Agent-written descriptions run long; the first screenful, then the rest on a tap.
-            val long = text.length > 1200
-            Markdown(if (long && !all) text.take(1200).substringBeforeLast('\n') + "\n\n…" else text, small = true)
-            if (long) Button(if (all) "Show less" else "Show all", { all = !all }, variant = ButtonVariant.Ghost, size = ButtonSize.Sm)
-        }
+        if (text.isEmpty()) return@Section Quiet("No description.")
+        // Agent-written descriptions run long; the first screenful, then the rest on a tap.
+        val long = text.length > 1200
+        Markdown(if (long && !all) text.take(1200).substringBeforeLast('\n') + "\n\n…" else text)
+        if (long) Button(if (all) "Show less" else "Show all", { all = !all }, variant = ButtonVariant.Secondary, size = ButtonSize.Sm)
     }
 }
 
 /** Changed files with their counts; a tap opens the file's diff on the host. */
 @Composable
-fun FilesCard(files: List<PullFile>, more: Boolean, total: Int, onOpen: (PullFile) -> Unit) {
-    val c = RelayTheme.colors
-    Card(Modifier.fillMaxWidth(), padding = 16.dp, gap = 2.dp) {
-        CardTitle("Files", "$total")
-        for (f in files) Row(
-            Modifier.fillMaxWidth().pressable(onClick = { onOpen(f) }, scale = false).padding(vertical = 6.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            val dir = f.filename.substringBeforeLast('/', "")
-            Column(Modifier.weight(1f)) {
-                Text(f.filename.substringAfterLast('/'), style = RelayTheme.type.monoSm, color = c.foreground, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                if (dir.isNotEmpty()) Text(dir, style = RelayTheme.type.xs, color = c.faint, maxLines = 1, overflow = TextOverflow.StartEllipsis)
-            }
-            if (f.additions > 0) Text("+${f.additions}", style = RelayTheme.type.monoSm, color = c.additionText)
-            if (f.deletions > 0) Text("−${f.deletions}", style = RelayTheme.type.monoSm, color = c.deletionText)
+fun FilesSection(files: List<PullFile>, more: Boolean, total: Int, onOpen: (PullFile) -> Unit) {
+    Column(Modifier.fillMaxWidth().padding(horizontal = ListInset)) {
+        SectionLabel("Files", count = "$total")
+        for (f in files) RowPatch({ onOpen(f) }, minHeight = FileRowHeight) {
+            FileNames(f.filename, Modifier.weight(1f))
+            DiffCounts(f.additions, f.deletions)
         }
-        if (more) Text("And more on the host.", Modifier.padding(top = 6.dp), style = RelayTheme.type.xs, color = c.mutedForeground)
+        if (more) ListNote("And more on the host.")
     }
 }
 
 @Composable
-fun DiscussionCard(comments: List<PullComment>) {
-    val c = RelayTheme.colors
+fun DiscussionSection(comments: List<PullComment>) {
     val now = rememberNow(60_000)
-    Card(Modifier.fillMaxWidth(), padding = 16.dp, gap = 12.dp) {
-        CardTitle("Conversation", comments.size.takeIf { it > 0 }?.toString())
-        if (comments.isEmpty()) Text("No comments yet.", style = RelayTheme.type.xs, color = c.mutedForeground)
-        for (comment in comments.takeLast(20)) Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(comment.user.login, style = RelayTheme.type.sm.copy(fontWeight = FontWeight.Medium), color = c.foreground)
-                Text(ago(isoMs(comment.created_at), now), style = RelayTheme.type.xs, color = c.faint)
-            }
-            Markdown(comment.body.trim(), small = true)
+    Section("Conversation", comments.size.takeIf { it > 0 }?.toString()) {
+        if (comments.isEmpty()) Quiet("No comments yet.")
+        for (comment in comments.takeLast(20)) Column(Modifier.padding(bottom = 8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Said(comment.user.login, ago(isoMs(comment.created_at), now))
+            Markdown(comment.body.trim())
         }
+    }
+}
+
+/** Who said something, and when. */
+@Composable
+private fun Said(login: String, at: String) {
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text(login, Modifier.weight(1f, fill = false), style = RelayTheme.type.meta.copy(fontWeight = FontWeight.Medium), maxLines = 1)
+        Text(at, style = rowMeta, color = RelayTheme.colors.inkSoft)
     }
 }

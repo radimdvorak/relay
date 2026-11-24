@@ -8,11 +8,11 @@ import dev.relay.android.remote.model.PullDetail
 import dev.relay.android.remote.model.RemoteJson
 import dev.relay.android.remote.model.RemoteOverview
 import dev.relay.android.remote.model.RemoteProject
+import java.io.File
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.decodeFromJsonElement
-import java.io.File
 
 /**
  * The project on the computer that's a checkout of the PR's repository. The phone doesn't
