@@ -19,7 +19,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import dev.relay.android.ui.Haptic
-import dev.relay.android.ui.IconButton
+import dev.relay.android.ui.CircleButton
 import dev.relay.android.ui.rememberHaptics
 import dev.relay.android.ui.theme.Motion
 import io.github.lyxnx.compose.ui.tablericons.TablerIcons
@@ -124,9 +124,9 @@ fun PinFlow(kind: PinFlowKind, lock: AppLock, onClose: () -> Unit) {
                 shakes = shakes,
                 enabled = !busy,
                 top = {
-                    IconButton(
+                    CircleButton(
                         TablerIcons.Outline.X, "Cancel", onClose,
-                        modifier = Modifier.align(Alignment.CenterStart).padding(start = 12.dp),
+                        Modifier.align(Alignment.CenterStart).padding(start = 16.dp),
                     )
                 },
             )

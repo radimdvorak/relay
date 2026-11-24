@@ -3,5 +3,5 @@
     <style name="Theme.Relay" parent="android:Theme.Material.NoActionBar">
         <item name="android:windowBackground">@color/relay_background</item>
     </style>
-    <color name="relay_background">#0A0A0A</color>
+    <color name="relay_background">#0D0D0D</color>
 </resources>

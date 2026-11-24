@@ -39,7 +39,7 @@ fun CrashScreen(crash: Crash, onHome: () -> Unit) {
     var copied by remember { mutableStateOf(false) }
     BackHandler(onBack = onHome)
     Box(
-        Modifier.fillMaxSize().background(RelayTheme.colors.background).windowInsetsPadding(WindowInsets.safeDrawing),
+        Modifier.fillMaxSize().background(RelayTheme.colors.surface).windowInsetsPadding(WindowInsets.safeDrawing),
         contentAlignment = Alignment.Center,
     ) {
         EmptyState(
