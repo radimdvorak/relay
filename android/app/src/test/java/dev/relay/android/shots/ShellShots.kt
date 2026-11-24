@@ -73,6 +73,9 @@ import androidx.core.graphics.Insets
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import dev.relay.android.ui.theme.colorsFromDesktop
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.swipeUp
+import dev.relay.android.ui.theme.RelayPaperDark
 import org.junit.Test
 import org.robolectric.RuntimeEnvironment
 import androidx.compose.runtime.remember
@@ -147,8 +150,8 @@ class ShellShots : ShotTest() {
                         showPair = bar,
                     )
                 },
-                dock = {
-                    HomeDock(tab, onTab, bar, threadsNews = tab != HomeTab.Threads, modifier = it, hasComposer = tab == HomeTab.Threads) { HomeComposer({}) }
+                dock = { dockModifier, onHeight ->
+                    HomeDock(tab, onTab, bar, threadsNews = tab != HomeTab.Threads, onHeight = onHeight, modifier = dockModifier, hasComposer = tab == HomeTab.Threads) { HomeComposer({}) }
                 },
             ) { shown, bottom ->
                 when {
@@ -223,6 +226,17 @@ class ShellShots : ShotTest() {
         Shot("shell-desk-drawer") { Desk { Opened { Drawer() } } }
         Shot("shell-desk-search") { Desk { Search("plan") } }
         Shot("shell-desk-wide", ShotDevice.FoldInner) { Desk { Wide() } }
+    }
+
+    /** The long list in the middle and at its end: nothing shows through the dock, the last row clears it. */
+    @Test
+    fun scrolled() {
+        val up = { compose.onRoot().performTouchInput { swipeUp(durationMillis = 400) } }
+        for ((name, palette) in listOf("light" to RelayPaperLight, "dark" to RelayPaperDark, "desk" to desktopDark)) {
+            for (end in listOf(false, true)) Shot("shell-scrolled-$name-${if (end) "end" else "middle"}", act = { if (end) repeat(4) { up() } else compose.onRoot().performTouchInput { swipeUp(startY = 1900f, endY = 1400f, durationMillis = 400) } }) {
+                RelayTheme(palette) { Box(Modifier.fillMaxSize().background(RelayTheme.colors.surface)) { Home(HomeTab.Threads) } }
+            }
+        }
     }
 
     @Composable
