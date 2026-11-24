@@ -6,6 +6,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.key
+import androidx.compose.runtime.snapshots.Snapshot
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onRoot
@@ -59,10 +61,15 @@ abstract class ShotTest {
         // Spinners and shimmers never settle, so the clock only moves when told to.
         compose.mainClock.autoAdvance = false
         compose.activity.setContent {
-            RelayTheme(if (dark) RelayPaperDark else RelayPaperLight) {
-                Box(Modifier.fillMaxSize().background(RelayTheme.colors.surface)) { content() }
+            // Shots in one test share the activity's composition; a fresh key keeps one's state out of the next.
+            key(name, device, dark) {
+                RelayTheme(if (dark) RelayPaperDark else RelayPaperLight) {
+                    Box(Modifier.fillMaxSize().background(RelayTheme.colors.surface)) { content() }
+                }
             }
         }
+        // A second setContent in the same activity only lands once its state write is applied.
+        Snapshot.sendApplyNotifications()
         compose.mainClock.advanceTimeBy(100)
         act()
         // Long enough for entrances and fades to finish.
