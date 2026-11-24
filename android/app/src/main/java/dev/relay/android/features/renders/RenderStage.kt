@@ -4,10 +4,8 @@ import android.webkit.WebView
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.windowInsetsPadding
@@ -34,15 +32,18 @@ import androidx.compose.ui.window.DialogWindowProvider
 import androidx.core.view.WindowCompat
 import dev.relay.android.remote.Remote
 import dev.relay.android.remote.model.HtmlRender
-import dev.relay.android.ui.Divider
-import dev.relay.android.ui.IconButton
 import dev.relay.android.ui.LocalPaneToggle
 import dev.relay.android.ui.Text
-import dev.relay.android.ui.TopBar
 import dev.relay.android.ui.rememberInFront
 import dev.relay.android.ui.theme.RelayTheme
 import io.github.lyxnx.compose.ui.tablericons.TablerIcons
 import io.github.lyxnx.compose.ui.tablericons.outline.X
+import dev.relay.android.ui.ChromeScreen
+import dev.relay.android.ui.ChromeHeader
+import dev.relay.android.ui.CircleButton
+import dev.relay.android.ui.CircleTone
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.only
 
 /**
  * A show_html page over the whole screen, as the desktop's Expand: at its real
@@ -66,15 +67,18 @@ internal fun RenderStage(
         val c = RelayTheme.colors
         SystemBars(c.isDark)
         CompositionLocalProvider(LocalPaneToggle provides null) {
-            Column(Modifier.fillMaxSize().background(c.background).windowInsetsPadding(WindowInsets.safeDrawing)) {
-                TopBar(render.title, actions = { IconButton(TablerIcons.Outline.X, "Close", onClose) })
+            ChromeScreen(header = {
+                ChromeHeader(title = render.title, leading = { CircleButton(TablerIcons.Outline.X, "Close", onClose, tone = CircleTone.Raised) })
                 if (render.pages.size > 1) Variants(
                     render, index, onIndex,
-                    Modifier.horizontalScroll(rememberScrollState()).padding(start = 16.dp, end = 16.dp, bottom = 12.dp),
-                    style = RelayTheme.type.sm,
+                    Modifier.horizontalScroll(rememberScrollState()).padding(start = 24.dp, end = 24.dp, bottom = 12.dp),
                 )
-                Divider()
-                Box(Modifier.weight(1f).fillMaxWidth()) {
+            }) {
+                // The page scrolls itself, and starts clear of the sheet's round corners.
+                Box(
+                    Modifier.fillMaxSize().padding(top = 8.dp)
+                        .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom)),
+                ) {
                     key(index) { StagePage(remote, chatId, render, index, onCompose) }
                 }
             }
@@ -114,7 +118,7 @@ private fun StagePage(remote: Remote, chatId: String, render: HtmlRender, index:
     val holder = remember { arrayOfNulls<WebView>(1) }
     if (page == null || failed) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text(if (loaded.failed || failed) "This page couldn't be loaded." else "Loading page…", color = c.mutedForeground)
+            Text(if (loaded.failed || failed) "This page couldn't be loaded." else "Loading page…", style = RelayTheme.type.meta, color = c.inkSoft)
         }
         return
     }

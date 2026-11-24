@@ -108,7 +108,7 @@ private fun TextView.applyStyle(key: StyleKey, density: Density) {
     typeface = Fonts.weighted(Fonts.inter(context), weight)
     setTextSize(TypedValue.COMPLEX_UNIT_SP, style.fontSize.value)
     if (style.lineHeight.isSp) lineHeight = with(density) { style.lineHeight.toPx() }.roundToInt()
-    setTextColor((if (style.color.isUnspecified) c.foreground else style.color).toArgb())
+    setTextColor((if (style.color.isUnspecified) c.ink else style.color).toArgb())
     highlightColor = c.accent.copy(alpha = 0.3f).toArgb()
     for (handle in listOfNotNull(textSelectHandle, textSelectHandleLeft, textSelectHandleRight)) handle.mutate().setTint(c.accent.toArgb())
     textSelectHandle?.let(::setTextSelectHandle)
@@ -171,15 +171,15 @@ private fun SpannableStringBuilder.appendInlines(inlines: List<MdInline>, ctx: M
         is MdInline.Del -> span(StrikethroughSpan()) { appendInlines(inline.children, ctx, c, code, strong, inLink) }
         is MdInline.Math -> {
             val plain = texToPlain(inline.tex)
-            if (plain == null) span(code.copy(), ForegroundColorSpan(c.mutedForeground.toArgb())) { append(inline.tex) }
+            if (plain == null) span(code.copy(), ForegroundColorSpan(c.inkSoft.toArgb())) { append(inline.tex) }
             else span(TypefaceSpan(Typeface.SERIF), StyleSpan(Typeface.ITALIC)) { append(plain) }
         }
         is MdInline.Code -> {
             val open = if (inLink) null else ctx.code(inline.code)
             val marks = listOfNotNull<Any>(
                 code.copy(),
-                BackgroundColorSpan(c.code.toArgb()),
-                ForegroundColorSpan((if (open != null) c.accent else c.foreground).toArgb()),
+                BackgroundColorSpan(c.container.toArgb()),
+                ForegroundColorSpan((if (open != null) c.accent else c.ink).toArgb()),
                 open?.let { Click(it, null) },
             )
             span(*marks.toTypedArray()) { append(inline.code) }

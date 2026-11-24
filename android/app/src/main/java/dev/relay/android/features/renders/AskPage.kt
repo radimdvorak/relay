@@ -16,7 +16,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import dev.relay.android.remote.Remote
 import dev.relay.android.remote.model.HtmlRender
 import dev.relay.android.ui.Button
@@ -59,8 +58,8 @@ fun ColumnScope.AskPage(
         } else {
             Text(
                 if (loaded.failed) "The page didn't load. Answer it on the computer." else "Loading the page…",
-                style = RelayTheme.type.xs.copy(fontSize = 12.sp, lineHeight = 17.sp),
-                color = c.mutedForeground,
+                style = RelayTheme.type.meta,
+                color = c.inkSoft,
             )
         }
     }
@@ -68,7 +67,7 @@ fun ColumnScope.AskPage(
         Modifier.fillMaxWidth().padding(top = 12.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp, androidx.compose.ui.Alignment.End),
     ) {
-        Button("Skip", { onAnswer(null) }, variant = ButtonVariant.Outline, enabled = !busy)
+        Button("Skip", { onAnswer(null) }, variant = ButtonVariant.Secondary, enabled = !busy)
         Button("Send answer", { answer?.let(onAnswer) }, enabled = !busy && answer != null)
     }
 }
