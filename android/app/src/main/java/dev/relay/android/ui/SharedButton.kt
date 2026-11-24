@@ -16,6 +16,7 @@ import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.graphics.Shape
 
 /** The layout every screen's shared elements meet in, or null where nothing travels. */
 @OptIn(ExperimentalSharedTransitionApi::class)
@@ -47,6 +48,34 @@ fun Modifier.sharedButton(key: Any): Modifier {
             exit = fadeOut(tween(160)),
             boundsTransform = flight,
             resizeMode = SharedTransitionScope.ResizeMode.scaleToBounds(),
+        )
+    }
+}
+
+/** No bounce: a box this wide overshooting its edges reads as a jolt. */
+private val growth = BoundsTransform { _: Rect, _: Rect ->
+    spring(stiffness = 500f, visibilityThreshold = Rect.VisibilityThreshold)
+}
+
+/**
+ * A box that grows into a bigger one on the next screen (Home's pill into the new thread's
+ * composer), laid out at every size on the way. Put it on both with the same [key], and give both
+ * the same fill; [shape] clips them while they travel.
+ */
+@Composable
+fun Modifier.sharedBox(key: Any, shape: Shape): Modifier {
+    val shared = LocalSharedTransitions.current ?: return this
+    val screen = LocalScreenAnimation.current ?: return this
+    return with(shared) {
+        this@sharedBox.sharedBounds(
+            rememberSharedContentState(key),
+            screen,
+            // The old one stays until the new one covers it, so what both draw doesn't dip on the way.
+            enter = fadeIn(tween(140)),
+            exit = fadeOut(tween(60, delayMillis = 120)),
+            boundsTransform = growth,
+            resizeMode = SharedTransitionScope.ResizeMode.RemeasureToBounds,
+            clipInOverlayDuringTransition = OverlayClip(shape),
         )
     }
 }
