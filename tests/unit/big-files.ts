@@ -22,7 +22,7 @@ export const bigFiles: Record<string, number> = {
   "electron/triage/service.ts": 561,
   "shared/open-vsx.ts": 536,
   "shared/remote-client.ts": 776,
-  "shared/types.ts": 882,
+  "shared/types.ts": 852,
   "src/features/add-project/AddProjectPalette.tsx": 579,
   "src/features/agents/ComposerModelPicker.tsx": 511,
   "src/features/agents/ContextWindowMeter.tsx": 575,
