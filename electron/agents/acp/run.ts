@@ -175,7 +175,7 @@ async function runAcpTurn(
     },
     () => turnAbort.signal.aborted,
   );
-  const { turn, calls, batches, hear } = events;
+  const { turn, calls, subagents, hear } = events;
   const steered = (id: string) => {
     turn.below();
     options.onSteered?.(id);
@@ -271,7 +271,7 @@ async function runAcpTurn(
     }
     throw error;
   } finally {
-    batches?.settle(signal.aborted || turnAbort.signal.aborted);
+    subagents?.settle(signal.aborted || turnAbort.signal.aborted);
     grace?.clear();
     signal.removeEventListener("abort", stop);
     // Answers whatever the agent still asks of a turn that's over, without cancelling it.

@@ -4,7 +4,7 @@ import { acpCatalog } from "./catalog";
 import type { AgentProvider, RegistryProvider } from "../../../shared/agents";
 import { runAccount } from "../accounts";
 import {
-  antigravityBatches,
+  antigravitySubagents,
   antigravityCredentialRevision,
 } from "../antigravity";
 import { acpProfiles, antigravityProfile, type AcpProfile } from "./profiles";
@@ -83,11 +83,11 @@ function profileRuntime(profile: AcpProfile): AgentRuntime {
   return {
     run: async (options) => runAcp(await selected(options.account), options),
     closeSession: (key) => {
-      if (profile.provider === "antigravity") antigravityBatches.drop(key);
+      if (profile.provider === "antigravity") antigravitySubagents.drop(key);
       return closeAcpSession(profile, key);
     },
     ...(profile.provider === "antigravity"
-      ? { subagents: (key: string) => antigravityBatches.get(key) }
+      ? { subagents: (key: string) => antigravitySubagents.get(key) }
       : {}),
     ...(profile.authMethod && {
       signIn: async () => {

@@ -179,6 +179,8 @@ const toolContentSchema = z.array(
 
 const toolCallFields = {
   toolCallId: z.string(),
+  /** The tool's own name, from agents that give it (Antigravity). */
+  name: text,
   title: text,
   kind: text,
   status: text,

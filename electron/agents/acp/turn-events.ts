@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import type { AskedQuestion } from "../../../shared/asked-questions";
 import type { AgentOptions } from "../types";
 import { answerLimitError, TurnText } from "../turn-kit";
-import { AntigravityBatches, antigravityBatches } from "../antigravity";
+import { AntigravitySubagents, antigravitySubagents } from "../antigravity";
 import { acpActivity, acpEdits, planText } from "./activity";
 import type { AcpProfile } from "./profiles";
 import { parseUpdate, type AcpToolCall } from "./protocol";
@@ -16,7 +16,7 @@ export class AcpTurnEvents {
     string,
     Partial<AcpToolCall> & { toolCallId: string }
   >();
-  readonly batches: AntigravityBatches | undefined;
+  readonly subagents: AntigravitySubagents | undefined;
   /** Calls that asked the user through a form, with the answers once they're in. */
   private asked = new Map<string, AskedQuestion[] | undefined>();
 
@@ -34,9 +34,9 @@ export class AcpTurnEvents {
       options.onCommentary,
       profile.provider,
     );
-    this.batches =
+    this.subagents =
       profile.provider === "antigravity" && key
-        ? new AntigravityBatches(antigravityBatches.open(key))
+        ? new AntigravitySubagents(antigravitySubagents.open(key))
         : undefined;
   }
 
@@ -124,7 +124,7 @@ export class AcpTurnEvents {
           ),
         } as Partial<AcpToolCall> & { toolCallId: string };
         this.calls.set(update.toolCallId, call);
-        this.batches?.update(call);
+        this.subagents?.update(call);
         if (!known) this.turn.toCommentary();
         this.show(call);
         const edits = acpEdits(call);

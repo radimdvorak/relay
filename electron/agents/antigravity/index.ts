@@ -14,7 +14,7 @@ export {
   antigravityCredentialRevision,
 } from "./account";
 export { antigravityQuestion, answerAntigravityQuestion } from "./questions";
-export { AntigravityBatches, antigravityBatches } from "./subagents";
+export { AntigravitySubagents, antigravitySubagents } from "./subagents";
 export { antigravityHelper } from "./helper";
 export { readAntigravityUsage } from "./usage";
 export { compactAntigravity, compactPrompt } from "./compact";

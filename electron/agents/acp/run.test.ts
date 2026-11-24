@@ -7,7 +7,7 @@ import type { AcpProfile } from "./profiles";
 import { outputTokens, runAcp } from "./run";
 import { disposeAcp, acquireAcpAgent } from "./sessions";
 import { readOnlyGitEnv } from "../read-only-git";
-import { antigravityBatches } from "../antigravity";
+import { antigravitySubagents } from "../antigravity";
 import { signInAcp } from "./sign-in";
 
 const fixture = join(__dirname, "../../../tests/fixtures/acp-agent.cjs");
@@ -224,48 +224,52 @@ it("updates the live planning checklist, and leaves execution checklists out of 
   expect(onPlan).not.toHaveBeenCalled();
 });
 
-it("tracks native subagent batches without claiming the children succeeded or allowing individual cancellation", async () => {
+it("tracks the subagents Antigravity starts, without claiming they succeeded or can be stopped", async () => {
+  const start = (toolCallId: string, name: string) => ({
+    update: {
+      sessionUpdate: "tool_call",
+      toolCallId,
+      name,
+      title: `Run ${name}`,
+      kind: "other",
+      status: "in_progress",
+      rawInput: {
+        Prompt: "Reply with the word RED.",
+        Role: "Red Reporter",
+        TypeName: "self",
+      },
+    },
+  });
   const { acp, root } = await agent({
     turn: [
-      {
-        update: {
-          sessionUpdate: "tool_call",
-          toolCallId: "batch",
-          title: "Running start_subagent",
-          kind: "other",
-          status: "in_progress",
-        },
-      },
+      start("red", "invoke_subagent"),
       {
         update: {
           sessionUpdate: "tool_call_update",
-          toolCallId: "batch",
+          toolCallId: "red",
+          name: "invoke_subagent",
           status: "completed",
-          rawOutput: "Started two agents.",
         },
       },
-      {
-        update: {
-          sessionUpdate: "tool_call",
-          toolCallId: "mcp",
-          title: "Running start_subagent",
-          kind: "other",
-          _meta: { is_mcp_tool_call: true },
-        },
-      },
+      start("mcp", "mcp_relay_invoke_subagent"),
     ],
   });
   await runAcp(
     acp,
-    options(root, { session: { key: "batches", onId: async () => {} } }),
+    options(root, { session: { key: "subagents", onId: async () => {} } }),
   );
-  const source = antigravityBatches.get("batches")!;
+  const source = antigravitySubagents.get("subagents")!;
   expect(source.list()).toEqual([
-    expect.objectContaining({ id: "batch", status: "idle", canStop: false }),
+    expect.objectContaining({
+      id: "red",
+      description: "Red Reporter",
+      status: "idle",
+      canStop: false,
+    }),
   ]);
-  expect(source.detail("batch")?.report).toBe("Started two agents.");
-  await expect(source.stop("batch")).rejects.toThrow();
-  antigravityBatches.drop("batches");
+  expect(source.detail("red")?.brief).toBe("Reply with the word RED.");
+  await expect(source.stop("red")).rejects.toThrow();
+  antigravitySubagents.drop("subagents");
 });
 
 it("keeps text-only helper jobs out of the project and refuses attempted tools", async () => {
