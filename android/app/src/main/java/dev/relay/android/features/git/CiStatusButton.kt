@@ -1,10 +1,7 @@
 package dev.relay.android.features.git
 
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -12,20 +9,22 @@ import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import dev.relay.android.remote.Remote
 import dev.relay.android.remote.client.projectCiStatus
+import dev.relay.android.remote.model.CiRun
 import dev.relay.android.remote.model.CiStatus
-import dev.relay.android.ui.ButtonVariant
+import dev.relay.android.ui.CircleSize
+import dev.relay.android.ui.CircleSurface
+import dev.relay.android.ui.CircleTone
+import dev.relay.android.ui.Group
 import dev.relay.android.ui.Icon
-import dev.relay.android.ui.IconButton
+import dev.relay.android.ui.ListRow
 import dev.relay.android.ui.Sheet
 import dev.relay.android.ui.Text
-import dev.relay.android.ui.pressable
 import dev.relay.android.ui.theme.RelayTheme
 import io.github.lyxnx.compose.ui.tablericons.TablerIcons
 import io.github.lyxnx.compose.ui.tablericons.outline.CircleCheck
@@ -39,14 +38,15 @@ private val ciLabels = mapOf("success" to "CI passed", "failure" to "CI failed",
 
 fun ciLabel(state: String) = ciLabels[state] ?: "CI $state"
 
+/** CI's overall mark: still, not spinning, so a header or a list of them stays calm while an agent works. */
 @Composable
-private fun Mark(state: String, size: Dp = 20.dp) {
+fun CiMark(state: String, size: Dp = 16.dp, contentDescription: String? = ciLabel(state)) {
     val c = RelayTheme.colors
     when (state) {
-        "success" -> Icon(TablerIcons.Outline.CircleCheck, null, tint = c.additionText, size = size)
-        "failure" -> Icon(TablerIcons.Outline.CircleX, null, tint = c.destructive, size = size)
-        // Still, not spinning: the header stays calm while an agent works.
-        else -> Icon(TablerIcons.Outline.CircleDashed, null, tint = if (state == "running") c.accent else c.mutedForeground, size = size)
+        "success" -> Icon(TablerIcons.Outline.CircleCheck, contentDescription, tint = c.success, size = size)
+        "failure" -> Icon(TablerIcons.Outline.CircleX, contentDescription, tint = c.danger, size = size)
+        "running" -> Icon(TablerIcons.Outline.CircleDashed, contentDescription, tint = c.waiting, size = size)
+        else -> Icon(TablerIcons.Outline.CircleDashed, contentDescription, tint = c.inkFaint, size = size)
     }
 }
 
@@ -58,7 +58,6 @@ private fun Mark(state: String, size: Dp = 20.dp) {
  */
 @Composable
 fun CiStatusButton(remote: Remote, projectId: String, chatId: String, running: Boolean = false) {
-    val c = RelayTheme.colors
     var ci by remember { mutableStateOf<CiStatus?>(null) }
     var open by remember { mutableStateOf(false) }
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
@@ -88,48 +87,43 @@ fun CiStatusButton(remote: Remote, projectId: String, chatId: String, running: B
     val status = ci ?: return
     val summary = ciSummary(status.runs) ?: return
     val uri = LocalUriHandler.current
-    IconButton(
-        when (summary.state) {
-            "success" -> TablerIcons.Outline.CircleCheck
-            "failure" -> TablerIcons.Outline.CircleX
-            else -> TablerIcons.Outline.CircleDashed
-        },
-        "${ciLabel(summary.state)} on ${status.branch}",
+    CircleSurface(
         { open = true },
-        variant = ButtonVariant.Ghost,
-        tint = when (summary.state) {
-            "success" -> c.additionText
-            "failure" -> c.destructive
-            "running" -> c.accent
-            else -> c.mutedForeground
-        },
+        "${ciLabel(summary.state)} on ${status.branch}",
+        Modifier.size(CircleSize.Header.diameter),
+        RelayTheme.shapes.circle,
+        CircleTone.Raised,
+        enabled = true,
+        haptic = null,
+    ) { CiMark(summary.state, CircleSize.Header.icon, contentDescription = null) }
+    if (open) Sheet({ open = false }, title = "CI", description = "On ${status.branch}") {
+        CiRuns(status, now) { runCatching { uri.openUri(it.url) } }
+    }
+}
+
+/** The commit CI looked at and each of its runs; a tap opens the run on the host. */
+@Suppress("UnusedReceiverParameter")
+@Composable
+internal fun ColumnScope.CiRuns(status: CiStatus, now: Long, onOpen: (CiRun) -> Unit) {
+    val c = RelayTheme.colors
+    status.commit.message?.takeIf { it.isNotEmpty() }?.let {
+        Text("${status.commit.sha.take(7)} · ${it.lineSequence().first()}", style = RelayTheme.type.meta, color = c.inkSoft, maxLines = 2)
+    }
+    if (status.ahead > 0) Text(
+        (if (status.ahead == 1) "1 newer commit hasn’t" else "${status.ahead} newer commits haven’t") + " run yet.",
+        style = RelayTheme.type.meta,
+        color = c.inkSoft,
     )
-    if (open) Sheet({ open = false }, title = "CI on ${status.branch}") {
-        status.commit.message?.takeIf { it.isNotEmpty() }?.let {
-            Text("${status.commit.sha.take(7)} · ${it.lineSequence().first()}", color = c.mutedForeground, maxLines = 2)
-        }
-        if (status.ahead > 0) Text(
-            (if (status.ahead == 1) "1 newer commit hasn’t" else "${status.ahead} newer commits haven’t") + " run yet.",
-            color = c.mutedForeground,
-        )
-        Column {
-            for (run in status.runs) Row(
-                Modifier.fillMaxWidth().heightIn(min = 52.dp).pressable({ runCatching { uri.openUri(run.url) } }, scale = false),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                Mark(run.state, 17.dp)
-                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text(run.workflow, style = RelayTheme.type.base, maxLines = 1)
-                    Text(
-                        (run.failedJob?.let { "$it failed · " } ?: "") + shortAge(run.at, now),
-                        style = RelayTheme.type.xs,
-                        color = c.mutedForeground,
-                        maxLines = 1,
-                    )
-                }
-                Icon(TablerIcons.Outline.ExternalLink, "Open ${run.workflow}", tint = c.mutedForeground, size = 15.dp)
-            }
+    Group {
+        for (run in status.runs) item {
+            ListRow(
+                run.workflow,
+                subtitle = (run.failedJob?.let { "$it failed · " } ?: "") + shortAge(run.at, now),
+                subtitleLines = 1,
+                leading = { CiMark(run.state, 20.dp) },
+                trailing = { Icon(TablerIcons.Outline.ExternalLink, "Open ${run.workflow}", tint = c.inkFaint, size = 16.dp) },
+                onClick = { onOpen(run) },
+            )
         }
     }
 }

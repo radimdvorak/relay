@@ -1,17 +1,12 @@
 package dev.relay.android.features.git
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.IntrinsicSize
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.background
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -19,7 +14,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
@@ -34,16 +28,19 @@ import dev.relay.android.remote.model.MergeBranch
 import dev.relay.android.remote.model.MergePlan
 import dev.relay.android.remote.model.MergeResult
 import dev.relay.android.ui.Button
+import dev.relay.android.ui.ButtonSize
 import dev.relay.android.ui.ButtonVariant
+import dev.relay.android.ui.Group
 import dev.relay.android.ui.Icon
+import dev.relay.android.ui.ListRow
+import dev.relay.android.ui.RowSize
 import dev.relay.android.ui.Sheet
-import dev.relay.android.ui.Spinner
 import dev.relay.android.ui.Switch
 import dev.relay.android.ui.Text
-import dev.relay.android.ui.pressable
 import dev.relay.android.ui.theme.RelayTheme
 import io.github.lyxnx.compose.ui.tablericons.TablerIcons
 import io.github.lyxnx.compose.ui.tablericons.outline.Check
+import io.github.lyxnx.compose.ui.tablericons.outline.GitMerge
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
@@ -69,7 +66,6 @@ fun MergeSheet(
     onMerged: () -> Unit,
     onAskAgent: suspend (String) -> Unit,
 ) {
-    val c = RelayTheme.colors
     val scope = rememberCoroutineScope()
     var base by remember { mutableStateOf<String?>(null) }
     var plan by remember { mutableStateOf<MergePlan?>(null) }
@@ -102,7 +98,7 @@ fun MergeSheet(
             }
         }
     }
-    val code = SpanStyle(fontFamily = RelayTheme.type.mono.fontFamily)
+    val code = SpanStyle(fontFamily = RelayTheme.type.code.fontFamily)
     val done = result
 
     Sheet(close, title = if (done?.merged == true) "Merged into ${done.base}" else "Merge branch") {
@@ -120,15 +116,13 @@ fun MergeSheet(
                     }
                     append(".")
                 })
-                Button("Done", close, Modifier.fillMaxWidth())
+                Button("Done", close, Modifier.fillMaxWidth(), size = ButtonSize.Lg)
             }
             now == null && error != null -> {
                 Note(error!!)
-                Button("Try again", { error = null; attempt++ }, Modifier.fillMaxWidth(), variant = ButtonVariant.Outline)
+                Button("Try again", { error = null; attempt++ }, Modifier.fillMaxWidth(), variant = ButtonVariant.Secondary, size = ButtonSize.Lg)
             }
-            now == null -> Box(Modifier.fillMaxWidth().padding(vertical = 24.dp), contentAlignment = Alignment.Center) {
-                Spinner(color = c.mutedForeground)
-            }
+            now == null -> Loading(Modifier.height(140.dp))
             else -> PlanBody(
                 now, done, push, busy, error,
                 onBase = { name ->
@@ -158,8 +152,9 @@ fun MergeSheet(
     }
 }
 
+@Suppress("UnusedReceiverParameter")
 @Composable
-private fun PlanBody(
+internal fun ColumnScope.PlanBody(
     plan: MergePlan,
     result: MergeResult?,
     push: Boolean,
@@ -171,51 +166,35 @@ private fun PlanBody(
     onMerge: () -> Unit,
 ) {
     val c = RelayTheme.colors
-    val code = SpanStyle(fontFamily = RelayTheme.type.mono.fontFamily)
+    val code = SpanStyle(fontFamily = RelayTheme.type.code.fontFamily)
     val commits = plan.commits.size
     val pushing = push && plan.pushTarget != null
+    val conflicted = result != null && !result.merged
     Rich(buildAnnotatedString {
         withStyle(code) { append(plan.branch) }
         append(" into ")
         withStyle(code) { append(plan.base) }
     })
-    if (plan.bases.size > 1) Column {
-        for (name in plan.bases.take(5)) Row(
-            Modifier.fillMaxWidth().heightIn(min = 40.dp).pressable({ onBase(name) }, enabled = !busy, scale = false),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            Box(Modifier.width(18.dp), contentAlignment = Alignment.Center) {
-                if (name == plan.base) Icon(TablerIcons.Outline.Check, "Picked", tint = c.accent)
-            }
-            Text(name, style = RelayTheme.type.mono)
-        }
-    }
-    if (commits > 0) Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Note("${if (commits == 50) "Latest 50" else commits} ${if (commits == 1) "commit" else "commits"} · ${if (plan.fastForward) "fast-forward" else "creates a merge commit"}")
-        for (commit in plan.commits.take(LISTED)) {
-            androidx.compose.material3.Text(
-                buildAnnotatedString {
-                    withStyle(code.merge(SpanStyle(color = c.mutedForeground))) { append(commit.sha.take(7)) }
-                    append(" ")
-                    append(commit.subject)
-                },
-                style = RelayTheme.type.sm.copy(color = c.foreground),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
+    if (plan.bases.size > 1) Group {
+        for (name in plan.bases.take(5)) item {
+            ListRow(
+                name,
+                size = RowSize.Sm,
+                trailing = { if (name == plan.base) Icon(TablerIcons.Outline.Check, "Picked", tint = c.ink, size = 20.dp) },
+                onClick = if (busy) null else ({ onBase(name) }),
             )
         }
-        if (commits > LISTED) Note("and ${commits - LISTED} more")
-    } else Note("${plan.base} already has everything on ${plan.branch}.")
-    if (plan.pushTarget != null) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        Rich(
-            buildAnnotatedString {
-                append("Push ${plan.base} to ")
-                withStyle(code) { append(plan.pushTarget) }
-            },
-            Modifier.weight(1f),
-        )
-        Switch(push, onPush, enabled = !busy)
+    }
+    if (commits > 0) PlannedCommits(plan) else Note("${plan.base} already has everything on ${plan.branch}.")
+    if (plan.pushTarget != null) Group {
+        item {
+            ListRow(
+                "Push ${plan.base}",
+                subtitle = "To ${plan.pushTarget}",
+                subtitleLines = 1,
+                trailing = { Switch(push, onPush, enabled = !busy) },
+            )
+        }
     }
     if (plan.uncommitted > 0) {
         val one = plan.uncommitted == 1
@@ -227,29 +206,64 @@ private fun PlanBody(
     if (plan.snapshots > 0) {
         Note("Includes ${if (plan.snapshots == 1) "a commit" else "${plan.snapshots} commits"} Relay made of the checkout’s uncommitted edits when this worktree started; merging lands those edits too.")
     }
-    if (result != null && !result.merged) Row(Modifier.height(IntrinsicSize.Min)) {
-        Box(Modifier.width(2.dp).fillMaxHeight().background(c.destructive))
-        Column(Modifier.padding(start = 12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text("These files conflict, so nothing was merged:")
-            for (path in result.conflicts) Text(path, style = RelayTheme.type.mono, maxLines = 1)
-            Button("Ask the agent to resolve them", onAsk, Modifier.fillMaxWidth(), variant = ButtonVariant.Outline, enabled = !busy)
-        }
-    }
-    if (error != null) Text(error, color = c.destructive)
+    if (conflicted) Conflicts(result.conflicts, busy, onAsk)
+    if (error != null) Text(error, style = RelayTheme.type.meta, color = c.danger)
     Button(
-        if (busy) "Merging…" else if (pushing) "Merge & push ${plan.base}" else "Merge into ${plan.base}",
+        when {
+            busy -> "Merging…"
+            pushing -> "Merge & push ${plan.base}"
+            else -> "Merge into ${plan.base}"
+        },
         onMerge,
         Modifier.fillMaxWidth(),
-        enabled = !busy && commits > 0 && !(result != null && !result.merged),
+        size = ButtonSize.Lg,
+        leadingIcon = TablerIcons.Outline.GitMerge,
+        loading = busy,
+        enabled = commits > 0 && !conflicted,
     )
 }
 
 @Composable
-private fun Note(text: String) {
-    Text(text, color = RelayTheme.colors.mutedForeground)
+private fun PlannedCommits(plan: MergePlan) {
+    val c = RelayTheme.colors
+    val commits = plan.commits.size
+    val code = SpanStyle(fontFamily = RelayTheme.type.code.fontFamily, color = c.inkSoft)
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Note("${if (commits == 50) "Latest 50" else commits} ${if (commits == 1) "commit" else "commits"} · ${if (plan.fastForward) "fast-forward" else "creates a merge commit"}")
+        for (commit in plan.commits.take(LISTED)) androidx.compose.material3.Text(
+            buildAnnotatedString {
+                withStyle(code) { append(commit.sha.take(7)) }
+                append("  ")
+                append(commit.subject)
+            },
+            style = RelayTheme.type.meta.copy(color = c.ink),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        if (commits > LISTED) Note("and ${commits - LISTED} more")
+    }
+}
+
+/** What stopped the merge, with the way out. */
+@Composable
+private fun Conflicts(paths: List<String>, busy: Boolean, onAsk: () -> Unit) {
+    val c = RelayTheme.colors
+    Column(
+        Modifier.fillMaxWidth().background(c.container, RelayTheme.shapes.card).padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Text("These files conflict, so nothing was merged:", style = RelayTheme.type.meta, color = c.danger)
+        for (path in paths) Text(path, style = RelayTheme.type.code, maxLines = 1, overflow = TextOverflow.StartEllipsis)
+        Button("Ask the agent to resolve them", onAsk, Modifier.fillMaxWidth(), variant = ButtonVariant.Secondary, enabled = !busy)
+    }
 }
 
 @Composable
-private fun Rich(text: AnnotatedString, modifier: Modifier = Modifier) {
-    androidx.compose.material3.Text(text, modifier, style = RelayTheme.type.base.copy(color = RelayTheme.colors.foreground))
+private fun Note(text: String) {
+    Text(text, style = RelayTheme.type.meta, color = RelayTheme.colors.inkSoft)
+}
+
+@Composable
+private fun Rich(text: AnnotatedString) {
+    androidx.compose.material3.Text(text, style = RelayTheme.type.body.copy(color = RelayTheme.colors.ink))
 }
