@@ -4,13 +4,10 @@ package dev.relay.android.features.thread
 // (mobile/src/screens/Thread.tsx): newest at the bottom, the strips and the
 // composer under it.
 
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.border
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -28,7 +25,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.layout.onSizeChanged
@@ -41,8 +37,6 @@ import dev.relay.android.features.thread.scroll.StableGeometryState
 import dev.relay.android.features.thread.scroll.stableGeometry
 import dev.relay.android.ui.LocalToasts
 import dev.relay.android.ui.dismissKeyboardOnTap
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -87,17 +81,22 @@ import dev.relay.android.remote.model.RemoteChat
 import dev.relay.android.remote.model.RemoteQueued
 import dev.relay.android.ui.Button
 import dev.relay.android.ui.ConfirmDialog
-import dev.relay.android.ui.Icon
-import dev.relay.android.ui.IconButton
-import dev.relay.android.ui.Screen
-import dev.relay.android.ui.Spinner
-import dev.relay.android.ui.Text
 import dev.relay.android.ui.pressable
 import dev.relay.android.ui.rememberInFront
 import dev.relay.android.ui.theme.RelayTheme
 import io.github.lyxnx.compose.ui.tablericons.TablerIcons
-import io.github.lyxnx.compose.ui.tablericons.outline.ArrowBackUp
-import io.github.lyxnx.compose.ui.tablericons.outline.Dots
+import dev.relay.android.features.composer.ComposerLine
+import dev.relay.android.remote.model.RemoteProject
+import dev.relay.android.remote.model.RemoteChatSummary
+import dev.relay.android.ui.CirclePair
+import dev.relay.android.ui.CircleAction
+import dev.relay.android.ui.ButtonSize
+import dev.relay.android.ui.ButtonVariant
+import dev.relay.android.features.thread.logic.Clock
+import io.github.lyxnx.compose.ui.tablericons.outline.DotsVertical
+import io.github.lyxnx.compose.ui.tablericons.outline.Edit
+import io.github.lyxnx.compose.ui.tablericons.outline.PlayerPlay
+import androidx.compose.foundation.layout.height
 
 /** An agent's answer, not one of the notes Relay itself writes into the thread. */
 private fun isAnswer(m: ChatMessage) =
@@ -114,14 +113,16 @@ fun ThreadScreen(
     locked: Boolean = false,
     /** Marks the thread read on this phone up to its `updated`, and puts away its notification. */
     onSeen: (id: String, updated: Long) -> Unit = { _, _ -> },
+    /** Opens the drawer, where the shell has one; without it the header has Back instead. */
+    onMenu: (() -> Unit)? = null,
 ) {
     val active by remote.active.collectAsState()
     // A handed-over thread keeps its id on another computer; none of the old screen's state follows it.
-    key(active, id, rootId) { ThreadBody(id, rootId, remote, locked, onSeen) }
+    key(active, id, rootId) { ThreadBody(id, rootId, remote, locked, onSeen, onMenu) }
 }
 
 @Composable
-private fun ThreadBody(id: String, rootId: String?, remote: Remote, locked: Boolean, onSeen: (String, Long) -> Unit) {
+private fun ThreadBody(id: String, rootId: String?, remote: Remote, locked: Boolean, onSeen: (String, Long) -> Unit, onMenu: (() -> Unit)?) {
     val context = LocalContext.current
     val activeComputer by remote.active.collectAsState()
     val measurements = rememberThreadMeasurements(id, rootId, activeComputer)
@@ -324,6 +325,7 @@ private fun ThreadBody(id: String, rootId: String?, remote: Remote, locked: Bool
         attempt({ failures.alert(it, "Couldn't take it back") }) { takeBack(handedBack.taken, handedBack.messageId) }
     }
 
+    val project = overview?.projects?.find { it.id == projectId }
     val title = if (rootId != null) "Replies" else t?.title ?: summary?.title ?: made?.title ?: ""
     val unfold = remember(scroll, scope) { ReaderUnfold { change -> scroll.unfold(scope); change() } }
     CompositionLocalProvider(LocalThreadRemote provides remote, LocalFailures provides failures, LocalReadingBack provides !pinned,
@@ -331,30 +333,36 @@ private fun ThreadBody(id: String, rootId: String?, remote: Remote, locked: Bool
         LocalTurnSteps provides remember<suspend (String) -> Boolean>(model, unfold) { { model.loadSteps(it, unfold) } },
         LocalUnfold provides unfold) {
         val line = composer.line
-        Screen(
-            title,
-            modifier = Modifier.scrollGeometry(trace, "screen"),
-            subtitle = line?.let { l -> listOfNotNull(l.model, l.contextPercent?.let { "$it% context" }, if (l.plan) "Plan" else null).joinToString(" · ") },
-            onBack = nav.backAction,
-            onTitleClick = if (line != null) composer::openSettings else null,
-            actions = {
+        ThreadChrome(modifier = Modifier.scrollGeometry(trace, "screen"), header = {
+            ThreadHeader(
+                title,
+                subtitle = if (rootId != null) t?.title ?: summary?.title else threadContext(project, t, summary, line),
+                // A side conversation and what's behind it are one step apart, never a drawer.
+                onMenu = onMenu.takeIf { rootId == null },
+                onBack = nav.backAction,
+                onTitle = if (line != null) composer::openSettings else null,
+            ) {
                 if (rootId == null) {
                     ThreadNotesButton(remote, id, summary?.notesMark, listed, composer::quote) { messageId ->
                         val at = rows.indexOfFirst { it.message.id == messageId }
                         if (at >= 0) scope.launch { scroll.show(rows[at].key) }
                     }
                     if (projectId != null) CiStatusButton(remote, projectId, id, running)
-                    IconButton(TablerIcons.Outline.Dots, "Thread actions", { sheet = Sheet.Thread }, enabled = where != null)
+                    CirclePair(
+                        CircleAction(TablerIcons.Outline.Edit, "New thread") { nav.push(newThreadIn(project)) },
+                        CircleAction(TablerIcons.Outline.DotsVertical, "Thread actions") { if (where != null) sheet = Sheet.Thread },
+                    )
                 }
-            },
-        ) {
+            }
+        }) {
             ThreadViewport(scroll, rowKeys,
                 ContentSignature(rowKeys.size, rowKeys.lastOrNull(), listed.lastOrNull()?.version ?: 0L,
                     listOf(running, canResume, t?.queue).hashCode()),
                 Modifier.weight(1f).fillMaxWidth().dismissKeyboardOnTap().scrollGeometry(trace, "scroll_view"),
                 restorationComplete = fetched > 0 || error != null || (!online && t != null),
                 historyResult = historyResult,
-                empty = if (t == null && listed.isEmpty()) ({ Empty(error, linkState, computerName(remote)) { scope.launchLoad(model) } }) else null,
+                empty = if (t == null && listed.isEmpty()) ({ NothingToRead(error, linkState, computerName(remote)) { scope.launchLoad(model) } }) else null,
+                dockModifier = Modifier.fadesThreadEnd(),
                 dock = {
                     Strips(t, summary, rootId, running, actions)
                     if (rootId == null) SubagentStrip(
@@ -368,9 +376,9 @@ private fun ThreadBody(id: String, rootId: String?, remote: Remote, locked: Bool
                     if (rootId == null && settled && !pressing) SettledStrip(summary?.settleWhenDone != null, actions::unsettle)
                     // The saved copy shows while a refresh fails: without this a question the agent asked since looks like none.
                     if (t != null && error != null && online) Row(
-                        Modifier.fillMaxWidth().pressable(onClick = { scope.launchLoad(model) }, scale = false).padding(horizontal = 12.dp, vertical = 8.dp),
+                        Modifier.fillMaxWidth().pressable(onClick = { scope.launchLoad(model) }, scale = false).padding(horizontal = DockInset + 4.dp, vertical = 8.dp),
                     ) {
-                        Hint("Couldn't refresh this thread, so it may be out of date. Tap to try again.", color = c.destructive)
+                        Hint("Couldn't refresh this thread, so it may be out of date. Tap to try again.", color = c.danger)
                     }
                     // Questions and approvals belong to the whole thread, replies included.
                     t?.requests?.firstOrNull()?.let { request ->
@@ -406,7 +414,7 @@ private fun ThreadBody(id: String, rootId: String?, remote: Remote, locked: Bool
                         } else null,
                     )
                     val planSettings = composer.settings
-                    if (planProvider != null && planSettings != null) Box(Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, bottom = 8.dp)) {
+                    if (planProvider != null && planSettings != null) Box(Modifier.fillMaxWidth().padding(start = DockInset, end = DockInset, bottom = 8.dp)) {
                         Button(
                             "Implement plan",
                             onClick = click@{
@@ -420,6 +428,7 @@ private fun ThreadBody(id: String, rootId: String?, remote: Remote, locked: Bool
                                 composer.setSettings(next)
                             },
                             modifier = Modifier.fillMaxWidth(),
+                            size = ButtonSize.Lg,
                         )
                     }
                     if (projectId != null) Composer(remote, id, composer, rootId = rootId, settingsUp = true,
@@ -427,17 +436,8 @@ private fun ThreadBody(id: String, rootId: String?, remote: Remote, locked: Bool
                 },
                 // Over the thread rather than in the header, so the title keeps the room (as on iOS).
                 overDock = {
-                    composer.usage?.let {
-                        // Padding on the rings' own modifier squeezed them sideways on the phone.
-                        Box(Modifier.padding(end = 16.dp, bottom = 10.dp)) {
-                            // Its own backing, or the rings read as a spinner on whatever scrolls under them.
-                            val c = RelayTheme.colors
-                            UsageRings(
-                                it.provider, it.usage, onClick = composer::openUsage,
-                                modifier = Modifier.background(c.popover, CircleShape).border(1.dp, c.border, CircleShape),
-                            )
-                        }
-                    }
+                    val usage = composer.usage
+                    ThreadFloating(scroll, usage?.let { { UsageRings(it.provider, it.usage, onClick = composer::openUsage) } })
                 },
             ) {
                 if (earlier != null) item("earlier") {
@@ -463,23 +463,21 @@ private fun ThreadBody(id: String, rootId: String?, remote: Remote, locked: Bool
                         val newest = listed.lastOrNull()
                         if (running && newest?.role == "user") AwaitingAnswer(composer.settings?.provider ?: t?.settings?.provider ?: "claude", newest.id)
                         if (canResume) Row(
-                            Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                            Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 16.dp),
                             horizontalArrangement = Arrangement.Center,
                         ) {
-                            Row(
-                                Modifier.pressable(onClick = { actions.resume(composer.settings ?: t?.settings, composer.confirmSwitch) }, scale = false).padding(10.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                            ) {
-                                Icon(TablerIcons.Outline.ArrowBackUp, null, size = 14.dp, tint = c.accent)
-                                Text("Resume answer", style = RelayTheme.type.sm.copy(fontWeight = FontWeight.SemiBold), color = c.accent)
-                            }
+                            Button(
+                                "Resume answer",
+                                { actions.resume(composer.settings ?: t?.settings, composer.confirmSwitch) },
+                                variant = ButtonVariant.Secondary, size = ButtonSize.Sm, leadingIcon = TablerIcons.Outline.PlayerPlay,
+                            )
                         }
                         if (rootId == null && t != null) Queue(t, running, actions, ::editQueued)
                     }
                 }
                 item("bottom") {
-                    Box(Modifier.heightIn(min = 1.dp).onSizeChanged { measurements.size("bottom", it) })
+                    // Room for the fade over the thread's end, so it never dims the last line.
+                    Box(Modifier.height(10.dp).onSizeChanged { measurements.size("bottom", it) })
                 }
             }
 
@@ -508,6 +506,8 @@ private fun ThreadBody(id: String, rootId: String?, remote: Remote, locked: Bool
                         onArchive = { sheet = Sheet.Archive },
                         onSites = if (bridge >= Bridge.TUNNEL) ({ nav.push(Route.Browser()) }) else null,
                         onSwitchBranch = branchSwitch(bridge, summary, t)?.let { r -> { nav.push(r) } },
+                        onSettings = if (line != null) composer::openSettings else null,
+                        settingsLine = line?.let(::settingsLine),
                         onKeepScroll = {
                             trace.event("manual_incident_requested")
                             scope.launch {
@@ -559,6 +559,7 @@ private fun ThreadBody(id: String, rootId: String?, remote: Remote, locked: Bool
                     onSecondOpinion = if (rootId == null && bridge >= Bridge.SECOND_OPINION) ({ opinionOn = m }) else null,
                 ),
                 onClose = { acting = null },
+                description = turnInfo(m, Clock().sentLabel(m.ended ?: m.created, System.currentTimeMillis())),
             )
         }
         opinionOn?.let { m -> SecondOpinionSheet(remote, m.provider, { provider, model -> opinions.ask(m.id, provider, model) }) { opinionOn = null } }
@@ -567,79 +568,34 @@ private fun ThreadBody(id: String, rootId: String?, remote: Remote, locked: Bool
     }
 }
 
+/** Under the thread's name: the project and branch it works in, and what's worth knowing before the next message. */
+private fun threadContext(project: RemoteProject?, t: RemoteChat?, summary: RemoteChatSummary?, line: ComposerLine?): String = listOfNotNull(
+    "Plan".takeIf { line?.plan == true },
+    line?.contextPercent?.takeIf { it >= NEARLY_FULL }?.let { "$it% context" },
+    project?.name?.takeIf { project.scratch != true },
+    t?.worktree?.branch ?: summary?.branch,
+).joinToString(" · ")
+
+/** From here on how full the context is shows in the header; before, only with the settings. */
+private const val NEARLY_FULL = 70
+
+private fun settingsLine(line: ComposerLine): String =
+    listOfNotNull(line.model, line.contextPercent?.let { "$it% context" }, "Plan".takeIf { line.plan }).joinToString(" · ")
+
+/** When a message was sent, and for an answer what wrote it, how fast and for how much. */
+private fun turnInfo(m: ChatMessage, sent: String): String =
+    listOfNotNull(sent, m.model?.name, answerFacts(m)).joinToString(" · ")
+
+/** A new thread where this one is. */
+private fun newThreadIn(project: RemoteProject?): Route.NewThread = when {
+    project == null -> Route.NewThread()
+    project.scratch == true -> Route.NewThread(scratch = true)
+    else -> Route.NewThread(project.id)
+}
+
 /** The message map for a reply's root, read when picked rather than when the callbacks were made. */
 private fun byIdOf(model: ThreadModel) = model.thread.value?.messages.orEmpty().associateBy { it.id }
 
 private fun kotlinx.coroutines.CoroutineScope.launchLoad(model: ThreadModel) {
     launch { model.load() }
-}
-
-@Composable
-private fun ColumnScope.Empty(error: String?, link: LinkState, computer: String, onRetry: () -> Unit) {
-    val c = RelayTheme.colors
-    Column(
-        Modifier.weight(1f).fillMaxWidth().padding(24.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp, Alignment.CenterVertically),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        when {
-            link == LinkState.Online && error != null -> {
-                Text(error, color = c.mutedForeground, textAlign = TextAlign.Center)
-                Button("Try again", onClick = onRetry)
-            }
-            // Still connecting isn't a failure yet: wait for it rather than saying the copy is missing.
-            link == LinkState.Connecting -> Spinner(color = c.mutedForeground)
-            link != LinkState.Online -> Text(
-                "This thread hasn’t been opened on this phone, so there’s no copy to read until $computer is back.",
-                color = c.mutedForeground,
-                textAlign = TextAlign.Center,
-            )
-            else -> Spinner(color = c.mutedForeground)
-        }
-    }
-}
-
-@Composable
-private fun Earlier(earlier: Int, canLoad: Boolean, onLoad: () -> Unit) {
-    val c = RelayTheme.colors
-    val page = Bridge.REMOTE_HISTORY
-    val label = if (canLoad)
-        "Load ${minOf(page, earlier)} earlier ${if (earlier == 1) "message" else "messages"}${if (earlier > page) " of $earlier" else ""}"
-    else "$earlier earlier ${if (earlier == 1) "message is" else "messages are"} on your computer"
-    Box(Modifier.fillMaxWidth().padding(vertical = 4.dp), contentAlignment = Alignment.Center) {
-        Text(
-            label,
-            Modifier.then(if (canLoad) Modifier.pressable(onClick = onLoad, scale = false) else Modifier).padding(16.dp),
-            style = RelayTheme.type.xs,
-            color = if (canLoad) c.accent else c.faint,
-            textAlign = TextAlign.Center,
-        )
-    }
-}
-
-@Composable
-private fun Queue(t: RemoteChat, running: Boolean, actions: ThreadActions, onEdit: suspend (RemoteQueued) -> Unit) {
-    QueueList(
-        waitingInQueue(t.queue), t.scheduled, running,
-        compacting = t.messages.any { it.compaction == true && it.status == "streaming" },
-        paused = t.queuePaused == true,
-        onSteer = { actions.queue("steer", it) },
-        onEdit = onEdit,
-        onRemove = { actions.queue("remove", it) },
-        onMove = { messageId, index -> actions.queue("move", messageId, index) },
-    )
-}
-
-@Composable
-private fun Strips(
-    t: RemoteChat?,
-    summary: dev.relay.android.remote.model.RemoteChatSummary?,
-    rootId: String?,
-    running: Boolean,
-    actions: ThreadActions,
-) {
-    if (rootId != null) return
-    summary?.goal?.let { GoalStrip(it, running) }
-    summary?.limitResume?.takeIf { !running }?.let { LimitStrip(it, actions::setLimitResume) }
-    t?.stopped?.items?.takeIf { it.isNotEmpty() }?.let { StoppedStrip(it, actions::resolveStopped) }
 }
