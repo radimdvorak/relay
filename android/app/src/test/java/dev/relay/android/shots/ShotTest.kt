@@ -42,9 +42,18 @@ abstract class ShotTest {
     @get:Rule
     val compose = createAndroidComposeRule<ComponentActivity>()
 
-    /** [content] in the app's theme on [device], saved as `build/shots/<name>_<device>_<light|dark>.png`. */
+    /**
+     * [content] in the app's theme on [device], saved as `build/shots/<name>_<device>_<light|dark>.png`.
+     * [act] runs once it's on screen (a tap, say), before the clock moves on to the capture.
+     */
     @Suppress("FunctionName")
-    fun Shot(name: String, device: ShotDevice = ShotDevice.Phone, dark: Boolean = false, content: @Composable () -> Unit) {
+    fun Shot(
+        name: String,
+        device: ShotDevice = ShotDevice.Phone,
+        dark: Boolean = false,
+        act: () -> Unit = {},
+        content: @Composable () -> Unit,
+    ) {
         val night = if (dark) "night" else "notnight"
         RuntimeEnvironment.setQualifiers("${device.size}-$night-${device.density}")
         // Spinners and shimmers never settle, so the clock only moves when told to.
@@ -54,6 +63,8 @@ abstract class ShotTest {
                 Box(Modifier.fillMaxSize().background(RelayTheme.colors.surface)) { content() }
             }
         }
+        compose.mainClock.advanceTimeBy(100)
+        act()
         // Long enough for entrances and fades to finish.
         compose.mainClock.advanceTimeBy(1_000)
         val file = File(shotsDir(), "${name}_${device.name}_${if (dark) "dark" else "light"}.png")
