@@ -25,28 +25,33 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.ColorProducer
 import androidx.compose.ui.graphics.GraphicsLayerScope
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
 import dev.relay.android.ui.Haptic
 import dev.relay.android.ui.pressable
 import dev.relay.android.ui.rememberHaptics
 import dev.relay.android.ui.theme.RelayTheme
-import kotlinx.coroutines.flow.drop
-import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.filter
-import kotlinx.coroutines.flow.filterNot
 import kotlin.math.abs
 import kotlin.math.cos
 import kotlin.math.sin
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.filterNot
 
 private val RowHeight = 57.dp
 private val PillHeight = 64.dp
@@ -111,7 +116,7 @@ internal fun ModelWheel(
         snapshotFlow { rows.getOrNull(list.centredIndex())?.id }.distinctUntilChanged().collect { if (it != null) passed(it) }
     }
 
-    Box(modifier.fillMaxWidth().height(WheelHeight), contentAlignment = Alignment.Center) {
+    Box(modifier.fillMaxWidth().height(WheelHeight).nestedScroll(KeepsItsScroll), contentAlignment = Alignment.Center) {
         Box(Modifier.padding(horizontal = 16.dp).fillMaxWidth().height(PillHeight).background(c.tool, RelayTheme.shapes.circle))
         LazyColumn(
             state = list,
@@ -144,6 +149,12 @@ internal fun ModelWheel(
             }
         }
     }
+}
+
+/** Rolled past its end, the wheel stops there: what's left of a flick would otherwise throw the sheet shut. */
+private val KeepsItsScroll = object : NestedScrollConnection {
+    override fun onPostScroll(consumed: Offset, available: Offset, source: NestedScrollSource) = available
+    override suspend fun onPostFling(consumed: Velocity, available: Velocity) = available
 }
 
 internal data class WheelRow(val id: String, val name: String)

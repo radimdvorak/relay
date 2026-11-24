@@ -385,7 +385,9 @@ internal fun ComposerCore(
         fast = agentInfo(provider)?.fast == true && settings.choice.fast,
         plan = plan,
     )
-    val writing = rememberTyping(typing, held = sheet != null || drawingOn != null)
+    val covered = sheet != null || drawingOn != null
+    val writing = rememberTyping(typing, held = covered)
+    KeepKeyboard(typing, held = covered)
     val expanded = writing || !empty || dictation.active
     SideEffect { handle?.expanded = expanded }
     val windowInfo = LocalWindowInfo.current

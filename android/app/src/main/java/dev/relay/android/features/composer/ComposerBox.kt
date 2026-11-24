@@ -20,12 +20,16 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.KeyboardCapitalization
@@ -38,6 +42,7 @@ import dev.relay.android.ui.theme.RelayTheme
 import io.github.lyxnx.compose.ui.tablericons.TablerIcons
 import io.github.lyxnx.compose.ui.tablericons.outline.Plus
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
 
 /**
  * The message box: a pill that grows into a card, with the attachments over the text and the
@@ -132,4 +137,25 @@ internal fun rememberTyping(focused: Boolean, held: Boolean): Boolean {
         }
     }
     return focused && !putAway
+}
+
+/** Brings the keyboard back once a sheet that took it ([held]) is gone, so a message half typed goes on. */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+internal fun KeepKeyboard(focused: Boolean, held: Boolean) {
+    val keyboard = WindowInsets.isImeVisible
+    val controller = LocalSoftwareKeyboardController.current
+    val window = LocalWindowInfo.current
+    val stillFocused by rememberUpdatedState(focused)
+    var taken by remember { mutableStateOf(false) }
+    LaunchedEffect(held) {
+        if (held) {
+            taken = keyboard
+            return@LaunchedEffect
+        }
+        if (!taken) return@LaunchedEffect
+        taken = false
+        snapshotFlow { window.isWindowFocused }.first { it }
+        if (stillFocused) controller?.show()
+    }
 }

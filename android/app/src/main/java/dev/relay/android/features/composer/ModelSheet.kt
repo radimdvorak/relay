@@ -6,12 +6,17 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
 import dev.relay.android.features.composer.logic.AgentDefaults
 import dev.relay.android.features.composer.logic.AgentModel
 import dev.relay.android.features.composer.logic.ModelCatalogs
@@ -65,6 +70,9 @@ internal fun ModelSheet(
     val provider = settings.provider
     var page by remember { mutableStateOf(start) }
     var query by remember { mutableStateOf("") }
+    // The other pages are as tall as the models' one was, so going there doesn't move the sheet's top.
+    var modelsHeight by remember { mutableIntStateOf(0) }
+    val otherPage = with(LocalDensity.current) { Modifier.heightIn(min = modelsHeight.toDp()) }
     val result = loadedModels(client, online, projectId, provider)
     val list = result?.list?.takeIf { it.isNotEmpty() } ?: known[provider] ?: if (result != null) emptyList() else null
     val rows = list?.let { modelRows(provider, it, settings.choice.model, result?.fallback) }
@@ -89,12 +97,14 @@ internal fun ModelSheet(
                     agents, provider, actions.agent, rows, chosen, settings.choice.reasoningEffort,
                     onModel = { actions.model(provider, it, catalogs) },
                     onEffort = { page = ModelSheetPage.Effort },
+                    modifier = Modifier.onSizeChanged { modelsHeight = it.height },
                     toggles = modelToggles(settings, list, result?.fallback, actions.settings),
                     error = result?.error,
                 )
                 ModelSheetPage.Effort -> EffortPage(
                     rows?.find { it.id == chosen }?.levels, settings.choice.reasoningEffort,
                     { actions.settings(settings.copy(choice = settings.choice.copy(reasoningEffort = it))) },
+                    otherPage,
                     loading = rows == null,
                 )
                 ModelSheetPage.Search -> ModelSearch(
@@ -104,6 +114,7 @@ internal fun ModelSheet(
                         actions.model(agent, model, catalogs)
                         page = ModelSheetPage.Models
                     },
+                    modifier = otherPage,
                 )
             }
         }

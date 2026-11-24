@@ -102,7 +102,7 @@ class ComposerShots : ShotTest() {
 
     @Test
     fun sketch() {
-        for (device in ShotDevice.entries) Shot("composer-sketch", device) {
+        for (device in ShotDevice.entries) Shot("composer-sketch", device, dark = true) {
             SketchScreen(StrokeHistory(emptyList()), Ink.Pen, penColors[4], false, {}, {}, {}, {}, {}, {}) {
                 Text("photo", color = RelayTheme.colors.inkFaint)
             }

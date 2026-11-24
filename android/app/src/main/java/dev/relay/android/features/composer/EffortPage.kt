@@ -104,5 +104,5 @@ private fun Note(text: String) {
     Text(text, Modifier.fillMaxWidth().padding(horizontal = 30.dp), style = RelayTheme.type.body, color = RelayTheme.colors.inkSoft)
 }
 
-/** Both pages of the model sheet are at least this tall, so going between them doesn't move its top. */
+/** The model sheet's pages are at least this tall. */
 internal val SheetPageHeight = 388.dp
