@@ -16,6 +16,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.layout.Placeable
 import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.unit.constrainHeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.util.lerp
 import dev.relay.android.ui.theme.RelayTheme
@@ -102,15 +103,18 @@ fun ComposerPill(
         fun centredIn(h: Int, p: Placeable) = (h - p.height) / 2
         fun onControlRow(p: Placeable) = controlsTop + (controls - p.height) / 2
         fun y(p: Placeable) = lerp(centredIn(collapsedHeight, p), onControlRow(p), t)
-        layout(width, height) {
-            lead.place(inset, y(lead))
-            text.place(fieldX, lerp(centredIn(collapsedHeight, text), fieldTop, t))
+        // Growing across screens it's given each height on the way; what doesn't fit yet waits over the top.
+        val given = constraints.constrainHeight(height)
+        val dy = given - height
+        layout(width, given) {
+            lead.place(inset, y(lead) + dy)
+            text.place(fieldX, lerp(centredIn(collapsedHeight, text), fieldTop, t) + dy)
             // Left out while collapsed, so invisible chips and attachments can't take taps.
             if (t > 0f) {
-                over.placeWithLayer(0, 0) { alpha = t.coerceIn(0f, 1f) }
-                chipRow.placeWithLayer(inset + besideGap(lead), y(chipRow)) { alpha = ((t - 0.35f) / 0.65f).coerceIn(0f, 1f) }
+                over.placeWithLayer(0, dy) { alpha = t.coerceIn(0f, 1f) }
+                chipRow.placeWithLayer(inset + besideGap(lead), y(chipRow) + dy) { alpha = ((t - 0.35f) / 0.65f).coerceIn(0f, 1f) }
             }
-            trail.place(width - inset - trail.width, y(trail))
+            trail.place(width - inset - trail.width, y(trail) + dy)
         }
     }
 }

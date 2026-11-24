@@ -1,7 +1,6 @@
 package dev.relay.android.features.home
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
@@ -37,6 +36,7 @@ import dev.relay.android.ui.Icon
 import dev.relay.android.ui.Text
 import dev.relay.android.ui.pressable
 import dev.relay.android.ui.rememberHaptics
+import dev.relay.android.ui.ring
 import dev.relay.android.ui.theme.RelayTheme
 import io.github.lyxnx.compose.ui.tablericons.TablerIcons
 import io.github.lyxnx.compose.ui.tablericons.outline.X
@@ -101,7 +101,7 @@ fun NeedsYou(
     val pressed by press.collectIsPressedAsState()
     Row(
         modifier.fillMaxWidth().padding(horizontal = 12.dp).shadow(4.dp, shape)
-            .background(if (pressed) c.hover else c.card, shape).border(0.5.dp, c.border, shape)
+            .background(if (pressed) c.selected else c.raised, shape).ring(c.line, shape)
             .semantics {
                 contentDescription = "${chat.title} needs you. Open it."
                 liveRegion = LiveRegionMode.Polite
@@ -116,11 +116,11 @@ fun NeedsYou(
     ) {
         Box(Modifier.size(8.dp).background(c.waiting, CircleShape))
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(chat.title, style = RelayTheme.type.base.copy(fontWeight = FontWeight.Medium), maxLines = 1)
-            Text("Needs input${project?.let { " · ${it.name}" } ?: ""}", style = RelayTheme.type.xs, color = c.waiting, maxLines = 1)
+            Text(chat.title, style = RelayTheme.type.body.copy(fontWeight = FontWeight.Medium), maxLines = 1)
+            Text("Needs input${project?.let { " · ${it.name}" } ?: ""}", style = RelayTheme.type.small, color = c.waiting, maxLines = 1)
         }
         Box(Modifier.semantics { contentDescription = "Dismiss" }.pressable(onClick = { shown = null }).padding(4.dp)) {
-            Icon(TablerIcons.Outline.X, null, tint = c.mutedForeground, size = 16.dp)
+            Icon(TablerIcons.Outline.X, null, tint = c.inkSoft, size = 16.dp)
         }
     }
 }

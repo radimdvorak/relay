@@ -1,4 +1,4 @@
-package dev.relay.android.shots
+package dev.relay.android.shots.composer
 
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -19,6 +19,8 @@ import dev.relay.android.features.composer.logic.AgentModel
 import dev.relay.android.features.composer.logic.ModelRow
 import dev.relay.android.features.composer.logic.effortLevels
 import dev.relay.android.features.composer.logic.modelRows
+import dev.relay.android.shots.ShotDevice
+import dev.relay.android.shots.ShotTest
 import dev.relay.android.ui.CircleButton
 import dev.relay.android.ui.RelaySheetFrame
 import dev.relay.android.ui.theme.RelayTheme
@@ -34,7 +36,7 @@ class ModelSheetShots : ShotTest() {
     @Test
     fun claude() {
         for (device in ShotDevice.entries) for (dark in listOf(false, true)) sheet("model-claude", device, dark) { Models("claude", claudeRows(), "opus") }
-        Shot("model-claude-desktop", dark = true) { RelayTheme(desktopDark) { Column(Modifier.fillMaxSize()) { OverDimmed { Models("claude", claudeRows(), "opus") } } } }
+        Shot("model-claude-desktop", dark = true) { RelayTheme(usersDesktop) { Column(Modifier.fillMaxSize()) { OverDimmed { Models("claude", claudeRows(), "opus") } } } }
         sheet("model-claude-toggles") {
             Models("claude", claudeRows(), "opus", toggles = listOf(ModelToggle("200k context window", "Off leaves Claude on its default window, 1M on most models.", true) {}))
         }
@@ -77,7 +79,7 @@ class ModelSheetShots : ShotTest() {
     fun effort() {
         val five = listOf("low", "medium", "high", "xhigh", "max")
         for (dark in listOf(false, true)) sheet("effort-5", dark = dark) { Effort(five, "medium", "high") }
-        Shot("effort-5-desktop", dark = true) { RelayTheme(desktopDark) { Column(Modifier.fillMaxSize()) { OverDimmed { Effort(five, "medium", "high") } } } }
+        Shot("effort-5-desktop", dark = true) { RelayTheme(usersDesktop) { Column(Modifier.fillMaxSize()) { OverDimmed { Effort(five, "medium", "high") } } } }
         sheet("effort-5", ShotDevice.FoldInner) { Effort(five, "medium", "") }
         sheet("effort-max", dark = true) { Effort(five, "medium", "max") }
         sheet("effort-0") { Effort(emptyList(), null, "") }
@@ -94,7 +96,7 @@ internal fun Models(
     provider: String,
     rows: List<ModelRow>?,
     start: String,
-    agents: List<String> = dev.relay.android.shots.agents,
+    agents: List<String> = dev.relay.android.shots.composer.agents,
     toggles: List<ModelToggle> = emptyList(),
     error: String? = null,
 ) {

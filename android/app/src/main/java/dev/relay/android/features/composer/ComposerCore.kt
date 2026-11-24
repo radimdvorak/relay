@@ -101,6 +101,8 @@ internal fun ComposerCore(
     /** A new thread's models, per agent, for switching to one not picked here yet. */
     remembered: NewThreadModels = emptyMap(),
     autoFocus: Boolean = false,
+    /** On the message box itself, not the dock around it. */
+    boxModifier: Modifier = Modifier,
     /** Draws Send as the New thread button (pencil, its fill), with this modifier on it. */
     newThreadSend: Modifier? = null,
     /** The screen shows the plan's limits (through [handle]), so they aren't repeated at the end of [above]. */
@@ -170,6 +172,7 @@ internal fun ComposerCore(
         setText(next)
         error = null
     }
+    val dictate = rememberDictate(dictation, input, possible = canDictate(remote) && !disabled && !busy, instead = { focus.requestFocus() })
     SideEffect {
         handle?.apply {
             onQuote = { md ->
@@ -204,6 +207,8 @@ internal fun ComposerCore(
             onSettingsOn = { to -> switched(settings, to) }
             onOpenSettings = { sheet = ComposerSheetKind.Settings }
             onOpenUsage = { sheet = ComposerSheetKind.Usage }
+            onOpenAttach = { sheet = ComposerSheetKind.Add }
+            onDictate = dictate
             this.usage = ComposerUsage(provider, usage.usage)
             line = composerLine(settings, modelLabel, context)
         }
@@ -437,6 +442,7 @@ internal fun ComposerCore(
             onModel = { sheet = ComposerSheetKind.Model },
             onEffort = { sheet = ComposerSheetKind.Effort },
             onPlan = { sheet = ComposerSheetKind.Settings },
+            modifier = boxModifier,
             attachments = if (!attached) null else ({
                 ImageStrip(
                     images, computerShots, onRemove = { i -> images = images.filterIndexed { j, _ -> j != i } },

@@ -1,4 +1,4 @@
-package dev.relay.android.shots
+package dev.relay.android.shots.composer
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -38,6 +38,8 @@ import dev.relay.android.remote.model.ModelChoice
 import dev.relay.android.remote.model.ModelCost
 import dev.relay.android.remote.model.ResumeSettings
 import dev.relay.android.remote.model.ThreadCost
+import dev.relay.android.shots.ShotDevice
+import dev.relay.android.shots.ShotTest
 import dev.relay.android.ui.RelaySheetFrame
 import dev.relay.android.ui.Text
 import dev.relay.android.ui.theme.RelayTheme
@@ -48,7 +50,7 @@ class ComposerShots : ShotTest() {
     /** Both palettes on the phone, then the user's desktop one, then the Fold. */
     private fun everywhere(name: String, content: @Composable () -> Unit) {
         for (dark in listOf(false, true)) Shot(name, dark = dark) { content() }
-        Shot("$name-desktop", dark = true) { RelayTheme(desktopDark) { Surface { content() } } }
+        Shot("$name-desktop", dark = true) { RelayTheme(usersDesktop) { Surface { content() } } }
         Shot(name, ShotDevice.FoldInner) { content() }
     }
 

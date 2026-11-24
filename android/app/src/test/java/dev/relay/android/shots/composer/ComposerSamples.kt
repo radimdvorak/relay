@@ -1,4 +1,4 @@
-package dev.relay.android.shots
+package dev.relay.android.shots.composer
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -28,11 +28,12 @@ import dev.relay.android.features.composer.logic.AgentModel
 import dev.relay.android.features.composer.logic.modelRows
 import dev.relay.android.features.dictation.MicCircle
 import dev.relay.android.features.dictation.MicLook
+import dev.relay.android.shots.SampleHome
 import dev.relay.android.ui.theme.RelayTheme
 import dev.relay.android.ui.theme.colorsFromDesktop
 
 /** The user's desktop palette, as Computer mode wears it: near-equal sidebar and surface, a lavender send. */
-val desktopDark = colorsFromDesktop(
+val usersDesktop = colorsFromDesktop(
     mapOf(
         "kind" to "dark", "sidebar" to "#232326", "surface" to "#1e1e21", "toolbar" to "#242427", "inbox" to "#28282c",
         "text" to "#e1e1e5", "muted" to "#94949f", "border" to "#37373d", "hover" to "#34343c", "selected" to "#41414f",

@@ -1,5 +1,8 @@
 package dev.relay.android.features.composer
 
+import android.Manifest
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
@@ -7,6 +10,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
 import dev.relay.android.features.dictation.Dictation
+import dev.relay.android.features.dictation.DictationInput
 import dev.relay.android.features.dictation.DictationState
 import dev.relay.android.remote.Remote
 import kotlinx.coroutines.flow.first
@@ -43,4 +47,18 @@ internal fun rememberComposerDictation(remote: Remote, draftKey: String?): Compo
         onDispose { if (ComposerDictation(dictation, owner, dictation.state.value).active) dictation.cancel() }
     }
     return ComposerDictation(dictation, owner, state)
+}
+
+/** Starts dictating into [input], asking for the microphone first when it must; [instead] where that isn't [possible]. */
+@Composable
+internal fun rememberDictate(dictation: ComposerDictation, input: DictationInput, possible: Boolean, instead: () -> Unit): () -> Unit {
+    val start = { dictation.dictation.start(input, dictation.owner) }
+    val ask = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { start() }
+    return {
+        when {
+            !possible -> runCatching(instead)
+            dictation.dictation.hasPermission() -> start()
+            else -> ask.launch(Manifest.permission.RECORD_AUDIO)
+        }
+    }
 }

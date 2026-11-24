@@ -1,4 +1,4 @@
-package dev.relay.android.shots
+package dev.relay.android.shots.composer
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -22,6 +22,7 @@ import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.unit.dp
 import com.github.takahirom.roborazzi.captureRoboImage
 import dev.relay.android.features.composer.SendState
+import dev.relay.android.shots.ShotTest
 import dev.relay.android.ui.theme.RelayTheme
 import java.io.File
 import org.junit.Test
