@@ -7,13 +7,13 @@ import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
@@ -26,6 +26,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChange
@@ -47,18 +48,17 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.abs
 
-/** How far a card goes before letting go commits it. */
+/** How far a row goes before letting go commits it. */
 private val COMMIT_AT = 96.dp
 /** Horizontal travel that makes it a swipe, and vertical travel that makes it a scroll first. */
 private val SWIPE_SLOP = 24.dp
 private val SCROLL_SLOP = 8.dp
-val SnoozeColor = Color(0xFFD99A2B)
 
 /** A swipe's job: returns whether it went through, so a refused one slides back. */
 class SwipeAction(val label: String, val run: suspend () -> Boolean)
 
 /**
- * Activity cards triaged with one thumb (mobile/src/ui/SwipeTriage.tsx): right settles, left
+ * Activity rows triaged with one thumb (mobile/src/ui/SwipeTriage.tsx): right settles, left
  * snoozes. Vertical intent wins, and the commit is judged where the finger let go, never on a
  * projected fling, so a short flick can't triage.
  */
@@ -67,7 +67,6 @@ fun SwipeTriage(
     settle: SwipeAction?,
     snooze: SwipeAction?,
     blocked: Boolean,
-    radius: Dp,
     content: @Composable () -> Unit,
 ) {
     val c = RelayTheme.colors
@@ -85,7 +84,6 @@ fun SwipeTriage(
     val canSnooze by rememberUpdatedState(snooze != null && !blocked)
     val settleNow by rememberUpdatedState(settle)
     val snoozeNow by rememberUpdatedState(snooze)
-    val shape = RoundedCornerShape(radius)
     val width = remember { floatArrayOf(Float.MAX_VALUE) }
 
     fun close() = scope.launch { offset.animateTo(0f, tween(Motion.BASE, easing = Motion.EaseOutQuint)) }
@@ -153,7 +151,7 @@ fun SwipeTriage(
                     } else continue
                 }
                 change.consume()
-                // No overshoot: the card stops where the row ends.
+                // No overshoot: the row stops where the row ends.
                 x = (start + dx).coerceIn(if (canSnooze) -width[0] else 0f, if (canSettle) width[0] else 0f)
                 scope.launch { offset.snapTo(x) }
                 val now = (canSettle && x >= commitPx) || (canSnooze && x <= -commitPx)
@@ -167,37 +165,30 @@ fun SwipeTriage(
         val x = offset.value
         val uncovered = with(density) { abs(x).toDp() }
         if (x > 0f && settle != null)
-            Behind(shape, c.accentSoft, c.accent, TablerIcons.Outline.Check, settle.label, x / commitPx, uncovered, end = false)
+            Behind(c.success, TablerIcons.Outline.Check, settle.label, x / commitPx, uncovered, end = false)
         if (x < 0f && snooze != null)
-            Behind(shape, SnoozeColor.copy(alpha = 0.22f).compositeOver(c.background), SnoozeColor, TablerIcons.Outline.AlarmSnooze, snooze.label, -x / commitPx, uncovered, end = true)
+            Behind(c.waiting, TablerIcons.Outline.AlarmSnooze, snooze.label, -x / commitPx, uncovered, end = true)
         Box(Modifier.graphicsLayer { translationX = offset.value }.then(gestures)) { content() }
     }
 }
 
-/** What a swipe uncovers: the strip the card left, its label by the edge it comes from. */
+/** What a swipe uncovers: the strip the row left, its label by the edge it comes from, stronger the closer it is to counting. */
 @Composable
-private fun androidx.compose.foundation.layout.BoxScope.Behind(
-    shape: RoundedCornerShape,
-    fill: Color,
-    tint: Color,
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    label: String,
-    progress: Float,
-    width: Dp,
-    end: Boolean,
-) {
+private fun BoxScope.Behind(tint: Color, icon: ImageVector, label: String, progress: Float, width: Dp, end: Boolean) {
     val edge = if (end) Alignment.CenterEnd else Alignment.CenterStart
+    val near = progress.coerceIn(0f, 1f)
+    val fill = tint.copy(alpha = 0.08f + 0.1f * near).compositeOver(RelayTheme.colors.surface)
     Box(Modifier.matchParentSize()) {
-        Box(Modifier.align(edge).width(width).fillMaxHeight().clip(shape).background(fill), contentAlignment = edge) {
-        Row(
-            Modifier.wrapContentWidth(if (end) Alignment.End else Alignment.Start, unbounded = true).padding(horizontal = 18.dp)
-                .graphicsLayer { alpha = 0.35f + 0.65f * progress.coerceIn(0f, 1f) },
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Icon(icon, null, tint = tint, size = 18.dp)
-            Text(label, style = RelayTheme.type.label, color = tint, maxLines = 1)
-        }
+        Box(Modifier.align(edge).width(width).fillMaxHeight().clip(RelayTheme.shapes.row).background(fill), contentAlignment = edge) {
+            Row(
+                Modifier.wrapContentWidth(if (end) Alignment.End else Alignment.Start, unbounded = true).padding(horizontal = 20.dp)
+                    .graphicsLayer { alpha = 0.35f + 0.65f * near },
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(icon, null, tint = tint, size = 18.dp)
+                Text(label, style = RelayTheme.type.label, color = tint, maxLines = 1)
+            }
         }
     }
 }

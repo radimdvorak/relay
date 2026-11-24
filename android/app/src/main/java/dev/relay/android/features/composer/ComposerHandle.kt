@@ -35,6 +35,8 @@ class ComposerHandle {
     internal var onSettingsOn: (String) -> ResumeSettings? = { null }
     internal var onOpenSettings: () -> Unit = {}
     internal var onOpenUsage: () -> Unit = {}
+    internal var onOpenAttach: () -> Unit = {}
+    internal var onDictate: () -> Unit = {}
     /** What the composer sends with, in a line, for a header to show when the controls aren't in the composer. */
     var line: ComposerLine? by mutableStateOf(null)
         internal set
@@ -57,6 +59,10 @@ class ComposerHandle {
     /** Model, permissions, plan and usage in one sheet. */
     fun openSettings() = onOpenSettings()
     fun openUsage() = onOpenUsage()
+    /** What can go with the message: photos, files, the camera. */
+    fun openAttach() = onOpenAttach()
+    /** Starts dictating, or just takes the keyboard where that isn't possible. */
+    fun dictate() = onDictate()
 }
 
 /** The model with its effort, the permissions, plan mode, and how full the context is. */

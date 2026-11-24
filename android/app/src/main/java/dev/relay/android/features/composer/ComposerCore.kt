@@ -2,6 +2,9 @@
 
 package dev.relay.android.features.composer
 
+import android.Manifest
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -146,6 +149,8 @@ internal fun ComposerCore(
     /** A new thread's models, per agent, for switching to one not picked here yet. */
     remembered: NewThreadModels = emptyMap(),
     autoFocus: Boolean = false,
+    /** On the message box itself, not the dock around it. */
+    boxModifier: Modifier = Modifier,
     /** Draws Send as the New thread button (pencil, its fill), with this modifier on it. */
     newThreadSend: Modifier? = null,
     /**
@@ -275,6 +280,15 @@ internal fun ComposerCore(
         setText(next)
         error = null
     }
+    val canDictate = canDictate(remote) && !disabled && !busy
+    val askForMic = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { dictation.start(input, dictationOwner) }
+    val dictate = {
+        when {
+            !canDictate -> runCatching { focus.requestFocus() }.let {}
+            dictation.hasPermission() -> dictation.start(input, dictationOwner)
+            else -> askForMic.launch(Manifest.permission.RECORD_AUDIO)
+        }
+    }
     SideEffect {
         handle?.apply {
             onQuote = { md ->
@@ -309,6 +323,8 @@ internal fun ComposerCore(
             onSettingsOn = { to -> switched(settings, to) }
             onOpenSettings = { sheet = Sheet.Settings }
             onOpenUsage = { sheet = Sheet.Usage }
+            onOpenAttach = { sheet = Sheet.Attach }
+            onDictate = dictate
             this.usage = ComposerUsage(provider, usage.usage)
             line = ComposerLine(
                 modelLabel + (if (settings.choice.reasoningEffort.isNotEmpty()) " · ${effortLabel(settings.choice.reasoningEffort)}" else "") +
@@ -531,7 +547,7 @@ internal fun ComposerCore(
             )
         }
         Column(
-            Modifier.fillMaxWidth().background(c.card, RoundedCornerShape(18.dp)).ring(c.border, RoundedCornerShape(18.dp))
+            boxModifier.fillMaxWidth().background(c.card, RoundedCornerShape(18.dp)).ring(c.border, RoundedCornerShape(18.dp))
                 .padding(start = 6.dp, end = 6.dp, top = 4.dp, bottom = 6.dp),
         ) {
             if (images.isNotEmpty() || computerShots.isNotEmpty() || files.isNotEmpty()) {
