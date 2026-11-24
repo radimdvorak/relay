@@ -5,7 +5,6 @@ package dev.relay.android.features.thread
 // keeps it out of the turn.
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -31,7 +30,6 @@ import dev.relay.android.remote.model.RemoteJson
 import dev.relay.android.ui.Icon
 import dev.relay.android.ui.Text
 import dev.relay.android.ui.pressable
-import dev.relay.android.ui.theme.Radii
 import dev.relay.android.ui.theme.RelayTheme
 import io.github.lyxnx.compose.ui.tablericons.TablerIcons
 import io.github.lyxnx.compose.ui.tablericons.outline.Eye
@@ -39,6 +37,10 @@ import io.github.lyxnx.compose.ui.tablericons.outline.X
 import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonElement
+import dev.relay.android.ui.CircleButton
+import dev.relay.android.ui.CircleSize
+import dev.relay.android.ui.CircleTone
+import androidx.compose.foundation.layout.heightIn
 
 /** shared/watch.ts's WatchNote, read here: the message model keeps notes untyped. */
 @Serializable
@@ -102,44 +104,45 @@ fun WatchNotes(
     val c = RelayTheme.colors
     for (note in shown) {
         val reading = open == note.id
-        Column(
-            Modifier.padding(top = 12.dp).fillMaxWidth().border(RelayTheme.hairline, c.border, Radii.mdShape)
-                .background(c.card, Radii.mdShape).padding(start = 12.dp, end = 12.dp, top = 10.dp, bottom = 4.dp),
-        ) {
-            Row(Modifier.padding(bottom = 4.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                Icon(TablerIcons.Outline.Eye, null, size = 13.dp, tint = c.mutedForeground)
-                Text(note.tag, style = RelayTheme.type.sm.copy(fontWeight = FontWeight.SemiBold))
+        QuietCard(Modifier.padding(top = 4.dp), padding = 0.dp, gap = 0.dp) {
+            Row(
+                Modifier.heightIn(min = 40.dp).padding(start = 16.dp, end = 8.dp, top = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(TraceGap),
+            ) {
+                Icon(TablerIcons.Outline.Eye, null, size = TraceIcon, tint = c.inkSoft)
+                Text(note.tag, style = RelayTheme.type.meta.copy(fontWeight = FontWeight.Medium))
                 Text(
                     note.agent?.let { "subagent · ${it.label}" } ?: "this turn",
-                    Modifier.weight(1f), style = RelayTheme.type.xs, color = c.mutedForeground, maxLines = 1,
+                    Modifier.weight(1f), style = RelayTheme.type.small, color = c.inkFaint, maxLines = 1,
                 )
-                if (closable) Icon(
-                    TablerIcons.Outline.X, "Dismiss",
-                    Modifier.pressable(onClick = { close(note, "dismissed") }), size = 15.dp, tint = c.mutedForeground,
+                if (closable) CircleButton(
+                    TablerIcons.Outline.X, "Dismiss", { close(note, "dismissed") },
+                    size = CircleSize.Small, tone = CircleTone.Clear,
                 )
             }
-            Text(note.line)
-            if (reading) Column(Modifier.padding(top = 10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text(note.title, style = RelayTheme.type.sm.copy(fontWeight = FontWeight.SemiBold))
+            Text(note.line, Modifier.padding(horizontal = 16.dp), style = RelayTheme.type.meta.copy(lineHeight = 20.sp))
+            if (reading) Column(Modifier.padding(start = 16.dp, end = 16.dp, top = 10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(note.title, style = RelayTheme.type.meta.copy(fontWeight = FontWeight.SemiBold))
                 if (note.points.isNotEmpty()) Markdown(note.points.joinToString("\n") { "- $it" }, small = true, openPath = openPath)
                 note.diff?.let { diff ->
-                    Column(Modifier.padding(top = 4.dp).fillMaxWidth().background(c.code, Radii.smShape).padding(8.dp)) {
-                        Text(diff.file, Modifier.padding(bottom = 4.dp), style = RelayTheme.type.xs, color = c.mutedForeground)
+                    Column(Modifier.padding(top = 4.dp).fillMaxWidth().background(c.surface, TraceBox).padding(10.dp)) {
+                        Text(diff.file, Modifier.padding(bottom = 4.dp), style = RelayTheme.type.small, color = c.inkSoft)
                         for (line in diff.lines) {
                             val tint = when (line.firstOrNull()) {
-                                '+' -> c.additionText.copy(alpha = 0.14f)
-                                '-' -> c.deletionText.copy(alpha = 0.14f)
+                                '+' -> c.added.copy(alpha = 0.14f)
+                                '-' -> c.removed.copy(alpha = 0.14f)
                                 else -> null
                             }
                             Text(
                                 line, if (tint != null) Modifier.fillMaxWidth().background(tint) else Modifier,
-                                style = RelayTheme.type.monoSm.copy(fontSize = 12.sp, lineHeight = 19.sp),
+                                style = traceCode(),
                             )
                         }
                     }
                 }
             }
-            Row(Modifier.padding(top = 2.dp)) {
+            Row(Modifier.padding(start = 8.dp, end = 8.dp, top = 4.dp, bottom = 4.dp)) {
                 NoteAction(if (reading) "Less" else "Learn more") { open = if (reading) null else note.id }
                 if (onSteer != null) NoteAction("Tell $agent") {
                     onSteer(note.steer ?: "About this: ${note.line}")
@@ -155,8 +158,8 @@ fun WatchNotes(
 private fun NoteAction(label: String, onPress: () -> Unit) {
     Text(
         label,
-        Modifier.pressable(onClick = onPress, scale = false).padding(horizontal = 8.dp, vertical = 8.dp),
-        style = RelayTheme.type.sm.copy(fontWeight = FontWeight.Medium),
-        color = RelayTheme.colors.mutedForeground,
+        Modifier.pressable(onClick = onPress, scale = false).padding(horizontal = 8.dp, vertical = 10.dp),
+        style = RelayTheme.type.meta.copy(fontWeight = FontWeight.Medium),
+        color = RelayTheme.colors.inkSoft,
     )
 }

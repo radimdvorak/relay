@@ -4,9 +4,9 @@ package dev.relay.android.features.thread
 // to renew, pages it showed that only the computer can draw.
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -22,13 +22,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import dev.relay.android.features.thread.logic.agentError
 import dev.relay.android.features.thread.logic.agentName
 import dev.relay.android.ui.Icon
 import dev.relay.android.ui.Text
-import dev.relay.android.ui.pressable
-import dev.relay.android.ui.theme.Radii
 import dev.relay.android.ui.theme.RelayTheme
 import io.github.lyxnx.compose.ui.tablericons.TablerIcons
 import io.github.lyxnx.compose.ui.tablericons.outline.AlertCircle
@@ -41,43 +38,29 @@ fun AgentErrorNote(error: String) {
     val unfold = LocalUnfold.current
     val shown = agentError(error)
     val c = RelayTheme.colors
-    Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
-        Icon(TablerIcons.Outline.AlertCircle, null, Modifier.padding(top = 2.dp), size = 15.dp, tint = c.destructive)
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-            SelectionContainer { Text(shown.message) }
-            shown.hint?.let { Text(it, style = RelayTheme.type.xs, color = c.mutedForeground) }
-            val details = shown.details ?: return@Column
+    Notice(TablerIcons.Outline.AlertCircle, c.danger) {
+        SelectionContainer { Text(shown.message, style = RelayTheme.type.meta) }
+        shown.hint?.let { Text(it, style = RelayTheme.type.meta, color = c.inkSoft) }
+        val details = shown.details ?: return@Notice
+        TextAction(if (open) "Hide technical details" else "Technical details", { unfold { open = !open } })
+        if (open) SelectionContainer {
             Text(
-                if (open) "Hide technical details" else "Technical details",
-                Modifier.pressable(onClick = { unfold { open = !open } }, scale = false),
-                style = RelayTheme.type.xs,
-                color = c.mutedForeground,
+                details.take(4000),
+                Modifier.padding(top = 4.dp).fillMaxWidth().background(c.surface, TraceBox).padding(12.dp),
+                style = RelayTheme.type.codeSmall,
+                color = c.inkSoft,
             )
-            if (open) SelectionContainer {
-                Text(
-                    details.take(4000),
-                    Modifier.padding(top = 4.dp).fillMaxWidth().background(c.code, Radii.smShape).padding(8.dp),
-                    style = RelayTheme.type.monoSm.copy(fontSize = 11.sp, lineHeight = 15.sp),
-                    color = c.mutedForeground,
-                )
-            }
         }
     }
 }
 
+/** Something an answer has to say about itself: an icon in its colour, then words. */
 @Composable
-private fun NoteBox(icon: ImageVector, tint: Color, title: String, hint: String) {
-    val c = RelayTheme.colors
-    Row(
-        Modifier.fillMaxWidth().border(RelayTheme.hairline, c.border, Radii.mdShape).background(c.card, Radii.mdShape)
-            .padding(horizontal = 12.dp, vertical = 10.dp),
-        horizontalArrangement = Arrangement.spacedBy(9.dp),
-        verticalAlignment = Alignment.Top,
-    ) {
-        Icon(icon, null, Modifier.padding(top = 2.dp), size = 15.dp, tint = tint)
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-            Text(title, style = RelayTheme.type.sm.copy(fontWeight = FontWeight.SemiBold), maxLines = 2)
-            Text(hint, style = RelayTheme.type.xs, color = c.mutedForeground)
+private fun Notice(icon: ImageVector, tint: Color, content: @Composable ColumnScope.() -> Unit) {
+    QuietCard {
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.Top) {
+            Icon(icon, null, size = 18.dp, tint = tint)
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp), content = content)
         }
     }
 }
@@ -86,10 +69,9 @@ private fun NoteBox(icon: ImageVector, tint: Color, title: String, hint: String)
 @Composable
 fun SignInNote(provider: String) {
     val name = computerName(LocalThreadRemote.current)
-    NoteBox(
-        TablerIcons.Outline.Login, RelayTheme.colors.accent,
-        "${agentName(provider)} is signed out",
-        "Open this thread on $name to sign in again, then resume the answer.",
-    )
+    Notice(TablerIcons.Outline.Login, RelayTheme.colors.accent) {
+        Text("${agentName(provider)} is signed out", style = RelayTheme.type.meta.copy(fontWeight = FontWeight.Medium), maxLines = 2)
+        Text("Open this thread on $name to sign in again, then resume the answer.", style = RelayTheme.type.meta, color = RelayTheme.colors.inkSoft)
+    }
 }
 

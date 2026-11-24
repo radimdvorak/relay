@@ -45,7 +45,7 @@ internal fun ThreadRowView(
             when (row) {
                 is ThreadMessageRow.Render -> LocalThreadRemote.current?.let { remote ->
                     MessageRenders(remote, chatId, listOf(row.render), onCompose = callbacks.onCompose,
-                        modifier = Modifier.padding(start = 16.dp, end = 16.dp,
+                        modifier = Modifier.padding(start = ThreadInset, end = ThreadInset,
                             top = if (row.ordinal == 0) 8.dp else 10.dp))
                 }
                 is ThreadMessageRow.Block -> MessageView(chatId, m, root, 0, callbacks, failures,
