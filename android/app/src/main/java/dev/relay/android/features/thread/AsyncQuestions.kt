@@ -4,14 +4,10 @@ package dev.relay.android.features.thread
 // left in its answer while it kept working. They stay answerable after the
 // turn ends; dismissing one hides it without telling the agent anything.
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -24,8 +20,6 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.unit.dp
@@ -47,8 +41,6 @@ import dev.relay.android.ui.pressable
 import dev.relay.android.ui.rememberHaptics
 import dev.relay.android.ui.theme.RelayTheme
 import io.github.lyxnx.compose.ui.tablericons.TablerIcons
-import io.github.lyxnx.compose.ui.tablericons.outline.ChevronDown
-import io.github.lyxnx.compose.ui.tablericons.outline.ChevronRight
 import io.github.lyxnx.compose.ui.tablericons.outline.MessageCircleQuestion
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
@@ -104,17 +96,11 @@ private fun Open(chatId: String, message: ChatMessage, group: AsyncAgentQuestion
                 mapOf("kind" to "secret", "value" to value) + if (always) mapOf("remember" to true) else emptyMap(),
             )
         }, sent)
-    } else if (group.dismissed != true) Column(
-        Modifier.fillMaxWidth().border(1.dp, c.accent, RoundedCornerShape(14.dp)).background(c.card, RoundedCornerShape(14.dp)).padding(14.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Icon(TablerIcons.Outline.MessageCircleQuestion, null, size = 15.dp, tint = c.accent)
-            Text(title, Modifier.weight(1f), style = RelayTheme.type.base.copy(fontWeight = FontWeight.SemiBold))
-            Text(
-                "Dismiss", Modifier.pressable(onClick = { dismiss(true) }, enabled = !busy, scale = false),
-                style = RelayTheme.type.sm.copy(fontWeight = FontWeight.Medium), color = c.mutedForeground,
-            )
+    } else if (group.dismissed != true) QuietCard(padding = 16.dp, gap = 12.dp) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(TraceGap)) {
+            Icon(TablerIcons.Outline.MessageCircleQuestion, null, size = 18.dp, tint = c.waiting)
+            Text(title, Modifier.weight(1f), style = RelayTheme.type.body.copy(fontWeight = FontWeight.SemiBold))
+            TextAction("Dismiss", { dismiss(true) }, enabled = !busy)
         }
         Hint("Answer whenever you're ready.")
         val page = group.page
@@ -138,16 +124,13 @@ private fun Open(chatId: String, message: ChatMessage, group: AsyncAgentQuestion
                 )
             }, sent)
         }
-        error?.let { Hint(it, color = c.destructive) }
-    } else Row(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.Top) {
+        error?.let { Hint(it, color = c.danger) }
+    } else Row(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
         Fold("Dismissed ${if (many) "questions" else "question"}", Modifier.weight(1f, fill = false)) {
             for (q in group.questions) Hint(q.question)
         }
-        Text(
-            "Reopen", Modifier.pressable(onClick = { dismiss(false) }, enabled = !busy, scale = false),
-            style = RelayTheme.type.sm.copy(fontWeight = FontWeight.Medium), color = c.accent,
-        )
-        error?.let { Hint(it, color = c.destructive) }
+        TextAction("Reopen", { dismiss(false) }, enabled = !busy, color = c.ink)
+        error?.let { Hint(it, color = c.danger) }
     }
 }
 
@@ -189,7 +172,7 @@ private fun Answered(group: AsyncAgentQuestions) {
     }
     Fold("Answered ${if (group.questions.size > 1) "questions" else "question"}") {
         for (q in group.questions) Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
-            Hint(q.question, color = RelayTheme.colors.foreground)
+            Hint(q.question, color = RelayTheme.colors.ink)
             SelectionContainer { Hint(if (q.isSecret == true) "Hidden answer" else answers[q.id]?.joinToString(", ").orEmpty()) }
         }
     }
@@ -198,19 +181,14 @@ private fun Answered(group: AsyncAgentQuestions) {
 @Composable
 private fun Fold(label: String, modifier: Modifier = Modifier, content: @Composable () -> Unit) {
     var open by rememberSaveable { mutableStateOf(false) }
-    val c = RelayTheme.colors
-    Column(modifier, verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Row(
-            Modifier.pressable(onClick = { open = !open }, scale = false),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(5.dp),
-        ) {
-            Icon(if (open) TablerIcons.Outline.ChevronDown else TablerIcons.Outline.ChevronRight, null, size = 13.dp, tint = c.mutedForeground)
-            Hint(label)
+    Column(modifier) {
+        Step(Modifier.pressable(onClick = { open = !open }, scale = false)) {
+            StepIcon(TablerIcons.Outline.MessageCircleQuestion)
+            StepText(label, Modifier.weight(1f, fill = false))
+            StepChevron(open)
         }
         if (open) Column(
-            Modifier.drawBehind { drawLine(c.border, Offset(1.dp.toPx(), 0f), Offset(1.dp.toPx(), size.height), 2.dp.toPx()) }
-                .padding(start = 12.dp),
+            Modifier.padding(start = TraceIndent, top = 2.dp, bottom = 8.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) { content() }
     }

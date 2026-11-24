@@ -21,9 +21,7 @@ import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.rememberTextMeasurer
-import androidx.compose.ui.unit.dp
 import dev.relay.android.remote.Remote
-import dev.relay.android.ui.Text
 import dev.relay.android.ui.loop
 import dev.relay.android.ui.rememberInFront
 import dev.relay.android.ui.theme.RelayTheme
@@ -50,7 +48,7 @@ fun rememberNow(ms: Long): Long {
 @Composable
 fun Modifier.shine(): Modifier {
     val p = loop(1800, LinearEasing, -0.4f, 1.4f, still = -1f, showsWork = true)
-    val glint = RelayTheme.colors.foreground
+    val glint = RelayTheme.colors.ink
     return graphicsLayer(compositingStrategy = CompositingStrategy.Offscreen).drawWithContent {
         drawContent()
         val x = p()
@@ -71,7 +69,7 @@ fun Modifier.shine(): Modifier {
 
 @Composable
 fun ShineText(text: String, modifier: Modifier = Modifier) {
-    Text(text, modifier.shine(), style = RelayTheme.type.sm, color = RelayTheme.colors.mutedForeground, maxLines = 1)
+    StepText(text, modifier.shine())
 }
 
 // The frames of the desktop's .thinking-glyph (src/features/agent-turn/agent-trace.css).
@@ -85,9 +83,9 @@ fun ThinkingGlyph(provider: String, modifier: Modifier = Modifier) {
     val still = if (provider == "claude") 2f else 0f
     val at = loop(frames.size * ms, LinearEasing, 0f, frames.size.toFloat(), still = still, showsWork = true)
     val measurer = rememberTextMeasurer()
-    val style = RelayTheme.type.sm.copy(color = RelayTheme.colors.accent)
+    val style = RelayTheme.type.meta.copy(color = RelayTheme.colors.accent)
     Box(
-        modifier.size(14.dp).drawBehind {
+        modifier.size(TraceIcon).drawBehind {
             val frame = frames[at().toInt().coerceIn(0, frames.size - 1)]
             val laid = measurer.measure(frame, style)
             drawText(laid, topLeft = Offset((size.width - laid.size.width) / 2f, (size.height - laid.size.height) / 2f))

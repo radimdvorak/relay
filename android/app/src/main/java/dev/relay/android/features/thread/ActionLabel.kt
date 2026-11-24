@@ -31,7 +31,6 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import dev.relay.android.features.thread.logic.TraceRow
 import dev.relay.android.features.thread.logic.actionVerb
 import dev.relay.android.features.thread.logic.baseName
@@ -43,24 +42,12 @@ import dev.relay.android.ui.Icon
 import dev.relay.android.ui.Text
 import dev.relay.android.ui.theme.RelayTheme
 import io.github.lyxnx.compose.ui.tablericons.TablerIcons
-import io.github.lyxnx.compose.ui.tablericons.outline.Braces
-import io.github.lyxnx.compose.ui.tablericons.outline.BrandCss3
-import io.github.lyxnx.compose.ui.tablericons.outline.BrandGolang
-import io.github.lyxnx.compose.ui.tablericons.outline.BrandHtml5
-import io.github.lyxnx.compose.ui.tablericons.outline.BrandJavascript
-import io.github.lyxnx.compose.ui.tablericons.outline.BrandKotlin
-import io.github.lyxnx.compose.ui.tablericons.outline.BrandPython
-import io.github.lyxnx.compose.ui.tablericons.outline.BrandReact
-import io.github.lyxnx.compose.ui.tablericons.outline.BrandRust
-import io.github.lyxnx.compose.ui.tablericons.outline.BrandSwift
-import io.github.lyxnx.compose.ui.tablericons.outline.BrandTypescript
 import io.github.lyxnx.compose.ui.tablericons.outline.Check
 import io.github.lyxnx.compose.ui.tablericons.outline.FilePencil
 import io.github.lyxnx.compose.ui.tablericons.outline.FilePlus
 import io.github.lyxnx.compose.ui.tablericons.outline.FileText
 import io.github.lyxnx.compose.ui.tablericons.outline.Flask
 import io.github.lyxnx.compose.ui.tablericons.outline.GitCommit
-import io.github.lyxnx.compose.ui.tablericons.outline.Markdown
 import io.github.lyxnx.compose.ui.tablericons.outline.Photo
 import io.github.lyxnx.compose.ui.tablericons.outline.Search
 import io.github.lyxnx.compose.ui.tablericons.outline.Terminal2
@@ -69,7 +56,7 @@ import io.github.lyxnx.compose.ui.tablericons.outline.Trash
 import io.github.lyxnx.compose.ui.tablericons.outline.World
 import io.github.lyxnx.compose.ui.tablericons.outline.X
 
-private val CHIP_SHAPE = RoundedCornerShape(5.dp)
+private val CHIP_SHAPE = RoundedCornerShape(6.dp)
 private val WORD_GAP = 5.dp
 private val EDGE_FADE = 28.dp
 
@@ -172,11 +159,11 @@ private fun ActionObject(row: TraceRow, withWhere: Boolean) {
             if (withWhere && a.where != null) Where(a.where)
         }
         "run", "git" -> CodeChip(a.what.orEmpty())
-        "web" -> Text(a.query.orEmpty(), maxLines = 1)
+        "web" -> StepText(a.query.orEmpty(), color = RelayTheme.colors.ink)
         "test" -> if (a.target != null) FileChip(a.target)
         "commit" -> {
             if (a.hash != null) CodeChip(a.hash.take(8))
-            Text(a.subject.orEmpty(), maxLines = 1)
+            StepText(a.subject.orEmpty(), color = RelayTheme.colors.ink)
         }
     }
 }
@@ -187,19 +174,19 @@ private fun Outcome(row: TraceRow) {
     val a = row.action
     if (a.kind != "test" && a.kind != "check") return
     val c = RelayTheme.colors
-    if (a.failed) Icon(TablerIcons.Outline.X, "failed", size = 13.dp, tint = c.destructive)
-    else if (!verdictStopped(row)) Icon(TablerIcons.Outline.Check, "passed", size = 13.dp, tint = c.success)
+    if (a.failed) Icon(TablerIcons.Outline.X, "failed", size = 14.dp, tint = c.danger)
+    else if (!verdictStopped(row)) Icon(TablerIcons.Outline.Check, "passed", size = 14.dp, tint = c.success)
 }
 
 @Composable
 private fun Verb(text: String, failed: Boolean, modifier: Modifier = Modifier) {
     val c = RelayTheme.colors
-    Text(text, modifier, color = if (failed) c.destructive else c.mutedForeground, maxLines = 1)
+    StepText(text, modifier, color = if (failed) c.danger else c.inkSoft)
 }
 
 @Composable
 private fun Muted(text: String) {
-    Text(text, color = RelayTheme.colors.mutedForeground, maxLines = 1)
+    StepText(text)
 }
 
 /** Where a search looked: a file as its chip, a folder or glob as its last two folders. */
@@ -208,11 +195,8 @@ private fun Where(where: String) {
     Muted("in")
     val oneFile = looksLikeFile.containsMatchIn(where) && ' ' !in where
     if (oneFile) FileChip(where)
-    else Text(shortWhere(LocalTrace.current.display(where)), style = chipText(), color = RelayTheme.colors.mutedForeground, maxLines = 1)
+    else StepText(shortWhere(LocalTrace.current.display(where)), style = traceCode())
 }
-
-@Composable
-private fun chipText() = RelayTheme.type.monoSm.copy(fontSize = 12.sp, lineHeight = 17.sp)
 
 /** A file: its folder dimmed, its name, and a dimmed [note] such as the lines read. The row's icon already says what was done to it. */
 @Composable
@@ -221,16 +205,16 @@ internal fun FileChip(path: String, note: String? = null) {
     val shown = LocalTrace.current.display(path)
     val folder = parentName(shown)
     Row(
-        Modifier.background(c.tool, CHIP_SHAPE).padding(horizontal = 5.dp, vertical = 1.dp),
+        Modifier.background(c.container, CHIP_SHAPE).padding(horizontal = 5.dp, vertical = 1.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         val name = buildAnnotatedString {
-            if (folder.isNotEmpty()) withStyle(SpanStyle(color = c.mutedForeground)) { append("$folder/") }
+            if (folder.isNotEmpty()) withStyle(SpanStyle(color = c.inkSoft)) { append("$folder/") }
             append(baseName(shown))
         }
-        androidx.compose.material3.Text(name, style = chipText(), color = c.foreground, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        if (note != null) Text(note, style = chipText(), color = c.faint, maxLines = 1)
+        androidx.compose.material3.Text(name, style = traceCode(), color = c.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        if (note != null) Text(note, style = traceCode(), color = c.inkFaint, maxLines = 1)
     }
 }
 
@@ -240,9 +224,9 @@ internal fun CodeChip(text: String) {
     val c = RelayTheme.colors
     Text(
         text,
-        Modifier.background(c.tool, CHIP_SHAPE).padding(horizontal = 5.dp, vertical = 1.dp),
-        style = chipText(),
-        color = c.foreground,
+        Modifier.background(c.container, CHIP_SHAPE).padding(horizontal = 5.dp, vertical = 1.dp),
+        style = traceCode(),
+        color = c.ink,
         maxLines = 1,
     )
 }

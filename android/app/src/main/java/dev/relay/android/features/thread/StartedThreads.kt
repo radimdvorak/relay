@@ -24,9 +24,6 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import dev.relay.android.features.thread.logic.familyInDock
@@ -48,6 +45,9 @@ import io.github.lyxnx.compose.ui.tablericons.outline.Check
 import io.github.lyxnx.compose.ui.tablericons.outline.ChevronDown
 import io.github.lyxnx.compose.ui.tablericons.outline.ChevronRight
 import io.github.lyxnx.compose.ui.tablericons.outline.Messages
+import dev.relay.android.ui.Group
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
 
 /** How many of a turn's threads show before "N more". */
 private const val FIRST_SHOWN = 4
@@ -56,9 +56,9 @@ private const val FIRST_SHOWN = 4
 @Composable
 fun StartedMark(waiting: Boolean, running: Boolean) {
     val c = RelayTheme.colors
-    Box(Modifier.width(16.dp), contentAlignment = Alignment.Center) {
-        if (waiting || running) Box(Modifier.size(7.dp).background(if (waiting) c.waiting else c.accent, CircleShape))
-        else Icon(TablerIcons.Outline.Check, if (waiting) "Needs you" else "Done", size = 14.dp, tint = c.additionText)
+    Box(Modifier.width(TraceIcon), contentAlignment = Alignment.Center) {
+        if (waiting || running) Box(Modifier.size(8.dp).background(if (waiting) c.waiting else c.accent, CircleShape))
+        else Icon(TablerIcons.Outline.Check, if (waiting) "Needs you" else "Done", size = TraceIcon, tint = c.added)
     }
 }
 
@@ -72,17 +72,17 @@ fun StartedRow(chat: RemoteChatSummary, peek: Peek, onPress: () -> Unit) {
     val c = RelayTheme.colors
     val now = startedNow(chat, peek.answer, peek.request)
     Row(
-        Modifier.fillMaxWidth().heightIn(min = 46.dp).pressable(onClick = onPress, scale = false)
-            .padding(horizontal = 4.dp, vertical = 5.dp),
+        Modifier.fillMaxWidth().heightIn(min = 52.dp).pressable(onClick = onPress, scale = false)
+            .padding(horizontal = 16.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         StartedMark(chat.waiting == true, chat.running == true)
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
-            Text(chat.title, style = RelayTheme.type.sm.copy(fontWeight = FontWeight.SemiBold), maxLines = 1)
-            Text(now.text, color = if (now.asks) c.waiting else c.mutedForeground, maxLines = 1)
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(chat.title, style = RelayTheme.type.meta.copy(fontWeight = FontWeight.Medium), maxLines = 1)
+            Text(now.text, style = RelayTheme.type.meta, color = if (now.asks) c.waiting else c.inkSoft, maxLines = 1)
         }
-        Icon(TablerIcons.Outline.ChevronRight, null, size = 15.dp, tint = c.faint)
+        Icon(TablerIcons.Outline.ChevronRight, null, size = 16.dp, tint = c.inkFaint)
     }
 }
 
@@ -102,39 +102,36 @@ fun StartedInTurn(chatId: String, message: ChatMessage) {
 private fun StartGroupRows(count: Int, threads: List<RemoteChatSummary>, peek: (String) -> Peek) {
     val navigator = LocalNavigator.current
     val c = RelayTheme.colors
-    val line = RelayTheme.hairline
     var all by rememberSaveable { mutableStateOf(false) }
     val shown = if (all || threads.size <= FIRST_SHOWN + 1) threads else threads.take(FIRST_SHOWN)
     Column(Modifier.padding(top = 2.dp, bottom = 8.dp)) {
-        Row(Modifier.heightIn(min = 26.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-            Icon(TablerIcons.Outline.Messages, null, Modifier.alpha(0.75f), size = 14.dp, tint = c.mutedForeground)
-            Text("Started ${plural(count, "thread")}", color = c.mutedForeground)
+        Step {
+            StepIcon(TablerIcons.Outline.Messages)
+            StepText("Started ${plural(count, "thread")}")
         }
-        Column(
-            Modifier.padding(start = 6.dp)
-                .drawBehind { drawLine(c.border, Offset(0f, 0f), Offset(0f, size.height), line.toPx() * 2) }
-                .padding(start = 8.dp),
-        ) {
+        QuietCard(Modifier.padding(top = 4.dp), padding = 0.dp, gap = 0.dp) {
+            Spacer(Modifier.height(4.dp))
             for (chat in shown) StartedRow(chat, peek(chat.id)) { navigator.push(Route.Thread(chat.id)) }
             if (shown.size < threads.size) Row(
-                Modifier.fillMaxWidth().heightIn(min = 36.dp).pressable(onClick = { all = true }, scale = false).padding(horizontal = 4.dp),
+                Modifier.fillMaxWidth().heightIn(min = 40.dp).pressable(onClick = { all = true }, scale = false).padding(horizontal = 16.dp),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                Box(Modifier.width(16.dp), contentAlignment = Alignment.Center) {
-                    Icon(TablerIcons.Outline.ChevronDown, null, size = 14.dp, tint = c.mutedForeground)
-                }
-                Text("${threads.size - shown.size} more", color = c.mutedForeground)
+                Icon(TablerIcons.Outline.ChevronDown, null, size = TraceIcon, tint = c.inkSoft)
+                StepText("${threads.size - shown.size} more")
             }
+            Spacer(Modifier.height(4.dp))
         }
     }
 }
 
 /** The started threads in a sheet. */
 @Composable
-fun StartedList(remote: Remote, started: List<RemoteChatSummary>, onOpen: (String) -> Unit) {
+fun StartedList(remote: Remote, started: List<RemoteChatSummary>, modifier: Modifier = Modifier, onOpen: (String) -> Unit) {
     val peek = rememberStartedPeeks(remote, started)
-    for (chat in started) StartedRow(chat, peek(chat.id)) { onOpen(chat.id) }
+    Group(modifier) {
+        for (chat in started) item { StartedRow(chat, peek(chat.id)) { onOpen(chat.id) } }
+    }
 }
 
 class StartedSlot(val family: List<RemoteChatSummary>, val shown: Boolean)

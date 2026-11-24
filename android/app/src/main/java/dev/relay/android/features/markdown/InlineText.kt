@@ -40,13 +40,13 @@ private fun AnnotatedString.Builder.appendInlines(
         // A formula inside a sentence as plain text; one that can't be stays as its source.
         is MdInline.Math -> {
             val plain = texToPlain(inline.tex)
-            if (plain == null) withStyle(mono.copy(color = c.mutedForeground)) { append(inline.tex) }
+            if (plain == null) withStyle(mono.copy(color = c.inkSoft)) { append(inline.tex) }
             else withStyle(SpanStyle(fontFamily = FontFamily.Serif, fontStyle = FontStyle.Italic)) { append(plain) }
         }
         // Inline code; a path in the thread's folder opens, in the accent colour.
         is MdInline.Code -> {
             val open = if (inLink) null else ctx.code(inline.code)
-            val style = mono.copy(background = c.code, color = if (open != null) c.accent else c.foreground)
+            val style = mono.copy(background = c.container, color = if (open != null) c.accent else c.ink)
             if (open == null) withStyle(style) { append(inline.code) }
             else withLink(clickable(open, style)) { append(inline.code) }
         }

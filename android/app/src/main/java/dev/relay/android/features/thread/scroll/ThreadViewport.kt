@@ -54,6 +54,8 @@ internal fun ThreadViewport(
     historyResult: HistoryLoadResult? = null,
     empty: (@Composable ColumnScope.() -> Unit)? = null,
     dock: @Composable ColumnScope.() -> Unit = {},
+    /** How the dock looks; it must not change its size. */
+    dockModifier: Modifier = Modifier,
     overDock: @Composable () -> Unit = {},
     content: LazyListScope.() -> Unit,
 ) {
@@ -85,7 +87,7 @@ internal fun ThreadViewport(
                 verticalArrangement = Arrangement.Bottom,
                 content = content,
             )
-            Column(Modifier.readingColumn(), content = dock)
+            Column(dockModifier.readingColumn(), content = dock)
             Box(Modifier.readingColumn(), contentAlignment = Alignment.CenterEnd) { overDock() }
         },
     ) { children, constraints ->

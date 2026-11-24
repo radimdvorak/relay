@@ -60,6 +60,8 @@ fun TextField(
     keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
     keyboardActions: KeyboardActions = KeyboardActions.Default,
     focusRequester: FocusRequester? = null,
+    /** On a container-coloured card the surface instead, so the field shows. */
+    fill: Color = RelayTheme.colors.container,
 ) {
     val c = RelayTheme.colors
     val interaction = remember { MutableInteractionSource() }
@@ -103,7 +105,7 @@ fun TextField(
                 Row(
                     Modifier.fillMaxWidth()
                         .heightIn(min = 48.dp)
-                        .background(c.container, shape)
+                        .background(fill, shape)
                         .ring(ringColor, shape)
                         .padding(horizontal = 14.dp, vertical = if (singleLine) 0.dp else 12.dp),
                     verticalAlignment = if (singleLine) Alignment.CenterVertically else Alignment.Top,

@@ -1,13 +1,10 @@
 package dev.relay.android.features.markdown
 
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.runtime.CompositionLocalProvider
@@ -17,7 +14,6 @@ import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.TextStyle
@@ -27,10 +23,22 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.relay.android.remote.model.TurnFileChange
 import dev.relay.android.remote.tunnel.LocalUrls
-import dev.relay.android.ui.Divider
 import dev.relay.android.ui.Text
 import dev.relay.android.ui.theme.RelayTheme
 import androidx.compose.material3.Text as RichText
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.platform.LocalDensity
+import dev.relay.android.ui.Icon
+import io.github.lyxnx.compose.ui.tablericons.TablerIcons
+import io.github.lyxnx.compose.ui.tablericons.outline.Square
+import io.github.lyxnx.compose.ui.tablericons.outline.SquareCheck
 
 /**
  * What pressing a link's destination or a piece of inline code does, when it
@@ -62,7 +70,11 @@ internal class MdContext(
     /** Text as Android's own views (NativeText.kt), selectable when [selectable]. */
     val native: Boolean = false,
     val selectable: Boolean = false,
+    /** Inside a quote: the text is softer. */
+    val quoted: Boolean = false,
 ) {
+    fun inQuote() = MdContext(small, openPath, openWeb, image, localhost, native, selectable, quoted = true)
+
     /** A file first, then a web link; anything else stays text, as on the desktop. */
     fun link(href: String): (() -> Unit)? =
         openPath?.invoke(href, false) ?: if (isWebUrl(href)) ({ openWeb(href) }) else null
@@ -106,7 +118,7 @@ fun Markdown(
         MdContext(small, paths, web, image, localhost, native, selectable)
     }
     val content = @Composable {
-        Column(modifier, verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Column(modifier, verticalArrangement = Arrangement.spacedBy(blockGap(context))) {
             for (block in blocks) Block(block, context)
         }
     }
@@ -136,8 +148,29 @@ internal val LocalInSelection = staticCompositionLocalOf { false }
 
 @Composable
 internal fun bodyStyle(small: Boolean): TextStyle =
-    if (small) RelayTheme.type.sm.copy(fontSize = 13.sp, lineHeight = 19.sp)
-    else RelayTheme.type.base.copy(fontSize = 15.sp, lineHeight = 22.sp)
+    if (small) RelayTheme.type.meta.copy(lineHeight = 20.sp) else RelayTheme.type.body
+
+@Composable
+private fun headingStyle(level: Int, small: Boolean): TextStyle = when {
+    small -> RelayTheme.type.body.copy(lineHeight = 22.sp, fontWeight = FontWeight.SemiBold)
+    level <= 2 -> RelayTheme.type.heading
+    level == 3 -> RelayTheme.type.row.copy(fontSize = 17.sp, lineHeight = 24.sp, fontWeight = FontWeight.SemiBold)
+    else -> RelayTheme.type.body.copy(fontWeight = FontWeight.SemiBold)
+}
+
+/** Where an item's text starts past its mark. */
+private val ItemIndent = 20.dp
+
+/** Inter's own line, in ems: a TextView's first line is this tall, and its spacing comes after it. */
+private const val NATURAL_LINE = 1.21f
+
+/** A native paragraph ends without the spacing its lines have between them; this gives it back. */
+private val NativeLead = 6.dp
+
+/** Between two blocks, and between two items of a list, over the line height the text itself has. */
+private fun blockGap(ctx: MdContext) = if (ctx.native && !ctx.small) 8.dp + NativeLead else 10.dp
+
+private fun itemGap(ctx: MdContext) = if (ctx.native && !ctx.small) 4.dp + NativeLead else 4.dp
 
 @Composable
 private fun Block(block: MdBlock, ctx: MdContext) {
@@ -147,48 +180,62 @@ private fun Block(block: MdBlock, ctx: MdContext) {
         is MdBlock.Heading -> Inlines(
             block.inlines,
             ctx,
-            RelayTheme.type.base.copy(
-                fontSize = when (block.level) { 1 -> 19.sp; 2 -> 17.sp; else -> 15.sp },
-                lineHeight = 24.sp,
-                fontWeight = FontWeight.SemiBold,
-            ),
-            Modifier.padding(top = 4.dp),
+            headingStyle(block.level, ctx.small),
+            Modifier.padding(top = if (ctx.small) 2.dp else 4.dp),
         )
         is MdBlock.Code -> CodeBlock(block.language, block.code)
         is MdBlock.Math -> MathBlock(block.tex, block.closed)
         is MdBlock.Quote -> {
-            val border = c.border
+            val bar = c.selected
+            val quote = remember(ctx) { ctx.inQuote() }
             Column(
                 Modifier
-                    .drawBehind { drawRect(border, size = Size(3.dp.toPx(), size.height)) }
-                    .padding(start = 15.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) { for (inner in block.blocks) Block(inner, ctx) }
+                    .drawBehind { drawRoundRect(bar, size = Size(3.dp.toPx(), size.height), cornerRadius = CornerRadius(1.5.dp.toPx())) }
+                    .padding(start = 14.dp),
+                verticalArrangement = Arrangement.spacedBy(blockGap(ctx)),
+            ) { for (inner in block.blocks) Block(inner, quote) }
         }
-        is MdBlock.Items -> Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        is MdBlock.Items -> Column(verticalArrangement = Arrangement.spacedBy(itemGap(ctx))) {
             block.items.forEachIndexed { i, item ->
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    val bullet = when {
-                        item.task != null -> if (item.task) "☑" else "☐"
-                        block.ordered -> "${block.start + i}."
-                        else -> "•"
-                    }
-                    Text(
-                        bullet,
-                        Modifier.widthIn(min = 16.dp),
-                        style = bodyStyle(ctx.small),
-                        color = c.mutedForeground,
-                        textAlign = TextAlign.End,
-                    )
-                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Row {
+                    ItemMark(item.task, number = if (block.ordered) block.start + i else null, ctx)
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(itemGap(ctx))) {
                         for (inner in item.blocks) Block(inner, ctx)
                     }
                 }
             }
         }
         is MdBlock.Table -> if (ctx.native && ctx.selectable) SelectionContainer { Table(block, ctx) } else Table(block, ctx)
-        is MdBlock.Raw -> Text(block.text, style = bodyStyle(ctx.small), color = c.foreground)
-        MdBlock.Rule -> Divider(Modifier.padding(vertical = 6.dp))
+        is MdBlock.Raw -> Text(block.text, style = bodyStyle(ctx.small), color = c.ink)
+        // Room between two parts says the same as a line would, more quietly.
+        MdBlock.Rule -> Box(Modifier.fillMaxWidth().height(16.dp), contentAlignment = Alignment.Center) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                repeat(3) { Box(Modifier.size(3.dp).background(c.inkFaint, CircleShape)) }
+            }
+        }
+    }
+}
+
+/** A list item's dot, number or checkbox, level with its first line. */
+@Composable
+private fun ItemMark(task: Boolean?, number: Int?, ctx: MdContext) {
+    val c = RelayTheme.colors
+    val body = bodyStyle(ctx.small)
+    val style = if (ctx.native) body.copy(lineHeight = body.fontSize * NATURAL_LINE) else body
+    val line = with(LocalDensity.current) { style.lineHeight.toDp() }
+    if (number != null && task == null) return Text(
+        "$number.",
+        Modifier.widthIn(min = ItemIndent).padding(end = 5.dp),
+        style = style.copy(fontFeatureSettings = "tnum"),
+        color = c.inkSoft,
+        textAlign = TextAlign.End,
+    )
+    Box(Modifier.size(ItemIndent, line).padding(end = if (task == null) 0.dp else 4.dp), contentAlignment = if (task == null) Alignment.Center else Alignment.CenterStart) {
+        when (task) {
+            null -> Box(Modifier.size(5.dp).background(if (ctx.quoted) c.inkSoft else c.ink, CircleShape))
+            true -> Icon(TablerIcons.Outline.SquareCheck, "Done", tint = c.inkSoft, size = 16.dp)
+            false -> Icon(TablerIcons.Outline.Square, "Not done", tint = c.inkFaint, size = 16.dp)
+        }
     }
 }
 
@@ -233,38 +280,10 @@ internal fun withoutImages(inlines: List<MdInline>): List<MdInline> {
 }
 
 @Composable
-private fun Inlines(inlines: List<MdInline>, ctx: MdContext, style: TextStyle, modifier: Modifier = Modifier, native: Boolean = ctx.native) {
+internal fun Inlines(inlines: List<MdInline>, ctx: MdContext, style: TextStyle, modifier: Modifier = Modifier, native: Boolean = ctx.native) {
     val c = RelayTheme.colors
-    if (native) return NativeInlines(inlines, ctx, style.copy(color = c.foreground), ctx.selectable, modifier)
+    val ink = if (ctx.quoted) c.inkSoft else c.ink
+    if (native) return NativeInlines(inlines, ctx, style.copy(color = ink), ctx.selectable, modifier)
     val text = remember(inlines, ctx, c) { inlineText(inlines, ctx, c) }
-    RichText(text, modifier, style = style.copy(color = c.foreground))
-}
-
-@Composable
-private fun Table(table: MdBlock.Table, ctx: MdContext) {
-    val c = RelayTheme.colors
-    val hairline = RelayTheme.hairline
-    val cell = RelayTheme.type.sm.copy(fontSize = 13.sp)
-    Column(Modifier.horizontalScroll(rememberScrollState())) {
-        val rows = listOf(table.header) + table.rows
-        rows.forEachIndexed { r, cells ->
-            Row(
-                Modifier.drawBehind {
-                    val y = size.height - hairline.toPx() / 2
-                    drawLine(c.border, Offset(0f, y), Offset(size.width, y), hairline.toPx())
-                },
-            ) {
-                for (inlines in cells) {
-                    Inlines(
-                        inlines,
-                        ctx,
-                        if (r == 0) cell.copy(fontWeight = FontWeight.SemiBold) else cell,
-                        Modifier.width(140.dp).padding(6.dp),
-                        // A table scrolls sideways; its cells select together, in Compose.
-                        native = false,
-                    )
-                }
-            }
-        }
-    }
+    RichText(text, modifier, style = style.copy(color = ink))
 }

@@ -27,7 +27,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
@@ -49,20 +48,11 @@ import dev.relay.android.features.thread.logic.rowRunning
 import dev.relay.android.features.thread.logic.traceRun
 import dev.relay.android.remote.model.AgentActivity
 import dev.relay.android.remote.model.CallAction
-import dev.relay.android.ui.Icon
 import dev.relay.android.ui.Text
 import dev.relay.android.ui.pressable
-import dev.relay.android.ui.theme.Radii
 import dev.relay.android.ui.theme.RelayTheme
 import io.github.lyxnx.compose.ui.tablericons.TablerIcons
-import io.github.lyxnx.compose.ui.tablericons.outline.ChevronRight
 import io.github.lyxnx.compose.ui.tablericons.outline.Robot
-
-/** A row's first line: the height every trace row keeps, so the thread doesn't jolt. */
-private val LINE = 26.dp
-
-/** Where a row's words start: past its 14dp icon and the 7dp gap. */
-private val INDENT = 21.dp
 
 /** Tools, and kinds of action this app doesn't know yet, keep their call's own row. */
 internal fun drawsOwnRow(row: TraceRow) = actionVerb(row).isEmpty()
@@ -85,7 +75,7 @@ internal fun ClosedRun(calls: List<AgentActivity>, only: Boolean) {
         FoldHeading(branchIcon(firstKind(first), rowsIn(first)), summary, failed, open, onToggle = { unfold { open = !open } })
         if (open) run.pieces.forEachIndexed { index, piece ->
             val elbow = Modifier.treeElbow(last = index == run.pieces.lastIndex, color = treeLine())
-            key(piece.id) { Piece(piece, elbow.padding(start = INDENT)) }
+            key(piece.id) { Piece(piece, elbow.padding(start = TraceIndent)) }
         }
     }
 }
@@ -134,13 +124,13 @@ private fun PairRow(first: TraceRow, second: TraceRow, modifier: Modifier = Modi
 private fun LookedAt(row: TraceRow) {
     val call = row.calls.first()
     val shows = row.action.kind == "image" && LocalTrace.current.chatId.isNotEmpty() && looksAtImage(call)
-    if (shows) Box(Modifier.padding(start = INDENT)) { Preview(call, LocalTrace.current.display(row.action.file.orEmpty())) }
+    if (shows) Box(Modifier.padding(start = TraceIndent)) { Preview(call, LocalTrace.current.display(row.action.file.orEmpty())) }
 }
 
 @Composable
 private fun RowIcon(icon: ImageVector, failed: Boolean) {
     val c = RelayTheme.colors
-    Icon(icon, null, Modifier.alpha(0.75f), size = 14.dp, tint = if (failed) c.destructive else c.mutedForeground)
+    StepIcon(icon, tint = if (failed) c.danger else c.inkFaint)
 }
 
 /** A row that opens to its calls when there's something inside them to show. */
@@ -157,9 +147,9 @@ private fun OpenableRow(
     val inside = rows.flatMap { it.calls }.distinctBy { it.id }.filter(::opensTo)
     val press = if (inside.isEmpty()) Modifier else Modifier.pressable(onClick = { unfold { open = !open } }, scale = false)
     Column(modifier) {
-        Row(press.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-            Box(Modifier.height(LINE), contentAlignment = Alignment.Center) { icon() }
-            Box(Modifier.weight(1f).heightIn(min = LINE).padding(vertical = 3.dp), contentAlignment = Alignment.CenterStart) { label() }
+        Row(press.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(TraceGap)) {
+            Box(Modifier.height(TraceLine), contentAlignment = Alignment.Center) { icon() }
+            Box(Modifier.weight(1f).heightIn(min = TraceLine).padding(vertical = 3.dp), contentAlignment = Alignment.CenterStart) { label() }
         }
         under()
         if (open) inside.forEach { key(it.id) { CallInside(it, rows) } }
@@ -215,10 +205,10 @@ private fun ReadInside(a: AgentActivity) {
 private fun CommandLine(command: String) {
     val c = RelayTheme.colors
     SelectionContainer(
-        Modifier.padding(start = INDENT, top = 2.dp, bottom = 4.dp).fillMaxWidth()
-            .background(c.muted, Radii.smShape).padding(horizontal = 9.dp, vertical = 6.dp),
+        Modifier.padding(start = TraceIndent, top = 2.dp, bottom = 4.dp).fillMaxWidth()
+            .background(c.container, TraceBox).padding(horizontal = 12.dp, vertical = 8.dp),
     ) {
-        Text(command, style = RelayTheme.type.monoSm, color = c.foreground, maxLines = 12)
+        Text(command, style = traceCode(), color = c.ink, maxLines = 12)
     }
 }
 
@@ -232,7 +222,7 @@ private fun Branch(branch: TracePiece.Branch, modifier: Modifier = Modifier) {
         FoldHeading(branchIcon(branch.kind, branch.rows), branch.heading, failed, open, onToggle = { unfold { open = !open } })
         if (open) branch.rows.forEachIndexed { index, row ->
             val elbow = Modifier.treeElbow(last = index == branch.rows.lastIndex, color = treeLine())
-            key(row.id) { ActionRow(row, elbow.padding(start = INDENT)) }
+            key(row.id) { ActionRow(row, elbow.padding(start = TraceIndent)) }
         }
     }
 }
@@ -243,11 +233,8 @@ private fun FoldHeading(icon: ImageVector, text: String, failed: Boolean, open: 
     val c = RelayTheme.colors
     Step(Modifier.pressable(onClick = onToggle, scale = false)) {
         RowIcon(icon, failed = false)
-        Text(text, Modifier.weight(1f, fill = false), maxLines = 1, color = if (failed) c.destructive else c.mutedForeground)
-        Icon(
-            TablerIcons.Outline.ChevronRight, null, size = 13.dp, tint = c.faint,
-            modifier = if (open) Modifier.rotate(90f) else Modifier,
-        )
+        StepText(text, Modifier.weight(1f, fill = false), color = if (failed) c.danger else c.inkSoft)
+        StepChevron(open)
     }
 }
 
@@ -266,17 +253,17 @@ private fun branchIcon(kind: BranchKind, rows: List<TraceRow>): ImageVector = wh
 private fun allAgents(rows: List<TraceRow>) = rows.all { row -> row.calls.all { it.kind == "agent" } }
 
 @Composable
-private fun treeLine() = RelayTheme.colors.faint.copy(alpha = 0.5f)
+private fun treeLine() = RelayTheme.colors.inkFaint.copy(alpha = 0.5f)
 
 /**
  * The tree's line, drawn beside a row: down from the branch header's icon, and
  * a rounded └ into this row's first line. The last row's line stops at its elbow.
  */
 private fun Modifier.treeElbow(last: Boolean, color: Color) = drawBehind {
-    val x = 7.dp.toPx()
-    val y = LINE.toPx() / 2
-    val bend = 4.dp.toPx()
-    val end = INDENT.toPx() - 4.dp.toPx()
+    val x = TraceIcon.toPx() / 2
+    val y = TraceLine.toPx() / 2
+    val bend = 5.dp.toPx()
+    val end = TraceIndent.toPx() - 4.dp.toPx()
     val width = 1.dp.toPx()
     if (!last) drawLine(color, Offset(x, 0f), Offset(x, size.height), width)
     val elbow = Path().apply {

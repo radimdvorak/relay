@@ -44,6 +44,7 @@ import dev.relay.android.ui.theme.RelayColors
 import dev.relay.android.ui.theme.RelayTheme
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.math.roundToInt
+import android.graphics.Canvas
 
 /*
  * An answer's text as Android's own TextView. Compose's selection handles
@@ -84,8 +85,42 @@ internal fun NativeInlines(inlines: List<MdInline>, ctx: MdContext, style: TextS
  * first line out of sight and stayed that way: list items showed all but their first line.
  */
 private class AnswerText(context: Context) : TextView(context) {
+    private val codePaint = Paint(Paint.ANTI_ALIAS_FLAG)
+
     override fun scrollTo(x: Int, y: Int) = super.scrollTo(0, 0)
+
+    /** Behind the text and the selection. A BackgroundColorSpan would fill the whole line, its spacing too. */
+    override fun onDraw(canvas: Canvas) {
+        val shown = text as? Spanned
+        val laid = layout
+        if (shown != null && laid != null)
+            for (mark in shown.getSpans(0, shown.length, CodeBack::class.java)) drawCodeBack(canvas, laid, shown, mark)
+        super.onDraw(canvas)
+    }
+
+    private fun drawCodeBack(canvas: Canvas, laid: Layout, shown: Spanned, mark: CodeBack) {
+        val start = shown.getSpanStart(mark)
+        val end = shown.getSpanEnd(mark)
+        if (start >= end) return
+        codePaint.color = mark.color
+        val first = laid.getLineForOffset(start)
+        val last = laid.getLineForOffset(end - 1)
+        val dp = resources.displayMetrics.density
+        for (line in first..last) {
+            val left = if (line == first) laid.getPrimaryHorizontal(start) else laid.getLineLeft(line)
+            val endsHere = line == last && laid.getLineForOffset(end) == line
+            val right = if (endsHere) laid.getPrimaryHorizontal(end) else laid.getLineRight(line)
+            val base = laid.getLineBaseline(line)
+            canvas.drawRoundRect(
+                left - 2 * dp, base - textSize * 1.02f, right + 2 * dp, base + textSize * 0.36f,
+                5 * dp, 5 * dp, codePaint,
+            )
+        }
+    }
 }
+
+/** Inline code's backing, for [AnswerText] to draw. */
+private class CodeBack(val color: Int)
 
 /** What a view last showed, so a parent drawing again with the same doesn't reset it. */
 private class Shown(var style: StyleKey? = null, var text: Spanned? = null)
@@ -108,7 +143,7 @@ private fun TextView.applyStyle(key: StyleKey, density: Density) {
     typeface = Fonts.weighted(Fonts.inter(context), weight)
     setTextSize(TypedValue.COMPLEX_UNIT_SP, style.fontSize.value)
     if (style.lineHeight.isSp) lineHeight = with(density) { style.lineHeight.toPx() }.roundToInt()
-    setTextColor((if (style.color.isUnspecified) c.foreground else style.color).toArgb())
+    setTextColor((if (style.color.isUnspecified) c.ink else style.color).toArgb())
     highlightColor = c.accent.copy(alpha = 0.3f).toArgb()
     for (handle in listOfNotNull(textSelectHandle, textSelectHandleLeft, textSelectHandleRight)) handle.mutate().setTint(c.accent.toArgb())
     textSelectHandle?.let(::setTextSelectHandle)
@@ -171,15 +206,15 @@ private fun SpannableStringBuilder.appendInlines(inlines: List<MdInline>, ctx: M
         is MdInline.Del -> span(StrikethroughSpan()) { appendInlines(inline.children, ctx, c, code, strong, inLink) }
         is MdInline.Math -> {
             val plain = texToPlain(inline.tex)
-            if (plain == null) span(code.copy(), ForegroundColorSpan(c.mutedForeground.toArgb())) { append(inline.tex) }
+            if (plain == null) span(code.copy(), ForegroundColorSpan(c.inkSoft.toArgb())) { append(inline.tex) }
             else span(TypefaceSpan(Typeface.SERIF), StyleSpan(Typeface.ITALIC)) { append(plain) }
         }
         is MdInline.Code -> {
             val open = if (inLink) null else ctx.code(inline.code)
             val marks = listOfNotNull<Any>(
                 code.copy(),
-                BackgroundColorSpan(c.code.toArgb()),
-                ForegroundColorSpan((if (open != null) c.accent else c.foreground).toArgb()),
+                CodeBack(c.container.toArgb()),
+                ForegroundColorSpan((if (open != null) c.accent else c.ink).toArgb()),
                 open?.let { Click(it, null) },
             )
             span(*marks.toTypedArray()) { append(inline.code) }
