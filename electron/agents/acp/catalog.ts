@@ -51,12 +51,16 @@ async function probe(profile: AcpProfile, cwd: string) {
       await new Promise((resolve) => setTimeout(resolve, commandsWait));
     const settings = { ...session.settings };
     const current = currentOf(settings);
+    const visible = profile.models
+      ? new Set(profile.models(modelsOf(settings)).map((m) => m.id))
+      : undefined;
     // ACP reports effort levels only for the model a session runs. Ask each
     // model in turn so a picker offers, say, Max on one and Extra high on another.
     const efforts = await effortsForModels(
       agent.connection,
       { id: session.id, settings },
       effortsTimeout,
+      { only: visible },
     );
     const listed = modelsOf(settings, efforts);
     return {

@@ -1,6 +1,6 @@
 import { expect, it, vi } from "vitest";
 import type { ModelChoice, ReasoningEffort } from "../../../shared/settings";
-import type { AcpConnection } from "./connection";
+import { AcpRequestError, type AcpConnection } from "./connection";
 import type { AcpSettings } from "./sessions";
 import {
   applySettings,
@@ -9,7 +9,12 @@ import {
   modelsOf,
 } from "./settings";
 
-const select = (id: string, category: string, currentValue: string, values: string[]) => ({
+const select = (
+  id: string,
+  category: string,
+  currentValue: string,
+  values: string[],
+) => ({
   id,
   category,
   type: "select",
@@ -23,7 +28,10 @@ function recording() {
   return { connection: { request } as unknown as AcpConnection, request };
 }
 
-const choice = (model = "", reasoningEffort: ReasoningEffort | "" = ""): ModelChoice => ({
+const choice = (
+  model = "",
+  reasoningEffort: ReasoningEffort | "" = "",
+): ModelChoice => ({
   model,
   reasoningEffort,
   fast: false,
@@ -44,12 +52,9 @@ it("goes back to the session's own model and effort when Default is picked again
   await applySettings(connection, session, [], choice("flash", "high"));
   await applySettings(connection, session, [], choice());
 
-  expect(request.mock.calls.map((c) => (c[1] as { value: string }).value)).toEqual([
-    "flash",
-    "high",
-    "pro",
-    "medium",
-  ]);
+  expect(
+    request.mock.calls.map((c) => (c[1] as { value: string }).value),
+  ).toEqual(["flash", "high", "pro", "medium"]);
 });
 
 it("does the same through the older model list and mode list some agents still send", async () => {
@@ -68,8 +73,18 @@ it("does the same through the older model list and mode list some agents still s
     } as AcpSettings,
   };
 
-  await applySettings(connection, session, [{ option: "mode", value: "yolo" }], choice("flash"));
-  await applySettings(connection, session, [{ option: "mode", value: "nonsense" }], choice());
+  await applySettings(
+    connection,
+    session,
+    [{ option: "mode", value: "yolo" }],
+    choice("flash"),
+  );
+  await applySettings(
+    connection,
+    session,
+    [{ option: "mode", value: "nonsense" }],
+    choice(),
+  );
 
   expect(request.mock.calls).toEqual([
     ["session/set_mode", { sessionId: "s", modeId: "yolo" }],
@@ -92,7 +107,11 @@ it("offers efforts only when every level is one Relay knows", () => {
     ],
   } as AcpSettings);
 
-  expect(known[0]).toMatchObject({ id: "a", name: "A", efforts: ["low", "high"] });
+  expect(known[0]).toMatchObject({
+    id: "a",
+    name: "A",
+    efforts: ["low", "high"],
+  });
   expect(odd[0].efforts).toEqual([]);
 });
 
@@ -100,7 +119,12 @@ it("offers OpenCode's levels alongside its explicit default without duplicating 
   const settings = {
     configOptions: [
       select("model", "model", "openai/gpt", ["openai/gpt"]),
-      select("effort", "thought_level", "default", ["low", "medium", "high", "default"]),
+      select("effort", "thought_level", "default", [
+        "low",
+        "medium",
+        "high",
+        "default",
+      ]),
     ],
   } as AcpSettings;
 
@@ -110,7 +134,7 @@ it("offers OpenCode's levels alongside its explicit default without duplicating 
   expect(modelsOf(settings)[0].efforts).toEqual([]);
 });
 
-it("asks each model for its own effort levels", async () => {
+it("asks each model for its own effort levels and restores the original model", async () => {
   const settings = {
     configOptions: [
       select("model", "model", "gemini", ["deepseek", "gemini"]),
@@ -124,9 +148,9 @@ it("asks each model for its own effort levels", async () => {
     ],
   } as AcpSettings;
   const original = { ...settings };
-  const request = vi.fn(async () => {
+  const request = vi.fn(async (_: string, { value }: { value: string }) => {
     settings.configOptions = [
-      select("model", "model", "deepseek", ["deepseek", "gemini"]),
+      select("model", "model", value, ["deepseek", "gemini"]),
       select("effort", "thought_level", "default", [
         "low",
         "high",
@@ -147,6 +171,10 @@ it("asks each model for its own effort levels", async () => {
     [
       "session/set_config_option",
       { sessionId: "s", configId: "model", value: "deepseek" },
+    ],
+    [
+      "session/set_config_option",
+      { sessionId: "s", configId: "model", value: "gemini" },
     ],
   ]);
   expect(
@@ -175,7 +203,7 @@ it("surveys models even when the default has no effort option", async () => {
     1_000,
   );
 
-  expect([...found]).toEqual([
+  expect([...(found ?? [])]).toEqual([
     ["plain", []],
     ["deepseek", ["low", "high", "max"]],
     ["other-plain", []],
@@ -202,7 +230,7 @@ it("does not borrow efforts for models whose reply fails or reports another mode
     1_000,
   );
 
-  expect([...found]).toEqual([
+  expect([...(found ?? [])]).toEqual([
     ["a", ["low", "high"]],
     ["plain", []],
   ]);
@@ -257,13 +285,172 @@ it("returns verified efforts at the deadline without starting another switch", a
   }
 });
 
+it("caps each switch so one stuck model does not starve the rest", async () => {
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "performance"] });
+  try {
+    const ids = ["a", "stuck", "fast"];
+    const settings = {
+      configOptions: [
+        select("model", "model", "a", ids),
+        select("effort", "thought_level", "low", ["low", "high"]),
+      ],
+    };
+    const request = vi.fn(async (_: string, { value }: { value: string }) => {
+      if (value === "stuck") return new Promise<never>(() => {});
+      return {
+        configOptions: [
+          select("model", "model", value, ids),
+          select("effort", "thought_level", "max", ["high", "max"]),
+        ],
+      };
+    });
+
+    const surveyed = effortsForModels(
+      { request } as unknown as AcpConnection,
+      { id: "s", settings },
+      1_000,
+      { perModelMs: 50 },
+    );
+    await vi.advanceTimersByTimeAsync(50);
+    const found = await surveyed;
+
+    expect(
+      modelsOf(settings, found).map(({ id, efforts }) => [id, efforts]),
+    ).toEqual([
+      ["a", ["low", "high"]],
+      ["stuck", []],
+      ["fast", ["high", "max"]],
+    ]);
+    expect(request.mock.calls.map(([, params]) => params.value)).toEqual([
+      "stuck",
+      "fast",
+      "a",
+    ]);
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+it("reads efforts from config_option_update when replies omit configOptions, and falls back when neither arrives", async () => {
+  const ids = ["a", "b"];
+  const settings = {
+    configOptions: [
+      select("model", "model", "a", ids),
+      select("effort", "thought_level", "low", ["low", "high"]),
+    ],
+  };
+
+  let listener: ((update: unknown) => void) | undefined;
+  const notifiedConnection = {
+    listen: (_: string, fn: (update: unknown) => void) => {
+      listener = fn;
+    },
+    unlisten: () => {
+      listener = undefined;
+    },
+    request: vi.fn(async (_: string, { value }: { value: string }) => {
+      listener?.({
+        sessionUpdate: "config_option_update",
+        configOptions: [
+          select("model", "model", value, ids),
+          select("effort", "thought_level", "high", ["high", "max"]),
+        ],
+      });
+      return {};
+    }),
+  } as unknown as AcpConnection;
+
+  const fromUpdate = await effortsForModels(
+    notifiedConnection,
+    { id: "s", settings },
+    1_000,
+  );
+  expect(modelsOf(settings, fromUpdate).map(({ efforts }) => efforts)).toEqual([
+    ["low", "high"],
+    ["high", "max"],
+  ]);
+
+  const { connection: silent } = recording();
+  const fromEmpty = await effortsForModels(
+    silent,
+    { id: "s", settings },
+    1_000,
+  );
+  expect(fromEmpty).toBeUndefined();
+  expect(modelsOf(settings, fromEmpty).map(({ efforts }) => efforts)).toEqual([
+    ["low", "high"],
+    ["low", "high"],
+  ]);
+});
+
+it("stops early on unsupported set_config_option or closed connections, and skips filtered models", async () => {
+  const ids = ["a", "hidden", "b", "c"];
+  const settings = {
+    configOptions: [
+      select("model", "model", "a", ids),
+      select("effort", "thought_level", "low", ["low", "high"]),
+    ],
+  };
+
+  const unsupportedRequest = vi.fn(async () => {
+    throw new AcpRequestError(
+      -32601,
+      "Method not found",
+      null,
+      "session/set_config_option",
+    );
+  });
+  const unsupported = await effortsForModels(
+    { request: unsupportedRequest } as unknown as AcpConnection,
+    { id: "s", settings },
+    1_000,
+  );
+  expect(unsupported).toBeUndefined();
+  expect(unsupportedRequest).toHaveBeenCalledTimes(1);
+
+  const closing = {
+    closed: false,
+    request: vi.fn(async () => {
+      closing.closed = true;
+      throw new Error("closed");
+    }),
+  };
+  await effortsForModels(
+    closing as unknown as AcpConnection,
+    { id: "s", settings },
+    1_000,
+  );
+  expect(closing.request).toHaveBeenCalledTimes(1);
+
+  const filteredRequest = vi.fn(
+    async (_: string, { value }: { value: string }) => ({
+      configOptions: [select("model", "model", value, ids)],
+    }),
+  );
+  await effortsForModels(
+    { request: filteredRequest } as unknown as AcpConnection,
+    { id: "s", settings },
+    1_000,
+    { only: new Set(["a", "b"]) },
+  );
+  expect(filteredRequest.mock.calls.map(([, params]) => params.value)).toEqual([
+    "b",
+    "a",
+  ]);
+});
+
 it("sends the explicit default when resetting effort, even if the session started at another level", async () => {
   const { connection, request } = recording();
   const session = {
     id: "s",
     settings: {
       configOptions: [
-        select("effort", "thought_level", "medium", ["low", "medium", "high", "default"]),
+        select("effort", "thought_level", "medium", [
+          "low",
+          "medium",
+          "high",
+          "default",
+        ]),
       ],
     } as AcpSettings,
   };
@@ -273,26 +460,38 @@ it("sends the explicit default when resetting effort, even if the session starte
   await applySettings(connection, session, [], choice());
 
   expect(request.mock.calls).toEqual([
-    ["session/set_config_option", { sessionId: "s", configId: "effort", value: "high" }],
-    ["session/set_config_option", { sessionId: "s", configId: "effort", value: "default" }],
+    [
+      "session/set_config_option",
+      { sessionId: "s", configId: "effort", value: "high" },
+    ],
+    [
+      "session/set_config_option",
+      { sessionId: "s", configId: "effort", value: "default" },
+    ],
   ]);
 });
 
 it("takes the first of a wish's names the agent offers, as config option or mode", async () => {
-  const wish = [{ option: "mode", value: ["acceptEdits", "auto_edit", "default"] }];
+  const wish = [
+    { option: "mode", value: ["acceptEdits", "auto_edit", "default"] },
+  ];
   const asOption = recording();
   await applySettings(
     asOption.connection,
     {
       id: "s",
       settings: {
-        configOptions: [select("mode", "mode", "default", ["default", "auto_edit", "yolo"])],
+        configOptions: [
+          select("mode", "mode", "default", ["default", "auto_edit", "yolo"]),
+        ],
       } as AcpSettings,
     },
     wish,
     choice(),
   );
-  expect((asOption.request.mock.calls[0][1] as { value: string }).value).toBe("auto_edit");
+  expect((asOption.request.mock.calls[0][1] as { value: string }).value).toBe(
+    "auto_edit",
+  );
 
   const asMode = recording();
   await applySettings(
@@ -300,7 +499,10 @@ it("takes the first of a wish's names the agent offers, as config option or mode
     {
       id: "s",
       settings: {
-        modes: { currentModeId: "plan", availableModes: [{ id: "plan" }, { id: "default" }] },
+        modes: {
+          currentModeId: "plan",
+          availableModes: [{ id: "plan" }, { id: "default" }],
+        },
       } as AcpSettings,
     },
     wish,

@@ -5,11 +5,12 @@ import {
   type ReasoningEffort,
 } from "../../../shared/settings";
 import { withTimeout } from "../../util/timeout";
-import type { AcpConnection } from "./connection";
+import { AcpRequestError, type AcpConnection } from "./connection";
 import type { AcpWish } from "./profiles";
 import {
   choicesOf,
   configOptionSchema,
+  parseUpdate,
   type AcpConfigOption,
 } from "./protocol";
 import type { AcpSettings } from "./sessions";
@@ -17,11 +18,18 @@ import type { AcpSettings } from "./sessions";
 /** Where `base` keeps the model of the older model list, which isn't a config option. */
 const legacyModel = "\0model";
 
+/** JSON-RPC "Method not found", for agents that don't implement `session/set_config_option`. */
+const METHOD_NOT_FOUND = -32601;
+
+/** Cap for a single model switch so one slow model doesn't spend the whole survey budget. */
+const defaultPerModelTimeout = 1_500;
+
 const optionIn = (settings: AcpSettings, category: string) =>
   settings.configOptions?.find((o) => o.category === category);
 
 /** Known efforts; an explicit `default` is represented by Relay's Default choice. */
-function effortsIn(option: AcpConfigOption | undefined): ReasoningEffort[] {
+function effortsOf(settings: AcpSettings): ReasoningEffort[] {
+  const option = optionIn(settings, "thought_level");
   if (!option) return [];
   const values = choicesOf(option)
     .map((c) => c.value)
@@ -30,10 +38,6 @@ function effortsIn(option: AcpConfigOption | undefined): ReasoningEffort[] {
     (v) => reasoningEffortSchema.safeParse(v).data ?? [],
   );
   return efforts.length === values.length ? efforts : [];
-}
-
-function effortsOf(settings: AcpSettings): ReasoningEffort[] {
-  return effortsIn(optionIn(settings, "thought_level"));
 }
 
 /** The models a session offers, from its model option or the older model list. */
@@ -63,15 +67,72 @@ export function modelsOf(
   }));
 }
 
+/** Switches a session's model config option within `timeoutMs`, returning its updated options. */
+async function setModelOption(
+  connection: AcpConnection,
+  sessionId: string,
+  configId: string,
+  value: string,
+  timeoutMs: number,
+) {
+  const reply = await withTimeout(
+    connection.request<{ configOptions?: unknown } | null>(
+      "session/set_config_option",
+      { sessionId, configId, value },
+    ),
+    timeoutMs,
+    "ACP model effort survey timed out.",
+  );
+  return configOptionSchema.array().safeParse(reply?.configOptions).data;
+}
+
+/** Distinct model ids to survey, skipping the active one and any filtered out. */
+function surveyCandidates(
+  model: AcpConfigOption,
+  originalModel: unknown,
+  only?: ReadonlySet<string>,
+): string[] {
+  const seen = new Set<string>();
+  return choicesOf(model).flatMap(({ value }) => {
+    if (value === originalModel || seen.has(value)) return [];
+    if (only && !only.has(value)) return [];
+    seen.add(value);
+    return [value];
+  });
+}
+
+/** Tracks the latest `config_option_update` on `sessionId`, for agents whose switch reply omits options. */
+function watchConfigOptions(connection: AcpConnection, sessionId: string) {
+  let latest: AcpConfigOption[] | undefined;
+  connection.listen?.(sessionId, (raw) => {
+    const update = parseUpdate(raw);
+    if (update?.sessionUpdate === "config_option_update")
+      latest = update.configOptions;
+  });
+  return {
+    reset: () => {
+      latest = undefined;
+    },
+    latest: () => latest,
+    stop: () => connection.unlisten?.(sessionId),
+  };
+}
+
 /**
  * What each model offers for effort, which ACP tells only for the one a
- * session runs: a probe switches the session through the rest to ask.
+ * session runs: a probe switches the session through the rest to ask, then
+ * puts it back. Returns `undefined` when the agent doesn't report options on
+ * switches so callers keep the session's initial efforts.
  */
 export async function effortsForModels(
   connection: AcpConnection,
   session: { id: string; settings: AcpSettings },
   timeoutMs: number,
-): Promise<Map<string, ReasoningEffort[]>> {
+  {
+    perModelMs = defaultPerModelTimeout,
+    only,
+  }: { perModelMs?: number; only?: ReadonlySet<string> } = {},
+): Promise<Map<string, ReasoningEffort[]> | undefined> {
   const found = new Map<string, ReasoningEffort[]>();
   const model = optionIn(session.settings, "model");
   if (!model) return found;
@@ -82,36 +143,64 @@ export async function effortsForModels(
     found.set(originalModel, effortsOf(session.settings));
 
   const deadline = performance.now() + timeoutMs;
-  for (const { value } of choicesOf(model)) {
-    if (value === originalModel) continue;
-    const remaining = Math.ceil(deadline - performance.now());
-    if (remaining <= 0) break;
+  const remainingMs = () => Math.ceil(deadline - performance.now());
+  const updates = watchConfigOptions(connection, session.id);
+  const switchTo = (value: string, cap: number) =>
+    setModelOption(connection, session.id, model.id, value, cap);
+  let switched = false;
+  let sawOptions = false;
+  let sawEmptyReply = false;
+  let sawFailure = false;
+  let unsupported = false;
 
-    try {
-      const reply = await withTimeout(
-        connection.request<{ configOptions?: unknown } | null>(
-          "session/set_config_option",
-          {
-            sessionId: session.id,
-            configId: model.id,
-            value,
-          },
-        ),
-        remaining,
-        "ACP model effort survey timed out.",
-      );
-      const configOptions = configOptionSchema
-        .array()
-        .safeParse(reply?.configOptions).data;
-      if (!configOptions) continue;
-      const updated = { configOptions };
-      if (optionIn(updated, "model")?.currentValue === value)
-        found.set(value, effortsOf(updated));
-    } catch {
-      // Leave this model unverified. A slow switch can spend the whole budget.
+  try {
+    for (const value of surveyCandidates(model, originalModel, only)) {
+      const remaining = remainingMs();
+      if (connection.closed || remaining <= 0) break;
+
+      updates.reset();
+      switched = true;
+      try {
+        const cap = Math.min(remaining, perModelMs);
+        const configOptions = (await switchTo(value, cap)) ?? updates.latest();
+        if (!configOptions) {
+          sawEmptyReply = true;
+          continue;
+        }
+        sawOptions = true;
+        const updated = { configOptions };
+        if (optionIn(updated, "model")?.currentValue === value)
+          found.set(value, effortsOf(updated));
+      } catch (error) {
+        if (
+          error instanceof AcpRequestError &&
+          error.code === METHOD_NOT_FOUND
+        ) {
+          unsupported = true;
+          break;
+        }
+        sawFailure = true;
+        if (connection.closed) break;
+      }
     }
+  } finally {
+    updates.stop();
+    const remaining = remainingMs();
+    const shouldRestore =
+      switched &&
+      !unsupported &&
+      typeof originalModel === "string" &&
+      !connection.closed &&
+      remaining > 0;
+    if (shouldRestore)
+      await switchTo(originalModel, Math.min(remaining, perModelMs)).catch(
+        () => {},
+      );
   }
-  return found;
+
+  const cannotInspect =
+    unsupported || (sawEmptyReply && !sawOptions && !sawFailure);
+  return cannotInspect ? undefined : found;
 }
 
 /** The model a session runs and its effort, as it says. */
