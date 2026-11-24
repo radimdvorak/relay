@@ -186,4 +186,31 @@ struct UsageTests {
         #expect(!readings.unavailable(provider))
         #expect(readings.usage[provider] == ready)
     }
+
+    @Test func ignoresSupersededReadsWhenANewerAskHasStarted() throws {
+        let stale = try JSONDecoder().decode(
+            ProviderUsage.self,
+            from: Data(#"{"provider":"opencode","windows":[{"kind":"weekly","usedPercent":80,"resetsAt":1800000000000,"periodMs":604800000}],"message":null}"#.utf8))
+        let fresh = try JSONDecoder().decode(
+            ProviderUsage.self,
+            from: Data(#"{"provider":"opencode","windows":[{"kind":"weekly","usedPercent":20,"resetsAt":1800000000000,"periodMs":604800000}],"message":null}"#.utf8))
+        let empty = try JSONDecoder().decode(
+            ProviderUsage.self,
+            from: Data(#"{"provider":"opencode","windows":[],"message":"Shows while OpenCode is running"}"#.utf8))
+        var readings = UsageReadings()
+        let first = readings.begin("opencode")
+        let second = readings.begin("opencode")
+        readings.record("opencode", fresh, token: second)
+        readings.record("opencode", stale, token: first)
+        readings.record("opencode", nil, token: first)
+        #expect(readings.usage["opencode"] == fresh)
+        #expect(readings.failed.isEmpty)
+        // A late failure also cannot mark a newer empty reading as unavailable.
+        let third = readings.begin("opencode")
+        let fourth = readings.begin("opencode")
+        readings.record("opencode", empty, token: fourth)
+        readings.record("opencode", nil, token: third)
+        #expect(!readings.unavailable("opencode"))
+        #expect(readings.usage["opencode"] == empty)
+    }
 }

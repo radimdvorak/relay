@@ -67,16 +67,32 @@ public struct ProviderUsage: Codable, Sendable, Equatable {
 public struct UsageReadings: Equatable, Sendable {
     public private(set) var usage: [String: ProviderUsage] = [:]
     public private(set) var failed: Set<String> = []
+    private var latest: [String: UInt64] = [:]
+    private var nextToken: UInt64 = 0
 
     public init() {}
+
+    public static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.usage == rhs.usage && lhs.failed == rhs.failed
+    }
 
     /// There are no meters to keep showing after the last ask failed.
     public func unavailable(_ provider: String) -> Bool {
         failed.contains(provider) && (usage[provider]?.windows.isEmpty ?? true)
     }
 
+    /// Starts a read for `provider` and returns the token that owns its result.
+    public mutating func begin(_ provider: String) -> UInt64 {
+        nextToken &+= 1
+        let token = nextToken
+        latest[provider] = token
+        return token
+    }
+
     /// Keeps what asking `provider` came to: the limits it got, or nil when the ask failed.
-    public mutating func record(_ provider: String, _ reported: ProviderUsage?) {
+    /// When `token` is given, a read superseded by a later `begin` for the same agent is dropped.
+    public mutating func record(_ provider: String, _ reported: ProviderUsage?, token: UInt64? = nil) {
+        if let token, latest[provider] != token { return }
         guard let reported else {
             failed.insert(provider)
             return

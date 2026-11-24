@@ -463,14 +463,19 @@ final class Connection {
     /// Asks the agent's plan limits again; `force` past the desktop's copy.
     func loadUsage(_ provider: String, force: Bool = false) async {
         guard reportsUsage(provider), let client, status.state == .online else { return }
+        let token = readings.begin(provider)
         var reported: ProviderUsage?
         do {
             reported = try await client.providerUsage(provider, force: force)
+        } catch is CancellationError {
+            return
         } catch {
             log.error("Couldn't read \(provider, privacy: .public)'s usage: \(String(describing: error), privacy: .public)")
         }
-        // Only for the computer asked: after the app moves to another, an answer or a failure isn't its.
-        if self.client === client { readings.record(provider, reported) }
+        // Only while the same connection is still online and the task wasn't cancelled:
+        // a disconnect or computer switch isn't a failure of the current computer's limits.
+        guard !Task.isCancelled, self.client === client, status.state == .online else { return }
+        readings.record(provider, reported, token: token)
     }
 
     /// Whether the last ask failed and left no plan meters to show.
