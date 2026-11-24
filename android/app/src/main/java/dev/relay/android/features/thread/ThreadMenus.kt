@@ -99,7 +99,6 @@ class ThreadMenuActions(
 )
 
 fun threadMenu(a: ThreadMenuActions): List<MenuItem> = buildList {
-    a.onKeepScroll?.let { add(MenuItem("Keep scroll incident", "Preserve recent layouts and scroll decisions; export in Settings.", icon = TablerIcons.Outline.Bug, onPress = it)) }
     add(MenuItem("Rename", icon = TablerIcons.Outline.Pencil, onPress = a.onRename))
     add(
         when {
@@ -134,6 +133,7 @@ fun threadMenu(a: ThreadMenuActions): List<MenuItem> = buildList {
     add(MenuItem("History", icon = TablerIcons.Outline.History, onPress = a.onHistory))
     a.onSites?.let { add(MenuItem("Sites", "What runs on the computer's localhost, in a browser here", icon = TablerIcons.Outline.World, onPress = it)) }
     add(MenuItem("Compact the conversation", "The agent summarises it to free up its context.", icon = TablerIcons.Outline.ArrowsMinimize, onPress = a.onCompact))
+    a.onKeepScroll?.let { add(MenuItem("Keep scroll incident", "Preserve recent layouts and scroll decisions; export in Settings.", icon = TablerIcons.Outline.Bug, onPress = it)) }
     add(MenuItem("Archive", destructive = true, icon = TablerIcons.Outline.Archive, onPress = a.onArchive))
 }
 
