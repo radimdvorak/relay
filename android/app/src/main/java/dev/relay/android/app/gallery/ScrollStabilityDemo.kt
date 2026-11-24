@@ -30,7 +30,6 @@ import androidx.compose.ui.unit.dp
 import dev.relay.android.features.diagnostics.LocalScrollTrace
 import dev.relay.android.features.diagnostics.ScrollDiagnostics
 import dev.relay.android.features.diagnostics.scrollGeometry
-import dev.relay.android.features.diagnostics.scrollTouches
 import dev.relay.android.features.images.AnswerImageFrame
 import dev.relay.android.features.images.LoadedImage
 import dev.relay.android.features.markdown.Markdown
@@ -86,14 +85,14 @@ internal fun ScrollStabilityDemo() {
                 Button("Bottom", { scroll.toBottom() }, size = ButtonSize.Xs)
                 Button("Finish tools", { running = false }, size = ButtonSize.Xs)
             }
-            Text("Sample data · pinned=${scroll.pinned} · image=$image", Modifier.padding(horizontal = 12.dp), style = RelayTheme.type.xs)
+            Text("Sample data · pinned=${scroll.pinned} · image=$image", Modifier.padding(horizontal = 12.dp), style = RelayTheme.type.small)
             ThreadViewport(scroll, (0..20).map { "sample-$it" } + "end",
                 ContentSignature(22, "end", growth.toLong(), running.hashCode()),
                 Modifier.weight(1f).fillMaxWidth().scrollGeometry(trace, "sample_list"), dock = {
-                if (status) Box(Modifier.fillMaxWidth().height(48.dp).background(RelayTheme.colors.muted)) {
+                if (status) Box(Modifier.fillMaxWidth().height(48.dp).background(RelayTheme.colors.tool)) {
                     Text("Sample agent status", Modifier.padding(12.dp))
                 }
-                Box(Modifier.fillMaxWidth().height(if (draft) 80.dp else 32.dp).background(RelayTheme.colors.card)) {
+                Box(Modifier.fillMaxWidth().height(if (draft) 80.dp else 32.dp).background(RelayTheme.colors.raised)) {
                     Text("Sample composer", Modifier.padding(8.dp))
                 }
             }) {
