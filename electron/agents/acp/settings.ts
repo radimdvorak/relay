@@ -4,17 +4,25 @@ import {
   type ModelChoice,
   type ReasoningEffort,
 } from "../../../shared/settings";
-import type { AcpConnection } from "./connection";
+import { withTimeout } from "../../util/timeout";
+import { AcpRequestError, type AcpConnection } from "./connection";
 import type { AcpWish } from "./profiles";
 import {
   choicesOf,
   configOptionSchema,
+  parseUpdate,
   type AcpConfigOption,
 } from "./protocol";
 import type { AcpSettings } from "./sessions";
 
 /** Where `base` keeps the model of the older model list, which isn't a config option. */
 const legacyModel = "\0model";
+
+/** JSON-RPC "Method not found", for agents that don't implement `session/set_config_option`. */
+const METHOD_NOT_FOUND = -32601;
+
+/** Cap for a single model switch so one slow model doesn't spend the whole survey budget. */
+const defaultPerModelTimeout = 1_500;
 
 const optionIn = (settings: AcpSettings, category: string) =>
   settings.configOptions?.find((o) => o.category === category);
@@ -26,16 +34,25 @@ function effortsOf(settings: AcpSettings): ReasoningEffort[] {
   const values = choicesOf(option)
     .map((c) => c.value)
     .filter((v) => v !== "default");
-  const efforts = values.flatMap((v) => reasoningEffortSchema.safeParse(v).data ?? []);
+  const efforts = values.flatMap(
+    (v) => reasoningEffortSchema.safeParse(v).data ?? [],
+  );
   return efforts.length === values.length ? efforts : [];
 }
 
 /** The models a session offers, from its model option or the older model list. */
-export function modelsOf(settings: AcpSettings): AgentModel[] {
+export function modelsOf(
+  settings: AcpSettings,
+  effortsByModel?: ReadonlyMap<string, ReasoningEffort[]>,
+): AgentModel[] {
   const efforts = effortsOf(settings);
   const option = optionIn(settings, "model");
   const listed = option
-    ? choicesOf(option).map((c) => ({ id: c.value, name: c.name, description: c.description }))
+    ? choicesOf(option).map((c) => ({
+        id: c.value,
+        name: c.name,
+        description: c.description,
+      }))
     : (settings.models?.availableModels ?? []).map((m) => ({
         id: m.modelId,
         name: m.name || m.modelId,
@@ -45,8 +62,145 @@ export function modelsOf(settings: AcpSettings): AgentModel[] {
     id: m.id,
     name: m.name,
     description: (m.description ?? "").slice(0, 300),
-    efforts,
+    efforts:
+      option && effortsByModel ? (effortsByModel.get(m.id) ?? []) : efforts,
   }));
+}
+
+/** Switches a session's model config option within `timeoutMs`, returning its updated options. */
+async function setModelOption(
+  connection: AcpConnection,
+  sessionId: string,
+  configId: string,
+  value: string,
+  timeoutMs: number,
+) {
+  const reply = await withTimeout(
+    connection.request<{ configOptions?: unknown } | null>(
+      "session/set_config_option",
+      { sessionId, configId, value },
+    ),
+    timeoutMs,
+    "ACP model effort survey timed out.",
+  );
+  return configOptionSchema.array().safeParse(reply?.configOptions).data;
+}
+
+/** Distinct model ids to survey, skipping the active one and any filtered out. */
+function surveyCandidates(
+  model: AcpConfigOption,
+  originalModel: unknown,
+  only?: ReadonlySet<string>,
+): string[] {
+  const seen = new Set<string>();
+  return choicesOf(model).flatMap(({ value }) => {
+    if (value === originalModel || seen.has(value)) return [];
+    if (only && !only.has(value)) return [];
+    seen.add(value);
+    return [value];
+  });
+}
+
+/** Tracks the latest `config_option_update` on `sessionId`, for agents whose switch reply omits options. */
+function watchConfigOptions(connection: AcpConnection, sessionId: string) {
+  let latest: AcpConfigOption[] | undefined;
+  connection.listen?.(sessionId, (raw) => {
+    const update = parseUpdate(raw);
+    if (update?.sessionUpdate === "config_option_update")
+      latest = update.configOptions;
+  });
+  return {
+    reset: () => {
+      latest = undefined;
+    },
+    latest: () => latest,
+    stop: () => connection.unlisten?.(sessionId),
+  };
+}
+
+/**
+ * What each model offers for effort, which ACP tells only for the one a
+ * session runs: a probe switches the session through the rest to ask, then
+ * puts it back. Returns `undefined` when the agent doesn't report options on
+ * switches so callers keep the session's initial efforts.
+ */
+export async function effortsForModels(
+  connection: AcpConnection,
+  session: { id: string; settings: AcpSettings },
+  timeoutMs: number,
+  {
+    perModelMs = defaultPerModelTimeout,
+    only,
+  }: { perModelMs?: number; only?: ReadonlySet<string> } = {},
+): Promise<Map<string, ReasoningEffort[]> | undefined> {
+  const found = new Map<string, ReasoningEffort[]>();
+  const model = optionIn(session.settings, "model");
+  if (!model) return found;
+
+  // A config_option_update can replace the original options during the survey.
+  const originalModel = model.currentValue;
+  if (typeof originalModel === "string")
+    found.set(originalModel, effortsOf(session.settings));
+
+  const deadline = performance.now() + timeoutMs;
+  const remainingMs = () => Math.ceil(deadline - performance.now());
+  const updates = watchConfigOptions(connection, session.id);
+  const switchTo = (value: string, cap: number) =>
+    setModelOption(connection, session.id, model.id, value, cap);
+  let switched = false;
+  let sawOptions = false;
+  let sawEmptyReply = false;
+  let sawFailure = false;
+  let unsupported = false;
+
+  try {
+    for (const value of surveyCandidates(model, originalModel, only)) {
+      const remaining = remainingMs();
+      if (connection.closed || remaining <= 0) break;
+
+      updates.reset();
+      switched = true;
+      try {
+        const cap = Math.min(remaining, perModelMs);
+        const configOptions = (await switchTo(value, cap)) ?? updates.latest();
+        if (!configOptions) {
+          sawEmptyReply = true;
+          continue;
+        }
+        sawOptions = true;
+        const updated = { configOptions };
+        if (optionIn(updated, "model")?.currentValue === value)
+          found.set(value, effortsOf(updated));
+      } catch (error) {
+        if (
+          error instanceof AcpRequestError &&
+          error.code === METHOD_NOT_FOUND
+        ) {
+          unsupported = true;
+          break;
+        }
+        sawFailure = true;
+        if (connection.closed) break;
+      }
+    }
+  } finally {
+    updates.stop();
+    const remaining = remainingMs();
+    const shouldRestore =
+      switched &&
+      !unsupported &&
+      typeof originalModel === "string" &&
+      !connection.closed &&
+      remaining > 0;
+    if (shouldRestore)
+      await switchTo(originalModel, Math.min(remaining, perModelMs)).catch(
+        () => {},
+      );
+  }
+
+  const cannotInspect =
+    unsupported || (sawEmptyReply && !sawOptions && !sawFailure);
+  return cannotInspect ? undefined : found;
 }
 
 /** The model a session runs and its effort, as it says. */
