@@ -14,6 +14,9 @@ private val effortLabels = mapOf(
 /** The phone's label: "" is "Default". */
 fun effortLabel(effort: String) = if (effort.isEmpty()) "Default" else effortLabels[effort] ?: effort
 
+/** The same where room is short, the composer's chip. */
+fun shortEffortLabel(effort: String) = if (effort == "xhigh") "Extra" else effortLabel(effort)
+
 private val common = listOf("low", "medium", "high", "xhigh")
 
 /** Offered until Codex lists its models, and whenever it can't. */
