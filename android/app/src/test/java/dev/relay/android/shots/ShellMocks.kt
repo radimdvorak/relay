@@ -1,9 +1,7 @@
 package dev.relay.android.shots
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -20,14 +18,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import dev.relay.android.ui.BarTab
 import dev.relay.android.ui.BottomBar
+import dev.relay.android.ui.Chip
 import dev.relay.android.ui.ChromeHeader
 import dev.relay.android.ui.ChromeScreen
-import dev.relay.android.ui.Chip
 import dev.relay.android.ui.CircleAction
 import dev.relay.android.ui.CircleButton
 import dev.relay.android.ui.CirclePair
@@ -114,39 +110,4 @@ fun SampleComposer(expanded: Boolean, typed: String?, modifier: Modifier = Modif
             CircleButton(TablerIcons.Outline.ArrowUp, "Send", {}, size = CircleSize.Composer, tone = CircleTone.Strong)
         },
     )
-}
-
-/** A sheet over the home, behind its scrim, inset like the real one. */
-@Composable
-fun OverHome(sheet: @Composable BoxScope.() -> Unit) {
-    Box(Modifier.fillMaxSize()) {
-        SampleHome()
-        Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = if (RelayTheme.colors.isDark) 0.5f else 0.16f)))
-        Box(Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(8.dp), content = sheet)
-    }
-}
-
-/** The model sheet's selected row: name, a tiny effort glyph, then the effort and a chevron. */
-@Composable
-fun SampleModelRow(name: String, selected: Boolean) {
-    val c = RelayTheme.colors
-    val style = RelayTheme.type.row.copy(fontWeight = FontWeight.Medium)
-    Row(
-        Modifier.fillMaxWidth().height(if (selected) 64.dp else 57.dp).padding(horizontal = 16.dp)
-            .then(if (selected) Modifier.background(c.tool, RelayTheme.shapes.circle) else Modifier)
-            .padding(horizontal = 22.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(name, Modifier.weight(1f), style = style, color = if (selected) c.ink else c.inkSoft)
-        if (selected) {
-            Row(horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically) {
-                for (i in 0 until 5) Box(
-                    Modifier.size(if (i == 1) 2.dp else 3.dp, if (i == 1) 10.dp else 3.dp)
-                        .background(if (i == 1) c.ink else c.inkFaint, RelayTheme.shapes.circle),
-                )
-            }
-            Spacer(Modifier.weight(0.6f))
-            Text("Medium  ›", style = RelayTheme.type.meta, color = c.inkSoft)
-        }
-    }
 }

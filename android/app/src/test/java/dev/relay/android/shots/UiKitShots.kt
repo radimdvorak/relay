@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -21,9 +20,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import dev.relay.android.ui.Banner
 import dev.relay.android.ui.BarTooltip
 import dev.relay.android.ui.Button
@@ -36,10 +33,9 @@ import dev.relay.android.ui.CircleSize
 import dev.relay.android.ui.CircleTone
 import dev.relay.android.ui.EffortSlider
 import dev.relay.android.ui.Group
-import dev.relay.android.ui.ListRow
 import dev.relay.android.ui.ListInset
+import dev.relay.android.ui.ListRow
 import dev.relay.android.ui.LocalToasts
-import dev.relay.android.ui.RelaySheetFrame
 import dev.relay.android.ui.RowSize
 import dev.relay.android.ui.SearchField
 import dev.relay.android.ui.SectionLabel
@@ -95,55 +91,6 @@ class UiKitShots : ShotTest() {
     @Test
     fun composer() {
         for (dark in palettes) Shot("shell-composer", dark = dark) { SampleHome(expanded = true) }
-    }
-
-    @Test
-    fun modelSheet() {
-        for (device in ShotDevice.entries) for (dark in palettes) Shot("sheet-model", device, dark) {
-            OverHome {
-                RelaySheetFrame("Model", onClose = {}) {
-                    Spacer(Modifier.height(36.dp))
-                    SampleModelRow("Fable 5.2", selected = false)
-                    SampleModelRow("Opus 5.5", selected = true)
-                    SampleModelRow("Sonnet 5.5", selected = false)
-                    SampleModelRow("Haiku 5.5", selected = false)
-                    Text(
-                        "For complex work and everyday tasks",
-                        Modifier.padding(start = 38.dp, top = 20.dp, bottom = 160.dp),
-                        style = RelayTheme.type.meta,
-                        color = RelayTheme.colors.inkSoft,
-                    )
-                }
-            }
-        }
-    }
-
-    @Test
-    fun effortSheet() {
-        for (dark in palettes) for ((name, level) in listOf("medium" to 1, "max" to 4)) Shot("sheet-effort-$name", dark = dark) {
-            OverHome { EffortSheet(level) }
-        }
-    }
-}
-
-@Composable
-private fun EffortSheet(start: Int) {
-    var level by remember(start) { mutableIntStateOf(start) }
-    val labels = listOf("Low", "Medium", "High", "Extra", "Max")
-    RelaySheetFrame("Effort", onClose = {}, back = true) {
-        Text(
-            labels[level],
-            Modifier.fillMaxWidth().padding(top = 52.dp, bottom = 14.dp),
-            style = RelayTheme.type.sheetTitle.copy(fontSize = 22.sp, lineHeight = 28.sp),
-            textAlign = TextAlign.Center,
-        )
-        EffortSlider(level, { level = it }, Modifier.padding(horizontal = 20.dp), marked = 1, onPreview = { level = it })
-        Text(
-            "Higher effort means more thorough answers, but takes longer and uses your limits faster.",
-            Modifier.padding(start = 38.dp, end = 38.dp, top = 120.dp, bottom = 80.dp),
-            style = RelayTheme.type.body,
-            color = RelayTheme.colors.inkSoft,
-        )
     }
 }
 
