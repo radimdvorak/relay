@@ -76,6 +76,9 @@ private val wantsCommandsStart = Regex("^\\s*[/$]")
 private val wantsCommandsSkill = Regex("\\s\\$\\S*$")
 private val skillTail = Regex("(^|\\s)[$/][^\\s]*$")
 
+/** Under the box, down to the keyboard or the screen's end. */
+internal val COMPOSER_BOTTOM = 10.dp
+
 @Composable
 internal fun ComposerCore(
     remote: Remote,
@@ -404,7 +407,7 @@ internal fun ComposerCore(
     }
 
     Column(
-        modifier.fillMaxWidth().background(c.surface).padding(horizontal = 15.dp).padding(top = 8.dp, bottom = 10.dp).navigationBarsPadding(),
+        modifier.fillMaxWidth().background(c.surface).padding(horizontal = 15.dp).padding(top = 8.dp, bottom = COMPOSER_BOTTOM).navigationBarsPadding(),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         // Without a screen to hold them, the plan's limits sit at the end of the line over the box, away from the thumb.

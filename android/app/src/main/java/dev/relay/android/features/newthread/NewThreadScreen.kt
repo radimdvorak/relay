@@ -65,7 +65,7 @@ import dev.relay.android.remote.files.deleteCopies
 import dev.relay.android.remote.files.uploadAll
 import dev.relay.android.lib.navigation.ComposerStart
 import dev.relay.android.lib.navigation.NEW_THREAD_MORPH
-import dev.relay.android.lib.navigation.NextComposerStart
+import dev.relay.android.lib.navigation.NextComposerOpening
 import dev.relay.android.ui.screenSettled
 import dev.relay.android.ui.sharedBox
 import dev.relay.android.ui.theme.RelayTheme
@@ -279,11 +279,15 @@ private fun NewThreadComposer(route: Route.NewThread, remote: Remote, active: St
     }
 
     val composer = remember { ComposerHandle() }
-    val start = remember { NextComposerStart.take() }
-    // The composer is still growing out of Home's; a sheet or the keyboard would pull it off its path.
+    val opening = remember { NextComposerOpening.take() }
+    val start = opening.start
+    val rise = rememberComposerRise(opening)
+    // A sheet, or the keyboard of a composer that came from nowhere, waits for the screen to be in.
     val settled = screenSettled()
+    var arrived by remember { mutableStateOf(settled) }
     LaunchedEffect(settled) {
         if (!settled) return@LaunchedEffect
+        arrived = true
         when (start) {
             ComposerStart.Type -> {}
             ComposerStart.Attach -> composer.openAttach()
@@ -291,7 +295,7 @@ private fun NewThreadComposer(route: Route.NewThread, remote: Remote, active: St
         }
     }
 
-    NewThreadFrame(navigator.backAction) {
+    NewThreadFrame(navigator.backAction, rise.floor) {
         NewThreadIntro(
             project = chosen,
             picked = picked,
@@ -299,7 +303,7 @@ private fun NewThreadComposer(route: Route.NewThread, remote: Remote, active: St
             recent = recent,
             onRetryScratch = { askScratch() },
             onOpenRecent = { open(it.id) },
-            modifier = Modifier.weight(1f),
+            modifier = Modifier.weight(1f).then(rise.introInPlace),
         )
         ComposerCore(
             remote = remote,
@@ -335,9 +339,9 @@ private fun NewThreadComposer(route: Route.NewThread, remote: Remote, active: St
             sendTarget = "${picked.orEmpty()}:$workspace",
             remembered = models,
             handle = composer,
-            autoFocus = settled && start == ComposerStart.Type,
-            // Home's composer pill, grown into this one.
-            boxModifier = Modifier.sharedBox(NEW_THREAD_MORPH, RelayTheme.shapes.composer),
+            autoFocus = start == ComposerStart.Type && (rise.inPlace || settled),
+            // Going in it starts where Home's pill stands, so only the way back has a path to travel.
+            boxModifier = if (arrived) Modifier.sharedBox(NEW_THREAD_MORPH, RelayTheme.shapes.composer) else Modifier,
             above = { WhereLine(chosen, picked, workspace, ::openSheet) },
         )
     }

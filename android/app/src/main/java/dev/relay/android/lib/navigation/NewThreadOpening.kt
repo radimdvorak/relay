@@ -7,15 +7,21 @@ const val NEW_THREAD_GREETING = "new-thread-greeting"
 enum class ComposerStart { Type, Attach, Dictate }
 
 /**
+ * How a new thread's composer opens, and where it comes from: [rise] is how far over the window's
+ * end Home's composer stands, in pixels, or null when no composer was there to grow out of.
+ */
+data class ComposerOpening(val start: ComposerStart = ComposerStart.Type, val rise: Int? = null)
+
+/**
  * Home's composer leaves here what its plus or mic asked for, and the new-thread screen it opens
  * takes it. Not part of the route: a screen restored later shouldn't start the microphone again.
  */
-object NextComposerStart {
-    private var asked = ComposerStart.Type
+object NextComposerOpening {
+    private var asked = ComposerOpening()
 
-    fun ask(start: ComposerStart) {
-        asked = start
+    fun ask(opening: ComposerOpening) {
+        asked = opening
     }
 
-    fun take(): ComposerStart = asked.also { asked = ComposerStart.Type }
+    fun take(): ComposerOpening = asked.also { asked = ComposerOpening() }
 }

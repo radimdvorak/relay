@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.exclude
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -27,14 +28,14 @@ import dev.relay.android.ui.theme.RelayTheme
 import io.github.lyxnx.compose.ui.tablericons.TablerIcons
 import io.github.lyxnx.compose.ui.tablericons.outline.ArrowLeft
 
-/** The new-thread screen's chrome and sheet. The sheet reaches under the navigation bar; its content stays above it and the keyboard. */
+/** The new-thread screen's chrome and sheet. The sheet reaches under the navigation bar; its content stays above it, the keyboard and [floor]. */
 @Composable
-internal fun NewThreadFrame(onBack: (() -> Unit)?, content: @Composable ColumnScope.() -> Unit) {
+internal fun NewThreadFrame(onBack: (() -> Unit)?, floor: WindowInsets, content: @Composable ColumnScope.() -> Unit) {
     val sides = LocalScreenInsets.current
-    val bottom = WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom)
+    val system = WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom)
     ChromeScreen(
         modifier = Modifier.background(RelayTheme.colors.chrome)
-            .windowInsetsPadding(WindowInsets.safeDrawing.only(sides).exclude(bottom)),
+            .windowInsetsPadding(WindowInsets.safeDrawing.only(sides).exclude(system)),
         header = {
             ChromeHeader(
                 title = "New thread",
@@ -47,7 +48,7 @@ internal fun NewThreadFrame(onBack: (() -> Unit)?, content: @Composable ColumnSc
             )
         },
     ) {
-        Column(Modifier.fillMaxSize().windowInsetsPadding(bottom)) {
+        Column(Modifier.fillMaxSize().windowInsetsPadding(system.union(floor))) {
             LocalScreenNotice.current?.invoke()
             content()
         }

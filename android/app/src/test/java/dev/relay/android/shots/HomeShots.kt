@@ -1,6 +1,7 @@
 package dev.relay.android.shots
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -115,7 +116,7 @@ internal fun SampleThreadsTab(
 internal fun SampleNewThread(recent: Int = 0, scratchError: String? = null, scratch: Boolean = false, composer: @Composable () -> Unit) {
     val project = sampleProjects[0].takeUnless { scratch }
     val picked = if (scratch) "scratch" else "relay"
-    NewThreadFrame(onBack = {}) {
+    NewThreadFrame(onBack = {}, floor = WindowInsets(0)) {
         NewThreadIntro(project, picked, scratchError, busy.take(recent), {}, {}, Modifier.weight(1f))
         Column(Modifier.padding(horizontal = 12.dp).padding(bottom = 10.dp)) {
             WhereLine(project, picked, "worktree") {}

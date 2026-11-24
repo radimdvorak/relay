@@ -1,6 +1,10 @@
 package dev.relay.android.app
 
 import androidx.compose.animation.ContentTransform
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.core.FastOutLinearInEasing
+import androidx.compose.animation.core.snap
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
@@ -18,17 +22,35 @@ private val effects = RelayMotion.standard.defaultEffectsSpec<Float>()
 
 private fun Scene<*>.has(mark: String) = entries.lastOrNull()?.metadata?.get(mark) == true
 
-/** Whether it takes the last screen's place: search, and new thread, whose composer grows out of Home's by itself. */
-private val Scene<*>.fades get() = has(FADES_IN) || has(MORPHS_IN)
+/**
+ * New thread's composer stands where Home's does, so only what's around it changes. Slow to start:
+ * the frame that builds the screen can take a third of this, and a linear fade would be mostly over
+ * by the first one seen.
+ */
+private const val COVER_MS = 280
+private val covers = tween<Float>(COVER_MS, easing = FastOutLinearInEasing)
 
 /** How [target] comes in: over the last screen, or in its place when the list beside it [swapped] them. */
 internal fun forward(target: Scene<*>, swapped: Boolean): ContentTransform =
-    if (swapped || target.fades) crossfade() else slideIn()
+    when {
+        swapped || target.has(FADES_IN) -> crossfade()
+        target.has(MORPHS_IN) -> cover()
+        else -> slideIn()
+    }
 
 /** How [leaving] goes back where it came from. */
-internal fun back(leaving: Scene<*>): ContentTransform = if (leaving.fades) crossfade() else slideOut()
+internal fun back(leaving: Scene<*>): ContentTransform =
+    when {
+        leaving.has(FADES_IN) -> crossfade()
+        leaving.has(MORPHS_IN) -> uncover()
+        else -> slideOut()
+    }
 
 private fun crossfade() = fadeIn(effects) togetherWith fadeOut(effects)
+
+// Over a whole screen rather than against its fading: two composers at half strength would dip together.
+private fun cover() = fadeIn(covers) togetherWith fadeOut(snap(COVER_MS))
+private fun uncover() = EnterTransition.None togetherWith fadeOut(covers)
 
 private fun slideIn() = slideInHorizontally(move) { it } togetherWith slideOutHorizontally(move) { -it / 4 }
 private fun slideOut() = slideInHorizontally(move) { -it / 4 } togetherWith slideOutHorizontally(move) { it }

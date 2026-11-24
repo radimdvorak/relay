@@ -107,6 +107,7 @@ motion uses **standard** springs and only a few hero moments use **expressive** 
 - The Threads tab is the composer-first home: with nothing running it's the greeting; otherwise
   the activity (needs-you, running, recent) above the composer. Typing in the home composer starts
   a new thread (the project/where/model chips come with it).
+  Going there the composer stays where it stands and the keyboard carries it up; the rest fades over.
 - 🔍 opens full-screen **search** (threads and projects, matches in bold).
 - Thread screen: chrome header (←, title, ✎ | ⋯), messages on `surface`, composer pinned
   above the keyboard, model + effort chips in the expanded composer opening the **model sheet**
