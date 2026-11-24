@@ -24,6 +24,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -47,6 +48,8 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import dev.relay.android.ui.theme.RelayTheme
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlin.math.abs
 import kotlin.math.roundToInt
 
 /** One bar destination: its icon, the label it shows once chosen, what it's called in full, a dot for news. */
@@ -60,17 +63,22 @@ data class BarTab<T>(
 
 private val BarHeight = 56.dp
 private val PillHeight = 44.dp
+/** How much the pill grows up and down while a finger holds it. */
+private val PillLift = 2.dp
 private val GlyphSize = 24.dp
 private val LabelGap = 8.dp
 private val LabelSides = 10.dp
 private val TooltipGap = 12.dp
+/** The share of the pill a tab has before its label starts to show. */
+private const val LABEL_FROM = 0.7f
 private const val TOOLTIP_HOLD_MS = 1300L
 
 /**
  * Tabs in equal shares of the bar's whole width, so its ends line up with what stands above it. A
  * softly tinted pill slides to the chosen one on the hero spring and squashes against the bar's
  * ends instead of passing them; the icon takes colour, makes its move and is joined by its label.
- * Where a share is too narrow for that, a pick pops the label above.
+ * Where a share is too narrow for that, a pick pops the label above. A finger sliding along the bar
+ * takes the pill with it, waking each tab it passes; letting go picks the one it's on.
  */
 @Composable
 fun <T> BottomBar(
@@ -83,7 +91,15 @@ fun <T> BottomBar(
     val index = tabs.indexOfFirst { it.value == selected }.coerceAtLeast(0)
     val pill = remember { Animatable(index.toFloat()) }
     val heroSlide = RelayTheme.motion.hero.defaultSpatialSpec<Float>()
-    LaunchedEffect(index) { pill.animateTo(index.toFloat(), heroSlide) }
+    /** The tab under the finger while it slides. */
+    var under by remember { mutableStateOf<Int?>(null) }
+    val sliding = under != null
+    LaunchedEffect(index, sliding) { if (!sliding) pill.animateTo(index.toFloat(), heroSlide) }
+    val lit = under ?: index
+    val lift by animateFloatAsState(if (sliding) 1f else 0f, RelayTheme.motion.hero.fastSpatialSpec(), label = "bar-lift")
+    val follow = RelayTheme.motion.standard.fastSpatialSpec<Float>()
+    val scope = rememberCoroutineScope()
+    val haptics = rememberHaptics()
 
     var labelled by remember { mutableIntStateOf(index) }
     var labelShown by remember { mutableStateOf(false) }
@@ -110,17 +126,36 @@ fun <T> BottomBar(
         val slot = maxWidth / tabs.size
         val fits = with(density) { labelWidths.max().toDp() } + GlyphSize + LabelGap + LabelSides * 2 <= slot
         Row(
-            Modifier.fillMaxWidth().height(PillHeight).drawBehind {
+            Modifier.fillMaxWidth().height(PillHeight).barSlide(
+                tabs.size,
+                onSlide = { position ->
+                    val over = barTabAt(position, tabs.size)
+                    if (over != lit) {
+                        haptics.perform(Haptic.Light)
+                        if (!fits) showLabel(over)
+                    }
+                    under = over
+                    scope.launch { pill.animateTo(position, follow) }
+                },
+                onDone = { picked ->
+                    under = null
+                    if (picked != null && picked != index) onSelect(tabs[picked].value)
+                },
+            ).drawBehind {
                 val width = size.width / tabs.size
+                val grown = PillLift.toPx() * lift
                 val start = (pill.value * width).coerceAtLeast(0f)
                 val end = ((pill.value + 1f) * width).coerceAtMost(size.width)
-                drawRoundRect(fill, Offset(start, 0f), Size((end - start).coerceAtLeast(0f), size.height), CornerRadius(size.height / 2))
+                val height = size.height + grown * 2
+                drawRoundRect(fill, Offset(start, -grown), Size((end - start).coerceAtLeast(0f), height), CornerRadius(height / 2))
             },
         ) {
             tabs.forEachIndexed { i, tab ->
                 BarTabButton(
                     tab,
-                    on = i == index,
+                    on = i == lit,
+                    chosen = { 1f - abs(pill.value.coerceIn(0f, tabs.lastIndex.toFloat()) - i).coerceAtMost(1f) },
+                    current = i == index,
                     labelWidth = labelWidths[i].takeIf { fits },
                     onClick = {
                         if (!fits) showLabel(i)
@@ -152,7 +187,11 @@ private fun barPillColor() = RelayTheme.colors.let { lerp(it.raised, it.accent, 
 @Composable
 private fun <T> BarTabButton(
     tab: BarTab<T>,
+    /** Wearing the pill: the current tab, or the one a finger slides over. */
     on: Boolean,
+    /** How much of the pill is on it: its colour and its label come and go with that. */
+    chosen: () -> Float,
+    current: Boolean,
     /** Null where there's no room for labels. */
     labelWidth: Int?,
     onClick: () -> Unit,
@@ -164,8 +203,6 @@ private fun <T> BarTabButton(
     val colors = remember(c, pill) {
         GlyphColors(line = lerp(c.inkFaint, c.inkSoft, 0.4f), ground = c.surface, accent = c.accent, soft = lerp(pill, c.accent, 0.42f))
     }
-    // On the pill's own spring, so the colour and the label come with it, not before it.
-    val chosen by animateFloatAsState(if (on) 1f else 0f, RelayTheme.motion.hero.defaultSpatialSpec(), label = "bar-chosen")
     val move = remember { Animatable(1f) }
     var wasOn by remember { mutableStateOf(on) }
     LaunchedEffect(on) {
@@ -179,17 +216,17 @@ private fun <T> BarTabButton(
         modifier
             .semantics {
                 contentDescription = tab.name
-                selected = on
+                selected = current
             }
             .pressable(onClick, onLongClick = onLongClick, role = Role.Tab, haptic = Haptic.Selection, scale = false),
         contentAlignment = Alignment.Center,
     ) {
         Box(
             Modifier.graphicsLayer {
-                if (labelWidth != null) translationX = -(labelWidth + LabelGap.toPx()) / 2 * chosen
+                if (labelWidth != null) translationX = -(labelWidth + LabelGap.toPx()) / 2 * chosen()
             },
         ) {
-            BarGlyphIcon(tab.glyph, colors, { chosen }, { move.value }, size = GlyphSize)
+            BarGlyphIcon(tab.glyph, colors, chosen, { move.value }, size = GlyphSize)
             if (tab.dot) Box(
                 Modifier.align(Alignment.TopEnd).offset(3.dp, (-2).dp).size(7.dp).background(c.info, RelayTheme.shapes.circle),
             )
@@ -200,8 +237,9 @@ private fun <T> BarTabButton(
                 .wrapContentWidth(unbounded = true)
                 .graphicsLayer {
                     // Beside the icon wherever that has got to, so the two never cross.
-                    translationX = (GlyphSize.toPx() + labelWidth) / 2 + LabelGap.toPx() - (labelWidth + LabelGap.toPx()) / 2 * chosen
-                    alpha = ((chosen - 0.5f) / 0.5f).coerceIn(0f, 1f)
+                    translationX = (GlyphSize.toPx() + labelWidth) / 2 + LabelGap.toPx() - (labelWidth + LabelGap.toPx()) / 2 * chosen()
+                    // Only once the pill is under all of it.
+                    alpha = ((chosen() - LABEL_FROM) / (1f - LABEL_FROM)).coerceIn(0f, 1f)
                 }
                 .clearAndSetSemantics { },
             style = barLabelStyle(),
