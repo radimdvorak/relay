@@ -7,7 +7,6 @@ package dev.relay.android.features.notes
 // the computer.
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -16,6 +15,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -30,18 +30,21 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import dev.relay.android.features.markdown.Markdown
 import dev.relay.android.features.thread.logic.agentName
 import dev.relay.android.remote.Remote
 import dev.relay.android.remote.model.ChatMessage
 import dev.relay.android.remote.model.ThreadNote
 import dev.relay.android.ui.ButtonSize
+import dev.relay.android.ui.CircleSize
+import dev.relay.android.ui.CircleSurface
+import dev.relay.android.ui.CircleTone
 import dev.relay.android.ui.Icon
 import dev.relay.android.ui.IconButton
 import dev.relay.android.ui.Sheet
 import dev.relay.android.ui.Text
 import dev.relay.android.ui.pressable
-import dev.relay.android.ui.theme.Radii
 import dev.relay.android.ui.theme.RelayTheme
 import io.github.lyxnx.compose.ui.tablericons.TablerIcons
 import io.github.lyxnx.compose.ui.tablericons.outline.ArrowBarToUp
@@ -69,18 +72,21 @@ fun ThreadNotesButton(
     val notes = rememberThreadNotes(remote, chatId, mark) ?: return
     val count = notes.notes.size
     if (count == 0) return
-    val c = RelayTheme.colors
     var open by remember { mutableStateOf(false) }
-    Row(
-        Modifier.height(ButtonSize.Default.height).clip(Radii.mdShape)
-            .pressable({ open = true })
-            .semantics(mergeDescendants = true) { contentDescription = "$count ${if (count == 1) "note" else "notes"}" }
-            .padding(horizontal = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(3.dp),
+    CircleSurface(
+        { open = true },
+        "$count ${if (count == 1) "note" else "notes"}",
+        Modifier.height(CircleSize.Header.diameter).widthIn(min = CircleSize.Header.diameter),
+        RelayTheme.shapes.circle, CircleTone.Raised, enabled = true, haptic = null,
     ) {
-        Icon(TablerIcons.Outline.Pin, null, size = 16.dp, tint = c.mutedForeground)
-        Text("$count", style = RelayTheme.type.sm, color = c.mutedForeground)
+        Row(
+            Modifier.padding(horizontal = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(3.dp),
+        ) {
+            Icon(TablerIcons.Outline.Pin, null, size = 18.dp)
+            Text("$count", style = RelayTheme.type.meta)
+        }
     }
     if (open) NotesSheet(
         notes,
@@ -108,19 +114,25 @@ private fun NotesSheet(
     Sheet(onClose, title = "Notes", description = "Tap one to quote it in your message.") {
         for (note in notes.notes) key(note.id) {
             val jump = note.from?.takeIf(present)?.let { from -> { onJump(from) } }
-            Note(note, notes, onQuote, jump)
+            NoteCard(note, onQuote, jump, onTick = { index, done -> notes.tick(note, index, done) }, onRemove = { notes.remove(note) })
         }
     }
 }
 
 @Composable
-private fun Note(note: ThreadNote, notes: ThreadNotes, onQuote: (String) -> Unit, onJump: (() -> Unit)?) {
+internal fun NoteCard(
+    note: ThreadNote,
+    onQuote: (String) -> Unit,
+    onJump: (() -> Unit)?,
+    onTick: (index: Int, done: Boolean) -> Unit,
+    onRemove: () -> Unit,
+) {
     val c = RelayTheme.colors
     val list = remember(note.text, note.ref) { if (note.ref == true) null else noteList(note.text) }
     val quote = noteQuote(note)
     Column(
-        Modifier.fillMaxWidth().border(RelayTheme.hairline, c.border, Radii.mdShape)
-            .background(c.card, Radii.mdShape).padding(start = 12.dp, end = 4.dp, top = 8.dp, bottom = 2.dp),
+        Modifier.fillMaxWidth().clip(RelayTheme.shapes.card).background(c.tool)
+            .padding(start = 16.dp, end = 6.dp, top = 12.dp, bottom = 4.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         when {
@@ -131,8 +143,8 @@ private fun Note(note: ThreadNote, notes: ThreadNotes, onQuote: (String) -> Unit
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                Icon(TablerIcons.Outline.Message, null, size = 14.dp, tint = c.mutedForeground)
-                Text(note.text, Modifier.weight(1f), color = if (onJump != null) c.foreground else c.mutedForeground)
+                Icon(TablerIcons.Outline.Message, null, size = 14.dp, tint = c.inkSoft)
+                Text(note.text, Modifier.weight(1f), style = RelayTheme.type.meta, color = if (onJump != null) c.ink else c.inkSoft)
             }
             list != null -> {
                 if (list.lead.isNotEmpty()) Box(Modifier.padding(end = 8.dp)) {
@@ -140,7 +152,7 @@ private fun Note(note: ThreadNote, notes: ThreadNotes, onQuote: (String) -> Unit
                 }
                 val done = note.done.orEmpty().toSet()
                 list.items.forEachIndexed { index, item ->
-                    Item(item, index in done, onTick = { notes.tick(note, index, index !in done) }) {
+                    Item(item, index in done, onTick = { onTick(index, index !in done) }) {
                         noteQuote(note, index).takeIf { it.isNotEmpty() }?.let(onQuote)
                     }
                 }
@@ -152,10 +164,10 @@ private fun Note(note: ThreadNote, notes: ThreadNotes, onQuote: (String) -> Unit
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
                 note.by?.let { "Kept by ${agentName(it)}" }.orEmpty(),
-                Modifier.weight(1f), style = RelayTheme.type.xs, color = c.faint, maxLines = 1,
+                Modifier.weight(1f), style = RelayTheme.type.small, color = c.inkFaint, maxLines = 1,
             )
             if (onJump != null && note.ref != true) IconButton(
-                TablerIcons.Outline.ArrowBarToUp, "Show where it was kept", onJump, size = ButtonSize.Sm, tint = c.mutedForeground,
+                TablerIcons.Outline.ArrowBarToUp, "Show where it was kept", onJump, size = ButtonSize.Sm, tint = c.inkSoft,
             )
             IconButton(
                 TablerIcons.Outline.Blockquote,
@@ -166,11 +178,11 @@ private fun Note(note: ThreadNote, notes: ThreadNotes, onQuote: (String) -> Unit
                     else -> "Quote it in your message"
                 },
                 { onQuote(quote) },
-                size = ButtonSize.Sm, enabled = quote.isNotEmpty(), tint = c.mutedForeground,
+                size = ButtonSize.Sm, enabled = quote.isNotEmpty(), tint = c.inkSoft,
             )
             IconButton(
-                TablerIcons.Outline.X, if (note.ref == true) "Unpin" else "Remove note", { notes.remove(note) },
-                size = ButtonSize.Sm, tint = c.mutedForeground,
+                TablerIcons.Outline.X, if (note.ref == true) "Unpin" else "Remove note", onRemove,
+                size = ButtonSize.Sm, tint = c.inkSoft,
             )
         }
     }
@@ -186,7 +198,7 @@ private fun Item(item: NoteItem, done: Boolean, onTick: () -> Unit, onQuote: () 
                 .semantics { contentDescription = if (done) "Mark not done" else "Mark done" },
             contentAlignment = Alignment.Center,
         ) {
-            Icon(if (done) TablerIcons.Outline.SquareCheck else TablerIcons.Outline.Square, null, size = 18.dp, tint = if (done) c.foreground else c.mutedForeground)
+            Icon(if (done) TablerIcons.Outline.SquareCheck else TablerIcons.Outline.Square, null, size = 18.dp, tint = if (done) c.ink else c.inkSoft)
         }
         Row(
             Modifier.weight(1f).alpha(if (done) 0.5f else 1f)
@@ -194,7 +206,7 @@ private fun Item(item: NoteItem, done: Boolean, onTick: () -> Unit, onQuote: () 
                 .padding(top = 6.dp, bottom = 6.dp, start = 4.dp),
             horizontalArrangement = Arrangement.spacedBy(6.dp),
         ) {
-            if (item.number.isNotEmpty()) Text(item.number, style = RelayTheme.type.sm, color = c.mutedForeground)
+            if (item.number.isNotEmpty()) Text(item.number, style = RelayTheme.type.meta.copy(fontSize = 13.sp), color = c.inkSoft)
             Box(Modifier.weight(1f)) { Markdown(item.text, small = true) }
         }
     }
