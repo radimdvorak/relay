@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { afterEach, expect, it, vi } from "vitest";
 import type { AgentOptions } from "../types";
 import type { AcpProfile } from "./profiles";
-import { runAcp } from "./run";
+import { outputTokens, runAcp } from "./run";
 import { disposeAcp, acquireAcpAgent } from "./sessions";
 import { readOnlyGitEnv } from "../read-only-git";
 import { antigravityBatches } from "../antigravity";
@@ -600,7 +600,14 @@ it("splits text before a tool call into commentary and reports edits, cost and s
       },
       say("Done."),
     ],
-    usage: { inputTokens: 10, outputTokens: 2, thoughtTokens: 3 },
+    // Antigravity 1.5's own report: outputTokens already holds the 19 thinking.
+    usage: {
+      inputTokens: 2181,
+      cachedReadTokens: 12119,
+      outputTokens: 23,
+      thoughtTokens: 19,
+      totalTokens: 14323,
+    },
   });
   const commentary: [string, string | null][] = [];
   const activities: unknown[] = [];
@@ -625,14 +632,22 @@ it("splits text before a tool call into commentary and reports edits, cost and s
   // A new session starts at $0, so its first report is all this turn's.
   expect(costs).toEqual([0.5, 0.25]);
   expect(onUsage.mock.calls[0][0].tokens).toMatchObject({
-    input: 10,
-    output: 5,
+    input: 2181,
+    cacheRead: 12119,
+    output: 23,
   });
   const methods = (await sent()).map((m) => m.method);
   expect(methods).toContain("session/set_config_option");
   expect(methods).not.toContain("session/cancel");
   const prompt = (await sent()).find((m) => m.method === "session/prompt");
   expect(prompt?.params.prompt).toEqual([{ type: "text", text: "Hi" }]);
+});
+
+it("adds thinking to the output only when the agent's total leaves it out", () => {
+  const usage = { inputTokens: 10, outputTokens: 2, thoughtTokens: 3 };
+  expect(outputTokens({ ...usage, totalTokens: 15 })).toBe(5);
+  expect(outputTokens({ ...usage, totalTokens: 12 })).toBe(2);
+  expect(outputTokens(usage)).toBe(2);
 });
 
 it("asks the user when the mode does, and answers with the option they picked", async () => {

@@ -151,6 +151,7 @@ export const promptResultSchema = z
           cachedReadTokens: lenient(z.number()),
           cachedWriteTokens: lenient(z.number()),
           thoughtTokens: lenient(z.number()),
+          totalTokens: lenient(z.number()),
         })
         .loose(),
     ),

@@ -356,6 +356,24 @@ async function runAcpTurn(
   }
 }
 
+type AcpUsage = NonNullable<AcpPromptResult["usage"]>;
+
+/**
+ * ACP leaves open whether `outputTokens` counts thinking. Antigravity 1.5's
+ * does, so adding `thoughtTokens` counted it twice; the total says which.
+ */
+export function outputTokens(usage: AcpUsage) {
+  const output = usage.outputTokens ?? 0;
+  const thoughts = usage.thoughtTokens ?? 0;
+  if (usage.totalTokens === undefined) return output;
+  const input =
+    (usage.inputTokens ?? 0) +
+    (usage.cachedReadTokens ?? 0) +
+    (usage.cachedWriteTokens ?? 0);
+  const thoughtsLeftOut = usage.totalTokens === input + output + thoughts;
+  return thoughtsLeftOut ? output + thoughts : output;
+}
+
 /** Reads how the turn ended: a reason to fail it, and what it used. */
 function finish(
   options: AgentOptions,
@@ -372,7 +390,7 @@ function finish(
         input: usage.inputTokens ?? 0,
         cacheWrite: usage.cachedWriteTokens ?? 0,
         cacheRead: usage.cachedReadTokens ?? 0,
-        output: (usage.outputTokens ?? 0) + (usage.thoughtTokens ?? 0),
+        output: outputTokens(usage),
       },
     });
   switch (result.stopReason) {
