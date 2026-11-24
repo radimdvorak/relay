@@ -6,7 +6,9 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
+import androidx.compose.material3.SliderState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -41,10 +43,12 @@ internal fun ContrastRow(theme: ThemeSettings) {
                 }
             },
         )
+        val slider = remember { SliderState(DEFAULT_CONTRAST.toFloat(), 0, 0f..100f) }
+        // Follows the theme, Reset included, and moves in whole steps as before.
+        slider.value = theme.contrast.toFloat()
         Slider(
-            value = theme.contrast.toFloat(),
+            slider,
             onValueChange = { theme.contrast = it.roundToInt() },
-            valueRange = 0f..100f,
             modifier = Modifier.padding(horizontal = 12.dp),
             colors = SliderDefaults.colors(
                 thumbColor = c.foreground,

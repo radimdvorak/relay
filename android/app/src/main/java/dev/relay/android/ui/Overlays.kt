@@ -76,11 +76,15 @@ fun Sheet(
         return
     }
     val shape = RoundedCornerShape(topStart = Radii.xxl, topEnd = Radii.xxl)
+    // Its replacement, rememberBottomSheetState, stops a halfFirst sheet at half its content
+    // rather than half the screen; kept until the redesign decides where that sheet stops.
+    @Suppress("DEPRECATION")
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = !halfFirst)
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         // No ring: ModalBottomSheet hands the modifier to a full-window layer, so it drew a stray outline over the screen.
         modifier = modifier,
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = !halfFirst),
+        sheetState = sheetState,
         shape = shape,
         containerColor = c.popover,
         contentColor = c.foreground,

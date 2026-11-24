@@ -23,6 +23,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.input.TextFieldLineLimits
+import androidx.compose.foundation.text.input.TextFieldState
+import androidx.compose.foundation.text.input.clearText
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
@@ -59,9 +62,8 @@ internal fun tabTitleStyle(): TextStyle =
 /** What the search in the header looks for, and whether it's open. */
 internal class HomeSearch(
     val open: Boolean,
-    val query: String,
+    val query: TextFieldState,
     val onOpen: (Boolean) -> Unit,
-    val onQuery: (String) -> Unit,
     val placeholder: String = "Search threads and projects",
 )
 
@@ -166,22 +168,21 @@ private fun SearchBar(search: HomeSearch, box: Modifier) {
     ) {
         IconButton(TablerIcons.Outline.ArrowLeft, "Close search", { search.onOpen(false) }, tint = c.foreground)
         Box(Modifier.weight(1f).padding(horizontal = 4.dp)) {
-            if (search.query.isEmpty()) Text(search.placeholder, style = text, color = c.faint, maxLines = 1)
+            if (search.query.text.isEmpty()) Text(search.placeholder, style = text, color = c.faint, maxLines = 1)
             BasicTextField(
                 search.query,
-                search.onQuery,
                 Modifier.fillMaxWidth().focusRequester(focus),
                 textStyle = text,
-                singleLine = true,
+                lineLimits = TextFieldLineLimits.SingleLine,
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
                 cursorBrush = SolidColor(c.foreground),
             )
         }
-        val empty = search.query.isEmpty()
+        val empty = search.query.text.isEmpty()
         IconButton(
             TablerIcons.Outline.X,
             if (empty) "Close search" else "Clear",
-            { if (empty) search.onOpen(false) else search.onQuery("") },
+            { if (empty) search.onOpen(false) else search.query.clearText() },
             tint = c.mutedForeground,
         )
     }

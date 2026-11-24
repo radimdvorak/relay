@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -211,9 +212,8 @@ private fun Overlays() {
         destructive = true,
     )
     if (command) Sheet({ command = false }) {
-        var q by remember { mutableStateOf("") }
         CommandMenu(
-            q, { q = it },
+            rememberTextFieldState(),
             listOf(
                 CommandGroup("Projects", listOf(CommandItem("relay", "relay", TablerIcons.Outline.Folder, hint = "12", checked = true), CommandItem("web", "website", TablerIcons.Outline.Folder, hint = "3"))),
                 CommandGroup("Branches", listOf(CommandItem("main", "main", TablerIcons.Outline.GitBranch), CommandItem("k", "kotlin-phone", TablerIcons.Outline.GitBranch))),

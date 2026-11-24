@@ -41,7 +41,7 @@ plugins {
 
 android {
     namespace = "dev.relay.android"
-    compileSdk = 37
+    compileSdk { version = release(37) { minorApiLevel = 1 } }
 
     defaultConfig {
         // Its own id, so it installs beside the Expo app (dev.relay.remote) and keeps its pairing.

@@ -15,6 +15,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.input.TextFieldLineLimits
+import androidx.compose.foundation.text.input.TextFieldState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -49,8 +51,7 @@ data class CommandGroup(val heading: String?, val items: List<CommandItem>)
  */
 @Composable
 fun CommandMenu(
-    query: String,
-    onQueryChange: (String) -> Unit,
+    query: TextFieldState,
     groups: List<CommandGroup>,
     onSelect: (CommandItem) -> Unit,
     modifier: Modifier = Modifier,
@@ -60,8 +61,9 @@ fun CommandMenu(
     framed: Boolean = true,
 ) {
     val c = RelayTheme.colors
-    val shown = if (!filter || query.isBlank()) groups else groups.map { g ->
-        g.copy(items = g.items.filter { it.label.contains(query.trim(), ignoreCase = true) })
+    val needle = query.text.trim()
+    val shown = if (!filter || needle.isEmpty()) groups else groups.map { g ->
+        g.copy(items = g.items.filter { it.label.contains(needle, ignoreCase = true) })
     }.filter { it.items.isNotEmpty() }
     Column(
         modifier
@@ -75,15 +77,14 @@ fun CommandMenu(
             Icon(TablerIcons.Outline.Search, null, tint = c.mutedForeground)
             BasicTextField(
                 query,
-                onQueryChange,
                 Modifier.weight(1f),
-                singleLine = true,
+                lineLimits = TextFieldLineLimits.SingleLine,
                 textStyle = RelayTheme.type.input.copy(color = c.foreground),
                 cursorBrush = SolidColor(c.foreground),
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                decorationBox = { field ->
+                decorator = { field ->
                     Box {
-                        if (query.isEmpty()) Text(placeholder, style = RelayTheme.type.input, color = c.faint)
+                        if (query.text.isEmpty()) Text(placeholder, style = RelayTheme.type.input, color = c.faint)
                         field()
                     }
                 },

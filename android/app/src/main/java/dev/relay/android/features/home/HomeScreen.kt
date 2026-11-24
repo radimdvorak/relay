@@ -13,6 +13,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.foundation.text.input.clearText
+import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.collectAsState
@@ -83,7 +85,8 @@ fun HomeScreen(
     // Back from another tab returns to the threads before it leaves the app, as Android's tabs do.
     BackHandler(enabled = shown != HomeTab.Activity) { tab = HomeTab.Activity }
     var searching by rememberSaveable { mutableStateOf(false) }
-    var query by rememberSaveable { mutableStateOf("") }
+    val queryField = rememberTextFieldState()
+    val query = queryField.text.toString()
     val overview by remote.overview.collectAsState()
     val filter by home.filter.filter.collectAsState()
 
@@ -94,7 +97,7 @@ fun HomeScreen(
                     HomeHeader(
                         shown, remote, computerSeen, overview, filter, home.filter::set,
                         HomeSearch(
-                            searching, query, { searching = it; if (!it) query = "" }, { query = it },
+                            searching, queryField, { searching = it; if (!it) queryField.clearText() },
                             if (shown == HomeTab.Pulls) "Search pull requests" else "Search threads and projects",
                         ),
                         computerRows,
@@ -116,7 +119,7 @@ fun HomeScreen(
                     shown,
                     {
                         searching = false
-                        query = ""
+                        queryField.clearText()
                         if (it == HomeTab.Settings && pane) open(Route.Settings) else tab = it
                     },
                     onNew = { open(Route.NewThread()) },
