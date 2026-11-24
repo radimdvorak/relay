@@ -139,7 +139,7 @@ private fun Run(run: SubagentRun, root: String?) {
     var whole by rememberSaveable { mutableStateOf(false) }
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         SubagentMark(run)
-        Text(run.description, Modifier.weight(1f), style = RelayTheme.type.title.copy(fontWeight = FontWeight.SemiBold))
+        Text(run.description, Modifier.weight(1f), style = RelayTheme.type.sheetTitle.copy(fontWeight = FontWeight.SemiBold))
     }
     Text(
         listOfNotNull(agentKind(run), run.model?.let(::modelName), plural(run.calls, "call"), "failed".takeIf { run.status == "failed" })

@@ -127,7 +127,7 @@ private fun SheetBody(title: String?, description: String?, content: @Composable
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         if (title != null || description != null) Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            if (title != null) Text(title, style = RelayTheme.type.title)
+            if (title != null) Text(title, style = RelayTheme.type.sheetTitle)
             if (description != null) Text(description, color = RelayTheme.colors.mutedForeground)
         }
         content()
@@ -179,7 +179,7 @@ fun Dialog(
     CenteredCard(onDismiss, modifier.widthIn(max = 420.dp)) {
         Column(Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text(title, style = RelayTheme.type.title)
+                Text(title, style = RelayTheme.type.sheetTitle)
                 if (description != null) Text(description, color = RelayTheme.colors.mutedForeground)
             }
             content?.invoke(this)

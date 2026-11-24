@@ -12,7 +12,7 @@ import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import dev.relay.android.R
 
-/** Hexta's "book" weight, a touch heavier than medium. */
+/** Between regular and medium: Hexta's "book". */
 val Book = FontWeight(520)
 
 private fun inter(weight: FontWeight) = Font(
@@ -29,59 +29,114 @@ val Inter = FontFamily(
     inter(FontWeight.Bold),
 )
 
+/** Newsreader's optical size axis set for display sizes, where its contrast and spacing are drawn for. */
+private fun newsreader(weight: FontWeight) = Font(
+    R.font.newsreader_variable,
+    weight = weight,
+    variationSettings = FontVariation.Settings(
+        FontVariation.weight(weight.weight),
+        FontVariation.Setting("opsz", 24f),
+    ),
+)
+
+/** The display serif: the home greeting, the drawer's title, empty states. */
+val Newsreader = FontFamily(newsreader(FontWeight.Normal), newsreader(FontWeight.Medium))
+
 val JetBrainsMono = FontFamily(
     Font(R.font.jetbrains_mono_regular, FontWeight.Normal),
     Font(R.font.jetbrains_mono_medium, FontWeight.Medium),
 )
 
-/** Tailwind's scale shifted 1sp down: 13 is the body size. */
+/** The type scale in docs/expressive/design-brief.md ("Type"), plus the old Hexta names as aliases. */
 @Immutable
 data class RelayType(
-    val xs: TextStyle,
-    val sm: TextStyle,
-    val base: TextStyle,
-    val lg: TextStyle,
-    val xl: TextStyle,
-    val xxl: TextStyle,
-    val xxxl: TextStyle,
-    val xxxxl: TextStyle,
-    /** 13sp at 500: buttons, row titles, labels. */
-    val label: TextStyle,
-    /** 11sp at 500, muted: group headings. */
-    val caption: TextStyle,
-    /** 17sp at 600: dialog and sheet titles. */
+    /** Newsreader 27/34: the empty home's line, empty states. The drawer's title is this at 22. */
+    val greeting: TextStyle,
+    /** 24/30 at 500: a tab's title on the chrome (Projects, PRs). */
     val title: TextStyle,
-    /** Text fields on touch screens: 16sp, so nothing zooms or squints. */
-    val input: TextStyle,
-    val mono: TextStyle,
-    val monoSm: TextStyle,
+    /** 20/26 at 600: markdown H1–H2, headings inside a screen. */
+    val heading: TextStyle,
+    /** 17/22 at 500: the centred title of a sheet or dialog. */
+    val sheetTitle: TextStyle,
+    /** 15/24: answers, messages, paragraphs. */
+    val body: TextStyle,
+    /** 16/22: list row titles, the composer's text, inputs. */
+    val row: TextStyle,
+    /** 14/18: subtitles, descriptions, times. */
+    val meta: TextStyle,
+    /** 12/16: the smallest text, for dense rows. */
+    val small: TextStyle,
+    /** 12/16 at 500: chips, tooltips; section labels use it at 13. */
+    val label: TextStyle,
+    /** JetBrains Mono 13/20: code blocks, paths. */
+    val code: TextStyle,
+    /** JetBrains Mono 11/16: code in dense places (diff gutters, tool rows). */
+    val codeSmall: TextStyle,
+) {
+    @Deprecated("use small", ReplaceWith("small"))
+    val xs: TextStyle get() = small
+
+    @Deprecated("use meta", ReplaceWith("meta"))
+    val sm: TextStyle get() = meta
+
+    @Deprecated("use body", ReplaceWith("body"))
+    val base: TextStyle get() = body
+
+    @Deprecated("use row", ReplaceWith("row"))
+    val lg: TextStyle get() = row
+
+    @Deprecated("use heading (20/26 at 600)")
+    val xl: TextStyle get() = heading.copy(fontWeight = FontWeight.Medium)
+
+    @Deprecated("use title", ReplaceWith("title"))
+    val xxl: TextStyle get() = title
+
+    @Deprecated("use greeting or title")
+    val xxxl: TextStyle get() = title.copy(fontSize = 29.sp, lineHeight = 36.sp)
+
+    @Deprecated("use greeting or title")
+    val xxxxl: TextStyle get() = title.copy(fontSize = 35.sp, lineHeight = 42.sp)
+
+    @Deprecated("use label", ReplaceWith("label"))
+    val caption: TextStyle get() = label
+
+    @Deprecated("use row", ReplaceWith("row"))
+    val input: TextStyle get() = row
+
+    @Deprecated("use code", ReplaceWith("code"))
+    val mono: TextStyle get() = code
+
+    @Deprecated("use codeSmall", ReplaceWith("codeSmall"))
+    val monoSm: TextStyle get() = codeSmall
+}
+
+private val centred = LineHeightStyle(LineHeightStyle.Alignment.Center, LineHeightStyle.Trim.None)
+
+private fun style(
+    size: Int,
+    line: Int,
+    weight: FontWeight = FontWeight.Normal,
+    tracking: TextUnit = 0.sp,
+    family: FontFamily = Inter,
+) = TextStyle(
+    fontFamily = family,
+    fontSize = size.sp,
+    lineHeight = line.sp,
+    fontWeight = weight,
+    letterSpacing = tracking,
+    lineHeightStyle = centred,
 )
 
-private val trim = LineHeightStyle(LineHeightStyle.Alignment.Center, LineHeightStyle.Trim.None)
-
-private fun style(size: Int, line: Float, weight: FontWeight = FontWeight.Normal, tracking: TextUnit = 0.sp) =
-    TextStyle(
-        fontFamily = Inter,
-        fontSize = size.sp,
-        lineHeight = (size * line).sp,
-        fontWeight = weight,
-        letterSpacing = tracking,
-        lineHeightStyle = trim,
-    )
-
 val DefaultType = RelayType(
-    xs = style(11, 1.45f),
-    sm = style(13, 1.5f),
-    base = style(15, 1.5f),
-    lg = style(17, 1.4f),
-    xl = style(19, 1.35f),
-    xxl = style(23, 1.3f, FontWeight.Medium, (-0.025).em),
-    xxxl = style(29, 1.25f, FontWeight.Medium, (-0.025).em),
-    xxxxl = style(35, 1.2f, FontWeight.Medium, (-0.025).em),
-    label = style(13, 1.4f, FontWeight.Medium),
-    caption = style(11, 1.4f, FontWeight.Medium),
-    title = style(17, 1.35f, FontWeight.SemiBold, (-0.01).em),
-    input = style(16, 1.4f),
-    mono = TextStyle(fontFamily = JetBrainsMono, fontSize = 13.sp, lineHeight = 20.sp, lineHeightStyle = trim),
-    monoSm = TextStyle(fontFamily = JetBrainsMono, fontSize = 11.sp, lineHeight = 16.sp, lineHeightStyle = trim),
+    greeting = style(27, 34, tracking = (-0.01).em, family = Newsreader),
+    title = style(24, 30, FontWeight.Medium, (-0.02).em),
+    heading = style(20, 26, FontWeight.SemiBold, (-0.01).em),
+    sheetTitle = style(17, 22, FontWeight.Medium),
+    body = style(15, 24),
+    row = style(16, 22),
+    meta = style(14, 18),
+    small = style(12, 16),
+    label = style(12, 16, FontWeight.Medium),
+    code = style(13, 20, family = JetBrainsMono),
+    codeSmall = style(11, 16, family = JetBrainsMono),
 )

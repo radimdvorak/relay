@@ -21,8 +21,8 @@ import dev.relay.android.ui.Screen
 import dev.relay.android.ui.SegmentedTabs
 import dev.relay.android.ui.TabOption
 import dev.relay.android.ui.Text
-import dev.relay.android.ui.theme.HextaDark
-import dev.relay.android.ui.theme.HextaLight
+import dev.relay.android.ui.theme.RelayPaperDark
+import dev.relay.android.ui.theme.RelayPaperLight
 import dev.relay.android.ui.theme.RelayTheme
 
 private enum class GalleryTheme { App, Light, Dark }
@@ -52,8 +52,8 @@ fun GalleryScreen() {
         }
         when (theme) {
             GalleryTheme.App -> body()
-            GalleryTheme.Light -> RelayTheme(HextaLight, body)
-            GalleryTheme.Dark -> RelayTheme(HextaDark, body)
+            GalleryTheme.Light -> RelayTheme(RelayPaperLight, body)
+            GalleryTheme.Dark -> RelayTheme(RelayPaperDark, body)
         }
     }
 }

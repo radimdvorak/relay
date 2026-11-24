@@ -146,7 +146,7 @@ fun CommitScreen(remote: Remote, where: String, sha: String) {
                 item {
                     SelectionContainer {
                         Column(Modifier.padding(horizontal = 12.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Text(now.subject, style = RelayTheme.type.title.copy(fontWeight = FontWeight.SemiBold))
+                            Text(now.subject, style = RelayTheme.type.sheetTitle.copy(fontWeight = FontWeight.SemiBold))
                             if (now.body.isNotBlank()) Text(now.body.trim())
                             Text("${now.author} · ${dateTime(now.time * 1000)}", style = RelayTheme.type.xs, color = c.mutedForeground)
                             Text(now.sha, style = RelayTheme.type.monoSm, color = c.faint)

@@ -9,29 +9,26 @@ const val DEFAULT_CONTRAST = 50
 
 /**
  * The desktop's contrast (reshape in src/lib/themes.ts) on top of whatever
- * palette the phone wears: surfaces and borders stand out half to twice as
+ * palette the phone wears: fills and lines stand out half to twice as
  * much, and secondary text moves toward the text as contrast goes up.
  */
 fun RelayColors.withContrast(contrast: Int): RelayColors {
     if (contrast == DEFAULT_CONTRAST) return this
     val strength = 2.0.pow((contrast - DEFAULT_CONTRAST) / DEFAULT_CONTRAST.toDouble()).toFloat()
-    val line = BackgroundToText(background, foreground)
-    val surface = { c: Color -> line.place(c) { at -> at * strength } }
-    // Drifts less than surfaces, so muted text stays readable at low contrast.
-    val secondary = { c: Color -> line.place(c) { at -> 1 - (1 - at) / sqrt(strength) } }
+    val axis = BackgroundToText(surface, ink)
+    val step = { c: Color -> axis.place(c) { at -> at * strength } }
+    // Drifts less than fills, so secondary text stays readable at low contrast.
+    val secondary = { c: Color -> axis.place(c) { at -> 1 - (1 - at) / sqrt(strength) } }
     return copy(
-        card = surface(card),
-        popover = surface(popover),
-        muted = surface(muted),
-        border = surface(border),
-        input = surface(input),
-        ring = surface(ring),
-        selected = surface(selected),
-        sidebar = surface(sidebar),
-        code = surface(code),
-        accentSoft = surface(accentSoft),
-        mutedForeground = secondary(mutedForeground),
-        faint = secondary(faint),
+        chrome = step(chrome),
+        raised = step(raised),
+        tool = step(tool),
+        selected = step(selected),
+        bubble = step(bubble),
+        line = step(line),
+        code = step(code),
+        inkSoft = secondary(inkSoft),
+        inkFaint = secondary(inkFaint),
     )
 }
 

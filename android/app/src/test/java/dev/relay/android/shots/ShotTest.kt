@@ -11,8 +11,8 @@ import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onRoot
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.github.takahirom.roborazzi.captureRoboImage
-import dev.relay.android.ui.theme.HextaDark
-import dev.relay.android.ui.theme.HextaLight
+import dev.relay.android.ui.theme.RelayPaperDark
+import dev.relay.android.ui.theme.RelayPaperLight
 import dev.relay.android.ui.theme.RelayTheme
 import java.io.File
 import org.junit.Rule
@@ -50,8 +50,8 @@ abstract class ShotTest {
         // Spinners and shimmers never settle, so the clock only moves when told to.
         compose.mainClock.autoAdvance = false
         compose.activity.setContent {
-            RelayTheme(if (dark) HextaDark else HextaLight) {
-                Box(Modifier.fillMaxSize().background(RelayTheme.colors.background)) { content() }
+            RelayTheme(if (dark) RelayPaperDark else RelayPaperLight) {
+                Box(Modifier.fillMaxSize().background(RelayTheme.colors.surface)) { content() }
             }
         }
         // Long enough for entrances and fades to finish.
