@@ -3,7 +3,11 @@ package dev.relay.android.features.home
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.background
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -15,41 +19,48 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import dev.relay.android.features.composer.logic.agentName
 import dev.relay.android.remote.model.RemoteOverview
+import dev.relay.android.ui.CircleSize
+import dev.relay.android.ui.CircleTone
 import dev.relay.android.ui.Icon
 import dev.relay.android.ui.ListRow
 import dev.relay.android.ui.ProviderIcon
 import dev.relay.android.ui.RowSize
-import dev.relay.android.ui.SectionHeader
+import dev.relay.android.ui.SectionLabel
 import dev.relay.android.ui.Sheet
 import dev.relay.android.ui.Text
+import dev.relay.android.ui.fill
 import dev.relay.android.ui.pressable
+import dev.relay.android.ui.pressedFill
 import dev.relay.android.ui.theme.RelayTheme
 import io.github.lyxnx.compose.ui.tablericons.TablerIcons
 import io.github.lyxnx.compose.ui.tablericons.outline.Check
 import io.github.lyxnx.compose.ui.tablericons.outline.Filter2
 import io.github.lyxnx.compose.ui.tablericons.outline.X
 
-/** The filter's button beside the search field: lit in the accent, with how many are ticked, while it narrows the list. */
+/** The filter's header circle: in the accent, with how many are ticked, while it narrows the list. */
 @Composable
 fun FilterButton(overview: RemoteOverview, filter: ThreadFilter, onChange: (ThreadFilter) -> Unit, modifier: Modifier = Modifier) {
     val c = RelayTheme.colors
     var open by remember { mutableStateOf(false) }
     val applied = filter.current(overview).count
-    val tint = if (applied > 0) c.accent else c.mutedForeground
+    val tint = if (applied > 0) c.accent else c.ink
+    val interaction = remember { MutableInteractionSource() }
+    val pressed by interaction.collectIsPressedAsState()
+    val fill = CircleTone.Raised.fill(c)
     Row(
-        modifier.heightIn(min = 40.dp)
-            .pressable(onClick = { open = true }, role = Role.Button)
+        modifier.heightIn(min = CircleSize.Header.diameter).widthIn(min = CircleSize.Header.diameter)
+            .pressable(onClick = { open = true }, role = Role.Button, interaction = interaction)
+            .background(if (pressed) pressedFill(fill, c) else fill, RelayTheme.shapes.circle)
             .semantics { contentDescription = if (applied > 0) "Filter, $applied applied" else "Filter" }
-            .padding(horizontal = 10.dp),
-        horizontalArrangement = Arrangement.spacedBy(3.dp),
+            .padding(horizontal = 11.dp),
+        horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterHorizontally),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(TablerIcons.Outline.Filter2, null, tint = tint, size = 20.dp)
-        if (applied > 0) Text("$applied", style = RelayTheme.type.xs.copy(fontWeight = FontWeight.SemiBold), color = tint)
+        Icon(TablerIcons.Outline.Filter2, null, tint = tint, size = CircleSize.Header.icon)
+        if (applied > 0) Text("$applied", style = RelayTheme.type.label, color = tint)
     }
     if (open) FilterSheet(overview, filter, onChange) { open = false }
 }
@@ -60,7 +71,7 @@ fun FilterButton(overview: RemoteOverview, filter: ThreadFilter, onChange: (Thre
  * ticking something doesn't shift the rows under the finger.
  */
 @Composable
-private fun FilterSheet(overview: RemoteOverview, filter: ThreadFilter, onChange: (ThreadFilter) -> Unit, onDismiss: () -> Unit) {
+internal fun FilterSheet(overview: RemoteOverview, filter: ThreadFilter, onChange: (ThreadFilter) -> Unit, onDismiss: () -> Unit) {
     val c = RelayTheme.colors
     val choices = remember(overview) { filterChoices(overview) }
     val shown = filter.current(overview)
@@ -79,20 +90,20 @@ private fun FilterSheet(overview: RemoteOverview, filter: ThreadFilter, onChange
             ListRow(
                 "Clear filter",
                 size = RowSize.Sm,
-                titleColor = if (shown.count > 0) c.foreground else c.faint,
-                leading = { Icon(TablerIcons.Outline.X, null, tint = if (shown.count > 0) c.mutedForeground else c.faint, size = 16.dp) },
+                titleColor = if (shown.count > 0) c.ink else c.inkFaint,
+                leading = { Icon(TablerIcons.Outline.X, null, tint = if (shown.count > 0) c.inkSoft else c.inkFaint, size = 16.dp) },
                 onClick = if (shown.count > 0) ({ onChange(ThreadFilter()) }) else null,
             )
             if (choices.agents.isNotEmpty()) {
-                SectionHeader("Agents")
+                SectionLabel("Agents")
                 for (agent in choices.agents) {
                     val ids = listOf(agent)
                     row(agentName(agent), agent in filter.agents, { onChange(filter.toggled(ThreadFilter.Kind.Agents, ids)) }) {
-                        ProviderIcon(agent, c.foreground, size = 17.dp)
+                        ProviderIcon(agent, c.ink, size = 17.dp)
                     }
                 }
             }
-            SectionHeader("Projects")
+            SectionLabel("Projects")
             for (p in choices.projects) {
                 row(p.name, p.ids.any { it in filter.projects }, { onChange(filter.toggled(ThreadFilter.Kind.Projects, p.ids)) }) {
                     ProjectIcon(p.project)
