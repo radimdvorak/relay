@@ -96,13 +96,23 @@ export function readProviderUsage(
   )
     .catch(() => unreadable(provider))
     .then(async (value) => {
+      // A reading that isn't valid mustn't reject what asks for every agent's,
+      // or record bad samples in usage history.
+      const checked = providerUsageSchema.safeParse(value);
+      if (!checked.success) {
+        const fallback = unreadable(provider);
+        cache.set(key, { at: Date.now(), value: fallback });
+        return fallback;
+      }
       const activeHours = await recordUsage(
-        value,
+        checked.data,
         account === SYSTEM_ACCOUNT ? provider : key,
       ).catch(() => null);
-      // A reading that isn't valid mustn't reject what asks for every agent's.
-      const checked = providerUsageSchema.safeParse({ ...value, activeHours });
-      const parsed = checked.success ? checked.data : unreadable(provider);
+      const withHours = providerUsageSchema.safeParse({
+        ...checked.data,
+        activeHours,
+      });
+      const parsed = withHours.success ? withHours.data : checked.data;
       cache.set(key, { at: Date.now(), value: parsed });
       return parsed;
     })

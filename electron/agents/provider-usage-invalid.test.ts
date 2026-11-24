@@ -5,10 +5,13 @@ import type { ProjectChat } from "../../shared/projects";
 import { usageLimits } from "../started-threads/usage-limits";
 
 const reader = vi.hoisted(() => ({ reading: undefined as unknown }));
+const recordUsage = vi.hoisted(() => vi.fn(async () => null));
 
 vi.mock("./opencode/go-usage", () => ({
   readOpenCodeUsage: async () => reader.reading,
 }));
+
+vi.mock("./usage-history", () => ({ recordUsage }));
 
 const { readProviderUsage } = await import("./provider-usage");
 
@@ -20,6 +23,7 @@ const window = (usedPercent: number, periodMs: number, resetsAt: number) => ({
 });
 
 it("turns a reading that isn't valid into a couldn't-read one, for that agent only", async () => {
+  recordUsage.mockClear();
   for (const [account, invalid] of [
     ["nan-period", window(40, NaN, 0)],
     ["nan-reset", window(40, 1, NaN)],
@@ -39,6 +43,7 @@ it("turns a reading that isn't valid into a couldn't-read one, for that agent on
       message: "Couldn't read usage",
     });
   }
+  expect(recordUsage).not.toHaveBeenCalled();
 });
 
 it("keeps the agents' limits together when one agent's reading isn't valid", async () => {
