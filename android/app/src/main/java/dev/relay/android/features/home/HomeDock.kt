@@ -35,6 +35,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
+import dev.relay.android.ui.BarMove
 import dev.relay.android.ui.BarTab
 import dev.relay.android.ui.BottomBar
 import dev.relay.android.ui.theme.RelayTheme
@@ -56,10 +57,13 @@ internal val DOCK_FADE = 28.dp
 /** Between the composer and what's under it: the bar, or the keyboard. */
 private val COMPOSER_GAP = 8.dp
 
+/** The composer and the bar under it share their edges. */
+private fun Modifier.dockWidth() = widthIn(max = 720.dp).fillMaxWidth().padding(horizontal = 15.dp)
+
 internal fun homeTabs(threadsNews: Boolean) = listOf(
     BarTab(HomeTab.Threads, TablerIcons.Outline.Messages, "Threads", TablerIcons.Filled.MessagesFilled, dot = threadsNews),
-    BarTab(HomeTab.Projects, TablerIcons.Outline.Folders, "Projects", TablerIcons.Filled.FoldersFilled),
-    BarTab(HomeTab.Pulls, TablerIcons.Outline.GitPullRequest, "Pull requests"),
+    BarTab(HomeTab.Projects, TablerIcons.Outline.Folders, "Projects", TablerIcons.Filled.FoldersFilled, move = BarMove.Lift),
+    BarTab(HomeTab.Pulls, TablerIcons.Outline.GitPullRequest, "Pull requests", move = BarMove.Tug),
 )
 
 /**
@@ -103,7 +107,7 @@ internal fun HomeDock(
                 exit = fadeOut(motion.fastEffectsSpec()) + shrinkVertically(motion.defaultSpatialSpec(), clip = false),
             ) {
                 Box(
-                    Modifier.widthIn(max = 720.dp).fillMaxWidth().padding(horizontal = 15.dp).padding(bottom = COMPOSER_GAP)
+                    Modifier.dockWidth().padding(bottom = COMPOSER_GAP)
                         // This dock already stands on the keyboard.
                         .consumeWindowInsets(WindowInsets.ime.union(WindowInsets.navigationBars)),
                 ) { composer() }
@@ -118,7 +122,7 @@ internal fun HomeDock(
         ) {
             BottomBar(
                 homeTabs(threadsNews), tab, onTab,
-                Modifier.navigationBarsPadding().padding(horizontal = 16.dp, vertical = 4.dp).widthIn(max = 480.dp),
+                Modifier.navigationBarsPadding().dockWidth().padding(vertical = 4.dp),
             )
         }
     }
