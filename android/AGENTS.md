@@ -58,3 +58,25 @@ your task says so.
 - Comments only where they add something. No god files (split past ~600 lines).
 - Unit tests where they pin real behaviour (crypto vectors, patches, parsing),
   not for coverage.
+
+## Seeing UI without a device
+
+`scripts/shots.sh [filter]` draws Compose UI to PNGs on the JVM (Robolectric's
+native graphics + Roborazzi) and prints their paths; open them with Read.
+```
+scripts/shots.sh                      # every shot
+scripts/shots.sh UiShots              # one class
+scripts/shots.sh 'HomeShots.activity' # one test
+```
+- Shots live in `app/src/test/java/dev/relay/android/shots/`. A test class
+  extends `ShotTest` and calls
+  `Shot(name, device = ShotDevice.Phone | FoldInner, dark = false) { … }`, which
+  wraps the content in `RelayTheme` at that screen's size and writes
+  `app/build/shots/<name>_<device>_<light|dark>.png`.
+- Feed screens sample data, not a `Remote`: take the composable that draws
+  the state (`ActivityList`, not `HomeScreen`) and provide what it reads from
+  composition locals (`LocalToasts`, …). `HomeShots` is the example.
+- The clock only moves 1s before the capture, so spinners don't hang the
+  test; a picture shows that moment.
+- These are for looking, not baselines: nothing is committed or compared.
+  Plain `testDebugUnitTest` skips them; `-Pshots` runs them.

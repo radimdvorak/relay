@@ -79,6 +79,21 @@ android {
         buildConfig = true
     }
     packaging { resources.excludes += "/META-INF/{AL2.0,LGPL2.1}" }
+    testOptions.unitTests {
+        // Robolectric renders the screenshot tests with the app's own resources and fonts.
+        isIncludeAndroidResources = true
+        // Screenshots only when asked for (scripts/shots.sh passes -Pshots): they're slow, and plain test runs don't need them.
+        val shotsDir = layout.buildDirectory.dir("shots").get().asFile.absolutePath
+        val shots = providers.gradleProperty("shots").isPresent
+        all {
+            if (shots) {
+                it.systemProperty("relay.shots.dir", shotsDir)
+                it.systemProperty("roborazzi.test.record", "true")
+            } else {
+                it.exclude("dev/relay/android/shots/**")
+            }
+        }
+    }
 }
 
 kotlin { jvmToolchain(21) }
@@ -138,4 +153,10 @@ dependencies {
 
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
+    testImplementation(platform(libs.compose.bom))
+    testImplementation(libs.compose.ui.test.junit4)
+    testImplementation(libs.androidx.test.junit)
+    testImplementation(libs.robolectric)
+    testImplementation(libs.roborazzi)
+    testImplementation(libs.roborazzi.compose)
 }
