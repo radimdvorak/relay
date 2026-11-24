@@ -79,7 +79,7 @@ class SettingsShots : ShotTest() {
     }
 
     private fun sample(newest: String? = null) =
-        SampleApp(listOf("Studio", "Lubomir's MacBook Pro in the living room", "linux-box"), overview(), newest)
+        SampleApp(listOf("Studio", "Jane's MacBook Pro in the living room", "linux-box"), overview(), newest)
 
     @Test
     fun top() {
