@@ -1,104 +1,20 @@
-import { readFile } from "node:fs/promises";
 import { agentName } from "../../../shared/agents";
 import { signedOutError } from "../errors";
 import { cancelGrace, TurnText } from "../turn-kit";
 import type { AgentOptions } from "../types";
+import { answersAgentRequests } from "./agent-requests";
 import { AcpRequestError } from "./connection";
-import { answerElicitation } from "./elicitation";
 import type { AcpProfile } from "./profiles";
-import { permission } from "./permission";
 import {
   promptResultSchema,
   AUTH_REQUIRED,
   type AcpPromptResult,
 } from "./protocol";
-import {
-  acquireTurnAgent,
-  openSession,
-  type AcpAgent,
-  type McpServer,
-} from "./sessions";
+import { mcpServers, promptBlocks } from "./prompt";
+import { acquireTurnAgent, openSession, type AcpAgent } from "./sessions";
 import { applySettings } from "./settings";
 import { antigravityHelper, compactAntigravity } from "../antigravity";
 import { AcpTurnEvents } from "./turn-events";
-
-/** The turn's prompt as ACP content blocks. */
-async function promptBlocks(
-  options: AgentOptions,
-  agent: AcpAgent,
-  name: string,
-  profile: AcpProfile,
-) {
-  const { job } = options;
-  const helper = job.kind === "helper" ? job : undefined;
-  const note =
-    helper || job.kind === "compact"
-      ? undefined
-      : await options.context?.().catch(() => undefined);
-  const text = job.kind === "compact" ? profile.compact! : options.prompt;
-  const body = [
-    helper &&
-      "This is a text-only helper request. Do not use tools, ask questions, or invoke slash commands.",
-    helper?.instructions,
-    note,
-    text,
-  ]
-    .filter(Boolean)
-    .join("\n\n");
-  const planning =
-    job.kind === "prompt" &&
-    options.interactionMode === "plan" &&
-    agent.profile.plan;
-  const skills =
-    job.kind === "prompt"
-      ? ((await agent.profile.skillContext?.(options)) ?? [])
-      : [];
-  const blocks: object[] = [
-    ...skills.map((text) => ({
-      type: "text",
-      text,
-      annotations: { audience: ["assistant"] },
-    })),
-    { type: "text", text: planning ? `${agent.profile.plan} ${body}` : body },
-  ];
-  if (options.images?.length) {
-    if (!agent.caps?.image) throw new Error(`${name} can't read images.`);
-    for (const image of options.images)
-      blocks.push({
-        type: "image",
-        mimeType: image.mimeType,
-        data: (await readFile(image.path)).toString("base64"),
-      });
-  }
-  if (options.audio?.length) {
-    if (!agent.caps?.audio) throw new Error(`${name} can't listen to audio.`);
-    for (const clip of options.audio)
-      blocks.push({
-        type: "audio",
-        mimeType: clip.mimeType,
-        data: (await readFile(clip.path)).toString("base64"),
-      });
-  }
-  return blocks;
-}
-
-/** Relay's own tools, where the agent takes MCP servers over HTTP. */
-const mcpServers = (options: AgentOptions, agent: AcpAgent): McpServer[] =>
-  options.relayTools && agent.caps?.http
-    ? [
-        {
-          type: "http",
-          name: "relay",
-          url: options.relayTools.url,
-          headers: [
-            {
-              name: "Authorization",
-              value: `Bearer ${options.relayTools.token}`,
-            },
-          ],
-        },
-      ]
-    : [];
 
 export type AcpRunObserver = {
   /** Drains native events before the ACP turn settles, including steer acknowledgements. */
@@ -218,30 +134,13 @@ async function runAcpTurn(
   };
   turnAbort.signal.addEventListener("abort", cancel, { once: true });
 
-  connection.onRequest = async (method, params) => {
-    if (method === "session/request_permission")
-      return permission(
-        options,
-        name,
-        params,
-        turnAbort.signal,
-        profile.provider === "antigravity",
-      );
-    if (method === "elicitation/create")
-      return answerElicitation(
-        options,
-        name,
-        params,
-        turnAbort.signal,
-        events.asking,
-      );
-    throw new AcpRequestError(
-      -32601,
-      `Relay doesn't offer ${method}.`,
-      null,
-      method,
-    );
-  };
+  connection.onRequest = answersAgentRequests(
+    profile,
+    name,
+    options,
+    events.asking,
+    turnAbort.signal,
+  );
 
   let observer: AcpRunObserver | undefined;
   let grace: ReturnType<typeof cancelGrace> | undefined;
