@@ -21,7 +21,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.SpanStyle
@@ -83,9 +82,6 @@ fun rememberNow(everyMs: Long): Long {
     }
     return now
 }
-
-/** Expo's `mix(a, b, amount)`: `a` at `amount` over `b`. */
-fun mix(a: Color, b: Color, amount: Float): Color = a.copy(alpha = amount).compositeOver(b)
 
 /** A draft's text where a row shows its branch, marked with where it was started. */
 @Composable

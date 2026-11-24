@@ -3,25 +3,10 @@ package dev.relay.android.app
 import android.app.Activity
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionLayout
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.scaleIn
-import androidx.compose.animation.scaleOut
-import androidx.compose.ui.unit.IntOffset
-import androidx.navigation3.scene.Scene
-import dev.relay.android.lib.navigation.MORPHS_IN
 import dev.relay.android.ui.LocalSharedTransitions
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutHorizontally
-import androidx.compose.animation.slideOutVertically
-import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.WindowInsetsSides
-import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.safeDrawing
@@ -39,7 +24,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.platform.LocalWindowInfo
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import dev.relay.android.features.drawer.DrawerOverlay
+import dev.relay.android.features.drawer.drawerEdgeSwipe
+import dev.relay.android.lib.navigation.LocalOpenDrawer
 import androidx.compose.ui.unit.dp
 import androidx.core.view.WindowCompat
 import androidx.lifecycle.viewmodel.navigation3.rememberViewModelStoreNavEntryDecorator
@@ -49,7 +40,7 @@ import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.NavDisplay
 import dev.relay.android.features.applock.LockOverlay
 import dev.relay.android.features.home.ConnectionLine
-import dev.relay.android.features.home.NeedsYou
+import dev.relay.android.features.home.StatusToasts
 import dev.relay.android.features.markdown.LocalOpensLocalhost
 import dev.relay.android.features.tunnel.rememberTunnelLinks
 import dev.relay.android.features.tunnel.rememberTunnels
@@ -65,7 +56,6 @@ import dev.relay.android.ui.LocalToasts
 import dev.relay.android.ui.ToastHost
 import dev.relay.android.ui.ToastState
 import dev.relay.android.ui.rememberIsWide
-import dev.relay.android.ui.theme.Motion
 import dev.relay.android.ui.theme.RelayTheme
 import dev.relay.android.ui.theme.resolveColors
 import dev.relay.android.ui.theme.withContrast
@@ -126,6 +116,7 @@ fun RelayRoot(container: AppContainer, links: ReceiveChannel<DeepLink>, crash: C
         val isWide by rememberUpdatedState(panes)
         val navigator = remember(backStack) { AppNavigator(backStack) { isWide } }
         val toasts = remember { ToastState() }
+        val shell = rememberShellState(panes && !prefs.sidebarHidden)
         val sidebar = panes && !prefs.sidebarHidden
         val activity = LocalView.current.context as? Activity
 
@@ -145,6 +136,7 @@ fun RelayRoot(container: AppContainer, links: ReceiveChannel<DeepLink>, crash: C
         LaunchedEffect(navigator) {
             for (link in links) {
                 val route = link.route
+                shell.drawer.close()
                 // A notification posted before a switch: its thread is on the computer it names.
                 if (link.computer != null) {
                     remote.ready.first { it }
@@ -167,20 +159,31 @@ fun RelayRoot(container: AppContainer, links: ReceiveChannel<DeepLink>, crash: C
         LaunchedEffect(unpaired) {
             if (unpaired) navigator.push(Route.Pair())
         }
-        // Home and the sidebar carry their own line; Settings and pairing say it themselves.
+        // Home and search say it themselves, as do Settings and pairing.
         val notice: (@Composable () -> Unit)? =
-            if (sidebar || top is Route.Settings || top is Route.Pair || (top == Route.Home && !panes)) null
+            if (top is Route.Home || top is Route.Search || top is Route.Settings || top is Route.Pair) null
             else ({ ConnectionLine(remote) })
+        val openDrawer = { shell.drawer.open() }.takeIf { paired && !panes && top !is Route.Pair }
+        // Unfolded with the drawer out: the pane takes over.
+        LaunchedEffect(panes) { if (panes) shell.drawer.close() }
 
-        val links = rememberTunnelLinks(remote, LocalUriHandler.current, navigator)
+        val tunnelLinks = rememberTunnelLinks(remote, LocalUriHandler.current, navigator)
         CompositionLocalProvider(
             LocalNavigator provides navigator,
             LocalToasts provides toasts,
-            LocalUriHandler provides links,
+            LocalUriHandler provides tunnelLinks,
             LocalOpensLocalhost provides rememberTunnels(remote),
+            LocalOpenDrawer provides openDrawer,
         ) {
-            Box(Modifier.fillMaxSize().background(RelayTheme.colors.background)) {
-                WideLayout(panes, prefs, sidebar = { HomeSidebar(container) }) {
+            Box(Modifier.fillMaxSize().background(RelayTheme.colors.chrome)) {
+                val windowWidth = with(LocalDensity.current) { LocalWindowInfo.current.containerSize.width.toDp() }
+                WideLayout(
+                    panes, prefs,
+                    sidebar = { SidePane(container, shell, navigator) },
+                    modifier = Modifier
+                        .drawerEdgeSwipe(shell.drawer, enabled = openDrawer != null && top == Route.Home, screenWidth = windowWidth)
+                        .then(if (shell.drawer.visible) Modifier.clearAndSetSemantics { } else Modifier),
+                ) {
                     SharedTransitionLayout {
                         CompositionLocalProvider(LocalScreenNotice provides notice, LocalSharedTransitions provides this.takeIf { !panes }) {
                             NavDisplay(
@@ -191,50 +194,34 @@ fun RelayRoot(container: AppContainer, links: ReceiveChannel<DeepLink>, crash: C
                                     rememberSaveableStateHolderNavEntryDecorator(),
                                     rememberViewModelStoreNavEntryDecorator(),
                                 ),
-                                transitionSpec = {
-                                    if (!isWide && targetState.morphsIn()) riseIn() else slideIn()
-                                },
-                                popTransitionSpec = {
-                                    if (!isWide && initialState.morphsIn()) sinkOut() else slideOut()
-                                },
-                                predictivePopTransitionSpec = {
-                                    if (!isWide && initialState.morphsIn()) sinkOut() else slideOut()
-                                },
-                                entryProvider = entryProvider { appEntries(container) { isWide } },
+                                transitionSpec = { forward(targetState, navigator.swapped) },
+                                popTransitionSpec = { back(initialState) },
+                                predictivePopTransitionSpec = { back(initialState) },
+                                entryProvider = entryProvider { appEntries(container, shell) },
                             )
                         }
                     }
                 }
-                NeedsYou(
+                StatusToasts(
                     remote,
                     openId = (top as? Route.Thread)?.id,
-                    hidden = sidebar || top == Route.Home,
+                    hidden = top is Route.Pair,
                     pane = panes,
-                    // Below a TopBar.
-                    modifier = Modifier.align(Alignment.TopCenter)
-                        .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal))
-                        .padding(top = 60.dp),
+                    modifier = Modifier.align(Alignment.BottomEnd)
+                        .windowInsetsPadding(WindowInsets.safeDrawing)
+                        .padding(bottom = if (top.hasComposer) COMPOSER_ROOM else 0.dp),
                 )
+                if (!panes) DrawerOverlay(shell.drawer) { PhoneDrawer(container, shell, navigator) }
                 ToastHost(toasts, Modifier.align(Alignment.BottomCenter).windowInsetsPadding(WindowInsets.safeDrawing))
             }
         }
     }
 }
 
-private fun Scene<*>.morphsIn() = entries.lastOrNull()?.metadata?.get(MORPHS_IN) == true
+/** What a composer at the screen's bottom takes, for what floats over the screen. */
+private val COMPOSER_ROOM = 100.dp
 
-private val slide = tween<IntOffset>(Motion.SLIDE, easing = Motion.EaseOutQuint)
-private fun slideIn() = slideInHorizontally(slide) { it } togetherWith slideOutHorizontally(slide) { -it / 4 }
-private fun slideOut() = slideInHorizontally(slide) { -it / 4 } togetherWith slideOutHorizontally(slide) { it }
-
-// The screen rises into place behind its button, which flies into it on its own (shared
-// bounds), and the one under it sinks back a little, as if the new one came up off the glass.
-private val rise = tween<IntOffset>(380, easing = Motion.EaseOutQuint)
-private val depth = tween<Float>(380, easing = Motion.EaseOutQuint)
-private fun riseIn() = (slideInVertically(rise) { it / 10 } + fadeIn(tween(240, delayMillis = 40))) togetherWith
-    (scaleOut(depth, targetScale = 0.94f) + fadeOut(depth))
-private fun sinkOut() = (scaleIn(depth, initialScale = 0.94f) + fadeIn(depth)) togetherWith
-    (slideOutVertically(rise) { it / 10 } + fadeOut(tween(200)))
+private val Route?.hasComposer get() = this is Route.Thread || this is Route.Reply || this is Route.NewThread
 
 @Composable
 private fun SystemBars(dark: Boolean) {
@@ -242,6 +229,8 @@ private fun SystemBars(dark: Boolean) {
     if (view.isInEditMode) return
     SideEffect {
         val window = (view.context as? Activity)?.window ?: return@SideEffect
+        // Three-button navigation sits on the screen's own colour, not on a scrim of the system's.
+        window.isNavigationBarContrastEnforced = false
         WindowCompat.getInsetsController(window, view).apply {
             isAppearanceLightStatusBars = !dark
             isAppearanceLightNavigationBars = !dark

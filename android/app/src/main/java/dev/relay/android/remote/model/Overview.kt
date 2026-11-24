@@ -67,6 +67,8 @@ data class RemoteChatSummary(
     val snoozedAt: Long? = null,
     val snoozedUntil: Long? = null,
     val seenAt: Long? = null,
+    /** Pinned on the computer; no desktop sends it to phones yet. */
+    val pinnedAt: Long? = null,
     val branch: String? = null,
     val worktree: Boolean? = null,
     val pending: List<ChatPending>? = null,
