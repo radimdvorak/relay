@@ -45,13 +45,10 @@ import dev.relay.android.features.markdown.LocalOpensLocalhost
 import dev.relay.android.features.tunnel.rememberTunnelLinks
 import dev.relay.android.features.tunnel.rememberTunnels
 import dev.relay.android.lib.navigation.LocalNavigator
-import dev.relay.android.remote.model.PhoneAppearance
-import dev.relay.android.remote.model.PhonePalette
-import dev.relay.android.remote.model.RemoteJson
 import dev.relay.android.ui.LocalScreenNotice
-import dev.relay.android.ui.theme.DesktopAppearance
 import dev.relay.android.lib.navigation.DeepLink
 import dev.relay.android.lib.navigation.Route
+import dev.relay.android.features.settings.toDesktop
 import dev.relay.android.ui.LocalToasts
 import dev.relay.android.ui.ToastHost
 import dev.relay.android.ui.ToastState
@@ -62,13 +59,6 @@ import dev.relay.android.ui.theme.withContrast
 import androidx.compose.foundation.isSystemInDarkTheme
 import kotlinx.coroutines.channels.ReceiveChannel
 import kotlinx.coroutines.flow.first
-import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
-
-private fun PhonePalette.toMap(): Map<String, String> =
-    RemoteJson.encodeToJsonElement(PhonePalette.serializer(), this).jsonObject.mapValues { it.value.jsonPrimitive.content }
-
-private fun PhoneAppearance.toDesktop() = DesktopAppearance(mode, light.toMap(), dark.toMap())
 
 /** Whether this process has looked at the back stack it started with. */
 private var stackRestored = false
