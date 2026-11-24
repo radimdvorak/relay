@@ -61,6 +61,8 @@ fun RelaySheetFrame(
     modifier: Modifier = Modifier,
     back: Boolean = false,
     handle: Boolean = true,
+    /** Opposite the ✕: one more circle (the model sheet's search). */
+    action: (@Composable () -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val c = RelayTheme.colors
@@ -83,6 +85,7 @@ fun RelaySheetFrame(
                 textAlign = TextAlign.Center,
                 maxLines = 1,
             )
+            if (action != null) Box(Modifier.align(Alignment.CenterEnd)) { action() }
         }
         content()
     }
