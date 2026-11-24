@@ -87,20 +87,22 @@ fun CenteredCard(
     val enter = remember { Animatable(0f) }
     LaunchedEffect(Unit) { enter.animateTo(1f, tween(Motion.BASE, easing = Motion.EaseOutQuint)) }
     WindowDialog(onDismiss, DialogProperties(usePlatformDefaultWidth = false)) {
-        Box(Modifier.padding(24.dp), contentAlignment = Alignment.Center) {
-            Column(
-                modifier
-                    .graphicsLayer {
-                        alpha = enter.value
-                        val s = 0.96f + 0.04f * enter.value
-                        scaleX = s
-                        scaleY = s
-                    }
-                    .shadow(24.dp, RelayTheme.shapes.sheet, ambientColor = Color.Black, spotColor = Color.Black)
-                    .clip(RelayTheme.shapes.sheet)
-                    .background(c.raised),
-                content = content,
-            )
+        OverKeyboard {
+            Box(Modifier.padding(24.dp), contentAlignment = Alignment.Center) {
+                Column(
+                    modifier
+                        .graphicsLayer {
+                            alpha = enter.value
+                            val s = 0.96f + 0.04f * enter.value
+                            scaleX = s
+                            scaleY = s
+                        }
+                        .shadow(24.dp, RelayTheme.shapes.sheet, ambientColor = Color.Black, spotColor = Color.Black)
+                        .clip(RelayTheme.shapes.sheet)
+                        .background(c.raised),
+                    content = content,
+                )
+            }
         }
     }
 }

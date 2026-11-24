@@ -59,6 +59,7 @@ fun CommandMenu(
     filter: Boolean = true,
     framed: Boolean = true,
 ) {
+    TakesKeyboard()
     val c = RelayTheme.colors
     val needle = query.text.trim()
     val shown = if (!filter || needle.isEmpty()) groups else groups.map { g ->

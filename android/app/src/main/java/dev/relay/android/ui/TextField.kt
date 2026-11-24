@@ -63,6 +63,7 @@ fun TextField(
     /** On a container-coloured card the surface instead, so the field shows. */
     fill: Color = RelayTheme.colors.container,
 ) {
+    TakesKeyboard()
     val c = RelayTheme.colors
     val interaction = remember { MutableInteractionSource() }
     val focused by interaction.collectIsFocusedAsState()

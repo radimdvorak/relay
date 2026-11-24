@@ -37,6 +37,7 @@ fun SearchField(
     fill: Color = RelayTheme.colors.tool,
     keyboardOptions: KeyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
 ) {
+    TakesKeyboard()
     val c = RelayTheme.colors
     val text = RelayTheme.type.row.copy(color = c.ink)
     BasicTextField(

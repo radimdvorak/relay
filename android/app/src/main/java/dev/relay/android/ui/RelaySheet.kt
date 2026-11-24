@@ -134,7 +134,7 @@ internal fun InsetModalSheet(onDismiss: () -> Unit, halfFirst: Boolean, frame: @
                 .heightIn(max = room * SHEET_MAX)
                 .padding(start = SheetInset, end = SheetInset, bottom = SheetInset)
                 .nestedScroll(KeepUpFlingsOffSheet),
-        ) { frame() }
+        ) { OverKeyboard(frame) }
     }
 }
 
