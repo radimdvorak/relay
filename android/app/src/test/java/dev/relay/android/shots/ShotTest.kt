@@ -11,6 +11,9 @@ import androidx.compose.runtime.snapshots.Snapshot
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onRoot
+import androidx.core.graphics.Insets
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.github.takahirom.roborazzi.captureRoboImage
 import dev.relay.android.ui.theme.RelayPaperDark
@@ -77,6 +80,32 @@ abstract class ShotTest {
         val file = File(shotsDir(), "${name}_${device.name}_${if (dark) "dark" else "light"}.png")
         compose.onRoot().captureRoboImage(file.path)
         println("shot: ${file.path}")
+    }
+
+    /**
+     * [frames] pictures 33ms apart, as `build/shots/<name>_NN.png`, to look at a motion: [start] sets it
+     * off (a tap), [each] runs before every frame (a finger moving).
+     */
+    @Suppress("FunctionName")
+    fun Strip(name: String, frames: Int, start: () -> Unit = {}, each: () -> Unit = {}, content: @Composable () -> Unit) {
+        Shot("$name-before", content = content)
+        start()
+        repeat(frames) { frame ->
+            each()
+            compose.mainClock.advanceTimeBy(33)
+            compose.onRoot().captureRoboImage(File(shotsDir(), "${name}_${"%02d".format(frame)}.png").path)
+        }
+    }
+
+    /** For a shot's `act`: the status bar and Android's 3-button navigation bar, which the JVM doesn't draw. */
+    fun systemBars() {
+        val density = compose.activity.resources.displayMetrics.density
+        val bars = WindowInsetsCompat.Builder()
+            .setInsets(WindowInsetsCompat.Type.statusBars(), Insets.of(0, (32 * density).toInt(), 0, 0))
+            .setInsets(WindowInsetsCompat.Type.navigationBars(), Insets.of(0, 0, 0, (48 * density).toInt()))
+            .build()
+        ViewCompat.dispatchApplyWindowInsets(compose.activity.window.decorView, bars)
+        Snapshot.sendApplyNotifications()
     }
 
     private fun shotsDir() = File(System.getProperty("relay.shots.dir") ?: "build/shots")
