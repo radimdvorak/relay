@@ -3,6 +3,9 @@ package dev.relay.android.features.search
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.windowInsetsBottomHeight
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.asPaddingValues
@@ -129,7 +132,14 @@ internal fun SearchFrame(
         modifier = Modifier.background(RelayTheme.colors.chrome).windowInsetsPadding(
             WindowInsets.safeDrawing.only(LocalScreenInsets.current).only(WindowInsetsSides.Horizontal),
         ),
-    ) { results() }
+    ) {
+        results()
+        // Solid under Android's navigation bar: its buttons have no scrim of their own.
+        Spacer(
+            Modifier.align(Alignment.BottomCenter).fillMaxWidth().windowInsetsBottomHeight(WindowInsets.navigationBars)
+                .background(RelayTheme.colors.surface),
+        )
+    }
 }
 
 /** The pull requests part, loading while it's on screen: every host the computer is signed in to. */
