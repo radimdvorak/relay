@@ -1,189 +1,108 @@
 package dev.relay.android.features.home
 
-import androidx.activity.compose.PredictiveBackHandler
 import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.ExperimentalSharedTransitionApi
-import androidx.compose.animation.SharedTransitionLayout
-import androidx.compose.animation.SharedTransitionScope
-import androidx.compose.animation.SizeTransform
-import androidx.compose.animation.core.SeekableTransitionState
-import androidx.compose.animation.core.rememberTransition
-import androidx.compose.animation.core.tween
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.foundation.text.input.TextFieldLineLimits
-import androidx.compose.foundation.text.input.TextFieldState
-import androidx.compose.foundation.text.input.clearText
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import dev.relay.android.remote.Remote
-import dev.relay.android.remote.credentials.ComputerSeen
-import dev.relay.android.remote.model.RemoteOverview
-import dev.relay.android.ui.ButtonSize
-import dev.relay.android.ui.IconButton
+import dev.relay.android.lib.navigation.LocalOpenDrawer
+import dev.relay.android.ui.ChromeHeader
+import dev.relay.android.ui.CircleAction
+import dev.relay.android.ui.CircleButton
+import dev.relay.android.ui.CirclePair
+import dev.relay.android.ui.CircleTone
+import dev.relay.android.ui.LocalPaneToggle
+import dev.relay.android.ui.MenuIcon
 import dev.relay.android.ui.Text
+import dev.relay.android.ui.fill
 import dev.relay.android.ui.theme.RelayTheme
 import io.github.lyxnx.compose.ui.tablericons.TablerIcons
-import io.github.lyxnx.compose.ui.tablericons.outline.ArrowLeft
+import io.github.lyxnx.compose.ui.tablericons.outline.Edit
 import io.github.lyxnx.compose.ui.tablericons.outline.Search
-import io.github.lyxnx.compose.ui.tablericons.outline.X
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.launch
 
-/** A tab's title, large as the iPhone's. */
-@Composable
-internal fun tabTitleStyle(): TextStyle =
-    RelayTheme.type.base.copy(fontSize = 30.sp, lineHeight = 36.sp, fontWeight = FontWeight.Bold, letterSpacing = (-0.5).sp)
+/** What the circles at the header's end take: the pair, the filter beside it, and the gap before the name. */
+private val END_ROOM = 152.dp
 
-/** What the search in the header looks for, and whether it's open. */
-internal class HomeSearch(
-    val open: Boolean,
-    val query: TextFieldState,
-    val onOpen: (Boolean) -> Unit,
-    val placeholder: String = "Search threads and projects",
-)
-
-private const val SEARCH_BOX = "home-search"
+internal val HomeTab.title: String? get() = when (this) {
+    HomeTab.Threads -> null
+    HomeTab.Projects -> "Projects"
+    HomeTab.Pulls -> "Pull requests"
+}
 
 /**
- * The tab's title with the computer under it, and filter and search in a capsule beside them.
- * Search stretches the capsule into the bar (Material's container transform), and a back swipe
- * shrinks it home as the finger moves.
+ * Home's chrome: the drawer's circle (or the side pane's toggle), the computer's name to switch
+ * it, the filter and the search | new-thread pair. Projects and pull requests put their title
+ * large on a line of its own; Threads goes without.
  */
-@OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
 internal fun HomeHeader(
     tab: HomeTab,
-    remote: Remote,
-    seen: ComputerSeen,
-    overview: RemoteOverview?,
-    filter: ThreadFilter,
-    onFilter: (ThreadFilter) -> Unit,
-    search: HomeSearch,
-    computerRows: @Composable (close: () -> Unit) -> Unit,
-) {
-    val state = remember { SeekableTransitionState(search.open) }
-    LaunchedEffect(search.open) { state.animateTo(search.open) }
-    val scope = rememberCoroutineScope()
-    PredictiveBackHandler(enabled = search.open) { swipe ->
-        try {
-            swipe.collect { state.seekTo(it.progress, targetState = false) }
-            search.onOpen(false)
-        } catch (e: CancellationException) {
-            scope.launch { state.animateTo(true) }
-            throw e
-        }
-    }
-    val transition = rememberTransition(state)
-    SharedTransitionLayout {
-        transition.AnimatedContent(
-            transitionSpec = { fadeIn(tween(200, delayMillis = 80)) togetherWith fadeOut(tween(100)) using SizeTransform(clip = false) },
-        ) { open ->
-            val box = Modifier.sharedBounds(
-                rememberSharedContentState(SEARCH_BOX),
-                this,
-                resizeMode = SharedTransitionScope.ResizeMode.RemeasureToBounds,
-                clipInOverlayDuringTransition = OverlayClip(CircleShape),
-            )
-            if (open) SearchBar(search, box)
-            else TitleRow(tab, remote, seen, overview, filter, onFilter, { search.onOpen(true) }, box, computerRows)
-        }
-    }
-}
-
-@Composable
-private fun TitleRow(
-    tab: HomeTab,
-    remote: Remote,
-    seen: ComputerSeen,
-    overview: RemoteOverview?,
-    filter: ThreadFilter,
-    onFilter: (ThreadFilter) -> Unit,
     onSearch: () -> Unit,
-    box: Modifier,
-    computerRows: @Composable (close: () -> Unit) -> Unit,
+    onNewThread: () -> Unit,
+    computer: @Composable () -> Unit,
+    hasFilter: Boolean,
+    filter: @Composable () -> Unit,
+    /** False beside the side pane, which has both. */
+    showPair: Boolean = true,
 ) {
-    val c = RelayTheme.colors
-    Row(
-        Modifier.fillMaxWidth().padding(start = 20.dp, end = 12.dp, top = 12.dp, bottom = 10.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalAlignment = Alignment.Top,
-    ) {
-        if (tab == HomeTab.Settings) {
-            Text("Settings", Modifier.weight(1f), style = tabTitleStyle(), maxLines = 1)
-            return@Row
-        }
-        val title = when (tab) {
-            HomeTab.Activity -> "Threads"
-            HomeTab.Pulls -> "Pull requests"
-            else -> "Projects"
-        }
-        ComputerSwitch(title, remote, seen, Modifier.weight(1f), computerRows)
-        Row(
-            Modifier.padding(top = 2.dp).then(box).height(52.dp).background(c.popover, CircleShape).border(1.dp, c.border, CircleShape)
-                .padding(horizontal = 6.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            if (tab == HomeTab.Activity && overview != null) FilterButton(overview, filter, onFilter)
-            IconButton(TablerIcons.Outline.Search, "Search", onSearch, size = ButtonSize.Lg, tint = c.foreground)
-        }
-    }
-}
-
-/** The capsule stretched across: back on the left, what's typed, and a clear that closes once empty. */
-@Composable
-private fun SearchBar(search: HomeSearch, box: Modifier) {
-    val c = RelayTheme.colors
-    val focus = remember { FocusRequester() }
-    LaunchedEffect(Unit) { focus.requestFocus() }
-    val text = RelayTheme.type.base.copy(fontSize = 16.sp, color = c.foreground)
-    Row(
-        Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp).then(box).height(52.dp)
-            .background(c.popover, CircleShape).border(1.dp, c.border, CircleShape).padding(horizontal = 4.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        IconButton(TablerIcons.Outline.ArrowLeft, "Close search", { search.onOpen(false) }, tint = c.foreground)
-        Box(Modifier.weight(1f).padding(horizontal = 4.dp)) {
-            if (search.query.text.isEmpty()) Text(search.placeholder, style = text, color = c.faint, maxLines = 1)
-            BasicTextField(
-                search.query,
-                Modifier.fillMaxWidth().focusRequester(focus),
-                textStyle = text,
-                lineLimits = TextFieldLineLimits.SingleLine,
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                cursorBrush = SolidColor(c.foreground),
-            )
-        }
-        val empty = search.query.text.isEmpty()
-        IconButton(
-            TablerIcons.Outline.X,
-            if (empty) "Close search" else "Clear",
-            { if (empty) search.onOpen(false) else search.query.clearText() },
-            tint = c.mutedForeground,
+    val motion = RelayTheme.motion.standard
+    Column(Modifier.fillMaxWidth().background(RelayTheme.colors.chrome)) {
+        ChromeHeader(
+            leading = {
+                Row(
+                    Modifier.padding(end = END_ROOM),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    val openDrawer = LocalOpenDrawer.current
+                    if (openDrawer != null) CircleButton(MenuIcon, "Threads menu", openDrawer, tone = CircleTone.Raised)
+                    LocalPaneToggle.current?.invoke()
+                    computer()
+                }
+            },
+            trailing = {
+                AnimatedVisibility(hasFilter, enter = fadeIn(motion.defaultEffectsSpec()), exit = fadeOut(motion.fastEffectsSpec())) {
+                    Box(
+                        Modifier.height(44.dp).widthIn(min = 44.dp).clip(RelayTheme.shapes.circle).background(CircleTone.Raised.fill(RelayTheme.colors)),
+                        contentAlignment = Alignment.Center,
+                    ) { filter() }
+                }
+                if (showPair) CirclePair(
+                    CircleAction(TablerIcons.Outline.Search, "Search", onSearch),
+                    CircleAction(TablerIcons.Outline.Edit, "New thread", onNewThread),
+                )
+            },
         )
+        AnimatedVisibility(
+            tab.title != null,
+            enter = expandVertically(motion.defaultSpatialSpec()) + fadeIn(motion.defaultEffectsSpec()),
+            exit = shrinkVertically(motion.defaultSpatialSpec()) + fadeOut(motion.fastEffectsSpec()),
+        ) {
+            val effects = motion.defaultEffectsSpec<Float>()
+            AnimatedContent(tab, transitionSpec = { fadeIn(effects) togetherWith fadeOut(effects) }, label = "home-title") { shown ->
+                Text(
+                    shown.title.orEmpty(),
+                    Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, bottom = 14.dp),
+                    style = RelayTheme.type.title,
+                    maxLines = 1,
+                )
+            }
+        }
     }
 }
