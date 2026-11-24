@@ -143,6 +143,7 @@ const notices = [
   ),
   section("Inter", reflow(read(join(main, "res/raw/license_inter.txt")))),
   section("JetBrains Mono", reflow(read(join(main, "res/raw/license_jetbrains_mono.txt")))),
+  section("Newsreader", reflow(read(join(main, "res/raw/license_newsreader.txt")))),
   ...[...own].map(([{ title, file }, deps]) =>
     section(title, list(deps), reflow(read(join(licences, file)))),
   ),
