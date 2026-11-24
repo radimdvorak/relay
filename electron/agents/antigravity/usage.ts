@@ -29,36 +29,52 @@ const endpoints = [
   "https://cloudcode-pa.googleapis.com",
 ];
 
+const ANTIGRAVITY_USER_AGENT = `antigravity/hub/2.24.0 (aidev_client; os_type=${process.platform}; arch=${process.arch})`;
+
+const summaryBucketSchema = z.object({
+  bucketId: z.string(),
+  window: z.string().optional(),
+  displayName: z.string().optional(),
+  disabled: z.boolean().optional(),
+  remainingFraction: z.number().optional(),
+  resetTime: z.string().optional(),
+});
+
+const summaryGroupSchema = z.object({
+  displayName: z.string().optional(),
+  buckets: z.array(z.unknown()).optional(),
+});
+
+const summaryBodySchema = z.object({
+  groups: z.array(summaryGroupSchema).optional(),
+  buckets: z.array(z.unknown()).optional(),
+});
+
+const summaryEnvelopeSchema = summaryBodySchema.extend({
+  response: summaryBodySchema.optional(),
+});
+
+function bucketFamily(
+  bucketId: string,
+  groupName: string | undefined,
+  bucketName: string | undefined,
+) {
+  if (bucketId === "gemini-5h" || bucketId === "gemini-weekly") return "Gemini";
+  if (bucketId === "3p-5h" || bucketId === "3p-weekly") return "Claude & GPT";
+  return groupName || bucketName || bucketId;
+}
+
 /** Labels stay with their buckets; Gemini and the shared Claude/GPT pool are independent. */
 export function mapAntigravityUsage(raw: unknown): UsageWindow[] {
-  const bucket = z.object({
-    bucketId: z.string(),
-    window: z.string().optional(),
-    displayName: z.string().optional(),
-    disabled: z.boolean().optional(),
-    remainingFraction: z.number().optional(),
-    resetTime: z.string().optional(),
-  });
-  const parsed = z
-    .object({
-      groups: z
-        .array(
-          z.object({
-            displayName: z.string().optional(),
-            buckets: z.array(z.unknown()).optional(),
-          }),
-        )
-        .optional(),
-      buckets: z.array(z.unknown()).optional(),
-    })
-    .safeParse(raw).data;
-  if (!parsed) return [];
-  const groups = parsed.groups?.some((g) => g.buckets?.length)
-    ? parsed.groups
-    : [{ buckets: parsed.buckets }];
-  return groups.flatMap((group) =>
-    (group.buckets ?? []).flatMap((raw): UsageWindow[] => {
-      const b = bucket.safeParse(raw).data;
+  const parsed = summaryEnvelopeSchema.safeParse(raw).data;
+  const body = parsed?.response ?? parsed;
+  if (!body) return [];
+  const groups = body.groups?.some((g) => g.buckets?.length)
+    ? body.groups
+    : [{ displayName: undefined, buckets: body.buckets }];
+  return groups.flatMap((group) => {
+    const windows = (group.buckets ?? []).flatMap((entry): UsageWindow[] => {
+      const b = summaryBucketSchema.safeParse(entry).data;
       if (!b) return [];
       if (
         b.disabled ||
@@ -67,25 +83,25 @@ export function mapAntigravityUsage(raw: unknown): UsageWindow[] {
       )
         return [];
       const kind = b.window === "weekly" ? "weekly" : "session";
-      const family = b.bucketId.startsWith("gemini-")
-        ? "Gemini"
-        : b.bucketId.startsWith("3p-")
-          ? "Claude & GPT"
-          : group.displayName || b.displayName || b.bucketId;
+      const family = bucketFamily(b.bucketId, group.displayName, b.displayName);
+      const remaining = Math.max(0, Math.min(1, b.remainingFraction));
       const reset = Date.parse(b.resetTime ?? "");
+      // Untouched pools on production report a rolling reset time that moves with the clock.
+      const resetsAt =
+        remaining < 1 && Number.isFinite(reset) ? reset : null;
       return [
         {
           id: b.bucketId,
           label: `${family} · ${kind === "session" ? "5h" : "Weekly"}`,
           kind,
-          usedPercent:
-            (1 - Math.max(0, Math.min(1, b.remainingFraction))) * 100,
-          resetsAt: Number.isFinite(reset) ? reset : null,
+          usedPercent: (1 - remaining) * 100,
+          resetsAt,
           periodMs: kind === "session" ? SESSION_MS : WEEK_MS,
         },
       ];
-    }),
-  );
+    });
+    return windows.sort((a, b) => a.periodMs - b.periodMs);
+  });
 }
 
 /**
@@ -187,7 +203,8 @@ async function readEndpoint(
     headers: {
       Authorization: `Bearer ${bearer}`,
       "Content-Type": "application/json",
-      "User-Agent": `antigravity/hub/1.0.0 (aidev_client; os_type=${process.platform}; arch=${process.arch})`,
+      // Google gates the Gemini Models group (including weekly) on a current hub version.
+      "User-Agent": ANTIGRAVITY_USER_AGENT,
     },
     body: JSON.stringify(project ? { project } : {}),
   };
@@ -198,9 +215,11 @@ async function readEndpoint(
   if (response.status === 401) throw new QuotaAuthError();
   if (!response.ok) throw new Error("Google quota request failed.");
   const windows = mapAntigravityUsage(await response.json());
-  if (windows.some((window) => window.id?.startsWith("gemini-")))
-    return windows;
-  // The summary only covers the Claude/GPT pool; the model list carries Gemini's.
+  const hasGeminiPool = windows.some(
+    (window) => window.id === "gemini-5h" || window.id === "gemini-weekly",
+  );
+  if (hasGeminiPool) return windows;
+  // Fall back to the model list if the summary omits the shared Gemini pool.
   const models = await request(
     `${endpoint}/v1internal:fetchAvailableModels`,
     init,

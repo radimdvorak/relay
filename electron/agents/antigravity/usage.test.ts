@@ -258,3 +258,68 @@ it("reads Gemini's pool from the model list when the summary covers only Claude 
     mapGeminiModelQuota({ models: { a: google(1, "2026-10-22T15:00:00Z") } }),
   ).toEqual([expect.objectContaining({ usedPercent: 0, resetsAt: null })]);
 });
+
+it("sorts 5h before weekly, unwraps response envelopes, keeps separate Gemini groups distinct, and drops untouched rolling resets", () => {
+  const windows = mapAntigravityUsage({
+    response: {
+      groups: [
+        {
+          displayName: "Gemini Models",
+          buckets: [
+            bucket("gemini-weekly", "weekly", 0.98, "2026-12-01T05:51:32Z"),
+            bucket("gemini-5h", "5h", 0.92, "2026-11-24T10:51:32Z"),
+          ],
+        },
+        {
+          displayName: "Gemini 4 Argon",
+          buckets: [
+            bucket(
+              "gemini-argon-wtu-weekly",
+              "weekly",
+              0.5,
+              "2026-12-01T05:51:32Z",
+            ),
+          ],
+        },
+        {
+          displayName: "Claude and GPT models",
+          buckets: [
+            bucket("3p-weekly", "weekly", 1, "2026-12-01T06:18:40Z"),
+            bucket("3p-5h", "5h", 1, "2026-11-24T11:18:40Z"),
+          ],
+        },
+      ],
+    },
+  });
+
+  expect(
+    windows.map((w) => [w.id, w.label, Math.round(w.usedPercent), w.resetsAt]),
+  ).toEqual([
+    ["gemini-5h", "Gemini · 5h", 8, Date.parse("2026-11-24T10:51:32Z")],
+    ["gemini-weekly", "Gemini · Weekly", 2, Date.parse("2026-12-01T05:51:32Z")],
+    [
+      "gemini-argon-wtu-weekly",
+      "Gemini 4 Argon · Weekly",
+      50,
+      Date.parse("2026-12-01T05:51:32Z"),
+    ],
+    ["3p-5h", "Claude & GPT · 5h", 0, null],
+    ["3p-weekly", "Claude & GPT · Weekly", 0, null],
+  ]);
+});
+
+it("identifies as a current antigravity hub client so Google includes the Gemini quota group", async () => {
+  const agents: string[] = [];
+  const fetcher = vi.fn<typeof fetch>(async (url, init) => {
+    if (urlOf(url).endsWith("/token")) return token("access");
+    agents.push((init!.headers as Record<string, string>)["User-Agent"]);
+    return json(summary);
+  });
+  const service = createAntigravityUsageReader(
+    async () => credential("one"),
+    fetcher,
+  );
+  await service();
+  expect(agents.length).toBeGreaterThan(0);
+  for (const agent of agents) expect(agent).toMatch(/^antigravity\/hub\/2\./);
+});
