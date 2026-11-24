@@ -224,6 +224,48 @@ it("updates the live planning checklist, and leaves execution checklists out of 
   expect(onPlan).not.toHaveBeenCalled();
 });
 
+it("shows Antigravity's update_steps as the plan, once accepted and without skipped steps", async () => {
+  const steps = (toolCallId: string, status: string, steps: unknown) => ({
+    update: {
+      sessionUpdate:
+        status === "in_progress" ? "tool_call" : "tool_call_update",
+      toolCallId,
+      name: "update_steps",
+      title: "Run update_steps",
+      kind: "other",
+      status,
+      rawInput: { steps },
+    },
+  });
+  const list = [
+    { title: "Write a.txt", status: "done" },
+    { title: "Write b.txt", status: "in_progress" },
+    { title: "Write c.txt", status: "skipped" },
+  ];
+  const { acp, root } = await agent({
+    turn: [
+      steps("one", "in_progress", list),
+      steps("one", "completed", list),
+      steps("two", "in_progress", []),
+      steps("two", "failed", []),
+      say("Done."),
+    ],
+  });
+  const rows: { id: string; detail?: string; status: string }[] = [];
+  await runAcp(acp, options(root, { onActivity: (a) => rows.push(a) }));
+  expect(rows.filter((row) => row.id === "antigravity-plan")).toEqual([
+    expect.objectContaining({
+      label: "Updated the plan",
+      status: "running",
+      detail: "- [x] Write a.txt\n- [ ] Write b.txt (working on it)",
+    }),
+  ]);
+  // The refused list is a failed call, and leaves the plan alone.
+  expect(rows.filter((row) => row.id !== "antigravity-plan")).toEqual([
+    expect.objectContaining({ id: "two", status: "failed" }),
+  ]);
+});
+
 it("tracks the subagents Antigravity starts, without claiming they succeeded or can be stopped", async () => {
   const start = (toolCallId: string, name: string) => ({
     update: {

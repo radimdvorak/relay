@@ -15,6 +15,7 @@ export {
 } from "./account";
 export { antigravityQuestion, answerAntigravityQuestion } from "./questions";
 export { AntigravitySubagents, antigravitySubagents } from "./subagents";
+export { antigravitySteps } from "./steps";
 export { antigravityHelper } from "./helper";
 export { readAntigravityUsage } from "./usage";
 export { compactAntigravity, compactPrompt } from "./compact";

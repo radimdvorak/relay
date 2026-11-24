@@ -2,8 +2,12 @@ import { randomUUID } from "node:crypto";
 import type { AskedQuestion } from "../../../shared/asked-questions";
 import type { AgentOptions } from "../types";
 import { answerLimitError, TurnText } from "../turn-kit";
-import { AntigravitySubagents, antigravitySubagents } from "../antigravity";
-import { acpActivity, acpEdits, planText } from "./activity";
+import {
+  AntigravitySubagents,
+  antigravitySteps,
+  antigravitySubagents,
+} from "../antigravity";
+import { acpActivity, acpEdits, planText, type PlanEntry } from "./activity";
 import type { AcpProfile } from "./profiles";
 import { parseUpdate, type AcpToolCall } from "./protocol";
 import type { AcpAgent } from "./sessions";
@@ -83,6 +87,24 @@ export class AcpTurnEvents {
     });
   }
 
+  /** The agent's checklist, as one row kept up to date. */
+  private showPlan(entries: PlanEntry[]) {
+    if (!entries.length) return;
+    const detail = planText(entries);
+    const over = answerLimitError(detail.length);
+    if (over) return this.halt(over);
+    this.options.onActivity?.({
+      id: `${this.profile.provider}-plan`,
+      kind: "tool",
+      status: entries.some((e) => e.status === "in_progress")
+        ? "running"
+        : "complete",
+      label: "Updated the plan",
+      detail,
+    });
+    if (this.options.interactionMode === "plan") this.options.onPlan?.(detail);
+  }
+
   hear = (raw: unknown) => {
     const update = parseUpdate(raw);
     if (!update) return;
@@ -124,6 +146,13 @@ export class AcpTurnEvents {
           ),
         } as Partial<AcpToolCall> & { toolCallId: string };
         this.calls.set(update.toolCallId, call);
+        const steps =
+          this.profile.provider === "antigravity" && antigravitySteps(call);
+        if (steps && call.status !== "failed") {
+          // Refused lists fail, so one only counts once its call completed.
+          if (call.status === "completed") this.showPlan(steps);
+          return;
+        }
         this.subagents?.update(call);
         if (!known) this.turn.toCommentary();
         this.show(call);
@@ -132,25 +161,7 @@ export class AcpTurnEvents {
         return;
       }
       case "plan":
-        if (update.entries.length) {
-          const detail = planText(update.entries);
-          const over = answerLimitError(detail.length);
-          if (over) {
-            this.halt(over);
-            return;
-          }
-          this.options.onActivity?.({
-            id: `${this.profile.provider}-plan`,
-            kind: "tool",
-            status: update.entries.some((e) => e.status === "in_progress")
-              ? "running"
-              : "complete",
-            label: "Updated the plan",
-            detail,
-          });
-          if (this.options.interactionMode === "plan")
-            this.options.onPlan?.(detail);
-        }
+        this.showPlan(update.entries);
         return;
       case "current_mode_update": {
         const modes = this.agent.session?.settings.modes;

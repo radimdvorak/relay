@@ -111,8 +111,10 @@ export function acpActivity(call: Partial<AcpToolCall> & { toolCallId: string })
   };
 }
 
+export type PlanEntry = { content: string; status?: string | null };
+
 /** The agent's plan as a checklist. */
-export const planText = (entries: { content: string; status?: string | null }[]) =>
+export const planText = (entries: PlanEntry[]) =>
   entries
     .map(
       (entry) =>
