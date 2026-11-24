@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsBottomHeight
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -38,6 +39,7 @@ import androidx.compose.ui.unit.dp
 import dev.relay.android.ui.BarGlyph
 import dev.relay.android.ui.BarTab
 import dev.relay.android.ui.BottomBar
+import dev.relay.android.ui.LocalTakesTaps
 import dev.relay.android.ui.theme.RelayTheme
 
 enum class HomeTab { Threads, Projects, Pulls }
@@ -104,7 +106,7 @@ internal fun HomeDock(
                     Modifier.dockWidth().padding(bottom = COMPOSER_GAP)
                         // This dock already stands on the keyboard.
                         .consumeWindowInsets(WindowInsets.ime.union(WindowInsets.navigationBars)),
-                ) { composer() }
+                ) { CompositionLocalProvider(LocalTakesTaps provides hasComposer) { composer() } }
             }
             Spacer(Modifier.windowInsetsBottomHeight(under))
         }

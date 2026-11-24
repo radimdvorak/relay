@@ -13,6 +13,7 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -52,6 +53,9 @@ fun Modifier.pressScale(interaction: MutableInteractionSource, enabled: Boolean 
     }
 }
 
+/** False inside what is on its way out: a tap there is meant for what's behind it. */
+val LocalTakesTaps = compositionLocalOf { true }
+
 /**
  * A tap target without Material's ripple: press scale, optional haptic, and a
  * long press. Rows that highlight instead of scaling pass `scale = false`.
@@ -66,6 +70,8 @@ fun Modifier.pressable(
     scale: Boolean = true,
     interaction: MutableInteractionSource = remember { MutableInteractionSource() },
 ): Modifier {
+    // Not merely disabled: that would still keep the tap from what's behind.
+    if (!LocalTakesTaps.current) return this
     val haptics = rememberHaptics()
     val click by rememberUpdatedState(onClick)
     // On a fresh Modifier: as an extension of this one it would repeat everything before it.
