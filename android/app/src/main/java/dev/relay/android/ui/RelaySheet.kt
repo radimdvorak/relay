@@ -8,10 +8,13 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.union
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -123,8 +126,9 @@ internal fun InsetModalSheet(onDismiss: () -> Unit, halfFirst: Boolean, frame: @
         val room = with(LocalDensity.current) { (windowHeight - bars.getTop(this) - bars.getBottom(this)).toDp() }
         Box(
             Modifier
+                // Above the keyboard when it's up; outside the cap, which already counts only the room above it.
+                .windowInsetsPadding(WindowInsets.ime.union(WindowInsets.navigationBars))
                 .heightIn(max = room * SHEET_MAX)
-                .navigationBarsPadding()
                 .padding(start = SheetInset, end = SheetInset, bottom = SheetInset)
                 .nestedScroll(KeepUpFlingsOffSheet),
         ) { frame() }
