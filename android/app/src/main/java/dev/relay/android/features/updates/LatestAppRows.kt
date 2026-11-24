@@ -6,6 +6,7 @@ import androidx.compose.runtime.getValue
 import dev.relay.android.ui.ListRow
 import dev.relay.android.ui.Spinner
 import io.github.lyxnx.compose.ui.tablericons.TablerIcons
+import io.github.lyxnx.compose.ui.tablericons.outline.DeviceMobile
 import io.github.lyxnx.compose.ui.tablericons.outline.Download
 import io.github.lyxnx.compose.ui.tablericons.outline.Refresh
 import java.text.DateFormat
@@ -45,41 +46,72 @@ fun latestStatus(latest: LatestAppState, offer: NewestApp?, installed: String, n
     }
 }
 
-/** Settings' rows for the newest app on GitHub, whatever the paired computer runs. Go inside a ListGroup. */
+/** The newest app when this one should move to it. */
 @Composable
-fun LatestAppRows(updates: Updates) {
+fun appOffer(updates: Updates): NewestApp? {
     val latest by updates.latest.state.collectAsState()
+    return updates.latest.offer(latest)
+}
+
+@Composable
+fun InstalledAppRow(updates: Updates) = ListRow(
+    "Relay ${updates.installed}",
+    subtitle = "As installed; new versions come from GitHub.",
+    leadingIcon = TablerIcons.Outline.DeviceMobile,
+    subtitleLines = 3,
+)
+
+/** Downloads and installs the newest app on GitHub, whatever the paired computer runs. */
+@Composable
+fun AppOfferRow(updates: Updates, offer: NewestApp) {
     val apk by updates.installer.state.collectAsState()
-    val offer = updates.latest.offer(latest)
-    if (offer != null) {
-        val mine = apk.about(offer.version)
-        val size = offer.size?.let { " (${Math.round(it / 1e6)} MB)" } ?: ""
-        val (label, hint) = when {
-            !updates.releaseBuild -> "Download Relay ${offer.version}" to
-                if (mine is ApkInstall.Failed) apkPrompt(offer.version, mine)
-                else "A development build: Android won't put the release app over it. This opens the download in the browser."
-            mine is ApkInstall.Downloading && !mine.quiet ->
-                "Downloading Relay ${offer.version}… ${Math.round(mine.done * 100)}%" to null
-            mine is ApkInstall.Installing -> "Installing Relay ${offer.version}…" to "It closes when it's done; open it again."
-            else -> "Update to Relay ${offer.version}" to
-                if (mine is ApkInstall.Downloaded && updates.installsSilently) "Ready. It installs itself the next time you leave Relay, or now with a tap."
-                else if (mine != null && mine !is ApkInstall.Downloading) apkPrompt(offer.version, mine)
-                else "Downloads it from GitHub$size and asks Android to install it. Pairings and settings stay."
-        }
-        ListRow(
-            label,
-            subtitle = hint,
-            leadingIcon = TablerIcons.Outline.Download,
-            subtitleLines = 4,
-            onClick = { updates.install(offer) },
-        )
+    val (label, hint) = offerWords(updates, offer, apk.about(offer.version))
+    ListRow(
+        label,
+        subtitle = hint,
+        leadingIcon = TablerIcons.Outline.Download,
+        subtitleLines = 4,
+        onClick = { updates.install(offer) },
+    )
+}
+
+private fun offerWords(updates: Updates, offer: NewestApp, mine: ApkInstall?): Pair<String, String?> {
+    val version = offer.version
+    if (!updates.releaseBuild) return "Download Relay $version" to
+        if (mine is ApkInstall.Failed) apkPrompt(version, mine)
+        else "A development build: Android won't put the release app over it. This opens the download in the browser."
+    return when (mine) {
+        is ApkInstall.Downloading if !mine.quiet -> "Downloading Relay $version… ${Math.round(mine.done * 100)}%" to null
+        is ApkInstall.Installing -> "Installing Relay $version…" to "It closes when it's done; open it again."
+        else -> "Update to Relay $version" to updateHint(updates, offer, mine)
     }
+}
+
+private fun updateHint(updates: Updates, offer: NewestApp, mine: ApkInstall?): String = when {
+    mine is ApkInstall.Downloaded && updates.installsSilently ->
+        "Ready. It installs itself the next time you leave Relay, or now with a tap."
+    mine != null && mine !is ApkInstall.Downloading -> apkPrompt(offer.version, mine)
+    else -> {
+        val size = offer.size?.let { " (${Math.round(it / 1e6)} MB)" } ?: ""
+        "Downloads it from GitHub$size and asks Android to install it. Pairings and settings stay."
+    }
+}
+
+@Composable
+fun LookForAppRow(updates: Updates) {
+    val latest by updates.latest.state.collectAsState()
     ListRow(
         "Look for a new app",
-        subtitle = latestStatus(latest, offer, updates.installed),
+        subtitle = latestStatus(latest, updates.latest.offer(latest), updates.installed),
         leadingIcon = TablerIcons.Outline.Refresh,
         subtitleLines = 4,
         trailing = if (latest.checking) ({ Spinner() }) else null,
         onClick = { if (!latest.checking) updates.checkNow() },
     )
+}
+
+@Composable
+fun LatestAppRows(updates: Updates) {
+    appOffer(updates)?.let { AppOfferRow(updates, it) }
+    LookForAppRow(updates)
 }
