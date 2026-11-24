@@ -6,6 +6,10 @@ import java.time.Instant
 import java.time.ZoneId
 import java.time.temporal.ChronoUnit
 import java.util.Locale
+import java.util.concurrent.ConcurrentHashMap
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
+import kotlin.coroutines.cancellation.CancellationException
 import kotlin.math.ceil
 import kotlin.math.max
 import kotlin.math.min
@@ -25,6 +29,8 @@ data class UsageWindow(
     val label: String? = null,
     /** Only this model's turns count against it; the rings leave it out. */
     val model: String? = null,
+    /** The period's start isn't known, so the pace over it is a guess. */
+    val periodEstimated: Boolean = false,
 )
 
 @Serializable
@@ -39,6 +45,64 @@ data class ProviderUsage(
     val credits: UsageCredits? = null,
 )
 
+/** What asking an agent's limits last came to on one computer: the limits, and whether the last ask failed. */
+data class UsageReading(val usage: ProviderUsage? = null, val failed: Boolean = false) {
+    val unavailable: Boolean get() = failed && usage?.windows.isNullOrEmpty()
+}
+
+/** A client and the computer it belongs to, captured together for a read. */
+data class UsageConnection<Client : Any>(val computer: String, val client: Client) {
+    fun matches(computer: String?, client: Client?) = this.computer == computer && this.client === client
+}
+
+/**
+ * The latest reading per computer and agent, so a thread opens with its meters drawn. A failed ask keeps
+ * the limits read before it and says it failed, so a computer that refuses an agent (an older Relay that
+ * doesn't know it as one with limits) shows as unavailable, not as loading for ever. Readings are kept per
+ * key, so one that failed for one computer or agent is nothing to another.
+ */
+class UsageReadings {
+    private data class Key(val computer: String, val provider: String)
+    private data class Entry(val request: Any, val reading: UsageReading?)
+    private val readings = ConcurrentHashMap<Key, Entry>()
+
+    operator fun get(computer: String?, provider: String): UsageReading? =
+        computer?.let { readings[Key(it, provider)]?.reading }
+
+    /** Keeps completed reads only while their connection and request are current. */
+    suspend fun <Client : Any> read(
+        connection: UsageConnection<Client>,
+        provider: String,
+        isCurrent: (UsageConnection<Client>) -> Boolean,
+        ask: suspend (Client) -> ProviderUsage,
+    ): UsageReading? {
+        currentCoroutineContext().ensureActive()
+        if (!isCurrent(connection)) return null
+        val key = Key(connection.computer, provider)
+        val request = Any()
+        readings.compute(key) { _, previous -> Entry(request, previous?.reading) }
+        val reported = try {
+            ask(connection.client)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            null
+        }
+        currentCoroutineContext().ensureActive()
+        if (!isCurrent(connection)) return null
+        val saved = readings.computeIfPresent(key) { _, previous ->
+            if (previous.request !== request) return@computeIfPresent previous
+            val reading = if (reported == null) {
+                UsageReading(previous.reading?.usage, failed = true)
+            } else {
+                UsageReading(reported)
+            }
+            Entry(request, reading)
+        }
+        return saved?.takeIf { it.request === request }?.reading
+    }
+}
+
 /** "ok" | "warn" | "hot" | "spent" */
 data class UsageMeter(
     val kind: String,
@@ -48,6 +112,8 @@ data class UsageMeter(
     val pace: String,
     val limitLabel: String?,
     val resetLabel: String?,
+    /** The pace is a guess: the window's start isn't known. */
+    val paceEstimated: Boolean = false,
 )
 
 private const val FIVE_MINUTES = 5 * 60 * 1000L
@@ -122,7 +188,10 @@ private fun kindLabel(kind: String) = when (kind) {
  * Whole-percent meter for one usage window, including the pace warning. With
  * the hours someone usually works, the week's burn and pace only count those.
  */
-fun presentWindow(window: UsageWindow, now: Long, activeHours: List<Double>? = null): UsageMeter {
+fun presentWindow(window: UsageWindow, now: Long, activeHours: List<Double>? = null): UsageMeter =
+    meterFor(window, now, activeHours).copy(paceEstimated = window.periodEstimated)
+
+private fun meterFor(window: UsageWindow, now: Long, activeHours: List<Double>?): UsageMeter {
     val used = clamp(window.usedPercent, 0.0, 100.0)
     val left = clamp((100 - used).roundToInt().toDouble(), 0.0, 100.0).toInt()
     val label = window.label ?: kindLabel(window.kind)
@@ -196,12 +265,17 @@ private fun runsOutIn(used: Double, rate: Double, now: Long, resetsAt: Long, clo
     return null
 }
 
-/** "5% ahead" with more left than an even burn would leave, "3% behind" running hot. */
+/**
+ * "5% ahead" with more left than an even burn would leave, "3% behind" running
+ * hot; "Est. 5% ahead" when the window's start isn't known and the pace is a guess.
+ */
 fun paceGap(meter: UsageMeter): String? {
     val pace = meter.paceLeftPercent ?: return null
     if (meter.pace == "spent") return null
     val gap = meter.leftPercent - pace.roundToInt()
-    return if (gap == 0) "On pace" else if (gap > 0) "$gap% ahead" else "${-gap}% behind"
+    if (gap == 0) return if (meter.paceEstimated) "Est. on pace" else "On pace"
+    val text = if (gap > 0) "$gap% ahead" else "${-gap}% behind"
+    return if (meter.paceEstimated) "Est. $text" else text
 }
 
 private fun grouped(n: Double) = NumberFormat.getIntegerInstance(Locale.US).format(n.roundToLong())

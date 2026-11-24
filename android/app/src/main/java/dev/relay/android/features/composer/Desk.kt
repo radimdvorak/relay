@@ -8,6 +8,7 @@ import dev.relay.android.features.composer.logic.NewThreadModel
 import dev.relay.android.features.composer.logic.NewThreadModels
 import dev.relay.android.features.composer.logic.ProviderCommand
 import dev.relay.android.features.composer.logic.ProviderUsage
+import dev.relay.android.features.composer.logic.UsageReadings
 import dev.relay.android.features.composer.logic.newThreadSettingsFrom
 import dev.relay.android.remote.model.ResumeSettings
 import dev.relay.android.remote.client.RemoteClient
@@ -181,4 +182,4 @@ object ModelLists {
 }
 
 /** The last usage each computer reported per agent, so a thread opens with its meters drawn. */
-internal val lastUsage = ConcurrentHashMap<String, ProviderUsage>()
+internal val usageReadings = UsageReadings()

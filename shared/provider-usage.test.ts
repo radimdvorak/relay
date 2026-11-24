@@ -13,6 +13,7 @@ import {
 import { mapCodexCredits } from "./provider-usage-responses";
 
 const now = Date.parse("2026-09-22T12:00:00Z");
+const DAY = 24 * 60 * 60 * 1000;
 
 describe("provider usage windows", () => {
   it("shows a reached limit, a burn-rate warning, and a session that has not started", () => {
@@ -84,6 +85,29 @@ describe("provider usage windows", () => {
     expect(paceGap(week(53))).toBe("3% behind");
     expect(paceGap(week(50))).toBe("On pace");
     expect(paceGap(week(100))).toBeNull();
+  });
+
+  it("calls the pace a guess when the window's start isn't known", () => {
+    const month = (usedPercent: number, periodEstimated?: boolean) =>
+      presentWindow(
+        {
+          kind: "monthly",
+          usedPercent,
+          resetsAt: now + 15 * DAY,
+          periodMs: 30 * DAY,
+          periodEstimated,
+        },
+        now,
+      );
+    expect(month(45, true).paceEstimated).toBe(true);
+    expect(paceGap(month(45, true))).toBe("Est. 5% ahead");
+    expect(paceGap(month(53, true))).toBe("Est. 3% behind");
+    expect(paceGap(month(50, true))).toBe("Est. on pace");
+    // A known period keeps the plain wording.
+    expect(month(45).paceEstimated).toBeUndefined();
+    expect(paceGap(month(45))).toBe("5% ahead");
+    // Nothing to compare once the limit is reached.
+    expect(paceGap(month(100, true))).toBeNull();
   });
 
   it("keeps a meter a point either side of its pace mark calm", () => {

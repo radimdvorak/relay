@@ -3,6 +3,7 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, expect, it, vi } from "vitest";
+import type { UsageProvider } from "../../../shared/agents";
 import { useUsageReadings } from "./provider-usage";
 import { api } from "../../lib/api";
 
@@ -29,12 +30,14 @@ function Probe({
   slot,
   account,
   enabled = true,
+  provider = "codex",
 }: {
   slot: number;
   account?: string;
   enabled?: boolean;
+  provider?: UsageProvider;
 }) {
-  latest[slot] = useUsageReadings([{ provider: "codex", account }], enabled);
+  latest[slot] = useUsageReadings([{ provider, account }], enabled);
   return null;
 }
 
@@ -171,4 +174,59 @@ it("a redeemed reset cannot be overwritten by a poll already in flight", async (
   await until("redeemed");
   await act(async () => finish(data("before reset")));
   expect(latest[0].readings[0].data?.message).toBe("redeemed");
+});
+
+it("keeps asking for OpenCode's limits while its service isn't running, and shows them once it is", async () => {
+  const waiting = {
+    provider: "opencode" as const,
+    windows: [],
+    message: "Shows while OpenCode is running",
+  };
+  const window = (
+    kind: "session" | "weekly" | "monthly",
+    usedPercent: number,
+  ) => ({
+    kind,
+    usedPercent,
+    resetsAt: Date.now() + 3_600_000,
+    periodMs: 7_200_000,
+  });
+  const running = {
+    provider: "opencode" as const,
+    windows: [
+      window("session", 10),
+      window("weekly", 20),
+      window("monthly", 30),
+    ],
+    message: null,
+  };
+  vi.mocked(api.providerUsage).mockResolvedValue(waiting);
+  root = createRoot(document.createElement("div"));
+  client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  latest = [];
+  await act(async () =>
+    root.render(
+      <QueryClientProvider client={client}>
+        <Probe slot={0} provider="opencode" />
+      </QueryClientProvider>,
+    ),
+  );
+  await until("Shows while OpenCode is running");
+  // An empty reading isn't final: the poll goes on, without forcing a read.
+  expect(clocks.size).toBe(1);
+  vi.mocked(api.providerUsage).mockResolvedValue(running);
+  await act(async () => {
+    for (const tick of clocks) tick();
+  });
+  await act(async () => {
+    await vi.waitFor(() =>
+      expect(latest[0].readings[0].data?.windows).toHaveLength(3),
+    );
+  });
+  expect(api.providerUsage).toHaveBeenCalledTimes(2);
+  expect(api.providerUsage).toHaveBeenLastCalledWith(
+    "opencode",
+    false,
+    expect.anything(),
+  );
 });

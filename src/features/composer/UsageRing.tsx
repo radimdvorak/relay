@@ -22,16 +22,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useNow } from "../../lib/useNow";
 import { UsageDial } from "../agents/UsageDial";
 import "../agents/composer-model-picker.css";
-import {
-  agentName,
-  reportsUsage,
-  type UsageProvider,
-} from "../../../shared/agents";
-import type { Recipient } from "../../../shared/recipient";
-import type { ThreadCost } from "../../../shared/thread-cost";
-import { accountUsageName } from "../accounts/AccountSwitch";
-import type { ThreadAccounts } from "../accounts/useThreadAccounts";
-import { ThreadCostButton } from "./ThreadCost";
+import { agentName, type UsageProvider } from "../../../shared/agents";
 import type { AgentRuns } from "./useAgentRuns";
 import type { ModelCatalogs } from "./useModelCatalogs";
 
@@ -110,35 +101,6 @@ export function activeUsageModel(
   if (!id) return undefined;
   const listed = catalogs.of(provider)?.find((m) => m.id === id);
   return { id, name: listed?.name };
-}
-
-/** The composer's usage rings for agents with plan limits, or the thread's token cost otherwise. */
-export function ComposerUsageControl({
-  to,
-  runs,
-  catalogs,
-  accounts,
-  threadCost,
-}: {
-  to: Recipient;
-  runs: Pick<AgentRuns, "choiceFor" | "claudeRuns" | "claude">;
-  catalogs: Pick<ModelCatalogs, "of" | "defaults">;
-  accounts: ThreadAccounts;
-  threadCost?: ThreadCost;
-}) {
-  if (!reportsUsage(to)) {
-    return threadCost ? <ThreadCostButton cost={threadCost} /> : null;
-  }
-  const model = activeUsageModel(to, runs, catalogs);
-  return (
-    <UsageRing
-      provider={to}
-      modelId={model?.id}
-      modelName={model?.name}
-      account={accounts.of(to)}
-      accountName={accountUsageName(to, accounts)}
-    />
-  );
 }
 
 /**

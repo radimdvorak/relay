@@ -55,7 +55,7 @@ import { SketchEditor } from "../images/ImageSketch";
 import { carriesImage } from "../images/image-drag";
 import { PastedTextDialog } from "./PastedTextCard";
 import { QuickSwitchHud } from "../quick-switch/QuickSwitchHud";
-import { ComposerUsageControl } from "./UsageRing";
+import { usageControl } from "./UsageSlot";
 import type { ThreadCost } from "../../../shared/thread-cost";
 import { useThreadAccounts } from "../accounts/useThreadAccounts";
 import { AccountControl, accountUsageFooter } from "../accounts/AccountSwitch";
@@ -501,15 +501,14 @@ const ComposerBody = memo(function ComposerBody({
                   onInteractionMode={composer.setInteractionMode}
                 />
               ),
-              usage: (
-                <ComposerUsageControl
-                  to={to}
-                  runs={runs}
-                  catalogs={catalogs}
-                  accounts={accounts}
-                  threadCost={threadCost}
-                />
-              ),
+              usage: usageControl({
+                provider: to,
+                runs,
+                catalogs,
+                accounts,
+                computer,
+                cost: threadCost,
+              }),
               mic: (
                 <DictationButton
                   owner={sending.dictation}

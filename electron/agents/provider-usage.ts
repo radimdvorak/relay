@@ -21,6 +21,7 @@ import { readClaudeUsage } from "./claude/project";
 import { readAntigravityUsage } from "./antigravity";
 import { readMuseUsage } from "./muse";
 import { readCursorUsage } from "./cursor/plan-usage";
+import { readOpenCodeUsage } from "./opencode/go-usage";
 import type { UsageProvider } from "../../shared/agents";
 import { SYSTEM_ACCOUNT } from "../../shared/agent-accounts";
 import { recordUsage } from "./usage-history";
@@ -67,6 +68,8 @@ const readers: Record<
   muse: { load: () => readMuseUsage() },
   // A month-long limit moves slowly, and each reading signs in afresh.
   cursor: { load: () => readCursorUsage(), ttl: CURSOR_TTL },
+  // OpenCode's service keeps the one sign-in; Relay only asks a running one.
+  opencode: { load: () => readOpenCodeUsage() },
 };
 
 /** The limits of one of the agent's accounts; its usual sign-in when left out. */
@@ -91,17 +94,25 @@ export function readProviderUsage(
     LOAD_TIMEOUT,
     `${provider} usage took too long`,
   )
-    .catch((): ProviderUsage => ({
-      provider,
-      windows: [],
-      message: "Couldn't read usage",
-    }))
+    .catch(() => unreadable(provider))
     .then(async (value) => {
+      // A reading that isn't valid mustn't reject what asks for every agent's,
+      // or record bad samples in usage history.
+      const checked = providerUsageSchema.safeParse(value);
+      if (!checked.success) {
+        const fallback = unreadable(provider);
+        cache.set(key, { at: Date.now(), value: fallback });
+        return fallback;
+      }
       const activeHours = await recordUsage(
-        value,
+        checked.data,
         account === SYSTEM_ACCOUNT ? provider : key,
       ).catch(() => null);
-      const parsed = providerUsageSchema.parse({ ...value, activeHours });
+      const withHours = providerUsageSchema.safeParse({
+        ...checked.data,
+        activeHours,
+      });
+      const parsed = withHours.success ? withHours.data : checked.data;
       cache.set(key, { at: Date.now(), value: parsed });
       return parsed;
     })
@@ -109,6 +120,12 @@ export function readProviderUsage(
   pending.set(key, task);
   return task;
 }
+
+const unreadable = (provider: UsageProvider): ProviderUsage => ({
+  provider,
+  windows: [],
+  message: "Couldn't read usage",
+});
 
 async function loadClaude(account: string): Promise<ProviderUsage> {
   const usage = await readClaudeUsage(account);

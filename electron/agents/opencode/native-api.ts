@@ -59,6 +59,13 @@ export async function openCodeEndpoint() {
     }
     current.add(`${address} ${installed}`);
   }
+  const url = localServiceUrl(address);
+  const password = await cli(["service", "get", "password"]);
+  return { url, password };
+}
+
+/** The service's address as OpenCode reports it, held to a local HTTP service. */
+export function localServiceUrl(address: string) {
   let url: URL;
   try {
     url = new URL(address);
@@ -74,8 +81,7 @@ export async function openCodeEndpoint() {
     url.password
   )
     throw new Error("OpenCode didn't report a local HTTP service.");
-  const password = await cli(["service", "get", "password"]);
-  return { url, password };
+  return url;
 }
 
 /**

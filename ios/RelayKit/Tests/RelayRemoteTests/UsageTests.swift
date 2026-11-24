@@ -101,4 +101,116 @@ struct UsageTests {
         #expect(creditsLabel(UsageCredits(balance: 62_500, unlimited: false)) == "62,500 credits")
         #expect(creditsReach(UsageCredits(balance: 1, unlimited: false, messages: [3, 8])) == "~3–8 messages")
     }
+
+    @Test func callsAGuessedPaceAnEstimate() {
+        let day: Int64 = 24 * 60 * 60 * 1000
+        let now: Int64 = 1_000_000_000_000
+        func monthly(_ used: Double, estimated: Bool?) -> UsageMeter {
+            presentWindow(
+                UsageWindow(kind: "monthly", usedPercent: used, resetsAt: now + 15 * day, periodMs: 30 * day, periodEstimated: estimated),
+                now: now, zone: prague)
+        }
+        #expect(paceGap(monthly(45, estimated: true)) == "Est. 5% ahead")
+        #expect(paceGap(monthly(53, estimated: true)) == "Est. 3% behind")
+        #expect(paceGap(monthly(50, estimated: true)) == "Est. on pace")
+        #expect(monthly(45, estimated: true).paceEstimated)
+        // A known period keeps the plain wording.
+        #expect(paceGap(monthly(45, estimated: nil)) == "5% ahead")
+        #expect(!monthly(45, estimated: false).paceEstimated)
+        // Nothing to compare once the limit is reached.
+        #expect(paceGap(monthly(100, estimated: true)) == nil)
+    }
+
+    @Test func readsTheEstimateFlagFromTheHost() throws {
+        let flagged = try JSONDecoder().decode(
+            UsageWindow.self,
+            from: Data(#"{"kind":"monthly","usedPercent":49,"resetsAt":1796000000000,"periodMs":2592000000,"periodEstimated":true}"#.utf8))
+        #expect(flagged.periodEstimated == true)
+        // A host from before the flag leaves it out.
+        let plain = try JSONDecoder().decode(
+            UsageWindow.self, from: Data(#"{"kind":"weekly","usedPercent":49,"resetsAt":null,"periodMs":604800000}"#.utf8))
+        #expect(plain.periodEstimated == nil)
+    }
+
+    @Test func showsAnAskAnOlderHostRefusedAsFailedAndReadsOnOnceItAnswers() throws {
+        let opencode = try JSONDecoder().decode(
+            ProviderUsage.self,
+            from: Data(#"{"provider":"opencode","windows":[{"kind":"weekly","usedPercent":40,"resetsAt":1800000000000,"periodMs":604800000}],"message":null}"#.utf8))
+        var readings = UsageReadings()
+        // An older Relay doesn't know OpenCode as an agent with limits and refuses the ask.
+        readings.record("opencode", nil)
+        #expect(readings.usage["opencode"] == nil)
+        #expect(readings.failed == ["opencode"])
+        // Asking again once the host answers replaces the failure.
+        readings.record("opencode", opencode)
+        #expect(readings.usage["opencode"] == opencode)
+        #expect(readings.failed.isEmpty)
+    }
+
+    @Test func keepsTheLimitsReadBeforeAFailureAndAFailureToItsOwnAgent() throws {
+        let claude = try JSONDecoder().decode(
+            ProviderUsage.self, from: Data(#"{"provider":"claude","windows":[],"message":"No usage limits reported"}"#.utf8))
+        var readings = UsageReadings()
+        readings.record("claude", claude)
+        readings.record("opencode", nil)
+        #expect(readings.usage["claude"] == claude)
+        #expect(readings.failed == ["opencode"])
+        // A failed ask after a good one keeps the limits and says it failed.
+        readings.record("claude", nil)
+        #expect(readings.usage["claude"] == claude)
+        #expect(readings.failed == ["claude", "opencode"])
+        // Another connection's readings start empty.
+        #expect(UsageReadings().failed.isEmpty)
+    }
+
+    @Test func aFailureReplacesAnEmptyStatusButKeepsMetersWhenAvailable() throws {
+        let provider = "opencode"
+        let ready = try JSONDecoder().decode(
+            ProviderUsage.self,
+            from: Data(#"{"provider":"opencode","windows":[{"kind":"weekly","usedPercent":40,"resetsAt":1800000000000,"periodMs":604800000}],"message":null}"#.utf8))
+        let empty = try JSONDecoder().decode(
+            ProviderUsage.self,
+            from: Data(#"{"provider":"opencode","windows":[],"message":"Shows while OpenCode is running"}"#.utf8))
+        var readings = UsageReadings()
+        readings.record(provider, ready)
+        #expect(!readings.unavailable(provider))
+        readings.record(provider, empty)
+        #expect(!readings.unavailable(provider))
+        readings.record(provider, nil)
+        #expect(readings.unavailable(provider))
+        #expect(!readings.unavailable("claude"))
+        readings.record(provider, ready)
+        #expect(!readings.unavailable(provider))
+        #expect(readings.usage[provider] == ready)
+        readings.record(provider, nil)
+        #expect(!readings.unavailable(provider))
+        #expect(readings.usage[provider] == ready)
+    }
+
+    @Test func ignoresSupersededReadsWhenANewerAskHasStarted() throws {
+        let stale = try JSONDecoder().decode(
+            ProviderUsage.self,
+            from: Data(#"{"provider":"opencode","windows":[{"kind":"weekly","usedPercent":80,"resetsAt":1800000000000,"periodMs":604800000}],"message":null}"#.utf8))
+        let fresh = try JSONDecoder().decode(
+            ProviderUsage.self,
+            from: Data(#"{"provider":"opencode","windows":[{"kind":"weekly","usedPercent":20,"resetsAt":1800000000000,"periodMs":604800000}],"message":null}"#.utf8))
+        let empty = try JSONDecoder().decode(
+            ProviderUsage.self,
+            from: Data(#"{"provider":"opencode","windows":[],"message":"Shows while OpenCode is running"}"#.utf8))
+        var readings = UsageReadings()
+        let first = readings.begin("opencode")
+        let second = readings.begin("opencode")
+        readings.record("opencode", fresh, token: second)
+        readings.record("opencode", stale, token: first)
+        readings.record("opencode", nil, token: first)
+        #expect(readings.usage["opencode"] == fresh)
+        #expect(readings.failed.isEmpty)
+        // A late failure also cannot mark a newer empty reading as unavailable.
+        let third = readings.begin("opencode")
+        let fourth = readings.begin("opencode")
+        readings.record("opencode", empty, token: fourth)
+        readings.record("opencode", nil, token: third)
+        #expect(!readings.unavailable("opencode"))
+        #expect(readings.usage["opencode"] == empty)
+    }
 }

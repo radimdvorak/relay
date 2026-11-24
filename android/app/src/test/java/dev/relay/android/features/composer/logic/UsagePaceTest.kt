@@ -1,5 +1,6 @@
 package dev.relay.android.features.composer.logic
 
+import dev.relay.android.remote.model.RemoteJson
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -54,5 +55,30 @@ class UsagePaceTest {
         val next = LocalDateTime.of(2026, 9, 21, 11, 0).atZone(india).toInstant().toEpochMilli()
         assertEquals(next, nextHour(t, india))
         assertEquals(0.5, activeWeight(nineToFive, at(21, 8, 30), at(21, 9, 30)), 1e-9)
+    }
+
+    // shared/provider-usage.test.ts's "calls the pace a guess when the window's start isn't known".
+    @Test fun callsAGuessedPaceAnEstimate() {
+        val month = 30 * 24 * 60 * 60 * 1000L
+        val now = at(21, 0)
+        fun monthly(used: Double, estimated: Boolean) =
+            UsageWindow("monthly", used, now + month / 2, month, periodEstimated = estimated)
+        assertEquals("Est. 5% ahead", paceGap(presentWindow(monthly(45.0, true), now)))
+        assertEquals("Est. 3% behind", paceGap(presentWindow(monthly(53.0, true), now)))
+        assertEquals("Est. on pace", paceGap(presentWindow(monthly(50.0, true), now)))
+        assertTrue(presentWindow(monthly(45.0, true), now).paceEstimated)
+        // A known period keeps the plain wording.
+        assertEquals("5% ahead", paceGap(presentWindow(monthly(45.0, false), now)))
+        assertEquals(false, presentWindow(monthly(45.0, false), now).paceEstimated)
+        // Nothing to compare once the limit is reached.
+        assertEquals(null, paceGap(presentWindow(monthly(100.0, true), now)))
+    }
+
+    @Test fun readsTheEstimateFlagFromTheHost() {
+        val flagged = RemoteJson.decodeFromString<UsageWindow>("""{"kind":"monthly","usedPercent":49,"resetsAt":1796000000000,"periodMs":2592000000,"periodEstimated":true}""")
+        assertTrue(flagged.periodEstimated)
+        // A host from before the flag leaves it out.
+        val plain = RemoteJson.decodeFromString<UsageWindow>("""{"kind":"weekly","usedPercent":49,"resetsAt":null,"periodMs":604800000}""")
+        assertEquals(false, plain.periodEstimated)
     }
 }

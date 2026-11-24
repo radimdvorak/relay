@@ -150,7 +150,7 @@ export const agents = {
     side: true,
     reload: true,
     reloadsService: true,
-    usage: false,
+    usage: true,
     modelGroups: true,
   },
   cursor: {
