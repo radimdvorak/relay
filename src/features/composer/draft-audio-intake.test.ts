@@ -41,6 +41,10 @@ vi.mock("../audio/draft-audio", () => ({
     audioListeners.add(notify);
     return () => audioListeners.delete(notify);
   },
+  onDraftAudioCount: () => () => {},
+  draftAudioCount: () => 0,
+  draftsWithAudio: () => [],
+  readDraftAudioCounts: async () => {},
   prepareAudioFile: async (file: File): Promise<DraftAudio> => ({
     id: `id-${file.name}`,
     name: file.name,
