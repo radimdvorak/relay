@@ -31,8 +31,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.repeatOnLifecycle
 import dev.relay.android.features.composer.logic.ProviderUsage
+import dev.relay.android.features.composer.logic.UsageConnection
 import dev.relay.android.features.composer.logic.UsageMeter
 import dev.relay.android.features.composer.logic.agentName
 import dev.relay.android.features.composer.logic.formatCost
@@ -40,6 +42,8 @@ import dev.relay.android.features.composer.logic.formatTokens
 import dev.relay.android.features.composer.logic.paceGap
 import dev.relay.android.features.composer.logic.presentWindow
 import dev.relay.android.features.composer.logic.reportsUsage
+import dev.relay.android.remote.Remote
+import dev.relay.android.remote.client.LinkState
 import dev.relay.android.remote.client.RemoteClient
 import dev.relay.android.remote.model.ContextUsage
 import dev.relay.android.remote.model.ThreadCost
@@ -75,25 +79,33 @@ private fun paceColor(pace: String, fallback: Color) = when (pace) {
 
 private fun contextPace(used: Double) = if (used >= 90) "hot" else if (used >= 75) "warn" else "ok"
 
-class UsageState(val usage: ProviderUsage?, val reload: (force: Boolean) -> Unit)
+/** `unavailable` says the last ask failed and left no plan meters to show. */
+class UsageState(val usage: ProviderUsage?, val reload: (force: Boolean) -> Unit, val unavailable: Boolean = false)
 
 /** The agent's plan usage, looked up now and every few minutes while the app is in the foreground. */
 @Composable
-fun rememberUsage(client: RemoteClient?, computer: String?, online: Boolean, provider: String): UsageState {
-    val key = "${computer.orEmpty()}:$provider"
-    var value by remember(key) { mutableStateOf(lastUsage[key]) }
-    val scope = rememberCoroutineScope()
-    val load: (Boolean) -> Unit = { force ->
-        if (reportsUsage(provider) && online && client != null) scope.launch {
-            runCatching { client.providerUsage(provider, force) }.onSuccess {
-                lastUsage[key] = it
-                value = it
-            }
-        }
+fun rememberUsage(remote: Remote, provider: String): UsageState {
+    val computer by remote.active.collectAsStateWithLifecycle()
+    val client by remote.client.collectAsStateWithLifecycle()
+    val status by remote.status.collectAsStateWithLifecycle()
+    val connection = client?.let { connected ->
+        connected.credentials?.key?.let { UsageConnection(it, connected) }
     }
+    val online = status.state == LinkState.Online
+    var reading by remember(computer, connection, provider) { mutableStateOf(usageReadings[computer, provider]) }
+    val scope = rememberCoroutineScope()
+    fun current(source: UsageConnection<RemoteClient>) =
+        source.matches(remote.active.value, remote.client.value) && remote.status.value.state == LinkState.Online
+
+    suspend fun load(force: Boolean) {
+        if (connection == null || connection.computer != computer || !online || !reportsUsage(provider)) return
+        val result = usageReadings.read(connection, provider, ::current) { it.providerUsage(provider, force) }
+        if (result != null && current(connection)) reading = result
+    }
+
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     // Not with the phone in a pocket: relay-watch keeps the app alive there.
-    LaunchedEffect(key, online, client, lifecycle) {
+    LaunchedEffect(computer, connection, provider, online, lifecycle) {
         lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
             while (true) {
                 load(false)
@@ -101,7 +113,8 @@ fun rememberUsage(client: RemoteClient?, computer: String?, online: Boolean, pro
             }
         }
     }
-    return UsageState(value ?: lastUsage[key], load)
+    val shown = reading ?: usageReadings[computer, provider]
+    return UsageState(shown?.usage, { force -> scope.launch { load(force) } }, unavailable = shown?.unavailable == true)
 }
 
 private fun meters(usage: ProviderUsage?): List<UsageMeter> {
@@ -115,6 +128,8 @@ private fun usageLabel(usage: ProviderUsage?): String? {
     return list.joinToString(", ") { "${it.label} ${it.leftPercent}% left" } + if (worst.pace == "ok") "" else ", running hot"
 }
 
+private data class UsageBarItem(val label: String, val value: String, val percent: Int, val color: Color)
+
 /**
  * The thread settings sheet's footer: the context window and the plan's
  * limits as thin bars, and what a thread billed per token so far, opening
@@ -125,23 +140,35 @@ fun UsageBar(provider: String, usage: ProviderUsage?, context: ContextUsage?, co
     val c = RelayTheme.colors
     val used = context?.maxTokens?.takeIf { it > 0 }?.let { minOf(100, (context.usedTokens * 100.0 / it).roundToInt()) }
     val list = if (reportsUsage(provider)) meters(usage) else emptyList()
-    // Like the desktop, an agent with plan limits shows those instead.
-    val spent = if (reportsUsage(provider)) null else cost
+    // Like the desktop, the price stays beside the limits: OpenCode prices an
+    // answer from a model outside its Go plan, and its limits can be unavailable.
+    val spent = cost
     if (used == null && list.isEmpty() && spent == null) return
+    val bars = buildList {
+        if (used != null) add(UsageBarItem("Context", "$used%", used, paceColor(contextPace(used.toDouble()), c.mutedForeground)))
+        list.forEach { m ->
+            add(UsageBarItem(m.label, "${m.leftPercent}% left", m.leftPercent, paceColor(m.pace, if (m.kind == "session") c.accent else c.mutedForeground)))
+        }
+    }
+    val rows = if (bars.size > 3) bars.chunked(2) else if (bars.isNotEmpty()) listOf(bars) else emptyList()
     val label = listOfNotNull(
         used?.let { "Context $it% full" },
         usageLabel(usage),
         spent?.let { "This thread cost ${formatCost(it.usd)}" },
     ).joinToString(", ")
-    Row(
+    Column(
         modifier.fillMaxWidth().padding(top = 8.dp, start = 4.dp, end = 4.dp)
             .semantics { contentDescription = label }
             .pressable(onClick = onClick, role = Role.Button),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        if (used != null) BarMeter("Context", "$used%", used, paceColor(contextPace(used.toDouble()), c.mutedForeground))
-        list.forEach { m -> BarMeter(m.label, "${m.leftPercent}% left", m.leftPercent, paceColor(m.pace, if (m.kind == "session") c.accent else c.mutedForeground)) }
-        if (spent != null) Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        rows.forEach { row ->
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                row.forEach { item -> BarMeter(item.label, item.value, item.percent, item.color) }
+                if (bars.size > 3 && row.size == 1) Box(Modifier.weight(1f))
+            }
+        }
+        if (spent != null) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             Text("This thread", style = RelayTheme.type.xs, color = c.faint, maxLines = 1)
             Text(formatCost(spent.usd), style = RelayTheme.type.xs, color = c.mutedForeground, maxLines = 1)
         }
@@ -217,6 +244,8 @@ fun UsageSheet(
     onDismiss: () -> Unit,
     onRefresh: () -> Unit,
     onCompact: (suspend () -> Unit)?,
+    /** The last ask for the limits failed and none were read before it. */
+    unavailable: Boolean = false,
 ) {
     val c = RelayTheme.colors
     val scope = rememberCoroutineScope()
@@ -264,6 +293,7 @@ fun UsageSheet(
         }
         when {
             !reportsUsage(provider) -> Text("${agentName(provider)} doesn't report plan limits.", style = RelayTheme.type.xs, color = c.mutedForeground)
+            unavailable -> Text("Couldn't read ${agentName(provider)}'s plan limits.", style = RelayTheme.type.xs, color = c.mutedForeground)
             usage == null -> Spinner(color = c.mutedForeground)
             list.isEmpty() -> Text(usage.message ?: "No usage limits reported", style = RelayTheme.type.xs, color = c.mutedForeground)
             else -> list.forEach { m ->

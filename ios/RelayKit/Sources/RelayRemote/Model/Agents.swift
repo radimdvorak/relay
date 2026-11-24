@@ -49,7 +49,7 @@ public struct AgentTraits: Sendable, Equatable {
 private let traits: [String: AgentTraits] = [
     "codex": AgentTraits(fast: true, skills: true, commandsAlone: false, side: true, usage: true),
     "claude": AgentTraits(side: true, usage: true),
-    "opencode": AgentTraits(side: true),
+    "opencode": AgentTraits(side: true, usage: true),
     "cursor": AgentTraits(fast: true, usage: true),
     "muse": AgentTraits(side: true, usage: true),
     "amp": AgentTraits(),

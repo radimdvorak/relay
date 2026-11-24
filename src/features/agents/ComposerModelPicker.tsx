@@ -147,7 +147,7 @@ export const ComposerModelPicker = memo(function ComposerModelPicker({
   const { list, captureReorder } = useModelReorder(favorites, open);
   const [customs, setCustoms] = useCustomModels();
   const search = useRef<HTMLInputElement>(null);
-  const pickerUsage = usePickerUsage(open, account?.of);
+  const pickerUsage = usePickerUsage(open, account?.of, computer);
   const runnable = useOfferedAgents(
     provider === "message" ? undefined : provider,
   );

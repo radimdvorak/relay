@@ -266,7 +266,7 @@ internal fun ComposerCore(
     val offered = offeredAgents(ai?.agentOrder.orEmpty(), ai?.agentsOff.orEmpty(), provider)
     val modelLabel = if (settings.choice.model.isNotEmpty()) modelName(provider, catalogs[provider], settings.choice.model) else "Default"
 
-    val usage = rememberUsage(client, computer, online, provider)
+    val usage = rememberUsage(remote, provider)
     val wantsCommands = wantsCommandsStart.containsMatchIn(text) || wantsCommandsSkill.containsMatchIn(text)
     val commands = rememberProviderCommands(client, online, connection, projectId, provider, wantsCommands)
     val items = if (dismissed == text) null else commandItems(text, provider, commands.commands)
@@ -651,6 +651,7 @@ internal fun ComposerCore(
                     if (result is RunResult.Failed) error = result.message
                 }
             },
+            unavailable = usage.unavailable,
         )
         Sheet.Settings -> SheetView({ sheet = null }, title = "Thread settings") {
             Column {

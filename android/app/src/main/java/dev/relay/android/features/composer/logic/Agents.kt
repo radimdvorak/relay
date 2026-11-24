@@ -22,7 +22,7 @@ private fun info(name: String, fast: Boolean = false, skills: Boolean = false, a
 private val builtin = mapOf(
     "codex" to info("Codex", fast = true, skills = true, alone = false, side = true, usage = true),
     "claude" to info("Claude", side = true, usage = true),
-    "opencode" to info("OpenCode", side = true, groups = true),
+    "opencode" to info("OpenCode", side = true, groups = true, usage = true),
     "cursor" to info("Cursor", fast = true, groups = true, usage = true),
     "muse" to info("Muse", side = true, usage = true),
     "amp" to info("Amp"),

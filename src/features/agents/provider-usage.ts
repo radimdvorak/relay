@@ -5,13 +5,28 @@ import {
   useQueryClient,
   type QueryClient,
 } from "@tanstack/react-query";
-import type { UsageProvider } from "../../../shared/agents";
+import { reportsUsage, type UsageProvider } from "../../../shared/agents";
 import { SYSTEM_ACCOUNT } from "../../../shared/agent-accounts";
 import type { ProviderUsage } from "../../../shared/provider-usage";
 import { api } from "../../lib/api";
 import { everyWhileShown } from "../../lib/while-shown";
 
 const REFRESH_MS = 60_000;
+
+/**
+ * Whether the limits this computer reads are the ones a project's turns draw
+ * on. OpenCode's Go limits belong to the workspace its service here is signed
+ * in to, which OpenCode on the computer a project lives on needn't share, and
+ * nothing here can ask that computer.
+ */
+export function usageShownFor(
+  provider: string,
+  computer?: { id: string },
+): provider is UsageProvider {
+  if (!reportsUsage(provider)) return false;
+  return !(computer && provider === "opencode");
+}
+
 export type UsageAccount = { provider: UsageProvider; account?: string };
 export const usageKey = (provider: UsageProvider, account = SYSTEM_ACCOUNT) =>
   ["provider-usage", provider, account] as const;

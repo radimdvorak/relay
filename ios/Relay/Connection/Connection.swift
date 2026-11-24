@@ -29,7 +29,9 @@ final class Connection {
     /// Each agent's models, asked once per connection.
     private(set) var catalogs: ModelCatalogs = [:]
     /// Each agent's plan limits, as last reported.
-    private(set) var usage: [String: ProviderUsage] = [:]
+    /// What asking each agent's plan limits last came to on this computer.
+    private(set) var readings = UsageReadings()
+    var usage: [String: ProviderUsage] { readings.usage }
     /// The agents' own commands, by project and agent.
     private var commandLists: [String: [ProviderCommand]] = [:]
     /// Agents' pages, by computer, thread, page set and page.
@@ -194,7 +196,7 @@ final class Connection {
         present = nil
         catalogs = [:]
         commandLists = [:]
-        usage = [:]
+        readings = UsageReadings()
         newThread = nil
         listedModels = []
         askedNewThread = false
@@ -461,13 +463,23 @@ final class Connection {
     /// Asks the agent's plan limits again; `force` past the desktop's copy.
     func loadUsage(_ provider: String, force: Bool = false) async {
         guard reportsUsage(provider), let client, status.state == .online else { return }
+        let token = readings.begin(provider)
+        var reported: ProviderUsage?
         do {
-            let reported = try await client.providerUsage(provider, force: force)
-            if self.client === client { usage[provider] = reported }
+            reported = try await client.providerUsage(provider, force: force)
+        } catch is CancellationError {
+            return
         } catch {
             log.error("Couldn't read \(provider, privacy: .public)'s usage: \(String(describing: error), privacy: .public)")
         }
+        // Only while the same connection is still online and the task wasn't cancelled:
+        // a disconnect or computer switch isn't a failure of the current computer's limits.
+        guard !Task.isCancelled, self.client === client, status.state == .online else { return }
+        readings.record(provider, reported, token: token)
     }
+
+    /// Whether the last ask failed and left no plan meters to show.
+    func usageUnavailable(_ provider: String) -> Bool { readings.unavailable(provider) }
 
     /// Whether the conversation has an answer going: a reply's own, or the thread's.
     func running(_ chatId: String, rootId: String? = nil) -> Bool {
