@@ -216,10 +216,6 @@ private fun NewThreadComposer(route: Route.NewThread, remote: Remote, active: St
     }
 
     var sheet by remember { mutableStateOf<WhereSheet?>(null) }
-    fun openSheet(next: WhereSheet) {
-        keyboard?.hide()
-        sheet = next
-    }
     fun open(chatId: String) {
         // Only while this screen is on top: a send that finishes after leaving stays put.
         if (!lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) return
@@ -284,10 +280,8 @@ private fun NewThreadComposer(route: Route.NewThread, remote: Remote, active: St
     val rise = rememberComposerRise(opening)
     // A sheet, or the keyboard of a composer that came from nowhere, waits for the screen to be in.
     val settled = screenSettled()
-    var arrived by remember { mutableStateOf(settled) }
     LaunchedEffect(settled) {
         if (!settled) return@LaunchedEffect
-        arrived = true
         when (start) {
             ComposerStart.Type -> {}
             ComposerStart.Attach -> composer.openAttach()
@@ -333,6 +327,7 @@ private fun NewThreadComposer(route: Route.NewThread, remote: Remote, active: St
             running = false,
             modifier = Modifier.fillMaxWidth(),
             disabled = !online,
+            collapsed = rise.waiting,
             placeholder = if (picked == SCRATCH) "Ask anything" else "Message",
             onSend = ::start,
             draftKey = draftKey,
@@ -341,8 +336,8 @@ private fun NewThreadComposer(route: Route.NewThread, remote: Remote, active: St
             handle = composer,
             autoFocus = start == ComposerStart.Type && (rise.inPlace || settled),
             // Going in it starts where Home's pill stands, so only the way back has a path to travel.
-            boxModifier = if (arrived) Modifier.sharedBox(NEW_THREAD_MORPH, RelayTheme.shapes.composer) else Modifier,
-            above = { WhereLine(chosen, picked, workspace, ::openSheet) },
+            boxModifier = if (rise.landed) Modifier.sharedBox(NEW_THREAD_MORPH, RelayTheme.shapes.composer) else Modifier,
+            above = { WhereLine(chosen, picked, workspace, onOpen = { sheet = it }) },
         )
     }
     WhereSheets(

@@ -104,6 +104,8 @@ internal fun ComposerCore(
     /** A new thread's models, per agent, for switching to one not picked here yet. */
     remembered: NewThreadModels = emptyMap(),
     autoFocus: Boolean = false,
+    /** Stays the pill even while it has focus, until what it waits for lets it grow. */
+    collapsed: Boolean = false,
     /** On the message box itself, not the dock around it. */
     boxModifier: Modifier = Modifier,
     /** Draws Send as the New thread button (pencil, its fill), with this modifier on it. */
@@ -391,7 +393,7 @@ internal fun ComposerCore(
     val covered = sheet != null || drawingOn != null
     val writing = rememberTyping(typing, held = covered)
     KeepKeyboard(typing, held = covered)
-    val expanded = writing || !empty || dictation.active
+    val expanded = (writing && !collapsed) || !empty || dictation.active
     SideEffect { handle?.expanded = expanded }
     val windowInfo = LocalWindowInfo.current
     val keyboard = LocalSoftwareKeyboardController.current
