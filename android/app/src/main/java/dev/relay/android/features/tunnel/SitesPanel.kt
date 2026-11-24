@@ -25,7 +25,8 @@ import dev.relay.android.remote.tunnel.SiteAddress
 import dev.relay.android.ui.Icon
 import dev.relay.android.ui.ListRow
 import dev.relay.android.ui.RowSize
-import dev.relay.android.ui.SectionHeader
+import dev.relay.android.ui.RowTextInset
+import dev.relay.android.ui.SectionLabel
 import dev.relay.android.ui.Spinner
 import dev.relay.android.ui.Text
 import dev.relay.android.ui.theme.RelayTheme
@@ -79,19 +80,19 @@ internal fun SitesPanel(
     }
     val address = LocalUrls.typed(typed)
     val shown = list?.let { if (address != null) it else matching(it, typed) }
-    LazyColumn(modifier.fillMaxSize().background(c.background), contentPadding = listPadding(bottom = 24.dp)) {
+    LazyColumn(modifier.fillMaxSize().background(c.surface), contentPadding = listPadding(bottom = 24.dp)) {
         if (address != null) item(key = "typed") {
             ListRow(
                 "Open ${address.shown}",
                 size = RowSize.Sm,
-                leading = { Icon(TablerIcons.Outline.ArrowRight, null, tint = c.accent, size = 16.dp) },
+                leading = { Icon(TablerIcons.Outline.ArrowRight, null, tint = c.accent, size = 20.dp) },
                 onClick = { onOpen(address) },
             )
         }
-        item(key = "head") { SectionHeader("Running on $name", count = shown?.size?.takeIf { it > 0 }) }
+        item(key = "head") { SectionLabel("Running on $name", count = shown?.size?.takeIf { it > 0 }?.toString()) }
         when {
             shown == null && error != null -> item(key = "error") { Note("Couldn't see what runs there: $error") }
-            shown == null -> item(key = "loading") { Spinner(Modifier.padding(12.dp)) }
+            shown == null -> item(key = "loading") { Spinner(Modifier.padding(RowTextInset)) }
             shown.isEmpty() && list.isNullOrEmpty() -> item(key = "none") {
                 Note("Nothing in your projects listens on a port right now. Type one to open it anyway.")
             }
@@ -100,8 +101,7 @@ internal fun SitesPanel(
                 ListRow(
                     "localhost:${site.port}",
                     subtitle = siteLine(site),
-                    size = RowSize.Sm,
-                    leading = { Icon(TablerIcons.Outline.World, null, tint = c.mutedForeground, size = 16.dp) },
+                    leadingIcon = TablerIcons.Outline.World,
                     chevron = true,
                     onClick = { onOpen(SiteAddress(site.port)) },
                 )
@@ -112,4 +112,4 @@ internal fun SitesPanel(
 
 @Composable
 private fun Note(text: String) =
-    Text(text, Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp), style = RelayTheme.type.xs, color = RelayTheme.colors.mutedForeground)
+    Text(text, Modifier.fillMaxWidth().padding(horizontal = RowTextInset, vertical = 10.dp), style = RelayTheme.type.meta, color = RelayTheme.colors.inkSoft)

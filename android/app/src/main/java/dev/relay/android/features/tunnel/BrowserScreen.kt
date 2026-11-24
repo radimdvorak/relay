@@ -14,16 +14,9 @@ import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -38,11 +31,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
-import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -56,20 +46,11 @@ import dev.relay.android.ui.Button
 import dev.relay.android.ui.ButtonSize
 import dev.relay.android.ui.ButtonVariant
 import dev.relay.android.ui.EmptyState
-import dev.relay.android.ui.IconButton
-import dev.relay.android.ui.LocalPaneToggle
-import dev.relay.android.ui.LocalScreenNotice
 import dev.relay.android.ui.ProgressBar
-import dev.relay.android.ui.Screen
-import dev.relay.android.ui.TextField
 import dev.relay.android.ui.rememberInFront
 import dev.relay.android.ui.theme.RelayTheme
 import io.github.lyxnx.compose.ui.tablericons.TablerIcons
-import io.github.lyxnx.compose.ui.tablericons.outline.ArrowLeft
-import io.github.lyxnx.compose.ui.tablericons.outline.ArrowRight
 import io.github.lyxnx.compose.ui.tablericons.outline.PlugConnectedX
-import io.github.lyxnx.compose.ui.tablericons.outline.Refresh
-import io.github.lyxnx.compose.ui.tablericons.outline.X
 import kotlinx.coroutines.Dispatchers
 import dev.relay.android.features.git.call
 import dev.relay.android.remote.client.tunnelAllow
@@ -104,7 +85,6 @@ fun BrowserScreen(remote: Remote, tunnels: TunnelListeners, ports: TunnelPorts, 
 @Composable
 private fun ComputerBrowser(remote: Remote, tunnels: TunnelListeners, ports: TunnelPorts, url: String?, computer: String) {
     val nav = LocalNavigator.current
-    val c = RelayTheme.colors
     val focus = LocalFocusManager.current
     val status by remote.status.collectAsStateWithLifecycle()
     val overview by remote.overview.collectAsStateWithLifecycle()
@@ -210,123 +190,124 @@ private fun ComputerBrowser(remote: Remote, tunnels: TunnelListeners, ports: Tun
     }
     BackHandler(enabled = !editing && canBack) { view?.goBack() }
 
-    Screen("Browser", topBar = false) {
-        Row(
-            Modifier.fillMaxWidth().height(52.dp).padding(horizontal = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
-        ) {
-            // Its own bar instead of TopBar, so the sidebar button has to be drawn here.
-            LocalPaneToggle.current?.invoke()
-            IconButton(TablerIcons.Outline.X, "Close", { nav.pop() })
-            TextField(
-                text,
-                { text = it },
-                Modifier.weight(1f).onFocusChanged { if (it.hasFocus) editing = true },
-                placeholder = "localhost:port",
-                mono = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri, imeAction = ImeAction.Go, autoCorrectEnabled = false),
-                keyboardActions = KeyboardActions(onGo = { LocalUrls.typed(text)?.let { open(it, typed = true) } }),
-            )
-            if (!editing && page != null) {
-                IconButton(TablerIcons.Outline.ArrowLeft, "Back", { view?.goBack() }, size = ButtonSize.Sm, enabled = canBack)
-                IconButton(TablerIcons.Outline.ArrowRight, "Forward", { view?.goForward() }, size = ButtonSize.Sm, enabled = canForward)
-                IconButton(TablerIcons.Outline.Refresh, "Reload", {
+    val bar = BrowserBarState(
+        text,
+        showsPage = !editing && page != null,
+        canBack = canBack,
+        canForward = canForward,
+    )
+    BrowserFrame(
+        header = {
+            BrowserBar(
+                bar,
+                onText = { text = it },
+                onEdit = { editing = true },
+                onGo = { LocalUrls.typed(text)?.let { open(it, typed = true) } },
+                onClose = { nav.pop() },
+                onBack = { view?.goBack() },
+                onForward = { view?.goForward() },
+                onReload = {
                     val web = view
                     if (web?.url == null) page?.let { open(it) }
                     else {
                         failed = null
                         web.reload()
                     }
-                }, size = ButtonSize.Sm)
-            }
-        }
-        if (loading && !editing) ProgressBar(progress.takeIf { it > 0f }, height = 2.dp)
-        // The shell's line: says when the computer can't be reached.
-        LocalScreenNotice.current?.invoke()
-        Box(Modifier.weight(1f).fillMaxWidth()) {
-            when {
-                !supported -> EmptyState(
+                },
+            )
+        },
+    ) {
+        when {
+            !supported -> Notice {
+                EmptyState(
                     "Update Relay on $name",
                     description = "Opening its localhost here needs a newer Relay there.",
                     icon = TablerIcons.Outline.PlugConnectedX,
                 )
-                page != null -> key(generation) {
-                    AndroidView(
-                        factory = { ctx ->
-                            browserView(
-                                ctx,
-                                computer,
-                                tunnels,
-                                on = object : BrowserEvents {
-                                    override fun open(address: SiteAddress) = opener(address)
-                                    override fun started() {
-                                        loading = true
-                                        progress = 0f
-                                        failed = null
-                                    }
-                                    override fun progress(value: Float) {
-                                        progress = value
-                                    }
-                                    override fun finished(web: WebView) {
-                                        loading = false
-                                        canBack = web.canGoBack()
-                                        canForward = web.canGoForward()
-                                    }
-                                    override fun moved(web: WebView, url: String) {
-                                        canBack = web.canGoBack()
-                                        canForward = web.canGoForward()
-                                        val at = LocalUrls.desktop(url, tunnels::desktopPort) ?: return
-                                        href = at.href
-                                        if (!editing) text = at.shown
-                                    }
-                                    override fun failed(description: String) {
-                                        failed = description
-                                        loading = false
-                                    }
-                                    override fun gone(description: String) {
-                                        failed = description
-                                        loading = false
-                                        canBack = false
-                                        canForward = false
-                                        generation++
-                                    }
-                                },
-                            ).also { view = it }
-                        },
-                        onRelease = { web ->
-                            if (view === web) view = null
-                            web.destroy()
-                        },
-                        modifier = Modifier.fillMaxSize(),
-                    )
-                    failed?.let { reason ->
+            }
+            page != null -> key(generation) {
+                AndroidView(
+                    factory = { ctx ->
+                        browserView(
+                            ctx,
+                            computer,
+                            tunnels,
+                            on = object : BrowserEvents {
+                                override fun open(address: SiteAddress) = opener(address)
+                                override fun started() {
+                                    loading = true
+                                    progress = 0f
+                                    failed = null
+                                }
+                                override fun progress(value: Float) {
+                                    progress = value
+                                }
+                                override fun finished(web: WebView) {
+                                    loading = false
+                                    canBack = web.canGoBack()
+                                    canForward = web.canGoForward()
+                                }
+                                override fun moved(web: WebView, url: String) {
+                                    canBack = web.canGoBack()
+                                    canForward = web.canGoForward()
+                                    val at = LocalUrls.desktop(url, tunnels::desktopPort) ?: return
+                                    href = at.href
+                                    if (!editing) text = at.shown
+                                }
+                                override fun failed(description: String) {
+                                    failed = description
+                                    loading = false
+                                }
+                                override fun gone(description: String) {
+                                    failed = description
+                                    loading = false
+                                    canBack = false
+                                    canForward = false
+                                    generation++
+                                }
+                            },
+                        ).also { view = it }
+                    },
+                    onRelease = { web ->
+                        if (view === web) view = null
+                        web.destroy()
+                    },
+                    modifier = Modifier.fillMaxSize(),
+                )
+                failed?.let { reason ->
+                    Notice {
                         EmptyState(
                             "Couldn't load ${page.shown}",
-                            Modifier.fillMaxSize().background(c.background),
                             description = if (online) reason else "Not connected to $name.",
-                            action = { Button("Try again", { open(page) }, variant = ButtonVariant.Outline, size = ButtonSize.Sm) },
+                            action = { Button("Try again", { open(page) }, variant = ButtonVariant.Secondary, size = ButtonSize.Sm) },
                         )
                     }
                 }
             }
-            asking?.let { address ->
+        }
+        asking?.let { address ->
+            Notice {
                 EmptyState(
                     "${address.shown} isn't one of your sites",
-                    Modifier.fillMaxSize().background(c.background),
                     description = "The phone only opens ports Sites lists or ones you type here, so a link can't reach " +
                         "everything else running on $name.",
                     action = {
-                        Button("Open it", { open(address, typed = true) }, variant = ButtonVariant.Outline, size = ButtonSize.Sm)
+                        Button("Open it", { open(address, typed = true) }, variant = ButtonVariant.Secondary, size = ButtonSize.Sm)
                     },
                 )
             }
-            if (supported && asking == null && (editing || page == null)) {
-                SitesPanel(remote, name, text, { open(it) })
-            }
         }
+        if (supported && asking == null && (editing || page == null)) {
+            SitesPanel(remote, name, text, { open(it) })
+        }
+        if (loading && !editing) ProgressBar(progress.takeIf { it > 0f }, height = 2.dp)
     }
 }
+
+/** Says something over the whole page. */
+@Composable
+private fun Notice(content: @Composable () -> Unit) =
+    Box(Modifier.fillMaxSize().background(RelayTheme.colors.surface), contentAlignment = Alignment.Center) { content() }
 
 private interface BrowserEvents {
     fun open(address: SiteAddress)
