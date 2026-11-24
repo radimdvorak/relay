@@ -22,9 +22,9 @@ fun SectionLabel(
     text: String,
     modifier: Modifier = Modifier,
     count: String? = null,
-    action: (@Composable () -> Unit)? = null,
     /** Where a long label is cut: paths read best cut from the start. */
     overflow: TextOverflow = TextOverflow.Ellipsis,
+    action: (@Composable () -> Unit)? = null,
 ) {
     val c = RelayTheme.colors
     val style = RelayTheme.type.meta.copy(fontSize = 13.sp)

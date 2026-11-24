@@ -46,7 +46,7 @@ fun listPadding(bottom: Dp = 40.dp, top: Dp = 4.dp) = PaddingValues(start = List
 val RowTextInset = 16.dp
 
 /** A group's label with how many it holds. */
-@Deprecated("use SectionLabel", ReplaceWith("SectionLabel(text, modifier, countText, action)"))
+@Deprecated("use SectionLabel", ReplaceWith("SectionLabel(text, modifier, countText, action = action)"))
 @Composable
 fun SectionHeader(
     text: String,
@@ -56,7 +56,7 @@ fun SectionHeader(
     countText: String? = count?.toString(),
     action: (@Composable () -> Unit)? = null,
 ) {
-    SectionLabel(text, modifier, countText, action)
+    SectionLabel(text, modifier, countText, action = action)
 }
 
 /** Rows of one group, stacked with 2dp between them. */
