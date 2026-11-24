@@ -23,7 +23,7 @@ import java.util.Date
 import java.util.Locale
 
 @Composable
-fun ScrollDiagnosticsRows() {
+fun SaveScrollLogsRow() {
     val context = LocalContext.current
     val recorder = remember { ScrollDiagnostics.of(context) }
     val toasts = LocalToasts.current
@@ -68,6 +68,14 @@ fun ScrollDiagnosticsRows() {
             }
         },
     )
+}
+
+@Composable
+fun KeepScrollIncidentRow() {
+    val context = LocalContext.current
+    val recorder = remember { ScrollDiagnostics.of(context) }
+    val toasts = LocalToasts.current
+    val scope = rememberCoroutineScope()
     ListRow(
         "Keep scroll incident",
         subtitle = "Keep recent history after a jump. The last 3 marked incidents are protected from automatic rotation.",

@@ -109,9 +109,3 @@ fun LookForAppRow(updates: Updates) {
         onClick = { if (!latest.checking) updates.checkNow() },
     )
 }
-
-@Composable
-fun LatestAppRows(updates: Updates) {
-    appOffer(updates)?.let { AppOfferRow(updates, it) }
-    LookForAppRow(updates)
-}
