@@ -5,7 +5,6 @@ package dev.relay.android.features.thread
 // sheet listing its agents with Stop on the running ones.
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,7 +16,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text as MaterialText
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -51,18 +49,23 @@ import io.github.lyxnx.compose.ui.tablericons.outline.CircleX
 import io.github.lyxnx.compose.ui.tablericons.outline.PlayerStop
 import io.github.lyxnx.compose.ui.tablericons.outline.Robot
 import kotlinx.coroutines.launch
+import dev.relay.android.ui.Group
+import androidx.compose.ui.unit.sp
+
+/** The strip's height whatever it says, gap below it included. */
+private val STRIP = 52.dp
 
 /** Still, even while it works: the turn's running row is what moves; the ticking time says it's alive. */
 @Composable
 fun SubagentMark(run: SubagentRun) {
     val c = RelayTheme.colors
-    Box(Modifier.width(16.dp), contentAlignment = Alignment.Center) {
+    Box(Modifier.width(TraceIcon), contentAlignment = Alignment.Center) {
         when (run.status) {
-            "running" -> Box(Modifier.size(7.dp).background(c.accent, CircleShape))
-            "completed" -> Icon(TablerIcons.Outline.Check, "Done", size = 14.dp, tint = c.additionText)
-            "idle" -> Icon(TablerIcons.Outline.Circle, "Child status unavailable", size = 14.dp, tint = c.mutedForeground)
-            "failed" -> Icon(TablerIcons.Outline.CircleX, "Failed", size = 14.dp, tint = c.mutedForeground)
-            else -> Icon(TablerIcons.Outline.PlayerStop, "Stopped", size = 14.dp, tint = c.mutedForeground)
+            "running" -> Box(Modifier.size(8.dp).background(c.accent, CircleShape))
+            "completed" -> Icon(TablerIcons.Outline.Check, "Done", size = TraceIcon, tint = c.added)
+            "idle" -> Icon(TablerIcons.Outline.Circle, "Child status unavailable", size = TraceIcon, tint = c.inkSoft)
+            "failed" -> Icon(TablerIcons.Outline.CircleX, "Failed", size = TraceIcon, tint = c.inkSoft)
+            else -> Icon(TablerIcons.Outline.PlayerStop, "Stopped", size = TraceIcon, tint = c.inkSoft)
         }
     }
 }
@@ -86,15 +89,11 @@ suspend fun stopping(failures: FailureState, stop: suspend () -> Unit) {
     }
 }
 
-private val stripShape = RoundedCornerShape(12.dp)
-
 @Composable
 private fun StripBox(onPress: () -> Unit, content: @Composable androidx.compose.foundation.layout.RowScope.() -> Unit) {
-    val c = RelayTheme.colors
     Row(
-        Modifier.padding(start = 12.dp, end = 12.dp, bottom = 8.dp).fillMaxWidth().height(40.dp)
-            .border(RelayTheme.hairline, c.border, stripShape).background(c.card, stripShape)
-            .pressable(onClick = onPress, scale = false).padding(horizontal = 10.dp),
+        Modifier.padding(start = DockInset, end = DockInset, bottom = 8.dp).fillMaxWidth().height(44.dp)
+            .dockStrip().pressable(onClick = onPress, scale = false).padding(horizontal = 16.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) { content() }
@@ -120,32 +119,33 @@ fun SubagentStrip(
     val scope = rememberCoroutineScope()
     val working = batch.filter { it.status == "running" }
     val latest = working.maxByOrNull { it.started }
-    if (started.isNotEmpty()) return Box(Modifier.height(48.dp)) {
+    if (started.isNotEmpty()) return Box(Modifier.height(STRIP)) {
         StripBox(onPress) {
             FamilyMark(started)
-            Text(slotLine(started, working.size), Modifier.weight(1f), maxLines = 1)
-            Icon(TablerIcons.Outline.ChevronUp, "Lists them, to open one", tint = c.mutedForeground)
+            Text(slotLine(started, working.size), Modifier.weight(1f), style = RelayTheme.type.meta, maxLines = 1)
+            Icon(TablerIcons.Outline.ChevronUp, "Lists them, to open one", tint = c.inkFaint)
         }
     }
     if (latest == null) {
         if (error == null) return
-        return Box(Modifier.height(48.dp).padding(horizontal = 20.dp), contentAlignment = Alignment.CenterStart) {
+        return Box(Modifier.height(STRIP).padding(horizontal = DockInset + 4.dp), contentAlignment = Alignment.CenterStart) {
             Text(
                 "Couldn't load agents · Retry",
                 Modifier.heightIn(min = 40.dp).pressable(onClick = { scope.launch { onRetry() } }, scale = false).padding(vertical = 10.dp),
-                color = c.mutedForeground,
+                style = RelayTheme.type.meta,
+                color = c.inkSoft,
                 maxLines = 1,
             )
         }
     }
     val back = batch.size - working.size
-    Box(Modifier.height(48.dp)) {
+    Box(Modifier.height(STRIP)) {
         StripBox(onPress) {
-            Icon(TablerIcons.Outline.Robot, null, size = 15.dp, tint = c.mutedForeground)
+            Icon(TablerIcons.Outline.Robot, null, size = TraceIcon, tint = c.inkSoft)
             MaterialText(
                 buildAnnotatedString {
                     append(if (working.size == 1) "1 agent working" else "${working.size} agents working")
-                    withStyle(SpanStyle(color = c.mutedForeground)) {
+                    withStyle(SpanStyle(color = c.inkSoft)) {
                         append(" · ")
                         // What it's doing says more than its name on a phone's width; the sheet has both.
                         append(
@@ -158,13 +158,13 @@ fun SubagentStrip(
                     }
                 },
                 Modifier.weight(1f),
-                style = RelayTheme.type.sm,
-                color = c.foreground,
+                style = RelayTheme.type.meta,
+                color = c.ink,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
-            if (batch.size > 1) Text("$back/${batch.size}", color = c.mutedForeground)
-            Icon(TablerIcons.Outline.ChevronUp, "Lists them, to read one's run or stop it", tint = c.mutedForeground)
+            if (batch.size > 1) Text("$back/${batch.size}", style = RelayTheme.type.meta, color = c.inkSoft)
+            Icon(TablerIcons.Outline.ChevronUp, "Lists them, to read one's run or stop it", tint = c.inkFaint)
         }
     }
 }
@@ -217,35 +217,31 @@ fun SubagentsSheet(
     ) {
         if (both) Section(agentsLine)
         if (error != null) Column(
-            Modifier.padding(horizontal = 20.dp).heightIn(min = 40.dp),
+            Modifier.heightIn(min = 40.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            Text(error, color = c.mutedForeground)
+            Text(error, style = RelayTheme.type.meta, color = c.inkSoft)
             Action("Retry") { onRetry() }
         }
-        for (run in shown) AgentRow(run, display, onPress = { pick { onOpen(run.id) } }) {
-            stopping(failures) { onStop(run.id) }
+        if (shown.isNotEmpty()) Group(Modifier.sheetBleed()) {
+            for (run in shown) item {
+                AgentRow(run, display, onPress = { pick { onOpen(run.id) } }) {
+                    stopping(failures) { onStop(run.id) }
+                }
+            }
         }
         if (shown.isNotEmpty()) Text(
             "Stopping one leaves ${leadName(shown.first())}'s turn and the other agents running.",
-            Modifier.padding(start = 20.dp, end = 20.dp, top = 6.dp, bottom = 12.dp),
-            style = RelayTheme.type.xs,
-            color = c.mutedForeground,
+            style = RelayTheme.type.meta,
+            color = c.inkFaint,
         )
         if (both) Section("Started threads")
-        if (family.isNotEmpty()) Column(Modifier.padding(horizontal = 16.dp)) {
-            StartedList(remote, family) { id -> pick { onOpenThread(id) } }
-        }
+        if (family.isNotEmpty()) StartedList(remote, family, Modifier.sheetBleed()) { id -> pick { onOpenThread(id) } }
     }
 }
 
 @Composable
-private fun Section(label: String) = Text(
-    label,
-    Modifier.padding(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 2.dp),
-    style = RelayTheme.type.xs.copy(fontWeight = FontWeight.SemiBold),
-    color = RelayTheme.colors.mutedForeground,
-)
+private fun Section(label: String) = Text(label, style = RelayTheme.type.meta.copy(fontSize = 13.sp), color = RelayTheme.colors.inkFaint)
 
 @Composable
 private fun AgentRow(run: SubagentRun, display: (String) -> String, onPress: () -> Unit, onStop: suspend () -> Unit) {
@@ -253,18 +249,18 @@ private fun AgentRow(run: SubagentRun, display: (String) -> String, onPress: () 
     val now = rememberNow(1000)
     val about = listOfNotNull(agentKind(run), run.model?.let(::modelName), plural(run.calls, "call")).joinToString(" · ")
     Row(
-        Modifier.fillMaxWidth().pressable(onClick = onPress, scale = false).padding(horizontal = 20.dp, vertical = 10.dp),
+        Modifier.fillMaxWidth().pressable(onClick = onPress, scale = false).padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         SubagentMark(run)
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(run.description, Modifier.weight(1f), style = RelayTheme.type.base.copy(fontWeight = FontWeight.Medium), maxLines = 1)
-                Text(took((run.ended ?: now) - run.started), style = RelayTheme.type.xs, color = c.mutedForeground)
+                Text(run.description, Modifier.weight(1f), style = RelayTheme.type.body.copy(fontWeight = FontWeight.Medium), maxLines = 1)
+                Text(took((run.ended ?: now) - run.started), style = RelayTheme.type.meta, color = c.inkSoft)
             }
-            Text(display(subagentNow(run)), color = c.mutedForeground, maxLines = 2)
-            Text(about, style = RelayTheme.type.xs, color = c.faint, maxLines = 1)
+            Text(display(subagentNow(run)), style = RelayTheme.type.meta, color = c.inkSoft, maxLines = 2)
+            Text(about, style = RelayTheme.type.small, color = c.inkFaint, maxLines = 1)
         }
         if (run.status == "running" && run.canStop != false) Action("Stop", busyLabel = "Stopping…", failed = "Couldn't stop it", unsure = "Stop may still go through", confirm = confirmStop(run)) {
             onStop()

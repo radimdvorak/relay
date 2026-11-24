@@ -20,7 +20,7 @@ import dev.relay.android.features.composer.logic.offeredAgents
 import dev.relay.android.remote.Remote
 import dev.relay.android.ui.ListGroup
 import dev.relay.android.ui.ListRow
-import dev.relay.android.ui.SectionHeader
+import dev.relay.android.ui.SectionLabel
 import dev.relay.android.ui.SegmentedTabs
 import dev.relay.android.ui.Sheet
 import dev.relay.android.ui.Spinner
@@ -64,20 +64,20 @@ fun SecondOpinionSheet(remote: Remote, checked: String, onPick: (provider: Strin
 
     Sheet(onDismiss, title = "Second opinion", description = "Another agent checks this answer without changing any files.") {
         SegmentedTabs(agents.map { TabOption(it, agentName(it)) }, provider, { provider = it }, fill = false)
-        errors[provider]?.let { Text("Couldn't list ${agentName(provider)}'s models: $it", color = c.mutedForeground) }
+        errors[provider]?.let { Text("Couldn't list ${agentName(provider)}'s models: $it", style = RelayTheme.type.meta, color = c.inkSoft) }
         val list = lists[provider]
-        if (list == null) Spinner(Modifier.align(Alignment.CenterHorizontally).padding(24.dp), color = c.mutedForeground)
+        if (list == null) Spinner(Modifier.align(Alignment.CenterHorizontally).padding(24.dp), color = c.inkSoft)
         else {
             val legacy = list.filter { it.legacy == true }
-            ListGroup {
+            ListGroup(Modifier.sheetBleed(12.dp)) {
                 ListRow("Default", subtitle = "The agent's own choice", onClick = { pick("") })
                 list.filter { it.legacy != true }.forEach { m ->
                     ListRow(m.name, subtitle = (m.group?.let { "$it · ${m.description}" } ?: m.description).ifEmpty { null }, onClick = { pick(m.id) })
                 }
             }
             if (legacy.isNotEmpty()) {
-                SectionHeader("Older models")
-                ListGroup { legacy.forEach { m -> ListRow(m.name, subtitle = m.description.ifEmpty { null }, onClick = { pick(m.id) }) } }
+                SectionLabel("Older models", Modifier.sheetBleed(12.dp))
+                ListGroup(Modifier.sheetBleed(12.dp)) { legacy.forEach { m -> ListRow(m.name, subtitle = m.description.ifEmpty { null }, onClick = { pick(m.id) }) } }
             }
         }
     }

@@ -5,16 +5,13 @@ package dev.relay.android.features.thread
 // turn, and what it reported. Read-only, with Stop while it works.
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
@@ -37,11 +34,11 @@ import dev.relay.android.lib.navigation.backAction
 import dev.relay.android.remote.Remote
 import dev.relay.android.remote.model.ChatMessage
 import dev.relay.android.remote.model.SubagentRun
-import dev.relay.android.ui.Screen
 import dev.relay.android.ui.Spinner
 import dev.relay.android.ui.Text
-import dev.relay.android.ui.pressable
 import dev.relay.android.ui.theme.RelayTheme
+import androidx.compose.foundation.layout.height
+import androidx.compose.ui.unit.sp
 
 @Composable
 fun SubagentRunScreen(
@@ -59,20 +56,20 @@ fun SubagentRunScreen(
     val run = state.run
     val error = state.asking.error
     CompositionLocalProvider(LocalFailures provides failures, LocalThreadRemote provides remote) {
-        Screen(run?.let(::agentKind) ?: "Agent", onBack = nav.backAction) {
+        ThreadChrome(header = { ThreadHeader(run?.let(::agentKind) ?: "Agent", null, onMenu = null, onBack = nav.backAction) }) {
             if (supported && error != null) Column(
                 Modifier.fillMaxWidth().padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                Text(error, color = c.mutedForeground, textAlign = TextAlign.Center)
+                Text(error, style = RelayTheme.type.meta, color = c.inkSoft, textAlign = TextAlign.Center)
                 Action("Retry") { state.asking.refresh() }
             }
             if (run == null) Box(Modifier.weight(1f).fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) {
                 when {
                     !supported -> Note("Update Relay on your computer to read an agent's run here.")
                     state.loaded -> Note("This agent's run is gone: the session that ran it ended.")
-                    error == null -> Spinner(color = c.mutedForeground)
+                    error == null -> Spinner(color = c.inkSoft)
                 }
             } else {
                 val scroll = rememberScrollState()
@@ -81,21 +78,21 @@ fun SubagentRunScreen(
                 LaunchedEffect(scroll.maxValue) {
                     if (follow && run.status == "running") scroll.scrollTo(scroll.maxValue)
                 }
-                Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(scroll).padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 24.dp)) {
+                Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(scroll).padding(start = ThreadInset, end = ThreadInset, top = 20.dp, bottom = 24.dp)) {
                     Run(run, root)
                 }
             }
             Row(
-                Modifier.fillMaxWidth().background(c.background)
-                    .padding(horizontal = 16.dp, vertical = 10.dp),
+                Modifier.fillMaxWidth().fadesThreadEnd().background(c.surface)
+                    .padding(horizontal = ThreadInset, vertical = 12.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 Text(
                     "Read-only. Agents take instructions from ${run?.let(::leadName) ?: "the thread's agent"}, not from you.",
                     Modifier.weight(1f),
-                    style = RelayTheme.type.xs,
-                    color = c.mutedForeground,
+                    style = RelayTheme.type.small,
+                    color = c.inkFaint,
                 )
                 if (run?.status == "running" && run.canStop != false) Action(
                     "Stop agent",
@@ -111,7 +108,7 @@ fun SubagentRunScreen(
 }
 
 @Composable
-private fun Note(text: String) = Text(text, color = RelayTheme.colors.mutedForeground, textAlign = TextAlign.Center)
+private fun Note(text: String) = Text(text, style = RelayTheme.type.meta, color = RelayTheme.colors.inkSoft, textAlign = TextAlign.Center)
 
 /** The run as a turn of its own, for AgentRun to draw. */
 private fun asMessage(run: SubagentRun) = ChatMessage(
@@ -137,32 +134,23 @@ private fun Run(run: SubagentRun, root: String?) {
     val live = run.status == "running"
     val message = remember(run) { asMessage(run) }
     var whole by rememberSaveable { mutableStateOf(false) }
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        SubagentMark(run)
-        Text(run.description, Modifier.weight(1f), style = RelayTheme.type.sheetTitle.copy(fontWeight = FontWeight.SemiBold))
+    Row(horizontalArrangement = Arrangement.spacedBy(TraceGap)) {
+        Box(Modifier.height(24.dp), contentAlignment = Alignment.Center) { SubagentMark(run) }
+        Text(run.description, Modifier.weight(1f), style = RelayTheme.type.row.copy(fontWeight = FontWeight.SemiBold))
     }
     Text(
         listOfNotNull(agentKind(run), run.model?.let(::modelName), plural(run.calls, "call"), "failed".takeIf { run.status == "failed" })
             .joinToString(" · "),
-        Modifier.padding(start = 24.dp, top = 4.dp),
-        color = c.mutedForeground,
+        Modifier.padding(start = TraceIndent, top = 4.dp),
+        style = RelayTheme.type.meta,
+        color = c.inkSoft,
     )
     val brief = run.brief
     if (!brief.isNullOrEmpty()) {
-        val shape = RoundedCornerShape(10.dp)
-        Column(
-            Modifier.padding(top = 14.dp, bottom = 10.dp).fillMaxWidth()
-                .border(RelayTheme.hairline, c.border, shape).background(c.card, shape).padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp),
-        ) {
+        QuietCard(Modifier.padding(top = 16.dp, bottom = 10.dp), padding = 16.dp, gap = 6.dp) {
             Label("${leadName(run)}'s brief")
-            SelectionContainer { Text(brief, maxLines = if (whole) Int.MAX_VALUE else 5) }
-            if (!whole && brief.length > 220) Text(
-                "Show all",
-                Modifier.pressable(onClick = { whole = true }, scale = false),
-                style = RelayTheme.type.sm.copy(fontWeight = FontWeight.SemiBold),
-                color = c.accent,
-            )
+            SelectionContainer { Text(brief, style = RelayTheme.type.meta.copy(lineHeight = 20.sp), maxLines = if (whole) Int.MAX_VALUE else 5) }
+            if (!whole && brief.length > 220) TextAction("Show all", { whole = true })
         }
     }
     // Its tool output comes cut, as a thread's does, and there's no turn to fetch the rest or its pictures from.
@@ -175,10 +163,11 @@ private fun Run(run: SubagentRun, root: String?) {
     if (run.status == "stopped") Text(
         "Stopped. ${leadName(run)} hears it was and carries on without it.",
         Modifier.padding(top = 12.dp),
-        color = c.mutedForeground,
+        style = RelayTheme.type.meta,
+        color = c.inkSoft,
     )
 }
 
 @Composable
 private fun Label(text: String, modifier: Modifier = Modifier) =
-    Text(text, modifier, style = RelayTheme.type.xs.copy(fontWeight = FontWeight.SemiBold), color = RelayTheme.colors.mutedForeground)
+    Text(text, modifier, style = RelayTheme.type.label.copy(fontSize = 13.sp), color = RelayTheme.colors.inkSoft)

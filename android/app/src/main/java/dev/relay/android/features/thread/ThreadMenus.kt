@@ -8,8 +8,6 @@ import android.content.Intent
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -20,7 +18,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.unit.dp
-import dev.relay.android.features.markdown.Markdown
 import dev.relay.android.features.thread.logic.Clock
 import dev.relay.android.features.thread.logic.offersSecondOpinion
 import dev.relay.android.features.thread.logic.preview
@@ -34,6 +31,7 @@ import dev.relay.android.remote.model.RemoteChatSummary
 import dev.relay.android.remote.Bridge
 import dev.relay.android.lib.navigation.Route
 import dev.relay.android.ui.Button
+import dev.relay.android.ui.ButtonSize
 import dev.relay.android.ui.ButtonVariant
 import dev.relay.android.ui.Sheet
 import dev.relay.android.ui.Text
@@ -41,6 +39,30 @@ import dev.relay.android.ui.TextField
 import dev.relay.android.ui.theme.RelayTheme
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
+import io.github.lyxnx.compose.ui.tablericons.TablerIcons
+import io.github.lyxnx.compose.ui.tablericons.outline.AdjustmentsHorizontal
+import io.github.lyxnx.compose.ui.tablericons.outline.Alarm
+import io.github.lyxnx.compose.ui.tablericons.outline.Archive
+import io.github.lyxnx.compose.ui.tablericons.outline.ArrowBackUp
+import io.github.lyxnx.compose.ui.tablericons.outline.ArrowsMinimize
+import io.github.lyxnx.compose.ui.tablericons.outline.ArrowsSplit
+import io.github.lyxnx.compose.ui.tablericons.outline.Bug
+import io.github.lyxnx.compose.ui.tablericons.outline.Checks
+import io.github.lyxnx.compose.ui.tablericons.outline.Copy
+import io.github.lyxnx.compose.ui.tablericons.outline.CornerUpLeft
+import io.github.lyxnx.compose.ui.tablericons.outline.FileDiff
+import io.github.lyxnx.compose.ui.tablericons.outline.Folder
+import io.github.lyxnx.compose.ui.tablericons.outline.GitBranch
+import io.github.lyxnx.compose.ui.tablericons.outline.GitCompare
+import io.github.lyxnx.compose.ui.tablericons.outline.History
+import io.github.lyxnx.compose.ui.tablericons.outline.Mail
+import io.github.lyxnx.compose.ui.tablericons.outline.Messages
+import io.github.lyxnx.compose.ui.tablericons.outline.Pencil
+import io.github.lyxnx.compose.ui.tablericons.outline.Quote
+import io.github.lyxnx.compose.ui.tablericons.outline.Refresh
+import io.github.lyxnx.compose.ui.tablericons.outline.Robot
+import io.github.lyxnx.compose.ui.tablericons.outline.Share
+import io.github.lyxnx.compose.ui.tablericons.outline.World
 
 /** What the thread menu acts with; null leaves an item out. */
 class ThreadMenuActions(
@@ -71,43 +93,48 @@ class ThreadMenuActions(
     val onKeepScroll: (() -> Unit)? = null,
     /** A repository thread, on a computer that can move it. */
     val onSwitchBranch: (() -> Unit)? = null,
+    /** What the composer sends with, once it's there: its sheet, and where it stands in a line. */
+    val onSettings: (() -> Unit)? = null,
+    val settingsLine: String? = null,
 )
 
 fun threadMenu(a: ThreadMenuActions): List<MenuItem> = buildList {
-    a.onKeepScroll?.let { add(MenuItem("Keep scroll incident", "Preserve recent layouts and scroll decisions; export in Settings.", onPress = it)) }
-    add(MenuItem("Rename", onPress = a.onRename))
+    a.onKeepScroll?.let { add(MenuItem("Keep scroll incident", "Preserve recent layouts and scroll decisions; export in Settings.", icon = TablerIcons.Outline.Bug, onPress = it)) }
+    add(MenuItem("Rename", icon = TablerIcons.Outline.Pencil, onPress = a.onRename))
     add(
         when {
-            a.settled -> MenuItem("Move back to active") { a.onTriage("unsettle", "Couldn't move it") }
-            a.running -> MenuItem("Mark as done when it ends") { a.onTriage("settle-when-done", "Couldn't mark it done") }
-            else -> MenuItem("Mark as done") { a.onTriage("settle", "Couldn't mark it done") }
+            a.settled -> MenuItem("Move back to active", icon = TablerIcons.Outline.ArrowBackUp) { a.onTriage("unsettle", "Couldn't move it") }
+            a.running -> MenuItem("Mark as done when it ends", icon = TablerIcons.Outline.Checks) { a.onTriage("settle-when-done", "Couldn't mark it done") }
+            else -> MenuItem("Mark as done", icon = TablerIcons.Outline.Checks) { a.onTriage("settle", "Couldn't mark it done") }
         },
     )
     add(
-        if (a.snoozed) MenuItem("Wake up now") { a.onTriage("wake", "Couldn't wake it") }
-        else MenuItem("Snooze…", onPress = a.onSnooze),
+        if (a.snoozed) MenuItem("Wake up now", icon = TablerIcons.Outline.Alarm) { a.onTriage("wake", "Couldn't wake it") }
+        else MenuItem("Snooze…", icon = TablerIcons.Outline.Alarm, onPress = a.onSnooze),
     )
-    a.onUnread?.let { add(MenuItem("Mark as unread", "Back to the list, marked for later", onPress = it)) }
-    a.onRegenerate?.let { add(MenuItem("Regenerate title", "A fresh name from the conversation so far", onPress = it)) }
-    a.onSwitchBranch?.let { add(MenuItem("Switch branch…", "Goes wherever the branch is worked on", onPress = it)) }
-    a.branch?.let { add(MenuItem("Copy branch name", it) { a.onCopy(it) }) }
-    a.worktree?.path?.let { add(MenuItem("Copy worktree path", it) { a.onCopy(it) }) }
-    if (a.sides > 0) add(MenuItem("Side conversations", "${a.sides} beside this one", onPress = a.onSides))
+    a.onUnread?.let { add(MenuItem("Mark as unread", "Back to the list, marked for later", icon = TablerIcons.Outline.Mail, onPress = it)) }
+    a.onRegenerate?.let { add(MenuItem("Regenerate title", "A fresh name from the conversation so far", icon = TablerIcons.Outline.Refresh, onPress = it)) }
+    a.onSwitchBranch?.let { add(MenuItem("Switch branch…", "Goes wherever the branch is worked on", icon = TablerIcons.Outline.GitBranch, onPress = it)) }
+    a.onSettings?.let { add(MenuItem("Model, permissions and usage", a.settingsLine, icon = TablerIcons.Outline.AdjustmentsHorizontal, onPress = it)) }
+    a.branch?.let { add(MenuItem("Copy branch name", it, icon = TablerIcons.Outline.Copy) { a.onCopy(it) }) }
+    a.worktree?.path?.let { add(MenuItem("Copy worktree path", it, icon = TablerIcons.Outline.Copy) { a.onCopy(it) }) }
+    if (a.sides > 0) add(MenuItem("Side conversations", "${a.sides} beside this one", icon = TablerIcons.Outline.Messages, onPress = a.onSides))
     a.worktree?.takeIf { it.path != null }?.let { w ->
         add(
             MenuItem(
                 "Worktree changes",
                 "Everything ${w.branch ?: "its branch"} has that ${w.from ?: "the checkout"} doesn't yet.",
+                icon = TablerIcons.Outline.GitCompare,
                 onPress = a.onWorktreeChanges,
             ),
         )
     }
-    add(MenuItem("Changes", onPress = a.onChanges))
-    add(MenuItem("Files", onPress = a.onFiles))
-    add(MenuItem("History", onPress = a.onHistory))
-    a.onSites?.let { add(MenuItem("Sites", "What runs on the computer's localhost, in a browser here", onPress = it)) }
-    add(MenuItem("Compact the conversation", "The agent summarises it to free up its context.", onPress = a.onCompact))
-    add(MenuItem("Archive", destructive = true, onPress = a.onArchive))
+    add(MenuItem("Changes", icon = TablerIcons.Outline.FileDiff, onPress = a.onChanges))
+    add(MenuItem("Files", icon = TablerIcons.Outline.Folder, onPress = a.onFiles))
+    add(MenuItem("History", icon = TablerIcons.Outline.History, onPress = a.onHistory))
+    a.onSites?.let { add(MenuItem("Sites", "What runs on the computer's localhost, in a browser here", icon = TablerIcons.Outline.World, onPress = it)) }
+    add(MenuItem("Compact the conversation", "The agent summarises it to free up its context.", icon = TablerIcons.Outline.ArrowsMinimize, onPress = a.onCompact))
+    add(MenuItem("Archive", destructive = true, icon = TablerIcons.Outline.Archive, onPress = a.onArchive))
 }
 
 /** A message's text as it reads, without the `@agent` a send leads with. */
@@ -126,17 +153,17 @@ fun messageMenu(
     onSecondOpinion: (() -> Unit)? = null,
 ): List<MenuItem> = buildList {
     val text = readText(m)
-    add(MenuItem("Copy") { onCopy(text) })
-    onReply?.let { add(MenuItem("Reply", "A side conversation that leaves this one as it is.", onPress = it)) }
+    add(MenuItem("Copy", icon = TablerIcons.Outline.Copy) { onCopy(text) })
+    onReply?.let { add(MenuItem("Reply", "A side conversation that leaves this one as it is.", icon = TablerIcons.Outline.CornerUpLeft, onPress = it)) }
     if (onFork != null && m.role == "assistant" && m.status == "complete" && m.parentId == null && m.side != true)
-        add(MenuItem("Fork from here", "A new thread with the conversation up to this answer.", onPress = onFork))
+        add(MenuItem("Fork from here", "A new thread with the conversation up to this answer.", icon = TablerIcons.Outline.ArrowsSplit, onPress = onFork))
     if (onSecondOpinion != null && offersSecondOpinion(m))
-        add(MenuItem("Second opinion…", "Another agent checks this answer.", onPress = onSecondOpinion))
+        add(MenuItem("Second opinion…", "Another agent checks this answer.", icon = TablerIcons.Outline.Robot, onPress = onSecondOpinion))
     if (text.isBlank()) return@buildList
     onQuote?.let { quote ->
-        add(MenuItem("Quote", "The start of this message, into your reply") { quote(quoteMarkdown(quoteExcerpt(text))) })
+        add(MenuItem("Quote", "The start of this message, into your reply", icon = TablerIcons.Outline.Quote) { quote(quoteMarkdown(quoteExcerpt(text))) })
     }
-    add(MenuItem("Share…") { onShare(text) })
+    add(MenuItem("Share…", icon = TablerIcons.Outline.Share) { onShare(text) })
 }
 
 fun shareText(context: Context, text: String) {
@@ -181,9 +208,9 @@ fun RenameSheet(title: String, onSave: suspend (String) -> Unit, onClose: () -> 
     LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }
     val name = value.trim()
     Sheet(onDismiss = onClose, title = "Rename thread") {
-        Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 8.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
             TextField(value, { value = it }, placeholder = "Thread name", focusRequester = focus)
-            error?.let { Text(it, color = RelayTheme.colors.destructive) }
+            error?.let { Text(it, style = RelayTheme.type.meta, color = RelayTheme.colors.danger) }
             Button(
                 "Save",
                 onClick = {
@@ -203,6 +230,7 @@ fun RenameSheet(title: String, onSave: suspend (String) -> Unit, onClose: () -> 
                 },
                 modifier = Modifier.fillMaxWidth(),
                 variant = ButtonVariant.Default,
+                size = ButtonSize.Lg,
                 loading = saving,
                 enabled = name.isNotEmpty() && name != title && !saving,
             )
