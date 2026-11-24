@@ -1,6 +1,7 @@
 // Answering an ACP agent's ask to run a tool, from Relay's mode or the user.
 import type { AgentDecision } from "../../../shared/agent-modes";
-import { answerAntigravityQuestion } from "../antigravity";
+import { mcpCall } from "../activity";
+import { answerAntigravityQuestion, antigravityMcp } from "../antigravity";
 import type { AgentOptions } from "../types";
 import { editKinds, lookKinds } from "./activity";
 import {
@@ -47,6 +48,12 @@ function requestDetail(request: AcpPermissionRequest) {
   return command ?? ([...new Set(paths)].join("\n") || undefined);
 }
 
+/** What the approval is called: the MCP tool it's for, or the agent's own title. */
+function requestTitle(request: AcpPermissionRequest, isAntigravity: boolean) {
+  const mcp = isAntigravity && antigravityMcp(request.toolCall);
+  return mcp ? mcpCall(mcp.server, mcp.tool).label : request.toolCall.title;
+}
+
 /**
  * Answers the agent's ask to run a tool. Relay's mode answers what it can;
  * the rest goes to the user, and with nobody to ask the tool is refused.
@@ -85,7 +92,8 @@ export async function permission(
     .onRequest(
       {
         kind: "approval",
-        title: request.toolCall.title || `${name} wants to run a tool`,
+        title:
+          requestTitle(request, isAntigravity) || `${name} wants to run a tool`,
         detail: requestDetail(request),
         decisions,
       },

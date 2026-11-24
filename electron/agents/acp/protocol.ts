@@ -272,6 +272,7 @@ export const permissionRequestSchema = z
     toolCall: z
       .object({
         toolCallId: lenient(z.string()),
+        name: text,
         title: text,
         kind: text,
         content: lenient(toolContentSchema),

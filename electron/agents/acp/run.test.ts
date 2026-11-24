@@ -266,6 +266,71 @@ it("shows Antigravity's update_steps as the plan, once accepted and without skip
   ]);
 });
 
+it("names the MCP tool Antigravity calls, in the trace and when it asks, going by the call's name alone", async () => {
+  const call = (toolCallId: string, name: string, rawInput: object) => ({
+    toolCallId,
+    name,
+    title: `Run ${name}`,
+    kind: "other",
+    status: "in_progress",
+    rawInput,
+  });
+  const direct = call("direct", "mcp_docs_search_pages", { query: "x" });
+  const { acp, root } = await agent({
+    turn: [
+      { update: { sessionUpdate: "tool_call", ...direct } },
+      {
+        ask: {
+          toolCall: direct,
+          options: [{ optionId: "a", name: "Allow", kind: "allow_once" }],
+        },
+      },
+      {
+        update: {
+          sessionUpdate: "tool_call",
+          ...call("proxied", "call_mcp_tool", {
+            ServerName: "docs",
+            ToolName: "search_pages",
+            Arguments: {},
+          }),
+        },
+      },
+      {
+        update: {
+          sessionUpdate: "tool_call",
+          ...call("own", "deploy", { ServerName: "web", ToolName: "x" }),
+        },
+      },
+      say("Done."),
+    ],
+  });
+  const rows = new Map<string, { label: string; mcp?: object }>();
+  const titles: string[] = [];
+  await runAcp(
+    acp,
+    options(root, {
+      runtimeMode: "approval-required",
+      onActivity: (a) => rows.set(a.id, a),
+      onRequest: async (request) => {
+        if (request.kind === "approval") titles.push(request.title);
+        return { kind: "approval", decision: "accept" };
+      },
+    }),
+  );
+  const mcp = { server: "docs", tool: "search_pages" };
+  expect(rows.get("direct")).toMatchObject({
+    label: "docs: search_pages",
+    mcp,
+  });
+  expect(rows.get("proxied")).toMatchObject({
+    label: "docs: search_pages",
+    mcp,
+  });
+  expect(rows.get("own")).toMatchObject({ label: "Run deploy" });
+  expect(rows.get("own")?.mcp).toBeUndefined();
+  expect(titles).toEqual(["docs: search_pages"]);
+});
+
 it("tracks the subagents Antigravity starts, without claiming they succeeded or can be stopped", async () => {
   const start = (toolCallId: string, name: string) => ({
     update: {

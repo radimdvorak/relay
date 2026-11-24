@@ -2,8 +2,10 @@ import { randomUUID } from "node:crypto";
 import type { AskedQuestion } from "../../../shared/asked-questions";
 import type { AgentOptions } from "../types";
 import { answerLimitError, TurnText } from "../turn-kit";
+import { mcpCall } from "../activity";
 import {
   AntigravitySubagents,
+  antigravityMcp,
   antigravitySteps,
   antigravitySubagents,
 } from "../antigravity";
@@ -76,7 +78,11 @@ export class AcpTurnEvents {
   };
 
   private show(call: Partial<AcpToolCall> & { toolCallId: string }) {
-    const activity = acpActivity(call);
+    const mcp = this.profile.provider === "antigravity" && antigravityMcp(call);
+    const activity = {
+      ...acpActivity(call),
+      ...(mcp && mcpCall(mcp.server, mcp.tool)),
+    };
     if (!this.asked.has(call.toolCallId))
       return this.options.onActivity?.(activity);
     const answers = this.asked.get(call.toolCallId);
