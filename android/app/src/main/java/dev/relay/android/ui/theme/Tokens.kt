@@ -54,8 +54,8 @@ object Space {
 /**
  * Springs per the brief's "Motion": [standard] is the theme's scheme and drives everything that
  * recurs (sheets, pages, the composer, list items); [hero] is Material's expressive
- * scheme, for the few moments that should feel alive: the bar's tabs trading
- * places, its tooltip popping, the send button appearing, a toast arriving.
+ * scheme, for the few moments that should feel alive: the bar's pill sliding, the tooltip
+ * popping, the send button appearing, a toast arriving.
  */
 @Immutable
 object RelayMotion {
