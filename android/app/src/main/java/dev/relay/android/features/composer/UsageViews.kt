@@ -128,6 +128,8 @@ private fun usageLabel(usage: ProviderUsage?): String? {
     return list.joinToString(", ") { "${it.label} ${it.leftPercent}% left" } + if (worst.pace == "ok") "" else ", running hot"
 }
 
+private data class UsageBarItem(val label: String, val value: String, val percent: Int, val color: Color)
+
 /**
  * The thread settings sheet's footer: the context window and the plan's
  * limits as thin bars, and what a thread billed per token so far, opening
@@ -142,20 +144,31 @@ fun UsageBar(provider: String, usage: ProviderUsage?, context: ContextUsage?, co
     // answer from a model outside its Go plan, and its limits can be unavailable.
     val spent = cost
     if (used == null && list.isEmpty() && spent == null) return
+    val bars = buildList {
+        if (used != null) add(UsageBarItem("Context", "$used%", used, paceColor(contextPace(used.toDouble()), c.mutedForeground)))
+        list.forEach { m ->
+            add(UsageBarItem(m.label, "${m.leftPercent}% left", m.leftPercent, paceColor(m.pace, if (m.kind == "session") c.accent else c.mutedForeground)))
+        }
+    }
+    val rows = if (bars.size > 3) bars.chunked(2) else if (bars.isNotEmpty()) listOf(bars) else emptyList()
     val label = listOfNotNull(
         used?.let { "Context $it% full" },
         usageLabel(usage),
         spent?.let { "This thread cost ${formatCost(it.usd)}" },
     ).joinToString(", ")
-    Row(
+    Column(
         modifier.fillMaxWidth().padding(top = 8.dp, start = 4.dp, end = 4.dp)
             .semantics { contentDescription = label }
             .pressable(onClick = onClick, role = Role.Button),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        if (used != null) BarMeter("Context", "$used%", used, paceColor(contextPace(used.toDouble()), c.mutedForeground))
-        list.forEach { m -> BarMeter(m.label, "${m.leftPercent}% left", m.leftPercent, paceColor(m.pace, if (m.kind == "session") c.accent else c.mutedForeground)) }
-        if (spent != null) Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        rows.forEach { row ->
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                row.forEach { item -> BarMeter(item.label, item.value, item.percent, item.color) }
+                if (bars.size > 3 && row.size == 1) Box(Modifier.weight(1f))
+            }
+        }
+        if (spent != null) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             Text("This thread", style = RelayTheme.type.xs, color = c.faint, maxLines = 1)
             Text(formatCost(spent.usd), style = RelayTheme.type.xs, color = c.mutedForeground, maxLines = 1)
         }

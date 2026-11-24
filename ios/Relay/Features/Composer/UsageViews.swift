@@ -151,6 +151,14 @@ struct UsageBars: View {
         contextPercent(context) != nil || reportsUsage(provider) || cost != nil
     }
 
+    private struct BarItem: Identifiable {
+        let id: String
+        let label: String
+        let value: String
+        let percent: Double
+        let color: Color
+    }
+
     var body: some View {
         let used = contextPercent(context)
         let limits = reportsUsage(provider)
@@ -158,24 +166,37 @@ struct UsageBars: View {
         // Like the desktop, the price stays beside the limits: OpenCode prices an
         // answer from a model outside its Go plan, and its limits can be unavailable.
         let spent = cost
-        HStack(spacing: 12) {
-            if let used {
-                bar("Context", "\(used)%", Double(used), paceColor(contextPace(Double(used)), colors.muted))
+        let items: [BarItem] =
+            (used.map {
+                [BarItem(id: "context", label: "Context", value: "\($0)%", percent: Double($0), color: paceColor(contextPace(Double($0)), colors.muted))]
+            } ?? [])
+            + meters.map { m in
+                BarItem(
+                    id: m.label, label: m.label, value: "\(m.leftPercent)% left", percent: Double(m.leftPercent),
+                    color: paceColor(m.pace, m.kind == "session" ? colors.accent : colors.muted))
             }
-            ForEach(meters, id: \.label) { m in
-                bar(m.label, "\(m.leftPercent)% left", Double(m.leftPercent),
-                    paceColor(m.pace, m.kind == "session" ? colors.accent : colors.muted))
-            }
-            if limits && meters.isEmpty && used == nil {
+        VStack(alignment: .leading, spacing: 8) {
+            if items.count > 3 {
+                LazyVGrid(
+                    columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)],
+                    spacing: 8
+                ) {
+                    ForEach(items) { item in bar(item.label, item.value, item.percent, item.color) }
+                }
+            } else if !items.isEmpty {
+                HStack(spacing: 12) {
+                    ForEach(items) { item in bar(item.label, item.value, item.percent, item.color) }
+                }
+            } else if limits && spent == nil {
                 Text("\(agentName(provider)) usage").font(.footnote).foregroundStyle(colors.muted)
             }
             if let spent {
                 HStack(spacing: 6) {
                     Text("This thread").foregroundStyle(colors.faint)
                     Text(formatCost(spent.usd)).foregroundStyle(colors.muted)
+                    Spacer(minLength: 0)
                 }
                 .font(.caption)
-                Spacer(minLength: 0)
             }
         }
         .accessibilityElement(children: .ignore)
