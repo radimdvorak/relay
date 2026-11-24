@@ -91,10 +91,11 @@ fun HomeScreen(
                     filter = { if (o != null) FilterButton(o, filter, home.filter::set) },
                 )
             },
-            dock = { dockModifier ->
+            dock = { dockModifier, onHeight ->
                 HomeDock(
                     tab, onTab, bar,
                     threadsNews = tab != HomeTab.Threads && o != null && o.listed.any { it.waiting == true },
+                    onHeight = onHeight,
                     modifier = dockModifier,
                     hasComposer = tab == HomeTab.Threads,
                     composer = { HomeComposer(onOpen = newThread) },

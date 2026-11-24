@@ -12,21 +12,6 @@ import java.time.LocalDateTime
 import java.time.ZoneId
 import java.util.Locale
 
-class NeedsYouTest {
-    @Test
-    fun onlyThreadsThatStartWaitingOnTheSameComputerCount() {
-        // First overview after launch: everything already waiting is old news.
-        assertNull(freshlyWaiting(null, "a", listOf("x"), openId = null))
-        val before = WaitingBaseline("a", setOf("x"))
-        assertNull(freshlyWaiting(before, "a", listOf("x"), openId = null))
-        assertEquals("y", freshlyWaiting(before, "a", listOf("x", "y"), openId = null))
-        // Just switched computers: its waiting threads aren't news either.
-        assertNull(freshlyWaiting(before, "b", listOf("x", "y"), openId = null))
-        // The thread on screen needs no telling, but another fresh one still does.
-        assertEquals("z", freshlyWaiting(before, "a", listOf("y", "z"), openId = "y"))
-    }
-}
-
 class ComputerLinesTest {
     private val old = PairedComputer("k1", "Mac", "100.1.1.1")
     private val again = PairedComputer("k2", "Mac", "100.1.1.1")

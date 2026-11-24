@@ -7,8 +7,6 @@ import dev.relay.android.ui.LocalSharedTransitions
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.WindowInsetsSides
-import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.safeDrawing
@@ -42,7 +40,7 @@ import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.NavDisplay
 import dev.relay.android.features.applock.LockOverlay
 import dev.relay.android.features.home.ConnectionLine
-import dev.relay.android.features.home.NeedsYou
+import dev.relay.android.features.home.StatusToasts
 import dev.relay.android.features.markdown.LocalOpensLocalhost
 import dev.relay.android.features.tunnel.rememberTunnelLinks
 import dev.relay.android.features.tunnel.rememberTunnels
@@ -196,23 +194,22 @@ fun RelayRoot(container: AppContainer, links: ReceiveChannel<DeepLink>, crash: C
                                     rememberSaveableStateHolderNavEntryDecorator(),
                                     rememberViewModelStoreNavEntryDecorator(),
                                 ),
-                                transitionSpec = { forward(targetState, navigator.swapped, isWide) },
-                                popTransitionSpec = { back(initialState, isWide) },
-                                predictivePopTransitionSpec = { back(initialState, isWide) },
+                                transitionSpec = { forward(targetState, navigator.swapped) },
+                                popTransitionSpec = { back(initialState) },
+                                predictivePopTransitionSpec = { back(initialState) },
                                 entryProvider = entryProvider { appEntries(container, shell) },
                             )
                         }
                     }
                 }
-                NeedsYou(
+                StatusToasts(
                     remote,
                     openId = (top as? Route.Thread)?.id,
-                    hidden = sidebar || top == Route.Home,
+                    hidden = top is Route.Pair,
                     pane = panes,
-                    // Below the header.
-                    modifier = Modifier.align(Alignment.TopCenter)
-                        .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal))
-                        .padding(top = 72.dp),
+                    modifier = Modifier.align(Alignment.BottomEnd)
+                        .windowInsetsPadding(WindowInsets.safeDrawing)
+                        .padding(bottom = if (top.hasComposer) COMPOSER_ROOM else 0.dp),
                 )
                 if (!panes) DrawerOverlay(shell.drawer) { PhoneDrawer(container, shell, navigator) }
                 ToastHost(toasts, Modifier.align(Alignment.BottomCenter).windowInsetsPadding(WindowInsets.safeDrawing))
@@ -220,6 +217,11 @@ fun RelayRoot(container: AppContainer, links: ReceiveChannel<DeepLink>, crash: C
         }
     }
 }
+
+/** What a composer at the screen's bottom takes, for what floats over the screen. */
+private val COMPOSER_ROOM = 100.dp
+
+private val Route?.hasComposer get() = this is Route.Thread || this is Route.Reply || this is Route.NewThread
 
 @Composable
 private fun SystemBars(dark: Boolean) {

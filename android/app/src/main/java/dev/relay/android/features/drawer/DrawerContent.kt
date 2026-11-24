@@ -170,7 +170,7 @@ private fun DrawerThread(
         when {
             inputBlocksThread(chat) || chat.waiting == true -> Icon(TablerIcons.Outline.HelpCircle, "Needs you", tint = c.waiting, size = 18.dp)
             working -> Spinner(size = 14.dp, color = c.inkSoft)
-            unread -> Box(Modifier.size(8.dp).background(c.info, RelayTheme.shapes.circle).semantics { contentDescription = "Unread" })
+            unread -> Box(Modifier.size(8.dp).background(c.accent, RelayTheme.shapes.circle).semantics { contentDescription = "Unread" })
         }
     }
 }

@@ -23,6 +23,13 @@ import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsBottomHeight
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
@@ -44,7 +51,7 @@ enum class HomeTab { Threads, Projects, Pulls }
 private val BAR_ROOM = 64.dp
 
 /** Over the composer (or the bar) the list fades out; from there down the dock is solid. */
-private val FADE = 28.dp
+internal val DOCK_FADE = 28.dp
 
 /** Between the composer and what's under it: the bar, or the keyboard. */
 private val COMPOSER_GAP = 8.dp
@@ -68,22 +75,29 @@ internal fun HomeDock(
     /** False where the side pane carries the destinations. */
     bar: Boolean,
     threadsNews: Boolean,
+    /** How much the dock covers above the system's bar, its fade left out. */
+    onHeight: (Dp) -> Unit,
     modifier: Modifier = Modifier,
     hasComposer: Boolean,
     composer: @Composable () -> Unit,
 ) {
     val surface = RelayTheme.colors.surface
+    val density = LocalDensity.current
+    var composerHeight by remember { mutableStateOf(0.dp) }
+    val height = composerHeight + if (bar) BAR_ROOM else 0.dp
+    LaunchedEffect(height) { onHeight(height) }
     val under = if (bar) WindowInsets.navigationBars.add(WindowInsets(bottom = BAR_ROOM)) else WindowInsets.navigationBars
     Box(modifier.fillMaxWidth()) {
         Box(
             Modifier.matchParentSize().background(
-                Brush.verticalGradient(listOf(surface.copy(alpha = 0f), surface), endY = with(LocalDensity.current) { FADE.toPx() }),
+                Brush.verticalGradient(listOf(surface.copy(alpha = 0f), surface), endY = with(density) { DOCK_FADE.toPx() }),
             ),
         )
-        Column(Modifier.fillMaxWidth().padding(top = FADE), horizontalAlignment = Alignment.CenterHorizontally) {
+        Column(Modifier.fillMaxWidth().padding(top = DOCK_FADE), horizontalAlignment = Alignment.CenterHorizontally) {
             val motion = RelayTheme.motion.standard
             AnimatedVisibility(
                 hasComposer,
+                Modifier.onSizeChanged { composerHeight = with(density) { it.height.toDp() } },
                 enter = fadeIn(motion.defaultEffectsSpec()) + expandVertically(motion.defaultSpatialSpec(), clip = false),
                 exit = fadeOut(motion.fastEffectsSpec()) + shrinkVertically(motion.defaultSpatialSpec(), clip = false),
             ) {
