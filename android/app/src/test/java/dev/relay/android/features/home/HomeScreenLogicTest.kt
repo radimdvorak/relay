@@ -67,18 +67,16 @@ class BrowserLogicTest {
 
     @Test
     fun projectLineCountsBusyThreads() {
-        val now = 10 * 60_000L
-        val chats = listOf(chat("a", updated = now - 5 * 60_000) { copy(running = true) }, chat("b", updated = 0) { copy(waiting = true) }, chat("c"))
-        assertEquals("2 working · 3 threads · 5m ago", projectLine(chats, now))
-        assertEquals("No threads yet", projectLine(emptyList(), now))
+        val chats = listOf(chat("a") { copy(running = true) }, chat("b") { copy(waiting = true) }, chat("c"))
+        assertEquals("2 working · 3 threads", projectLine(chats))
+        assertEquals("No threads yet", projectLine(emptyList()))
     }
 
     @Test
     fun projectLineSaysWhichComputerAProjectIsOn() {
-        val now = 10 * 60_000L
         val box = RemoteProjectComputer("thinkcenter")
-        assertEquals("On thinkcenter · 1 thread · 5m ago", projectLine(listOf(chat("a", updated = now - 5 * 60_000)), now, box))
-        assertEquals("On thinkcenter · No threads yet", projectLine(emptyList(), now, box))
+        assertEquals("On thinkcenter · 1 thread", projectLine(listOf(chat("a")), box))
+        assertEquals("On thinkcenter · No threads yet", projectLine(emptyList(), box))
         assertEquals("thinkcenter isn't paired anymore", computerLine(box.copy(gone = true)))
         assertNull(computerLine(null))
     }
