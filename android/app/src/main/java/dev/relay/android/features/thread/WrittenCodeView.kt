@@ -47,8 +47,6 @@ import dev.relay.android.remote.client.activityWritten
 import dev.relay.android.remote.model.AgentActivity
 import dev.relay.android.remote.model.WrittenCode
 import dev.relay.android.ui.Text
-import dev.relay.android.ui.ring
-import dev.relay.android.ui.theme.Radii
 import dev.relay.android.ui.theme.RelayColors
 import dev.relay.android.ui.theme.RelayTheme
 import kotlinx.coroutines.CancellationException
@@ -78,12 +76,12 @@ internal fun WrittenCodeOf(a: AgentActivity, shows: (path: String) -> Boolean, o
         }
     }
     when (val w = written) {
-        Written.Loading -> Box(Modifier.padding(start = 21.dp).height(26.dp), contentAlignment = Alignment.CenterStart) {
-            Text("Loading…", style = RelayTheme.type.xs, color = RelayTheme.colors.faint)
+        Written.Loading -> Box(Modifier.padding(start = TraceIndent).height(TraceLine), contentAlignment = Alignment.CenterStart) {
+            StepText("Loading…", color = RelayTheme.colors.inkFaint)
         }
         Written.Missing -> otherwise()
         is Written.Files -> Column(
-            Modifier.padding(start = 21.dp, top = 2.dp, bottom = 8.dp),
+            Modifier.padding(start = TraceIndent, top = 2.dp, bottom = 8.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             w.files.forEach { WrittenFile(it, named = w.files.size > 1) }
@@ -100,17 +98,17 @@ internal fun WrittenFile(code: WrittenCode, named: Boolean = false) {
     val before = remember(view, c.isDark) { highlighted(view.before, language, c) }
     val after = remember(view, c.isDark) { highlighted(view.after, language, c) }
     val nothingKept = keptNothing(code)
-    Column(Modifier.fillMaxWidth().clip(Radii.smShape).background(c.code).ring(c.border, Radii.smShape)) {
+    Column(Modifier.fillMaxWidth().clip(TraceBox).background(c.container)) {
         WrittenHeader(code, view, named = named || nothingKept, nothingKept)
         if (nothingKept) return@Column
         SelectionContainer(Modifier.heightIn(max = 360.dp).verticalScroll(rememberScrollState())) {
-            Column(Modifier.padding(bottom = 6.dp)) {
+            Column(Modifier.padding(bottom = 8.dp)) {
                 val gutter = if (view.diff) 18.dp else (view.lines.size.toString().length * 8 + 12).dp
                 for (line in view.lines) {
                     val source = if (line.before) before else after
                     CodeLine(line, source.getOrNull(line.index), gutter, gutterText(line, view.diff))
                 }
-                if (code.cut) Text("…cut", Modifier.padding(start = gutter, top = 4.dp), style = RelayTheme.type.xs, color = c.faint)
+                if (code.cut) Text("…cut", Modifier.padding(start = gutter, top = 4.dp), style = RelayTheme.type.small, color = c.inkFaint)
             }
         }
     }
@@ -131,11 +129,11 @@ internal fun ReadFile(read: ReadCode) {
     val last = (read.first ?: 0L) + lines.size
     val gutter = (last.toString().length * 8 + 12).dp
     Column(
-        Modifier.padding(start = 21.dp, top = 2.dp, bottom = 8.dp).fillMaxWidth()
-            .clip(Radii.smShape).background(c.code).ring(c.border, Radii.smShape),
+        Modifier.padding(start = TraceIndent, top = 2.dp, bottom = 8.dp).fillMaxWidth()
+            .clip(TraceBox).background(c.container),
     ) {
         SelectionContainer(Modifier.heightIn(max = 360.dp).verticalScroll(rememberScrollState())) {
-            Column(Modifier.padding(vertical = 6.dp)) {
+            Column(Modifier.padding(vertical = 8.dp)) {
                 for (line in lines) {
                     val number = read.first?.let { "${it + line.index}" }.orEmpty()
                     CodeLine(line, code.getOrNull(line.index), gutter, number)
@@ -153,14 +151,14 @@ private fun highlighted(text: String, language: String?, c: RelayColors): List<A
 @Composable
 private fun WrittenHeader(code: WrittenCode, view: WrittenView, named: Boolean, nothingKept: Boolean) {
     val c = RelayTheme.colors
-    val style = RelayTheme.type.monoSm
-    Row(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 5.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        if (named) Text(LocalTrace.current.display(code.path), Modifier.weight(1f, fill = false), style = style, color = c.mutedForeground, maxLines = 1)
-        if (nothingKept) Text("too long to keep", style = style, color = c.faint)
+    val style = traceCode()
+    Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        if (named) Text(LocalTrace.current.display(code.path), Modifier.weight(1f, fill = false), style = style, color = c.inkSoft, maxLines = 1)
+        if (nothingKept) Text("too long to keep", style = style, color = c.inkFaint)
         else if (view.diff) {
-            Text("+${view.added}", style = style, color = c.additionText)
-            Text("−${view.removed}", style = style, color = c.deletionText)
-        } else Text(plural(view.lines.size, "line"), style = style, color = c.faint)
+            Text("+${view.added}", style = style, color = c.added)
+            Text("−${view.removed}", style = style, color = c.removed)
+        } else Text(plural(view.lines.size, "line"), style = style, color = c.inkFaint)
     }
 }
 
@@ -169,13 +167,13 @@ private fun WrittenHeader(code: WrittenCode, view: WrittenView, named: Boolean, 
 private fun CodeLine(line: WrittenLine, code: AnnotatedString?, gutter: Dp, number: String) {
     val c = RelayTheme.colors
     val tint = when (line.mark) {
-        LineMark.Added -> c.diffAddition
-        LineMark.Removed -> c.diffDeletion
+        LineMark.Added -> c.addedBg
+        LineMark.Removed -> c.removedBg
         else -> Color.Transparent
     }
-    val mono = RelayTheme.type.mono.copy(fontSize = 12.sp, lineHeight = 18.sp, color = c.foreground)
+    val mono = RelayTheme.type.code.copy(fontSize = 12.sp, lineHeight = 18.sp, color = c.ink)
     if (line.mark == LineMark.Hunk) {
-        Text(line.text, Modifier.padding(start = gutter, top = 4.dp, bottom = 2.dp), style = mono, color = c.faint, maxLines = 1)
+        Text(line.text, Modifier.padding(start = gutter, top = 4.dp, bottom = 2.dp), style = mono, color = c.inkFaint, maxLines = 1)
         return
     }
     Row(Modifier.fillMaxWidth().background(tint)) {
@@ -203,7 +201,7 @@ private fun gutterText(line: WrittenLine, diff: Boolean): String {
 }
 
 private fun gutterColor(mark: LineMark, c: RelayColors) = when (mark) {
-    LineMark.Added -> c.additionText
-    LineMark.Removed -> c.deletionText
-    else -> c.faint
+    LineMark.Added -> c.added
+    LineMark.Removed -> c.removed
+    else -> c.inkFaint
 }

@@ -13,7 +13,6 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import dev.relay.android.ui.Spinner
-import dev.relay.android.ui.Text
 import dev.relay.android.ui.pressable
 import dev.relay.android.ui.theme.RelayTheme
 
@@ -26,13 +25,13 @@ internal fun StepsComing(messageId: String, load: suspend (String) -> Boolean) {
     var attempt by remember(messageId) { mutableIntStateOf(0) }
     var failed by remember(messageId) { mutableStateOf(false) }
     LaunchedEffect(messageId, attempt) { failed = !load(messageId) }
-    val muted = RelayTheme.colors.mutedForeground
-    Column(Modifier.padding(top = 6.dp)) {
+    val soft = RelayTheme.colors.inkSoft
+    Column(Modifier.padding(top = 4.dp)) {
         if (failed) Step(Modifier.pressable(onClick = { failed = false; attempt++ }, scale = false)) {
-            Text("Couldn't load the steps. Tap to try again.", color = muted)
+            StepText("Couldn't load the steps. Tap to try again.")
         } else Step {
-            Spinner(size = 14.dp, color = muted)
-            Text("Loading steps", color = muted)
+            Spinner(size = TraceIcon, color = soft)
+            StepText("Loading steps")
         }
     }
 }
