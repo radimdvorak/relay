@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.relay.android.ui.theme.RelayTheme
@@ -22,6 +23,8 @@ fun SectionLabel(
     modifier: Modifier = Modifier,
     count: String? = null,
     action: (@Composable () -> Unit)? = null,
+    /** Where a long label is cut: paths read best cut from the start. */
+    overflow: TextOverflow = TextOverflow.Ellipsis,
 ) {
     val c = RelayTheme.colors
     val style = RelayTheme.type.meta.copy(fontSize = 13.sp)
@@ -30,7 +33,7 @@ fun SectionLabel(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Text(text, Modifier.weight(1f), style = style, color = c.inkFaint, maxLines = 1)
+        Text(text, Modifier.weight(1f), style = style, color = c.inkFaint, maxLines = 1, overflow = overflow)
         if (count != null) Text(count, style = style, color = c.inkFaint)
         if (action != null) action()
     }
