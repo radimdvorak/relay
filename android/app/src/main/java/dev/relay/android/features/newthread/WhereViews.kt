@@ -1,237 +1,198 @@
 package dev.relay.android.features.newthread
 
-import androidx.compose.foundation.background
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.staticCompositionLocalOf
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import dev.relay.android.lib.navigation.NEW_THREAD_GREETING
 import dev.relay.android.remote.model.RemoteChatSummary
-import dev.relay.android.features.home.computerLine
 import dev.relay.android.remote.model.RemoteProject
+import dev.relay.android.ui.EmptyGreeting
 import dev.relay.android.ui.Icon
-import dev.relay.android.ui.ListGroup
+import dev.relay.android.ui.ListInset
 import dev.relay.android.ui.ListRow
 import dev.relay.android.ui.ProjectBadge
-import dev.relay.android.ui.SectionHeader
-import dev.relay.android.ui.Sheet
+import dev.relay.android.ui.RowSize
+import dev.relay.android.ui.SectionLabel
+import dev.relay.android.ui.Spinner
 import dev.relay.android.ui.Text
 import dev.relay.android.ui.pressable
+import dev.relay.android.ui.sharedBox
 import dev.relay.android.ui.theme.RelayTheme
 import io.github.lyxnx.compose.ui.tablericons.TablerIcons
-import io.github.lyxnx.compose.ui.tablericons.outline.Check
 import io.github.lyxnx.compose.ui.tablericons.outline.ChevronDown
-import io.github.lyxnx.compose.ui.tablericons.outline.Folder
-import io.github.lyxnx.compose.ui.tablericons.outline.GitBranch
-import io.github.lyxnx.compose.ui.tablericons.outline.Notebook
-import dev.relay.android.ui.ListInset
-import dev.relay.android.ui.Spinner
 import io.github.lyxnx.compose.ui.tablericons.outline.HelpCircle
 import io.github.lyxnx.compose.ui.tablericons.outline.Message
+import io.github.lyxnx.compose.ui.tablericons.outline.Notebook
 
 // mobile/src/ui/NewThreadWhere.tsx: where a new thread starts and works.
 
-enum class WhereSheet { Project, Workspace }
-
-private class WorkspaceOption(val value: String, val label: String, val hint: String)
-
-private val workspaces = listOf(
-    WorkspaceOption("checkout", "Project folder", "Works in the checkout, on whatever branch it has."),
-    WorkspaceOption(
-        "worktree", "Its own worktree",
-        "A branch and folder of its own, made from the checkout with the first message. Your checkout stays as it is.",
-    ),
-)
-private const val SCRATCH_HINT = "A chat of its own, outside your projects"
-
-/**
- * Over a new thread's composer, in reach of the thumb: the project it starts
- * in and, for a Git project, where it works. Each opens a sheet.
- */
 /** A project's badge here; the app hands in Home's, which shows the project's own icon. */
 val LocalProjectBadge = staticCompositionLocalOf<@Composable (RemoteProject, Dp) -> Unit> {
     { project, size -> ProjectBadge(project.name, size = size) }
 }
 
+/**
+ * Over a new thread's composer, in reach of the thumb: the project it starts in and, for a Git
+ * project, where it works. Each opens a sheet.
+ */
 @Composable
 fun WhereLine(project: RemoteProject?, picked: Where?, workspace: String, onOpen: (WhereSheet) -> Unit) {
     val c = RelayTheme.colors
     val name = if (picked == SCRATCH) "Scratchpad" else project?.name ?: "Projects…"
-    Row(Modifier.fillMaxWidth().padding(horizontal = 2.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        Row(
-            Modifier.weight(1f, fill = false).heightIn(min = 34.dp)
-                .pressable(onClick = { onOpen(WhereSheet.Project) }, role = Role.Button)
-                .background(c.tool, CircleShape)
-                .semantics { contentDescription = "Project: $name" }
-                .padding(horizontal = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-        ) {
-            if (picked == SCRATCH) Icon(TablerIcons.Outline.Notebook, null, size = 15.dp, tint = c.mutedForeground)
-            else if (project != null) LocalProjectBadge.current(project, 15.dp)
-            Text(
-                name, Modifier.weight(1f, fill = false),
-                style = RelayTheme.type.sm.copy(fontWeight = FontWeight.SemiBold), maxLines = 1, overflow = TextOverflow.Ellipsis,
-            )
-            Icon(TablerIcons.Outline.ChevronDown, null, size = 13.dp, tint = c.faint)
+    Row(Modifier.fillMaxWidth().padding(horizontal = 6.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+        Choice("Project: $name", name, strong = true, Modifier.weight(1f, fill = false), { onOpen(WhereSheet.Project) }) {
+            if (picked == SCRATCH) Icon(TablerIcons.Outline.Notebook, null, size = 18.dp, tint = c.inkSoft)
+            else if (project != null) LocalProjectBadge.current(project, 18.dp)
         }
-        if (project != null && project.plain != true) {
-            val label = if (workspace == "worktree") "Own worktree" else "Project folder"
-            Row(
-                Modifier.heightIn(min = 34.dp)
-                    .pressable(onClick = { onOpen(WhereSheet.Workspace) }, role = Role.Button)
-                    .background(c.tool, CircleShape)
-                    .semantics { contentDescription = "Works in: ${workspaceLabel(workspace)}" }
-                    .padding(horizontal = 12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-            ) {
-                Icon(if (workspace == "worktree") TablerIcons.Outline.GitBranch else TablerIcons.Outline.Folder, null, size = 14.dp, tint = c.mutedForeground)
-                Text(label, style = RelayTheme.type.xs, color = c.mutedForeground, maxLines = 1)
-                Icon(TablerIcons.Outline.ChevronDown, null, size = 12.dp, tint = c.faint)
+        val option = workspaceOption(workspace)
+        if (project != null && project.plain != true && option != null) {
+            val short = if (option.value == "worktree") "Own worktree" else option.label
+            Choice("Works in: ${option.label}", short, strong = false, Modifier, { onOpen(WhereSheet.Workspace) }) {
+                Icon(option.icon, null, size = 18.dp, tint = c.inkSoft)
             }
         }
     }
 }
 
-/** Its sidebar folder and, for one on another computer, which: "Work · On thinkcenter". */
-private fun projectPlace(project: RemoteProject?): String? =
-    listOfNotNull(project?.folder?.takeIf(String::isNotEmpty), computerLine(project?.computer))
-        .joinToString(" · ").ifEmpty { null }
-
-/** What the picks mean, in the room the keyboard leaves; tapping it changes the project, or asks again for a Scratchpad that failed. */
+/** A choice as plain text with its icon, so the two sit quietly over the composer's own chips. */
 @Composable
-fun ColumnScope.WhereIntro(
-    project: RemoteProject?,
-    picked: Where?,
-    workspace: String,
-    scratchError: String?,
-    onOpen: (WhereSheet) -> Unit,
-    onRetryScratch: () -> Unit,
+private fun Choice(
+    label: String,
+    text: String,
+    strong: Boolean,
+    modifier: Modifier,
+    onClick: () -> Unit,
+    icon: @Composable () -> Unit,
 ) {
     val c = RelayTheme.colors
-    if (picked == null) return
+    Row(
+        modifier.heightIn(min = 44.dp).semantics { contentDescription = label }.pressable(onClick = onClick, role = Role.Button),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        icon()
+        Text(
+            text, Modifier.weight(1f, fill = false),
+            style = RelayTheme.type.meta.copy(fontWeight = if (strong) FontWeight.Medium else FontWeight.Normal),
+            color = if (strong) c.ink else c.inkSoft,
+            maxLines = 1,
+        )
+        Icon(TablerIcons.Outline.ChevronDown, null, size = 14.dp, tint = c.inkFaint)
+    }
+}
+
+/** The room the greeting keeps; the project's latest threads take what's left. */
+private val GreetingRoom = 150.dp
+
+/** Less than this and a list of threads isn't one. */
+private val LeastRecent = 96.dp
+
+/**
+ * Over the composer: the greeting, and under it the project's latest open threads for when the one
+ * to go on with already exists. The keyboard covers the end of those first.
+ */
+@Composable
+fun NewThreadIntro(
+    project: RemoteProject?,
+    picked: Where?,
+    scratchError: String?,
+    recent: List<RemoteChatSummary>,
+    onRetryScratch: () -> Unit,
+    onOpenRecent: (RemoteChatSummary) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    BoxWithConstraints(modifier.fillMaxWidth()) {
+        val recentRoom = maxHeight - GreetingRoom
+        Column(Modifier.fillMaxSize()) {
+            Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                Greeting(project, picked, scratchError, onRetryScratch)
+            }
+            if (recent.isNotEmpty() && recentRoom >= LeastRecent)
+                RecentThreads(recent, onOpenRecent, Modifier.heightIn(max = recentRoom))
+        }
+    }
+}
+
+@Composable
+private fun Greeting(project: RemoteProject?, picked: Where?, scratchError: String?, onRetryScratch: () -> Unit) {
+    val c = RelayTheme.colors
     val scratch = picked == SCRATCH
     val failed = scratch && scratchError != null
-    val hint = when {
-        scratch -> scratchError ?: SCRATCH_HINT
-        project?.plain == true -> null
-        else -> workspaces.find { it.value == workspace }?.hint
+    val line = when {
+        failed -> "$scratchError Tap to try again."
+        scratch -> SCRATCH_HINT
+        else -> projectPlace(project)
     }
     Column(
-        Modifier.weight(1f).fillMaxWidth()
-            .pressable(onClick = if (failed) onRetryScratch else ({ onOpen(WhereSheet.Project) }), role = Role.Button, scale = false)
-            .padding(start = 32.dp, end = 32.dp, bottom = 20.dp),
-        verticalArrangement = Arrangement.spacedBy(6.dp, Alignment.Bottom),
+        Modifier.fillMaxWidth()
+            .then(if (failed) Modifier.pressable(onClick = onRetryScratch, role = Role.Button, scale = false) else Modifier),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        if (scratch) Icon(TablerIcons.Outline.Notebook, null, size = 28.dp, tint = c.mutedForeground)
-        else if (project != null) LocalProjectBadge.current(project, 28.dp)
-        Text(if (scratch) "Scratchpad" else project?.name.orEmpty(), style = RelayTheme.type.lg.copy(fontWeight = FontWeight.SemiBold), maxLines = 1, overflow = TextOverflow.Ellipsis)
-        val place = if (scratch) null else projectPlace(project)
-        if (place != null) Text(place, style = RelayTheme.type.xs, color = c.faint, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        if (hint != null) Text(
-            if (failed) "$hint Tap to try again." else hint,
-            style = RelayTheme.type.sm, color = if (failed) c.destructive else c.mutedForeground, textAlign = TextAlign.Center,
+        EmptyGreeting(
+            Modifier.sharedBox(NEW_THREAD_GREETING, RectangleShape),
+            text = if (scratch) "Ask anything" else "What should we work on?",
+        )
+        if (line != null) Text(
+            line, Modifier.padding(horizontal = 40.dp),
+            style = RelayTheme.type.meta, color = if (failed) c.danger else c.inkSoft, textAlign = TextAlign.Center, maxLines = 3,
         )
     }
 }
 
-/** The project's latest open threads in place of the intro, for when the thread to go on with already exists. */
 @Composable
-fun ColumnScope.RecentThreads(chats: List<RemoteChatSummary>, onOpen: (RemoteChatSummary) -> Unit) {
-    Column(
-        Modifier.weight(1f).fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = ListInset, vertical = 8.dp),
-        verticalArrangement = Arrangement.Bottom,
-    ) {
-        SectionHeader("Recent threads", count = chats.size)
-        ListGroup {
-            chats.forEach { chat ->
-                ListRow(
-                    chat.title.ifEmpty { "New thread" },
-                    subtitle = when {
-                        chat.waiting == true -> "Waiting for you"
-                        chat.running == true -> "Working"
-                        else -> null
-                    },
-                    leading = {
-                        when {
-                            chat.waiting == true -> Icon(TablerIcons.Outline.HelpCircle, null, size = 16.dp, tint = RelayTheme.colors.accent)
-                            chat.running == true -> Spinner(size = 13.dp, color = RelayTheme.colors.mutedForeground)
-                            else -> Icon(TablerIcons.Outline.Message, null, size = 16.dp, tint = RelayTheme.colors.mutedForeground)
-                        }
-                    },
-                    onClick = { onOpen(chat) },
-                )
-            }
-        }
-    }
-}
-
-/** The project list, or the workspace choice. */
-@Composable
-fun WhereSheets(
-    open: WhereSheet?,
-    projects: List<RemoteProject>,
-    picked: Where?,
-    workspace: String,
-    onPick: (Where) -> Unit,
-    onWorkspace: (String) -> Unit,
-    onClose: () -> Unit,
-) {
+private fun RecentThreads(chats: List<RemoteChatSummary>, onOpen: (RemoteChatSummary) -> Unit, modifier: Modifier) {
     val c = RelayTheme.colors
-    val check: @Composable (Boolean) -> (@Composable () -> Unit)? = { on -> if (on) ({ Icon(TablerIcons.Outline.Check, null, tint = c.accent) }) else null }
-    when (open) {
-        WhereSheet.Project -> Sheet(onClose, title = "Start in") {
-            ListGroup {
-                ListRow(
-                    "Scratchpad", subtitle = SCRATCH_HINT, selected = picked == SCRATCH,
-                    leading = { Icon(TablerIcons.Outline.Notebook, null, size = 17.dp, tint = c.mutedForeground) },
-                    trailing = check(picked == SCRATCH),
-                    onClick = { onClose(); onPick(SCRATCH) },
-                )
-                projects.forEach { p ->
-                    ListRow(
-                        p.name, subtitle = projectPlace(p), selected = p.id == picked,
-                        leading = { LocalProjectBadge.current(p, 17.dp) },
-                        trailing = check(p.id == picked),
-                        onClick = { onClose(); onPick(p.id) },
-                    )
+    val scroll = rememberScrollState()
+    Column(modifier.fillMaxWidth().fadeEnd(scroll).verticalScroll(scroll).padding(horizontal = ListInset)) {
+        SectionLabel("Or carry on")
+        for (chat in chats) ListRow(
+            chat.title.ifEmpty { "New thread" },
+            size = RowSize.Sm,
+            leading = {
+                when {
+                    chat.waiting == true -> Icon(TablerIcons.Outline.HelpCircle, "Waiting for you", size = 20.dp, tint = c.waiting)
+                    chat.running == true -> Spinner(size = 16.dp, color = c.inkSoft)
+                    else -> Icon(TablerIcons.Outline.Message, null, size = 20.dp, tint = c.inkSoft)
                 }
-            }
-        }
-        WhereSheet.Workspace -> Sheet(onClose, title = "Where it works") {
-            ListGroup {
-                workspaces.forEach { w ->
-                    ListRow(
-                        w.label, subtitle = w.hint, selected = w.value == workspace, subtitleLines = 3,
-                        leading = { Icon(if (w.value == "worktree") TablerIcons.Outline.GitBranch else TablerIcons.Outline.Folder, null, size = 17.dp, tint = c.mutedForeground) },
-                        trailing = check(w.value == workspace),
-                        onClick = { onClose(); onWorkspace(w.value) },
-                    )
-                }
-            }
-        }
-        null -> {}
+            },
+            onClick = { onOpen(chat) },
+        )
     }
 }
 
-private fun workspaceLabel(w: String) = workspaces.find { it.value == w }?.label ?: w
+/** Fades the last rows out while there's more under them. */
+private fun Modifier.fadeEnd(scroll: ScrollState) = graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
+    .drawWithContent {
+        drawContent()
+        if (!scroll.canScrollForward) return@drawWithContent
+        val fade = Brush.verticalGradient(listOf(Color.Black, Color.Transparent), startY = size.height - 32.dp.toPx(), endY = size.height)
+        drawRect(fade, blendMode = BlendMode.DstIn)
+    }

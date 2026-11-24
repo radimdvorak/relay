@@ -1,6 +1,5 @@
 package dev.relay.android.features.newthread
 
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -21,6 +20,7 @@ import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import dev.relay.android.features.composer.ComposerCore
+import dev.relay.android.features.composer.ComposerHandle
 import dev.relay.android.features.composer.ComposerSaves
 import dev.relay.android.features.composer.SavedNewThread
 import dev.relay.android.features.composer.UnsentDrafts
@@ -63,10 +63,12 @@ import dev.relay.android.remote.files.FileSink
 import dev.relay.android.remote.files.bodyWithFiles
 import dev.relay.android.remote.files.deleteCopies
 import dev.relay.android.remote.files.uploadAll
+import dev.relay.android.lib.navigation.ComposerStart
 import dev.relay.android.lib.navigation.NEW_THREAD_MORPH
-import dev.relay.android.ui.Screen
+import dev.relay.android.lib.navigation.NextComposerStart
 import dev.relay.android.ui.screenSettled
-import dev.relay.android.ui.sharedButton
+import dev.relay.android.ui.sharedBox
+import dev.relay.android.ui.theme.RelayTheme
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.launch
@@ -276,17 +278,29 @@ private fun NewThreadComposer(route: Route.NewThread, remote: Remote, active: St
         return true
     }
 
-    Screen("New thread", onBack = navigator.backAction) {
-        if (recent.isNotEmpty()) RecentThreads(recent) { open(it.id) }
-        else WhereIntro(
+    val composer = remember { ComposerHandle() }
+    val start = remember { NextComposerStart.take() }
+    // The composer is still growing out of Home's; a sheet or the keyboard would pull it off its path.
+    val settled = screenSettled()
+    LaunchedEffect(settled) {
+        if (!settled) return@LaunchedEffect
+        when (start) {
+            ComposerStart.Type -> {}
+            ComposerStart.Attach -> composer.openAttach()
+            ComposerStart.Dictate -> composer.dictate()
+        }
+    }
+
+    NewThreadFrame(navigator.backAction) {
+        NewThreadIntro(
             project = chosen,
             picked = picked,
-            workspace = workspace,
             scratchError = if (picked == SCRATCH) scratchError else null,
-            onOpen = ::openSheet,
+            recent = recent,
             onRetryScratch = { askScratch() },
+            onOpenRecent = { open(it.id) },
+            modifier = Modifier.weight(1f),
         )
-        if (recent.isEmpty() && picked == null) Spacer(Modifier.weight(1f))
         ComposerCore(
             remote = remote,
             projectId = projectId.orEmpty(),
@@ -315,14 +329,15 @@ private fun NewThreadComposer(route: Route.NewThread, remote: Remote, active: St
             running = false,
             modifier = Modifier.fillMaxWidth(),
             disabled = !online,
-            placeholder = if (picked == SCRATCH) "Ask anything" else "What should we work on?",
+            placeholder = if (picked == SCRATCH) "Ask anything" else "Message",
             onSend = ::start,
             draftKey = draftKey,
             sendTarget = "${picked.orEmpty()}:$workspace",
             remembered = models,
-            autoFocus = screenSettled(),
-            // Home's New thread button, flown down into the composer, until it has sent.
-            newThreadSend = Modifier.sharedButton(NEW_THREAD_MORPH),
+            handle = composer,
+            autoFocus = settled && start == ComposerStart.Type,
+            // Home's composer pill, grown into this one.
+            boxModifier = Modifier.sharedBox(NEW_THREAD_MORPH, RelayTheme.shapes.composer),
             above = { WhereLine(chosen, picked, workspace, ::openSheet) },
         )
     }
