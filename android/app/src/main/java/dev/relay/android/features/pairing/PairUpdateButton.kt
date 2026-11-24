@@ -1,4 +1,4 @@
-package dev.relay.android.features.updates
+package dev.relay.android.features.pairing
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -23,15 +23,17 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathMeasure
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.unit.dp
-import dev.relay.android.ui.ButtonSize
-import dev.relay.android.ui.ButtonVariant
-import dev.relay.android.ui.IconButton
+import dev.relay.android.features.updates.ApkInstall
+import dev.relay.android.features.updates.AppOfferRow
+import dev.relay.android.features.updates.InstalledAppRow
+import dev.relay.android.features.updates.LookForAppRow
+import dev.relay.android.features.updates.Updates
+import dev.relay.android.features.updates.about
+import dev.relay.android.features.updates.appOffer
 import dev.relay.android.ui.ListGroup
-import dev.relay.android.ui.ListRow
 import dev.relay.android.ui.Sheet
 import dev.relay.android.ui.theme.RelayTheme
 import io.github.lyxnx.compose.ui.tablericons.TablerIcons
-import io.github.lyxnx.compose.ui.tablericons.outline.DeviceMobile
 import io.github.lyxnx.compose.ui.tablericons.outline.Download
 
 /**
@@ -40,35 +42,30 @@ import io.github.lyxnx.compose.ui.tablericons.outline.Download
  * a download's progress once one was asked for. Opens Settings' update rows.
  */
 @Composable
-fun AppUpdateButton(updates: Updates, modifier: Modifier = Modifier) {
-    val latest by updates.latest.state.collectAsState()
+internal fun PairUpdateButton(updates: Updates, modifier: Modifier = Modifier) {
     val apk by updates.installer.state.collectAsState()
     var open by remember { mutableStateOf(false) }
-    val offer = updates.latest.offer(latest) ?: return
+    val offer = appOffer(updates) ?: return
     // A quiet prefetch isn't something the user started, so it shows no ring.
     val progress = (apk.about(offer.version) as? ApkInstall.Downloading)?.takeIf { !it.quiet }?.done
     val c = RelayTheme.colors
     Box(modifier) {
-        IconButton(
+        PairIconButton(
             TablerIcons.Outline.Download,
             "Update to Relay ${offer.version}",
             { open = true },
             Modifier.progressRing(progress, c.accent),
-            variant = ButtonVariant.Secondary,
         )
         if (progress == null) Box(
             Modifier.align(Alignment.TopEnd).offset((-4).dp, 4.dp).size(11.dp)
-                .border(2.dp, c.muted, CircleShape).padding(2.dp).background(c.accent, CircleShape),
+                .border(2.dp, c.tool, CircleShape).padding(2.dp).background(c.accent, CircleShape),
         )
     }
     if (open) Sheet({ open = false }) {
         ListGroup {
-            ListRow(
-                "Relay ${updates.installed}",
-                subtitle = "As installed; new versions come from GitHub.",
-                leadingIcon = TablerIcons.Outline.DeviceMobile,
-            )
-            LatestAppRows(updates)
+            InstalledAppRow(updates)
+            AppOfferRow(updates, offer)
+            LookForAppRow(updates)
         }
     }
 }
@@ -79,7 +76,7 @@ private fun Modifier.progressRing(progress: Float?, color: Color) = drawWithCont
     if (progress == null) return@drawWithContent
     val stroke = 2.dp.toPx()
     val inset = stroke / 2
-    val radius = ButtonSize.Default.radius.toPx() - inset
+    val radius = PairCorner.toPx() - inset
     val outline = Path().apply {
         addRoundRect(RoundRect(inset, inset, size.width - inset, size.height - inset, CornerRadius(radius)))
     }

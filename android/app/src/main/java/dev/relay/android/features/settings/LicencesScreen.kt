@@ -12,12 +12,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import dev.relay.android.lib.navigation.LocalNavigator
 import dev.relay.android.lib.navigation.backAction
-import dev.relay.android.ui.ListInset
-import dev.relay.android.ui.Screen
+import dev.relay.android.ui.Page
+import dev.relay.android.ui.navBarRoom
 import dev.relay.android.ui.theme.RelayTheme
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -43,21 +42,21 @@ fun LicencesScreen() {
         }
     }
     val c = RelayTheme.colors
-    Screen("Open-source licences", onBack = nav.backAction) {
+    Page("Open-source licences", onBack = nav.backAction) {
         SelectionContainer {
-            LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(start = ListInset, end = ListInset, bottom = 24.dp)) {
+            LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(start = 24.dp, end = 24.dp, bottom = 24.dp + navBarRoom())) {
                 items(blocks) { block ->
                     if (block.heading) Text(
                         block.text,
                         Modifier.padding(top = 20.dp, bottom = 8.dp),
-                        style = RelayTheme.type.base.copy(fontWeight = FontWeight.Medium),
-                        color = c.foreground,
+                        style = RelayTheme.type.heading,
+                        color = c.ink,
                     )
                     else Text(
                         block.text,
                         Modifier.padding(bottom = 10.dp),
-                        style = RelayTheme.type.sm,
-                        color = c.mutedForeground,
+                        style = RelayTheme.type.meta,
+                        color = c.inkSoft,
                     )
                 }
             }

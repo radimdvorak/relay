@@ -5,6 +5,7 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.keyframes
+import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
@@ -30,12 +31,15 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.painterResource
@@ -49,6 +53,7 @@ import androidx.compose.ui.unit.sp
 import dev.relay.android.R
 import dev.relay.android.ui.Haptic
 import dev.relay.android.ui.Text
+import dev.relay.android.ui.pressedFill
 import dev.relay.android.ui.rememberHaptics
 import dev.relay.android.ui.theme.Motion
 import dev.relay.android.ui.theme.RelayTheme
@@ -81,7 +86,7 @@ fun PinPad(
 ) {
     val c = RelayTheme.colors
     Column(
-        modifier.fillMaxSize().background(c.background).windowInsetsPadding(WindowInsets.safeDrawing),
+        modifier.fillMaxSize().background(c.surface).windowInsetsPadding(WindowInsets.safeDrawing),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Box(Modifier.fillMaxWidth().height(56.dp)) { top?.invoke() }
@@ -89,12 +94,12 @@ fun PinPad(
         // The mark sits in the middle of a mostly empty square, as the splash draws it.
         Image(painterResource(R.drawable.splash_mark), null, Modifier.requiredSize(150.dp))
         Spacer(Modifier.height(4.dp))
-        Text(title, style = RelayTheme.type.xl.copy(fontWeight = FontWeight.SemiBold), textAlign = TextAlign.Center)
+        Text(title, style = RelayTheme.type.greeting, textAlign = TextAlign.Center)
         Text(
             line ?: "",
             Modifier.padding(top = 6.dp, start = 32.dp, end = 32.dp).heightIn(min = 40.dp),
-            style = RelayTheme.type.sm,
-            color = if (error || warn) c.destructive else c.mutedForeground,
+            style = RelayTheme.type.meta,
+            color = if (error || warn) c.danger else c.inkSoft,
             textAlign = TextAlign.Center,
             maxLines = 2,
         )
@@ -133,9 +138,9 @@ private fun Dot(filled: Boolean, error: Boolean) {
     val c = RelayTheme.colors
     val fill by animateColorAsState(
         when {
-            error -> c.destructive
-            filled -> c.foreground
-            else -> c.foreground.copy(alpha = 0f)
+            error -> c.danger
+            filled -> c.ink
+            else -> c.ink.copy(alpha = 0f)
         },
         tween(Motion.FAST), label = "dot",
     )
@@ -145,7 +150,7 @@ private fun Dot(filled: Boolean, error: Boolean) {
     )
     Box(
         Modifier.size(13.dp).graphicsLayer { scaleX = scale; scaleY = scale }
-            .border(1.5.dp, c.foreground.copy(alpha = if (filled || error) 0f else 0.25f), CircleShape)
+            .border(1.5.dp, c.ink.copy(alpha = if (filled || error) 0f else 0.25f), CircleShape)
             .background(fill, CircleShape),
     )
 }
@@ -171,34 +176,35 @@ private fun Keypad(enabled: Boolean, onDigit: (Char) -> Unit, onDelete: () -> Un
 @Composable
 private fun DigitKey(digit: Char, enabled: Boolean, onClick: () -> Unit) {
     KeyBox(filled = true, label = "$digit", enabled = enabled, onClick = onClick) {
-        Text("$digit", style = RelayTheme.type.base.copy(fontSize = 30.sp, fontWeight = FontWeight.Normal))
+        Text("$digit", style = RelayTheme.type.title.copy(fontSize = 30.sp, fontWeight = FontWeight.Normal))
     }
 }
 
 @Composable
 private fun IconKey(icon: ImageVector, label: String, enabled: Boolean, onClick: () -> Unit) {
     KeyBox(filled = false, label = label, enabled = enabled, onClick = onClick) {
-        Icon(icon, null, Modifier.size(28.dp), tint = RelayTheme.colors.foreground)
+        Icon(icon, null, Modifier.size(28.dp), tint = RelayTheme.colors.ink)
     }
 }
 
+/** A round key; held, it turns into a rounded square, as Android's own lock does. */
 @Composable
 private fun KeyBox(filled: Boolean, label: String, enabled: Boolean, onClick: () -> Unit, content: @Composable () -> Unit) {
     val c = RelayTheme.colors
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
-    val fill by animateColorAsState(
-        when {
-            pressed -> c.foreground.copy(alpha = 0.16f)
-            filled -> c.foreground.copy(alpha = 0.06f)
-            else -> c.foreground.copy(alpha = 0f)
-        },
-        tween(if (pressed) 40 else Motion.BASE), label = "key",
+    val resting = if (filled) c.tool else c.tool.copy(alpha = 0f)
+    val fill = animateColorAsState(
+        if (pressed) pressedFill(c.tool, c) else resting,
+        if (pressed) snap() else MaterialTheme.motionScheme.defaultEffectsSpec(), label = "key",
     )
-    val scale by animateFloatAsState(if (pressed) 0.94f else 1f, tween(Motion.FAST, easing = Motion.EaseOutQuint), label = "press")
+    val corner = animateFloatAsState(
+        if (pressed) HELD_CORNER else ROUND,
+        if (pressed) MaterialTheme.motionScheme.fastSpatialSpec() else MaterialTheme.motionScheme.defaultSpatialSpec(), label = "corner",
+    )
     Box(
-        Modifier.size(KEY).graphicsLayer { scaleX = scale; scaleY = scale; alpha = if (enabled) 1f else 0.4f }
-            .background(fill, CircleShape)
+        Modifier.size(KEY).graphicsLayer { alpha = if (enabled) 1f else 0.4f }
+            .drawBehind { drawRoundRect(fill.value, cornerRadius = CornerRadius(size.minDimension * corner.value)) }
             .clickable(interaction, null, enabled, role = Role.Button, onClickLabel = label, onClick = onClick)
             .semantics { contentDescription = label },
         contentAlignment = Alignment.Center,
@@ -206,3 +212,7 @@ private fun KeyBox(filled: Boolean, label: String, enabled: Boolean, onClick: ()
 }
 
 private val KEY = 76.dp
+
+/** Corner radii as a share of the key. */
+private const val ROUND = 0.5f
+private const val HELD_CORNER = 0.28f

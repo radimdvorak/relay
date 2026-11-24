@@ -9,8 +9,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.CornerSize
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.unit.dp
 import dev.relay.android.ui.theme.RelayShapes
 import dev.relay.android.ui.theme.RelayTheme
@@ -37,7 +39,9 @@ fun Group(modifier: Modifier = Modifier, label: String? = null, content: GroupSc
         Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
             rows.forEachIndexed { i, row ->
                 val shape = groupTileShape(first = i == 0, last = i == rows.lastIndex)
-                Box(Modifier.fillMaxWidth().clip(shape).background(RelayTheme.colors.container)) { row() }
+                Box(Modifier.fillMaxWidth().clip(shape).background(RelayTheme.colors.container)) {
+                    CompositionLocalProvider(LocalRowShape provides RectangleShape, content = row)
+                }
             }
         }
     }

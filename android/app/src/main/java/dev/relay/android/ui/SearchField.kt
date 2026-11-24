@@ -35,6 +35,7 @@ fun SearchField(
     placeholder: String = "Search",
     focusRequester: FocusRequester? = null,
     fill: Color = RelayTheme.colors.tool,
+    keyboardOptions: KeyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
 ) {
     val c = RelayTheme.colors
     val text = RelayTheme.type.row.copy(color = c.ink)
@@ -44,7 +45,7 @@ fun SearchField(
         modifier = modifier.then(if (focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier),
         textStyle = text,
         singleLine = true,
-        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+        keyboardOptions = keyboardOptions,
         cursorBrush = SolidColor(c.ink),
         decorationBox = { field ->
             Row(

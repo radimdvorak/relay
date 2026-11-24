@@ -18,8 +18,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
+import dev.relay.android.ui.theme.RelayColors
 import dev.relay.android.ui.theme.RelayTheme
 
 /** A 44×26 switch: strong track when on, tool when off; the knob rides inside. */
@@ -50,7 +52,14 @@ fun Switch(
     ) {
         Box(
             Modifier.offset(x = knob).size(20.dp).shadow(1.dp, CircleShape)
-                .background(if (checked) c.onStrong else c.raised, CircleShape),
+                .background(knobFill(checked, c), CircleShape),
         )
     }
+}
+
+/** Off in dark, the raised fill is as dark as the track: the knob takes the soft ink there. */
+private fun knobFill(checked: Boolean, c: RelayColors): Color = when {
+    checked -> c.onStrong
+    c.isDark -> c.inkSoft
+    else -> c.raised
 }

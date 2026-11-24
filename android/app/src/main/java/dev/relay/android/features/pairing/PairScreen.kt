@@ -60,13 +60,8 @@ import dev.relay.android.lib.navigation.LocalNavigator
 import dev.relay.android.remote.PairingLink
 import dev.relay.android.remote.Remote
 import dev.relay.android.remote.parsePairingUrl
-import dev.relay.android.features.updates.AppUpdateButton
 import dev.relay.android.features.updates.Updates
-import dev.relay.android.ui.Button
-import dev.relay.android.ui.ButtonSize
-import dev.relay.android.ui.ButtonVariant
 import dev.relay.android.ui.Icon
-import dev.relay.android.ui.IconButton
 import dev.relay.android.ui.Text
 import dev.relay.android.ui.pressable
 import dev.relay.android.ui.rememberReducedMotion
@@ -91,7 +86,12 @@ private const val NO_CAMERA = "Relay can't use the camera. Allow it in Android's
  * pairing going through. A relay-remote:// link (`link`) asks before pairing.
  */
 @Composable
-fun PairScreen(remote: Remote, updates: Updates, link: String?, stopRelay: () -> Unit) {
+fun PairScreen(remote: Remote, updates: Updates, link: String?, stopRelay: () -> Unit) = RelayTheme(PairColors) {
+    PairStage(remote, updates, link, stopRelay)
+}
+
+@Composable
+private fun PairStage(remote: Remote, updates: Updates, link: String?, stopRelay: () -> Unit) {
     val nav = LocalNavigator.current
     val context = LocalContext.current
     val uri = LocalUriHandler.current
@@ -165,11 +165,11 @@ fun PairScreen(remote: Remote, updates: Updates, link: String?, stopRelay: () ->
             val shown = face == PairingScan.Face.Pairing || (face == PairingScan.Face.Scan && covers)
             Text(
                 hint,
-                style = RelayTheme.type.sm.copy(
+                style = PairType.text.copy(
                     textAlign = TextAlign.Center,
                     shadow = if (covers) Shadow(Color.Black.copy(alpha = 0.5f), blurRadius = 12f) else null,
                 ),
-                color = if (covers) Color.White else c.mutedForeground,
+                color = if (covers) Color.White else c.inkSoft,
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 32.dp)
                     .offset(y = maxHeight * 0.623f - 10.dp)
                     .graphicsLayer { alpha = if (shown) 1f else 0f },
@@ -180,16 +180,15 @@ fun PairScreen(remote: Remote, updates: Updates, link: String?, stopRelay: () ->
         Box(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.systemBars.union(WindowInsets.displayCutout))) {
             Welcome(face == PairingScan.Face.Idle)
             val closeShown = face == PairingScan.Face.Scan || (face == PairingScan.Face.Idle && !firstRun)
-            if (closeShown) IconButton(
+            if (closeShown) PairIconButton(
                 TablerIcons.Outline.X,
                 if (face == PairingScan.Face.Scan) "Close camera" else "Close",
                 { if (face == PairingScan.Face.Scan) scan.close() else nav.pop() },
                 Modifier.padding(start = 16.dp, top = 8.dp),
-                variant = ButtonVariant.Secondary,
                 tint = if (covers) Color.White else null,
             )
             // Paired, updates are in Settings; with nothing paired this is the only way to them.
-            if (face == PairingScan.Face.Idle && computers.isEmpty()) AppUpdateButton(
+            if (face == PairingScan.Face.Idle && computers.isEmpty()) PairUpdateButton(
                 updates,
                 Modifier.align(Alignment.TopEnd).padding(end = 16.dp, top = 8.dp),
             )
@@ -215,29 +214,27 @@ fun PairScreen(remote: Remote, updates: Updates, link: String?, stopRelay: () ->
                         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
                             val target = linked
                             if (target != null) {
-                                Button("Pair", { pair(target) }, Modifier.fillMaxWidth(), size = ButtonSize.Lg, loading = pairing)
+                                PairButton("Pair", { pair(target) }, Modifier.fillMaxWidth(), loading = pairing)
                             } else {
-                                Button(
+                                PairButton(
                                     "Scan code",
                                     {
                                         error = null
                                         if (cameraAllowed(context)) scan.start() else ask.launch(Manifest.permission.CAMERA)
                                     },
                                     Modifier.fillMaxWidth(),
-                                    size = ButtonSize.Lg,
-                                    leadingIcon = TablerIcons.Outline.Camera,
+                                    icon = TablerIcons.Outline.Camera,
                                     enabled = !pairing,
                                 )
-                                Button(
+                                PairButton(
                                     "Paste a pairing link",
                                     {
                                         val parsed = parsePairingUrl(clipboardText(context))
                                         if (parsed != null) pair(parsed) else pasting = true
                                     },
                                     Modifier.fillMaxWidth(),
-                                    variant = ButtonVariant.Outline,
-                                    size = ButtonSize.Lg,
-                                    leadingIcon = TablerIcons.Outline.Clipboard,
+                                    outline = true,
+                                    icon = TablerIcons.Outline.Clipboard,
                                     enabled = !pairing,
                                 )
                             }
@@ -247,21 +244,21 @@ fun PairScreen(remote: Remote, updates: Updates, link: String?, stopRelay: () ->
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(4.dp),
                             ) {
-                                Text("Away from home? ", style = RelayTheme.type.xs, color = c.mutedForeground)
-                                Text("Get Tailscale", style = RelayTheme.type.xs.copy(fontWeight = FontWeight.Medium))
-                                Icon(TablerIcons.Outline.ExternalLink, null, tint = c.mutedForeground, size = 12.dp)
+                                Text("Away from home? ", style = PairType.small, color = c.inkSoft)
+                                Text("Get Tailscale", style = PairType.small.copy(fontWeight = FontWeight.Medium))
+                                Icon(TablerIcons.Outline.ExternalLink, null, tint = c.inkSoft, size = 12.dp)
                             }
                             // Paired, it's in Settings; with nothing paired this is the only way to stop.
                             if (computers.isEmpty()) Text(
                                 "Stop Relay",
                                 Modifier.pressable(stopRelay, role = Role.Button).padding(vertical = 4.dp),
-                                style = RelayTheme.type.xs,
-                                color = c.mutedForeground,
+                                style = PairType.small,
+                                color = c.inkSoft,
                             )
                         }
                     }
                     Shown(face == PairingScan.Face.Paired, away = 46.dp) {
-                        Button("Continue", { nav.home() }, Modifier.fillMaxWidth(), size = ButtonSize.Lg)
+                        PairButton("Continue", { nav.home() }, Modifier.fillMaxWidth())
                     }
                 }
             }
@@ -276,8 +273,8 @@ private fun Welcome(on: Boolean) {
     Shown(on, away = (-12).dp, Modifier.fillMaxWidth().padding(top = 8.dp)) {
         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Image(painterResource(R.drawable.splash_mark), null, Modifier.size(56.dp))
-            Text("Relay", style = RelayTheme.type.xxl.copy(fontSize = 34.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = (-0.6).sp))
-            Text("Your agents, in your pocket", style = RelayTheme.type.sm, color = RelayTheme.colors.mutedForeground)
+            Text("Relay", style = PairType.heading.copy(fontSize = 34.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = (-0.6).sp))
+            Text("Your agents, in your pocket", style = PairType.text, color = RelayTheme.colors.inkSoft)
         }
     }
 }
@@ -285,12 +282,12 @@ private fun Welcome(on: Boolean) {
 @Composable
 private fun Copy(title: String, text: String, error: String?) {
     Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(title, style = RelayTheme.type.xxl.copy(textAlign = TextAlign.Center))
-        Text(text, style = RelayTheme.type.sm.copy(lineHeight = 20.sp, textAlign = TextAlign.Center), color = RelayTheme.colors.mutedForeground)
+        Text(title, style = PairType.heading.copy(textAlign = TextAlign.Center))
+        Text(text, style = PairType.text.copy(lineHeight = 20.sp, textAlign = TextAlign.Center), color = RelayTheme.colors.inkSoft)
         if (error != null) Text(
             error,
-            style = RelayTheme.type.xs.copy(textAlign = TextAlign.Center),
-            color = RelayTheme.colors.destructive,
+            style = PairType.small.copy(textAlign = TextAlign.Center),
+            color = RelayTheme.colors.danger,
             modifier = Modifier.padding(top = 4.dp),
         )
     }

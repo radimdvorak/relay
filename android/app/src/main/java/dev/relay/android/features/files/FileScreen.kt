@@ -1,8 +1,9 @@
 package dev.relay.android.features.files
 
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -27,8 +28,8 @@ import dev.relay.android.lib.navigation.backAction
 import dev.relay.android.remote.Remote
 import dev.relay.android.remote.client.projectFile
 import dev.relay.android.remote.model.LocalFile
-import dev.relay.android.ui.Divider
-import dev.relay.android.ui.Screen
+import dev.relay.android.ui.Page
+import dev.relay.android.ui.navBarRoom
 import dev.relay.android.ui.Text
 import dev.relay.android.ui.theme.RelayTheme
 import kotlinx.coroutines.CancellationException
@@ -59,34 +60,35 @@ fun FileScreen(remote: Remote, where: String, path: String) {
     val live = rememberLive(remote)
     LaunchedEffect(live) { if (live && model.file.value == null) model.load() }
 
-    Screen(path.substringAfterLast('/'), onBack = nav.backAction) {
+    Page(path.substringAfterLast('/'), onBack = nav.backAction) {
         Text(
             path + (file?.branch?.takeIf { it.isNotEmpty() }?.let { "  ·  $it" } ?: ""),
-            Modifier.fillMaxWidth().padding(horizontal = 16.dp).padding(bottom = 8.dp),
-            style = RelayTheme.type.monoSm,
-            color = c.mutedForeground,
+            Modifier.fillMaxWidth().padding(start = 18.dp, end = 18.dp, top = 16.dp, bottom = 10.dp),
+            style = RelayTheme.type.codeSmall,
+            color = c.inkSoft,
             maxLines = 1,
             overflow = TextOverflow.StartEllipsis,
         )
-        Divider()
         val now = file
         when {
             now == null && error != null -> LoadFailed(error!!, model::load)
             now == null -> Loading()
-            else -> Column(Modifier.fillMaxSize()) {
-                val total = remember(now) { now.contents.split('\n').size }
-                Code(now.contents, path, Modifier.weight(1f))
-                if (total > MAX_CODE_LINES) {
-                    Divider()
-                    Text(
-                        "Showing the first $MAX_CODE_LINES of $total lines.",
-                        Modifier.fillMaxWidth().padding(12.dp),
-                        style = RelayTheme.type.xs,
-                        color = c.mutedForeground,
-                        textAlign = TextAlign.Center,
-                    )
-                }
-            }
+            else -> FileContents(now, path)
         }
     }
+}
+
+@Composable
+internal fun ColumnScope.FileContents(file: LocalFile, path: String) {
+    val total = remember(file) { file.contents.split('\n').size }
+    val cut = total > MAX_CODE_LINES
+    Code(file.contents, path, Modifier.weight(1f).padding(horizontal = 4.dp))
+    if (cut) Text(
+        "Showing the first $MAX_CODE_LINES of $total lines.",
+        Modifier.fillMaxWidth().padding(16.dp),
+        style = RelayTheme.type.meta,
+        color = RelayTheme.colors.inkSoft,
+        textAlign = TextAlign.Center,
+    )
+    Spacer(Modifier.height(navBarRoom()))
 }
