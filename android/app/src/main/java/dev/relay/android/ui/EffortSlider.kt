@@ -4,8 +4,11 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.runtime.Composable
@@ -25,11 +28,18 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.semantics.ProgressBarRangeInfo
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.progressBarRangeInfo
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.setProgress
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import dev.relay.android.ui.theme.RelayColors
@@ -56,6 +66,7 @@ private val settle = spring<Float>(dampingRatio = Spring.DampingRatioNoBouncy, s
  * with a white line riding the fill's end, and [levels] stops as dots ([marked], the model's
  * default, as a ring). Drags are continuous; [onPreview] hears each stop the drag crosses (for
  * the label above), and on release it settles on the nearest stop and reports it to [onLevelChange].
+ * TalkBack and a keyboard's arrows move it a stop at a time, read out through [describe].
  */
 @Composable
 fun EffortSlider(
@@ -65,6 +76,8 @@ fun EffortSlider(
     levels: Int = 5,
     marked: Int? = null,
     onPreview: (Int) -> Unit = {},
+    label: String = "Effort",
+    describe: (Int) -> String = { "${it + 1} of $levels" },
 ) {
     val c = RelayTheme.colors
     val haptics = rememberHaptics()
@@ -74,7 +87,9 @@ fun EffortSlider(
     var previewed by remember { mutableIntStateOf(level) }
     val change by rememberUpdatedState(onLevelChange)
     val preview by rememberUpdatedState(onPreview)
-    val last = levels - 1
+    val last = (levels - 1).coerceAtLeast(0)
+    val interaction = remember { MutableInteractionSource() }
+    val focused by interaction.collectIsFocusedAsState()
 
     LaunchedEffect(level) {
         previewed = level
@@ -99,12 +114,33 @@ fun EffortSlider(
         change(target)
     }
 
+    fun step(key: Key): Boolean {
+        val target = when (key) {
+            Key.DirectionRight, Key.DirectionUp -> previewed + 1
+            Key.DirectionLeft, Key.DirectionDown -> previewed - 1
+            Key.MoveHome -> 0
+            Key.MoveEnd -> last
+            else -> return false
+        }
+        // At either end the arrow goes on to move the focus.
+        if (target !in 0..last || target == previewed) return false
+        haptics.perform(Haptic.Selection)
+        commit(target)
+        return true
+    }
+
     Canvas(
         modifier
             .fillMaxWidth()
             .height(SliderHeight)
+            .onKeyEvent { it.type == KeyEventType.KeyDown && step(it.key) }
+            .focusable(interactionSource = interaction)
             .semantics {
-                progressBarRangeInfo = ProgressBarRangeInfo(level.toFloat(), 0f..last.toFloat(), steps = levels - 2)
+                contentDescription = label
+                stateDescription = describe(level)
+                progressBarRangeInfo = ProgressBarRangeInfo(
+                    level.toFloat(), 0f..last.toFloat(), steps = (levels - 2).coerceAtLeast(0),
+                )
                 setProgress { value ->
                     commit(value.roundToInt().coerceIn(0, last))
                     true
@@ -127,7 +163,7 @@ fun EffortSlider(
                 }
             },
     ) {
-        drawEffort(c, StopTrack(this, size.width, levels), position.value, marked)
+        drawEffort(c, StopTrack(this, size.width, levels), position.value.coerceIn(0f, last.toFloat()), marked, focused)
     }
 }
 
@@ -145,13 +181,18 @@ private class StopTrack(density: Density, width: Float, val levels: Int) {
     fun nearest(x: Float) = ((x - first) / step).roundToInt().coerceIn(0, levels - 1)
 }
 
-private fun DrawScope.drawEffort(c: RelayColors, track: StopTrack, position: Float, marked: Int?) {
+/** On a dark sheet the light track's steps would sink into it, so they go up from the tool fill instead. */
+private fun sliderTrack(c: RelayColors) = if (c.isDark) c.tool else lerp(c.surface, c.tool, 0.55f)
+
+private fun sliderRim(c: RelayColors) = if (c.isDark) lerp(c.tool, c.ink, 0.08f) else c.tool
+
+private fun DrawScope.drawEffort(c: RelayColors, track: StopTrack, position: Float, marked: Int?, focused: Boolean) {
     val h = size.height
     val inner = h - 2 * track.rim
     val centreY = h / 2
-    drawRoundRect(c.tool, cornerRadius = CornerRadius(h / 2))
+    drawRoundRect(if (focused) c.inkFaint else sliderRim(c), cornerRadius = CornerRadius(h / 2))
     drawRoundRect(
-        lerp(c.surface, c.tool, 0.55f),
+        sliderTrack(c),
         topLeft = Offset(track.left, track.rim),
         size = Size(track.right - track.left, inner),
         cornerRadius = CornerRadius(inner / 2),

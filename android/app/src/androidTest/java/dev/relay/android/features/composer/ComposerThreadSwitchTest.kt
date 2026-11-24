@@ -13,10 +13,12 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.onRoot
+import androidx.compose.ui.test.performClick
 import androidx.test.platform.app.InstrumentationRegistry
 import android.graphics.Bitmap
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.v2.createComposeRule
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.unit.dp
 import dev.relay.android.features.composer.logic.composeSend
@@ -86,6 +88,8 @@ class ComposerThreadSwitchTest {
                 }
             }
         }
+        // The model's chip is in the card the composer grows into.
+        compose.onNodeWithContentDescription("Message").performClick()
         compose.onNodeWithText("opus", substring = true).assertIsDisplayed()
         compose.runOnIdle {
             id = "gpt-thread"

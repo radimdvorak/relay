@@ -1,8 +1,11 @@
 package dev.relay.android.features.composer
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
@@ -11,23 +14,27 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import dev.relay.android.features.composer.logic.ProviderCommand
 import dev.relay.android.features.composer.logic.agentInfo
 import dev.relay.android.features.composer.logic.agentName
 import dev.relay.android.features.composer.logic.commandTrigger
 import dev.relay.android.features.composer.logic.relayCommands
 import dev.relay.android.remote.client.RemoteClient
+import dev.relay.android.ui.RowTextInset
 import dev.relay.android.ui.Text
 import dev.relay.android.ui.pressable
-import dev.relay.android.ui.ring
-import dev.relay.android.ui.theme.Radii
 import dev.relay.android.ui.theme.RelayTheme
 
 // The desktop composer's slash menu (mobile/src/ui/CommandMenu.tsx): Relay's
@@ -105,35 +112,52 @@ fun rememberProviderCommands(client: RemoteClient?, online: Boolean, connection:
     )
 }
 
+/** The menu over the composer while a command or skill is being typed. */
 @Composable
 fun CommandMenu(items: List<MenuItem>, loading: Boolean, failed: Boolean, onPick: (MenuItem) -> Unit, modifier: Modifier = Modifier) {
     val c = RelayTheme.colors
-    @Composable fun Note(text: String) = Text(text, Modifier.padding(10.dp), style = RelayTheme.type.xs, color = c.mutedForeground)
+    val shape = RelayTheme.shapes.composer
+    @Composable fun Note(text: String) =
+        Text(text, Modifier.padding(horizontal = RowTextInset, vertical = 10.dp), style = RelayTheme.type.meta, color = c.inkSoft)
     Column(
-        modifier.fillMaxWidth().padding(bottom = 8.dp).heightIn(max = 280.dp)
-            .background(c.popover, Radii.lgShape).ring(c.border, Radii.lgShape),
+        modifier.fillMaxWidth().heightIn(max = 296.dp)
+            .shadow(8.dp, shape, ambientColor = Color.Black, spotColor = Color.Black.copy(alpha = 0.5f))
+            .clip(shape).background(c.raised),
     ) {
-        LazyColumn(Modifier.weight(1f, fill = false)) {
-            items(items, key = { "${it.kind}:${it.name}" }) { item ->
-                Row(
-                    Modifier.fillMaxWidth()
-                        .pressable(onClick = { onPick(item) }, role = Role.Button)
-                        .padding(horizontal = 12.dp, vertical = 9.dp),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Column(Modifier.weight(1f)) {
-                        Text(item.label, style = RelayTheme.type.monoSm, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        if (item.description.isNotEmpty()) {
-                            Text(item.description, style = RelayTheme.type.xs, color = c.mutedForeground, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        }
-                    }
-                    Text(if (item.kind == "relay") "Relay" else item.source.orEmpty(), style = RelayTheme.type.xs, color = c.faint)
-                }
-            }
+        LazyColumn(Modifier.weight(1f, fill = false), contentPadding = PaddingValues(6.dp)) {
+            items(items, key = { "${it.kind}:${it.name}" }) { CommandRow(it) { onPick(it) } }
             if (items.isEmpty()) item { Note("No matching commands.") }
         }
         if (loading) Note("Loading the agent's commands…")
         if (failed) Note("The agent's commands are unavailable. Relay's actions still work.")
+    }
+}
+
+@Composable
+private fun CommandRow(item: MenuItem, onClick: () -> Unit) {
+    val c = RelayTheme.colors
+    val interaction = remember { MutableInteractionSource() }
+    val pressed by interaction.collectIsPressedAsState()
+    Row(
+        Modifier.fillMaxWidth()
+            .clip(RelayTheme.shapes.card)
+            .background(if (pressed) c.selected else Color.Transparent)
+            .pressable(onClick, scale = false, interaction = interaction)
+            .heightIn(min = 48.dp)
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(
+                item.label, style = RelayTheme.type.body.copy(fontWeight = FontWeight.Medium, lineHeight = 20.sp),
+                maxLines = 1, overflow = TextOverflow.Ellipsis,
+            )
+            if (item.description.isNotEmpty()) Text(
+                item.description, style = RelayTheme.type.meta.copy(fontSize = 13.sp), color = c.inkSoft,
+                maxLines = 1, overflow = TextOverflow.Ellipsis,
+            )
+        }
+        Text(if (item.kind == "relay") "Relay" else item.source.orEmpty(), style = RelayTheme.type.small, color = c.inkFaint)
     }
 }

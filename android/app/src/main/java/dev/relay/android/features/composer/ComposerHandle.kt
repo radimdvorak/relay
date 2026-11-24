@@ -5,8 +5,13 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import dev.relay.android.features.composer.logic.ComposeAttempt
 import dev.relay.android.features.composer.logic.ProviderUsage
+import dev.relay.android.features.composer.logic.agentInfo
+import dev.relay.android.features.composer.logic.effortLabel
+import dev.relay.android.features.composer.logic.modeLabel
 import dev.relay.android.remote.files.AttachedFile
+import dev.relay.android.remote.model.ContextUsage
 import dev.relay.android.remote.model.ResumeSettings
+import kotlin.math.roundToInt
 
 /**
  * What the composer hands over to send; `held`: the computer holds part of
@@ -40,6 +45,9 @@ class ComposerHandle {
     /** What the composer sends with, in a line, for a header to show when the controls aren't in the composer. */
     var line: ComposerLine? by mutableStateOf(null)
         internal set
+    /** Whether the box is a card rather than a pill, for a screen that makes room (the bottom bar). */
+    var expanded: Boolean by mutableStateOf(false)
+        internal set
     /** The plan's limits, for a screen to show as rings when the composer's own aren't up. */
     var usage: ComposerUsage? by mutableStateOf(null)
         internal set
@@ -67,6 +75,17 @@ class ComposerHandle {
 
 /** The model with its effort, the permissions, plan mode, and how full the context is. */
 data class ComposerLine(val model: String, val mode: String, val plan: Boolean, val contextPercent: Int?)
+
+internal fun composerLine(settings: ResumeSettings, model: String, context: ContextUsage?): ComposerLine {
+    val effort = settings.choice.reasoningEffort
+    val fast = agentInfo(settings.provider)?.fast == true && settings.choice.fast
+    return ComposerLine(
+        listOfNotNull(model, effortLabel(effort).takeIf { effort.isNotEmpty() }, "Fast".takeIf { fast }).joinToString(" · "),
+        modeLabel(settings.runtimeMode),
+        settings.interactionMode == "plan",
+        context?.maxTokens?.takeIf { it > 0 }?.let { minOf(100, (context.usedTokens * 100.0 / it).roundToInt()) },
+    )
+}
 
 /** The agent the composer sends to and its plan's limits, as last fetched. */
 data class ComposerUsage(val provider: String, val usage: ProviderUsage?)

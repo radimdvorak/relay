@@ -68,7 +68,8 @@ fun Modifier.pressable(
 ): Modifier {
     val haptics = rememberHaptics()
     val click by rememberUpdatedState(onClick)
-    val pressed = if (scale) pressScale(interaction, enabled) else Modifier
+    // On a fresh Modifier: as an extension of this one it would repeat everything before it.
+    val pressed = if (scale) Modifier.pressScale(interaction, enabled) else Modifier
     val tap = {
         haptic?.let(haptics::perform)
         click()
