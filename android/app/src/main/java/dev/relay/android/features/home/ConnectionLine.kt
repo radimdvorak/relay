@@ -113,25 +113,25 @@ fun ConnectionLine(remote: Remote, modifier: Modifier = Modifier, always: Boolea
     }
     val c = RelayTheme.colors
     val dot = when (status.state) {
-        LinkState.Online -> c.additionText
-        LinkState.Denied -> c.destructive
-        else -> c.mutedForeground
+        LinkState.Online -> c.success
+        LinkState.Denied -> c.danger
+        else -> c.inkFaint
     }
     // Two lines' room whatever it says, so "Connecting…" turning into a longer
     // "Can't reach…" and back doesn't move everything under it.
     Row(
-        modifier.fillMaxWidth().heightIn(min = 48.dp).padding(horizontal = 16.dp, vertical = 8.dp)
+        modifier.fillMaxWidth().heightIn(min = 48.dp).padding(horizontal = 24.dp, vertical = 8.dp)
             .semantics { liveRegion = LiveRegionMode.Polite },
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(Modifier.size(7.dp).background(dot, CircleShape))
-        Text(text, Modifier.weight(1f), style = RelayTheme.type.xs, color = c.mutedForeground, maxLines = 2)
+        Text(text, Modifier.weight(1f), style = RelayTheme.type.meta, color = c.inkSoft, maxLines = 2)
         action?.let { (label, onClick) ->
             Text(
                 label,
                 Modifier.pressable(onClick = onClick, scale = false).padding(horizontal = 6.dp, vertical = 8.dp),
-                style = RelayTheme.type.xs.copy(fontWeight = FontWeight.SemiBold),
+                style = RelayTheme.type.meta.copy(fontWeight = FontWeight.Medium),
                 color = c.accent,
             )
         }
