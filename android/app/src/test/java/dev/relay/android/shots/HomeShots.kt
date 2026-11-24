@@ -42,7 +42,6 @@ import dev.relay.android.ui.ChromeScreen
 import dev.relay.android.ui.LocalToasts
 import dev.relay.android.ui.ToastState
 import dev.relay.android.ui.theme.RelayTheme
-import dev.relay.android.ui.theme.colorsFromDesktop
 import org.junit.Test
 
 private const val MINUTE = 60_000L
@@ -134,15 +133,6 @@ internal fun WithToasts(fontScale: Float = 1f, content: @Composable () -> Unit) 
         content = content,
     )
 }
-
-private val desktopDark = colorsFromDesktop(
-    mapOf(
-        "kind" to "dark", "sidebar" to "#232326", "surface" to "#1e1e21", "toolbar" to "#242427", "inbox" to "#28282c",
-        "text" to "#e1e1e5", "muted" to "#94949f", "border" to "#37373d", "hover" to "#34343c", "selected" to "#41414f",
-        "accent" to "#aaa8e5", "accentSoft" to "#32313f", "onAccent" to "#1b1b22", "send" to "#aaa8e5", "onSend" to "#1b1b22",
-        "diffAddition" to "#213f2d", "diffDeletion" to "#45272c",
-    ),
-)
 
 @Composable
 private fun OnDesktopPalette(content: @Composable () -> Unit) = RelayTheme(desktopDark) {

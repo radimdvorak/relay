@@ -31,9 +31,7 @@ import dev.relay.android.remote.model.RemoteProject
 import dev.relay.android.remote.model.ResumeSettings
 import dev.relay.android.ui.LocalToasts
 import dev.relay.android.ui.ToastState
-import dev.relay.android.ui.theme.RelayColors
 import dev.relay.android.ui.theme.RelayTheme
-import dev.relay.android.ui.theme.colorsFromDesktop
 import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.Rule
 import org.junit.Test
@@ -118,16 +116,6 @@ class ThreadShots : ShotTest() {
         }
     }
 }
-
-/** The user's own desktop palette, dark: src/styles.css. */
-val desktopDark: RelayColors = colorsFromDesktop(
-    mapOf(
-        "kind" to "dark", "sidebar" to "#232326", "surface" to "#1e1e21", "toolbar" to "#242427", "inbox" to "#28282c",
-        "text" to "#e1e1e5", "muted" to "#94949f", "border" to "#37373d", "hover" to "#34343c", "selected" to "#41414f",
-        "accent" to "#aaa8e5", "accentSoft" to "#32313f", "onAccent" to "#1b1b22", "send" to "#aaa8e5", "onSend" to "#1b1b22",
-        "diffAddition" to "#213f2d", "diffDeletion" to "#45272c",
-    ),
-)
 
 object NoNavigator : Navigator {
     override val stack = listOf<Route>(Route.Home)

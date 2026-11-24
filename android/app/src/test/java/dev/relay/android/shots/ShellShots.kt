@@ -72,7 +72,6 @@ import androidx.compose.ui.platform.LocalView
 import androidx.core.graphics.Insets
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
-import dev.relay.android.ui.theme.colorsFromDesktop
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipeUp
 import dev.relay.android.ui.theme.RelayPaperDark
@@ -211,13 +210,6 @@ class ShellShots : ShotTest() {
     }
 
     /** Relay's dark theme as the desktop sends it: a sidebar only a little lighter than its surface. */
-    private val desktopDark = colorsFromDesktop(
-        mapOf(
-            "kind" to "dark", "sidebar" to "#232326", "surface" to "#1e1e21", "toolbar" to "#242427", "inbox" to "#28282c", "text" to "#e1e1e5",
-            "muted" to "#94949f", "border" to "#37373d", "hover" to "#34343c", "selected" to "#41414f", "accent" to "#aaa8e5",
-        ),
-    )
-
     /** On the desktop's palette, over Android's three buttons (48dp). */
     @Test
     fun desktopPalette() {
