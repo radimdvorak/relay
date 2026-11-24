@@ -75,6 +75,8 @@ export interface AcpProfile {
   account?(): Promise<AcpAccount | undefined>;
   /** Takes MCP servers over HTTP without saying so when it starts. */
   takesHttpMcp?: boolean;
+  /** Takes another prompt into the turn it's on, so Relay can steer it. */
+  steersByPrompt?: boolean;
   /** The prompt that compacts its session, when it has one. */
   compact?: string;
   /** Native command that enters its planning workflow. */
@@ -164,6 +166,7 @@ const antigravity: AcpProfile = {
   authMethod: async () => (await antigravityAuthMethod()) ?? "oauth-personal",
   account: readAntigravityAccount,
   takesHttpMcp: true,
+  steersByPrompt: true,
   compact: compactPrompt,
   plan: "/plan",
   skills: (cwd) => discoverAntigravitySkills(cwd),

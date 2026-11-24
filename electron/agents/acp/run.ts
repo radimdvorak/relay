@@ -2,17 +2,14 @@ import { agentName } from "../../../shared/agents";
 import { signedOutError } from "../errors";
 import { cancelGrace, TurnText } from "../turn-kit";
 import type { AgentOptions } from "../types";
-import { answersAgentRequests } from "./agent-requests";
+import { AgentRequests } from "./agent-requests";
 import { AcpRequestError } from "./connection";
 import type { AcpProfile } from "./profiles";
-import {
-  promptResultSchema,
-  AUTH_REQUIRED,
-  type AcpPromptResult,
-} from "./protocol";
-import { mcpServers, promptBlocks } from "./prompt";
+import { AUTH_REQUIRED, type AcpPromptResult } from "./protocol";
+import { imageBlocks, mcpServers, promptBlocks } from "./prompt";
 import { acquireTurnAgent, openSession, type AcpAgent } from "./sessions";
 import { applySettings } from "./settings";
+import { PromptSteering, type SentPrompt } from "./steering";
 import { antigravityHelper, compactAntigravity } from "../antigravity";
 import { AcpTurnEvents } from "./turn-events";
 
@@ -104,6 +101,30 @@ async function openTurnSession(
   return opened.id;
 }
 
+/** Sends one of the turn's prompts, and keeps its request for a restarted Relay to wait on. */
+function sendPrompt(
+  agent: AcpAgent,
+  sessionId: string,
+  prompt: object[],
+  compacting: boolean,
+): SentPrompt {
+  const { connection, profile } = agent;
+  const compaction = profile.provider === "antigravity" && compacting;
+  const request = connection.reserve();
+  agent.keep({ id: request, ...(compaction && { compaction }) });
+  const reply = connection.request(
+    "session/prompt",
+    { sessionId, prompt },
+    request,
+  );
+  return { request, reply };
+}
+
+/** The prompt a Relay before this one sent, whose answer is still to come. */
+function pickUpPrompt(agent: AcpAgent, request: number): SentPrompt {
+  return { request, reply: agent.connection.wait(request, "session/prompt") };
+}
+
 async function runAcpTurn(
   profile: AcpProfile,
   options: AgentOptions,
@@ -166,23 +187,26 @@ async function runAcpTurn(
   };
   turnAbort.signal.addEventListener("abort", cancel, { once: true });
 
-  connection.onRequest = answersAgentRequests(
+  const requests = new AgentRequests(
     profile,
     name,
     options,
     events.asking,
     turnAbort.signal,
   );
+  connection.onRequest = requests.answer;
+  const send = (prompt: object[]) =>
+    sendPrompt(agent, sessionId!, prompt, job.kind === "compact");
 
   let observer: AcpRunObserver | undefined;
   let grace: ReturnType<typeof cancelGrace> | undefined;
   try {
     connection.mark("start");
-    let reply: Promise<unknown>;
+    let first: SentPrompt;
     if (adopted) {
       connection.listen(sessionId!, hear);
-      reply = connection.wait(adopted.id, "session/prompt");
-      void reply.catch(() => {});
+      first = pickUpPrompt(agent, adopted.id);
+      void first.reply.catch(() => {});
       try {
         observer = await observe?.(agent, steered);
       } finally {
@@ -198,26 +222,26 @@ async function runAcpTurn(
       connection.listen(sessionId, hear);
       observer = await observe?.(agent, steered);
       signal.throwIfAborted();
-      const id = connection.reserve();
-      agent.keep({
-        id,
-        ...(profile.provider === "antigravity" && job.kind === "compact"
-          ? { compaction: true }
-          : {}),
-      });
-      reply = connection.request("session/prompt", { sessionId, prompt }, id);
+      first = send(prompt);
     }
-    void reply.catch(() => {});
+    void first.reply.catch(() => {});
     // The agent reports the cancel; if it doesn't, stop waiting anyway.
     grace = cancelGrace(turnAbort.signal);
     if (signal.aborted) stop();
-    const result: AcpPromptResult = promptResultSchema.parse(
-      await Promise.race([
-        reply,
-        grace.cancelled,
-        overflowed,
-        ...(observer?.failure ? [observer.failure] : []),
-      ]),
+    const steering = new PromptSteering(first, {
+      send,
+      waitOn: (id) => agent.keep({ id }),
+      images: (images) => imageBlocks(images, agent, name),
+      over: () => turnAbort.signal.aborted,
+      waiting: () => requests.waiting,
+      steered,
+      unread: (id, error) => options.onSteerUnread?.(id, error),
+    });
+    if (profile.steersByPrompt && (job.kind === "prompt" || adopted))
+      options.onControl?.({ steer: steering.steer });
+    const result = await steering.result(
+      [grace.cancelled, overflowed, observer?.failure],
+      (earlier) => reportUsage(options, profile, earlier),
     );
     await observer?.settle();
     finish(options, profile, result, turn, name);
@@ -279,15 +303,12 @@ export function outputTokens(usage: AcpUsage) {
   return thoughtsLeftOut ? output + thoughts : output;
 }
 
-/** Reads how the turn ended: a reason to fail it, and what it used. */
-function finish(
+/** What one of the turn's prompts used; a steered turn has several. */
+function reportUsage(
   options: AgentOptions,
   profile: AcpProfile,
-  result: AcpPromptResult,
-  turn: TurnText,
-  name: string,
+  { usage }: AcpPromptResult,
 ) {
-  const usage = result.usage;
   if (usage)
     options.onUsage?.({
       model: options.choice.model || profile.provider,
@@ -298,6 +319,17 @@ function finish(
         output: outputTokens(usage),
       },
     });
+}
+
+/** Reads how the turn ended: a reason to fail it, and what it used. */
+function finish(
+  options: AgentOptions,
+  profile: AcpProfile,
+  result: AcpPromptResult,
+  turn: TurnText,
+  name: string,
+) {
+  reportUsage(options, profile, result);
   switch (result.stopReason) {
     case "cancelled":
       throw new Error("Cancelled by you.");
