@@ -21,6 +21,9 @@ sealed interface Route : NavKey {
         val draftKey: String? = null,
     ) : Route
 
+    /** Full-screen search; with [pulls] it looks through pull requests first. */
+    @Serializable data class Search(val pulls: Boolean = false) : Route
+
     @Serializable data object Settings : Route
     @Serializable data object Gallery : Route
     @Serializable data object Licences : Route
@@ -60,3 +63,6 @@ const val NEW_THREAD_MORPH = "new-thread"
 
 /** Entry metadata of a screen that rises in under the button that opened it, not slides in. */
 const val MORPHS_IN = "relay.morphsIn"
+
+/** Entry metadata of a screen that fades in place of the one before it. */
+const val FADES_IN = "relay.fadesIn"
