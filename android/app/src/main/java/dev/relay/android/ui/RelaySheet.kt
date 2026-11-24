@@ -8,19 +8,23 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
-import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.foundation.layout.union
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalDensity
@@ -28,10 +32,11 @@ import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
+import dev.relay.android.ui.theme.LocalRelayColors
+import dev.relay.android.ui.theme.RelayTheme
 import io.github.lyxnx.compose.ui.tablericons.TablerIcons
 import io.github.lyxnx.compose.ui.tablericons.outline.ArrowLeft
 import io.github.lyxnx.compose.ui.tablericons.outline.X
-import dev.relay.android.ui.theme.RelayTheme
 
 /** How far an inset sheet stays from the screen's sides and bottom. */
 private val SheetInset = 8.dp
@@ -84,7 +89,8 @@ fun RelaySheetFrame(
                 maxLines = 1,
             )
         }
-        content()
+        // What's inside sits on raised, so the quiet container fills step up from that rather than from the page.
+        CompositionLocalProvider(LocalRelayColors provides c.copy(surface = c.raised)) { content() }
     }
 }
 
@@ -120,8 +126,9 @@ internal fun InsetModalSheet(onDismiss: () -> Unit, halfFirst: Boolean, frame: @
         val room = with(LocalDensity.current) { (windowHeight - bars.getTop(this) - bars.getBottom(this)).toDp() }
         Box(
             Modifier
+                // Above the keyboard when it's up; outside the cap, which already counts only the room above it.
+                .windowInsetsPadding(WindowInsets.ime.union(WindowInsets.navigationBars))
                 .heightIn(max = room * SHEET_MAX)
-                .navigationBarsPadding()
                 .padding(start = SheetInset, end = SheetInset, bottom = SheetInset)
                 .nestedScroll(KeepUpFlingsOffSheet),
         ) { frame() }

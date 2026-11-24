@@ -14,13 +14,13 @@ import dev.relay.android.remote.client.searchPulls
 import dev.relay.android.remote.model.IssueHit
 import dev.relay.android.remote.model.PullRef
 import dev.relay.android.remote.model.PullReview
+import java.time.Instant
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import java.time.Instant
 
 /** Why a PR is on your list, the strongest first: one it asks you to review outranks your own. */
 enum class Relation { Review, Assigned, Mine }
@@ -32,8 +32,14 @@ data class ListedPull(val hit: IssueHit, val server: String, val relation: Relat
     val merged = hit.pull_request?.merged == true
 }
 
-/** What your own open PR is waiting on: CI's state and the reviewers' verdict. */
-data class PullSignals(val ci: String?, val verdict: String?)
+/** What your own open PR is waiting on (CI's state and the reviewers' verdict), and what it's made of. */
+data class PullSignals(
+    val ci: String?,
+    val verdict: String?,
+    val branch: String? = null,
+    val additions: Int = 0,
+    val deletions: Int = 0,
+)
 
 fun pullKey(r: PullRef) = "${r.server.orEmpty().trimEnd('/').lowercase()}|${r.owner}/${r.name}#${r.number}".lowercase()
 
@@ -163,7 +169,7 @@ class PullsModel(private val remote: Remote) : ViewModel() {
                 val ci = async { runCatching { remote.call { pullCiStatus(p.ref, detail.head) } }.getOrNull() }
                 val reviews = runCatching { remote.call { pullReviews(p.ref) }.items }.getOrDefault(emptyList())
                 val state = ci.await()?.let { ciSummary(it.runs)?.state }
-                signals.update { it + (p.key to PullSignals(state, verdictOf(reviews))) }
+                signals.update { it + (p.key to PullSignals(state, verdictOf(reviews), detail.head.ref, detail.additions, detail.deletions)) }
             }.onFailure { if (it is CancellationException) throw it }
         }
     }
