@@ -39,7 +39,7 @@ private fun newsreader(weight: FontWeight) = Font(
     ),
 )
 
-/** The display serif: the home greeting, the drawer's title, empty states. */
+/** The display serif: the home greeting, empty states. */
 val Newsreader = FontFamily(newsreader(FontWeight.Normal), newsreader(FontWeight.Medium))
 
 val JetBrainsMono = FontFamily(
@@ -50,7 +50,7 @@ val JetBrainsMono = FontFamily(
 /** The type scale in docs/expressive/design-brief.md ("Type"). */
 @Immutable
 data class RelayType(
-    /** Newsreader 27/34: the empty home's line, empty states. The drawer's title is this at 22. */
+    /** Newsreader 27/34: the empty home's line, empty states. */
     val greeting: TextStyle,
     /** 24/30 at 500: a tab's title on the chrome (Projects, PRs). */
     val title: TextStyle,

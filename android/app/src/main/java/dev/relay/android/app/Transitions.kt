@@ -21,7 +21,7 @@ private fun Scene<*>.has(mark: String) = entries.lastOrNull()?.metadata?.get(mar
 /** Whether it takes the last screen's place: search, and new thread, whose composer grows out of Home's by itself. */
 private val Scene<*>.fades get() = has(FADES_IN) || has(MORPHS_IN)
 
-/** How [target] comes in: over the last screen, or in its place when the drawer or the side pane [swapped] them. */
+/** How [target] comes in: over the last screen, or in its place when the list beside it [swapped] them. */
 internal fun forward(target: Scene<*>, swapped: Boolean): ContentTransform =
     if (swapped || target.fades) crossfade() else slideIn()
 

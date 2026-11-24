@@ -12,7 +12,7 @@ import androidx.compose.ui.graphics.lerp
 @Immutable
 data class RelayColors(
     val isDark: Boolean,
-    /** The header band, the drawer, what a content sheet sits on. */
+    /** The header band, what a content sheet sits on. */
     val chrome: Color,
     /** The content sheet: thread, lists, screens. */
     val surface: Color,
@@ -20,7 +20,7 @@ data class RelayColors(
     val raised: Color,
     /** Circle buttons, the search field, the active tab pill, chips. */
     val tool: Color,
-    /** The current row in the drawer and lists. */
+    /** The current row in lists. */
     val selected: Color,
     val ink: Color,
     /** Secondary text: subtitles, descriptions, inactive labels. */

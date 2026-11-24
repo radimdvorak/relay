@@ -56,7 +56,7 @@ fun SubagentRunScreen(
     val run = state.run
     val error = state.asking.error
     CompositionLocalProvider(LocalFailures provides failures, LocalThreadRemote provides remote) {
-        ThreadChrome(header = { ThreadHeader(run?.let(::agentKind) ?: "Agent", null, onMenu = null, onBack = nav.backAction) }) {
+        ThreadChrome(header = { ThreadHeader(run?.let(::agentKind) ?: "Agent", null, onBack = nav.backAction) }) {
             if (supported && error != null) Column(
                 Modifier.fillMaxWidth().padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp),

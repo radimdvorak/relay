@@ -72,8 +72,8 @@ internal fun homeTabs(threadsNews: Boolean) = listOf(
 internal fun HomeDock(
     tab: HomeTab,
     onTab: (HomeTab) -> Unit,
-    /** False where the side pane carries the destinations. */
-    bar: Boolean,
+    /** False beside the detail, whose keyboard it is. */
+    followsKeyboard: Boolean,
     threadsNews: Boolean,
     /** How much the dock covers above the system's bar, its fade left out. */
     onHeight: (Dp) -> Unit,
@@ -84,9 +84,10 @@ internal fun HomeDock(
     val surface = RelayTheme.colors.surface
     val density = LocalDensity.current
     var composerHeight by remember { mutableStateOf(0.dp) }
-    val height = composerHeight + if (bar) BAR_ROOM else 0.dp
+    val height = composerHeight + BAR_ROOM
     LaunchedEffect(height) { onHeight(height) }
-    val under = if (bar) WindowInsets.navigationBars.add(WindowInsets(bottom = BAR_ROOM)) else WindowInsets.navigationBars
+    val underBar = WindowInsets.navigationBars.add(WindowInsets(bottom = BAR_ROOM))
+    val under = if (followsKeyboard) WindowInsets.ime.union(underBar) else underBar
     Box(modifier.fillMaxWidth()) {
         Box(
             Modifier.matchParentSize().background(
@@ -107,10 +108,10 @@ internal fun HomeDock(
                         .consumeWindowInsets(WindowInsets.ime.union(WindowInsets.navigationBars)),
                 ) { composer() }
             }
-            Spacer(Modifier.windowInsetsBottomHeight(WindowInsets.ime.union(under)))
+            Spacer(Modifier.windowInsetsBottomHeight(under))
         }
-        if (bar) AnimatedVisibility(
-            !WindowInsets.isImeVisible,
+        AnimatedVisibility(
+            !(followsKeyboard && WindowInsets.isImeVisible),
             Modifier.align(Alignment.BottomCenter),
             enter = fadeIn(RelayTheme.motion.standard.fastEffectsSpec()),
             exit = fadeOut(RelayTheme.motion.standard.fastEffectsSpec()),

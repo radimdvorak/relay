@@ -49,9 +49,11 @@ fun HomeScreen(
     computerSeen: ComputerSeen,
     tab: HomeTab,
     onTab: (HomeTab) -> Unit,
+    /** Beside the detail, where [open] puts things and [selected] is what it shows. */
+    pane: Boolean,
+    selected: String?,
+    open: (Route) -> Unit,
     modifier: Modifier = Modifier,
-    /** False where the side pane carries the destinations. */
-    bar: Boolean = true,
     /** Update banners, from features that own them. */
     banners: @Composable ColumnScope.() -> Unit = {},
     /** Extra rows for the computers sheet, from features that own them; `close` puts the sheet away. */
@@ -65,23 +67,23 @@ fun HomeScreen(
     val overview by remote.overview.collectAsState()
     val filter by home.filter.filter.collectAsState()
     // Back from another tab returns to the threads before it leaves the app, as Android's tabs do.
-    BackHandler(enabled = tab != HomeTab.Threads) { onTab(HomeTab.Threads) }
-    val newThread = { navigator.push(Route.NewThread()) }
+    // Beside the detail, back first closes what that has open.
+    BackHandler(enabled = tab != HomeTab.Threads && !(pane && navigator.canGoBack)) { onTab(HomeTab.Threads) }
+    val newThread = { open(Route.NewThread()) }
     val o = overview
 
     CompositionLocalProvider(LocalProjectIconPath provides { id -> projectIconPath(iconIndex, active, id) }) {
         HomeShell(
             tab,
             modifier,
+            pane = pane,
             header = {
                 HomeHeader(
                     tab,
-                    onSearch = { navigator.push(Route.Search(pulls = tab == HomeTab.Pulls)) },
-                    onNewThread = newThread,
-                    showPair = bar,
+                    onSearch = { open(Route.Search(pulls = tab == HomeTab.Pulls)) },
+                    onSettings = { open(Route.Settings) },
                     computer = {
-                        // The side pane has the name, search and a new thread already.
-                        if (bar) ComputerName(
+                        ComputerName(
                             remote, computerSeen, RelayTheme.type.body.copy(fontWeight = FontWeight.Medium), computerRows,
                             color = RelayTheme.colors.inkSoft,
                         )
@@ -92,7 +94,8 @@ fun HomeScreen(
             },
             dock = { dockModifier, onHeight ->
                 HomeDock(
-                    tab, onTab, bar,
+                    tab, onTab,
+                    followsKeyboard = !pane,
                     threadsNews = tab != HomeTab.Threads && o != null && o.listed.any { it.waiting == true },
                     onHeight = onHeight,
                     modifier = dockModifier,
@@ -106,7 +109,7 @@ fun HomeScreen(
                 HomeTab.Pulls -> Box(Modifier.weight(1f).fillMaxWidth()) { pulls(bottom) }
                 else -> {
                     banners()
-                    HomePage(remote, home, shown, selected = null, bottom, navigator::push)
+                    HomePage(remote, home, shown, selected, bottom, open)
                 }
             }
         }

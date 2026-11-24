@@ -42,20 +42,6 @@ class AppNavigator(
         swapped = true
     }
 
-    /** Opens what the drawer or the side pane points at, in place of what's open. */
-    fun switchTo(route: Route) {
-        if (backStack.lastOrNull() == route) return
-        home()
-        if (route != Route.Home) backStack.add(route)
-        swapped = true
-    }
-
-    /** Opens it over what's open, fading in as the drawer moves away. */
-    fun pushFromDrawer(route: Route) {
-        push(route)
-        swapped = true
-    }
-
     override fun home() {
         swapped = true
         while (backStack.size > 1) backStack.removeAt(backStack.lastIndex)

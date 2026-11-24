@@ -108,19 +108,6 @@ internal fun ComputerNameLine(name: String, style: TextStyle, onClick: () -> Uni
     }
 }
 
-/** How the connection to the computer in use is, while it isn't simply connected. */
-@Composable
-fun ComputerStatusLine(remote: Remote, seen: ComputerSeen, modifier: Modifier = Modifier) {
-    val computers by remote.computers.collectAsState()
-    val active by remote.active.collectAsState()
-    val status by remote.status.collectAsState()
-    val reached by seen.seen.collectAsState()
-    val here = computers.find { it.id == active } ?: return
-    if (status.state == LinkState.Online) return
-    val lines = ComputerLines(computers, active, status, null, reached, rememberNow(30_000))
-    Text(lines.status(here), modifier, style = RelayTheme.type.meta, color = RelayTheme.colors.inkSoft, maxLines = 1)
-}
-
 /**
  * The paired computers to switch to, [extraRows] (updating the one in use), and pairing
  * another; the phone talks to one at a time.

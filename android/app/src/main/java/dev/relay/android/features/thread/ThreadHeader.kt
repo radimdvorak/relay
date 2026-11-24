@@ -31,7 +31,6 @@ import dev.relay.android.ui.pressable
 import dev.relay.android.ui.theme.RelayTheme
 import io.github.lyxnx.compose.ui.tablericons.TablerIcons
 import io.github.lyxnx.compose.ui.tablericons.outline.ArrowLeft
-import io.github.lyxnx.compose.ui.tablericons.outline.Menu2
 
 /**
  * A conversation's screen: its header on the chrome, the rest on the content sheet, clear of the
@@ -58,14 +57,13 @@ internal fun ThreadChrome(
 }
 
 /**
- * ☰ or ←, then the thread's name over a quiet line of where it works, then [trailing]. The name
+ * ←, then the thread's name over a quiet line of where it works, then [trailing]. The name
  * sits beside the button rather than centred, so a long one keeps all the room there is.
  */
 @Composable
 internal fun ThreadHeader(
     title: String,
     subtitle: String?,
-    onMenu: (() -> Unit)?,
     onBack: (() -> Unit)?,
     onTitle: (() -> Unit)? = null,
     trailing: @Composable RowScope.() -> Unit = {},
@@ -73,8 +71,7 @@ internal fun ThreadHeader(
     ChromeHeader(leading = {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             LocalPaneToggle.current?.let { toggle -> Box(Modifier.padding(end = 4.dp)) { toggle() } }
-            if (onMenu != null) CircleButton(TablerIcons.Outline.Menu2, "Menu", onMenu, tone = CircleTone.Raised)
-            else if (onBack != null) CircleButton(TablerIcons.Outline.ArrowLeft, "Back", onBack, tone = CircleTone.Raised)
+            if (onBack != null) CircleButton(TablerIcons.Outline.ArrowLeft, "Back", onBack, tone = CircleTone.Raised)
             Column(
                 Modifier.weight(1f)
                     .then(if (onTitle != null) Modifier.pressable(onClick = onTitle, scale = false) else Modifier)

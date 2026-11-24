@@ -113,16 +113,14 @@ fun ThreadScreen(
     locked: Boolean = false,
     /** Marks the thread read on this phone up to its `updated`, and puts away its notification. */
     onSeen: (id: String, updated: Long) -> Unit = { _, _ -> },
-    /** Opens the drawer, where the shell has one; without it the header has Back instead. */
-    onMenu: (() -> Unit)? = null,
 ) {
     val active by remote.active.collectAsState()
     // A handed-over thread keeps its id on another computer; none of the old screen's state follows it.
-    key(active, id, rootId) { ThreadBody(id, rootId, remote, locked, onSeen, onMenu) }
+    key(active, id, rootId) { ThreadBody(id, rootId, remote, locked, onSeen) }
 }
 
 @Composable
-private fun ThreadBody(id: String, rootId: String?, remote: Remote, locked: Boolean, onSeen: (String, Long) -> Unit, onMenu: (() -> Unit)?) {
+private fun ThreadBody(id: String, rootId: String?, remote: Remote, locked: Boolean, onSeen: (String, Long) -> Unit) {
     val context = LocalContext.current
     val activeComputer by remote.active.collectAsState()
     val measurements = rememberThreadMeasurements(id, rootId, activeComputer)
@@ -337,8 +335,6 @@ private fun ThreadBody(id: String, rootId: String?, remote: Remote, locked: Bool
             ThreadHeader(
                 title,
                 subtitle = if (rootId != null) t?.title ?: summary?.title else threadContext(project, t, summary, line),
-                // A side conversation and what's behind it are one step apart, never a drawer.
-                onMenu = onMenu.takeIf { rootId == null },
                 onBack = nav.backAction,
                 onTitle = if (line != null) composer::openSettings else null,
             ) {

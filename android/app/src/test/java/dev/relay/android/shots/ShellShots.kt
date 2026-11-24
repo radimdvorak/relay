@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -19,19 +20,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.test.onRoot
 import com.github.takahirom.roborazzi.captureRoboImage
-import dev.relay.android.features.drawer.DrawerActions
-import dev.relay.android.features.drawer.DrawerContent
-import dev.relay.android.features.drawer.DrawerOverlay
-import dev.relay.android.features.drawer.DrawerRow
-import dev.relay.android.features.drawer.DrawerState
-import dev.relay.android.features.drawer.DrawerTitle
-import dev.relay.android.features.drawer.RECENT_FIRST
-import dev.relay.android.features.drawer.drawerThreads
-import dev.relay.android.features.drawer.rememberDrawerState
+import dev.relay.android.app.PaneEmpty
 import dev.relay.android.features.home.ActivityList
 import dev.relay.android.features.home.ComputerNameLine
 import dev.relay.android.features.home.FilterButton
@@ -42,14 +34,12 @@ import dev.relay.android.features.home.HomeShell
 import dev.relay.android.features.home.HomeTab
 import dev.relay.android.features.home.ProjectsList
 import dev.relay.android.features.home.ThreadFilter
-import dev.relay.android.features.home.homeTabs
 import dev.relay.android.features.pulls.ListedPull
 import dev.relay.android.features.pulls.Relation
 import dev.relay.android.features.search.SearchFrame
 import dev.relay.android.features.search.SearchResults
 import dev.relay.android.features.search.pullResults
 import dev.relay.android.features.search.search
-import dev.relay.android.lib.navigation.LocalOpenDrawer
 import dev.relay.android.remote.model.HostUser
 import dev.relay.android.remote.model.IssueHit
 import dev.relay.android.remote.model.IssueRepo
@@ -81,7 +71,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.snapshots.Snapshot
 
-/** The shell: home under its header and dock, the drawer, search, and the strips that show them moving. */
+/** The shell: home under its header and dock, search, and the strips that show them moving. */
 class ShellShots : ShotTest() {
     private val minute = 60_000L
     private val now = System.currentTimeMillis()
@@ -109,55 +99,31 @@ class ShellShots : ShotTest() {
         )
     }
 
-    private val actions = DrawerActions({}, {}, {}, {})
-
     @Composable
-    private fun Drawer(list: List<RemoteChatSummary>? = chats, openId: String? = "2", above: Boolean = false, name: String = "MacBook Pro") {
-        DrawerContent(
-            list?.let { drawerThreads(it, openId, now) }, openId, RECENT_FIRST, {},
-            unread = { it.markedUnread == true },
-            projectName = { c -> projects.first { it.id == c.projectId }.name },
-            actions = actions,
-            title = {
-                DrawerTitle(
-                    { ComputerNameLine(name, RelayTheme.type.greeting.copy(fontSize = 22.sp, lineHeight = 28.sp), {}) },
-                    { if (name.length > 20) Text("Can't reach it right now · Last reached 3h ago", style = RelayTheme.type.meta, color = RelayTheme.colors.inkSoft, maxLines = 1) },
-                )
-            },
-            above = if (!above) null else ({
-                for (tab in homeTabs(false)) DrawerRow(tab.label, tab.icon, selected = tab.value == HomeTab.Threads) {}
-            }),
-        )
-    }
-
-    @Composable
-    private fun Home(tab: HomeTab, empty: Boolean = false, bar: Boolean = true, wide: Boolean = false, onTab: (HomeTab) -> Unit = {}, name: String = "MacBook Pro") {
-        val toggle: @Composable () -> Unit = { CircleButton(TablerIcons.Outline.LayoutSidebar, "Hide threads", {}, tone = CircleTone.Raised) }
+    private fun Home(tab: HomeTab, empty: Boolean = false, pane: Boolean = false, selected: String? = null, onTab: (HomeTab) -> Unit = {}, name: String = "MacBook Pro") {
         CompositionLocalProvider(
             LocalToasts provides remember { ToastState() },
-            LocalOpenDrawer provides if (wide) null else ({}),
-            LocalPaneToggle provides if (wide) toggle else null,
         ) {
             HomeShell(
                 tab,
+                pane = pane,
                 header = {
                     HomeHeader(
                         tab, {}, {},
-                        computer = { if (bar) ComputerNameLine(name, RelayTheme.type.body.copy(fontWeight = FontWeight.Medium), {}, color = RelayTheme.colors.inkSoft) },
+                        computer = { ComputerNameLine(name, RelayTheme.type.body.copy(fontWeight = FontWeight.Medium), {}, color = RelayTheme.colors.inkSoft) },
                         hasFilter = tab == HomeTab.Threads,
                         filter = { FilterButton(RemoteOverview("m", projects = projects, chats = chats), ThreadFilter(), {}) },
-                        showPair = bar,
                     )
                 },
                 dock = { dockModifier, onHeight ->
-                    HomeDock(tab, onTab, bar, threadsNews = tab != HomeTab.Threads, onHeight = onHeight, modifier = dockModifier, hasComposer = tab == HomeTab.Threads) { HomeComposer({}) }
+                    HomeDock(tab, onTab, followsKeyboard = !pane, threadsNews = tab != HomeTab.Threads, onHeight = onHeight, modifier = dockModifier, hasComposer = tab == HomeTab.Threads) { HomeComposer({}) }
                 },
             ) { shown, bottom ->
                 when {
                     empty -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { EmptyGreeting() }
                     shown == HomeTab.Threads -> ActivityList(
                         chats, projects, emptyMap(), false, { it.markedUnread == true }, emptyMap(), { _, _ -> },
-                        Int.MAX_VALUE, null, {}, { _, _ -> }, { _, _ -> null }, bottom,
+                        Int.MAX_VALUE, selected, {}, { _, _ -> }, { _, _ -> null }, bottom,
                     )
                     shown == HomeTab.Projects -> ProjectsList(RemoteOverview("m", projects = projects, chats = chats), emptyMap(), null, {}, {}, {}, bottom)
                     else -> LazyColumn { items(20) { Text("Pull request $it") } }
@@ -198,8 +164,9 @@ class ShellShots : ShotTest() {
     @Composable
     private fun Wide() {
         Row(Modifier.fillMaxSize().background(RelayTheme.colors.chrome)) {
-            Box(Modifier.width(280.dp).fillMaxHeight()) { Drawer(openId = null, above = true) }
-            Box(Modifier.weight(1f)) { Home(HomeTab.Threads, bar = false, wide = true) }
+            Box(Modifier.width(320.dp).fillMaxHeight()) { Home(HomeTab.Threads, pane = true) }
+            val toggle: @Composable () -> Unit = { CircleButton(TablerIcons.Outline.LayoutSidebar, "Hide list", {}, tone = CircleTone.Raised) }
+            CompositionLocalProvider(LocalPaneToggle provides toggle) { Box(Modifier.weight(1f).padding(start = 8.dp)) { PaneEmpty() } }
         }
     }
 
@@ -209,13 +176,11 @@ class ShellShots : ShotTest() {
         CompositionLocalProvider(LocalDensity provides Density(density.density, 1.3f), content = content)
     }
 
-    /** Relay's dark theme as the desktop sends it: a sidebar only a little lighter than its surface. */
     /** On the desktop's palette, over Android's three buttons (48dp). */
     @Test
     fun desktopPalette() {
         Shot("shell-desk-home") { Desk { Home(HomeTab.Threads) } }
         Shot("shell-desk-projects") { Desk { Home(HomeTab.Projects) } }
-        Shot("shell-desk-drawer") { Desk { Opened { Drawer() } } }
         Shot("shell-desk-search") { Desk { Search("plan") } }
         Shot("shell-desk-wide", ShotDevice.FoldInner) { Desk { Wide() } }
     }
@@ -244,21 +209,6 @@ class ShellShots : ShotTest() {
             )
         }
         RelayTheme(desktopDark, content)
-    }
-
-    @Test
-    fun drawer() {
-        for (dark in listOf(false, true)) Shot("shell-drawer", dark = dark) { Opened { Drawer() } }
-        Shot("shell-drawer-large") { LargeText { Opened { Drawer(name = "lubomirs-very-long-workstation.local") } } }
-        Shot("shell-drawer-empty") { Opened { Drawer(emptyList(), null) } }
-    }
-
-    @Composable
-    private fun Opened(content: @Composable () -> Unit) {
-        Home(HomeTab.Threads)
-        val state = rememberDrawerState()
-        LaunchedEffect(Unit) { state.open() }
-        DrawerOverlay(state, content = content)
     }
 
     @Test
@@ -297,18 +247,6 @@ class ShellShots : ShotTest() {
     private fun frame(name: String, number: Int) {
         val dir = System.getProperty("relay.shots.dir") ?: "build/shots"
         compose.onRoot().captureRoboImage("$dir/strip-$name/${"%02d".format(number)}.png")
-    }
-
-    @Test
-    fun stripDrawer() {
-        lateinit var state: DrawerState
-        strip("drawer", 24, { state.open() }) {
-            Home(HomeTab.Threads)
-            state = rememberDrawerState()
-            DrawerOverlay(state) { Drawer() }
-        }
-        state.close()
-        frames("drawer", 25, 10)
     }
 
     @Test

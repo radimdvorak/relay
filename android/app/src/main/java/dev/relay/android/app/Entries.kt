@@ -32,7 +32,6 @@ import dev.relay.android.features.thread.SubagentRunScreen
 import dev.relay.android.features.thread.ThreadScreen
 import dev.relay.android.features.search.SearchScreen
 import dev.relay.android.lib.navigation.FADES_IN
-import dev.relay.android.lib.navigation.LocalOpenDrawer
 import dev.relay.android.lib.navigation.MORPHS_IN
 import dev.relay.android.lib.navigation.Route
 import dev.relay.android.ui.LocalScreenAnimation
@@ -46,7 +45,7 @@ import dev.relay.android.ui.theme.RelayTheme
  *     entry<Route.Thread> { ThreadScreen(it.id, container.remote) }
  */
 fun EntryProviderScope<NavKey>.appEntries(container: AppContainer, shell: ShellState) {
-    entry<Route.Home> { Animated { AppHome(container, shell) } }
+    entry<Route.Home> { if (shell.sidePane) PaneEmpty() else Animated { AppHome(container, shell, pane = false, selected = null) } }
     entry<Route.Search>(metadata = mapOf(FADES_IN to true)) { Animated { SearchScreen(it, container.remote, container.home) } }
     entry<Route.Settings> { SettingsScreen(container.remote, container.updates, container.notifications, container.push, container.lock, container.prefs, container.scope, container.relayStop::stop) }
     entry<Route.Gallery> { GalleryScreen() }
@@ -71,7 +70,7 @@ fun EntryProviderScope<NavKey>.appEntries(container: AppContainer, shell: ShellS
     }
     entry<Route.Thread> {
         val locked = container.lock.locked.collectAsState().value
-        ThreadScreen(it.id, container.remote, locked = locked, onSeen = seen, onMenu = LocalOpenDrawer.current)
+        ThreadScreen(it.id, container.remote, locked = locked, onSeen = seen)
     }
     entry<Route.Reply> {
         ThreadScreen(it.id, container.remote, rootId = it.rootId, locked = container.lock.locked.collectAsState().value, onSeen = seen)

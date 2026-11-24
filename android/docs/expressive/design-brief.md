@@ -25,11 +25,11 @@ diffDeletion). Only the roles change, to the ones this layout needs:
 
 | Role (new `RelayColors`) | What it paints | From the desktop palette | Default light / dark |
 |---|---|---|---|
-| `chrome` | header band, drawer, sheet backdrop | `sidebar` | `#ECECEC` / `#161616` |
+| `chrome` | header band, sheet backdrop | `sidebar` | `#ECECEC` / `#161616` |
 | `surface` | the content sheet, thread, lists | `surface` | `#FDFDFD` / `#0D0D0D` |
 | `raised` | composer pill, sheets, toasts | `inbox` | `#FCFCFC` / `#1C1C1C` |
 | `tool` | 44/36dp circle buttons, search field, active tab pill, selected row | `hover` | `#ECECEC` / `#262626` |
-| `selected` | current row in drawer/lists | `selected` | `#E4E4E4` / `#2C2C2C` |
+| `selected` | current row in lists | `selected` | `#E4E4E4` / `#2C2C2C` |
 | `ink` / `inkSoft` / `inkFaint` | text tiers | `text` / `muted` / lerp(surface, muted, .62) | `#1A1A1A` `#6B6B6B` `#9A9A9A` / `#F2F2F2` `#A3A3A3` `#6E6E6E` |
 | `strong` / `onStrong` | dark circle button, effort slider, tooltip | `text` / `surface` | `#171717` / `#FAFAFA` inverted in dark |
 | `bubble` / `onBubble` | the user's message | `accentSoft` / `text` | `#E4EFF6` / `#1A2A35` |
@@ -48,7 +48,7 @@ raised → `surfaceContainerLowest` …) so stock M3 components look right witho
 
 | Style | Font | Size / line | Use |
 |---|---|---|---|
-| `greeting` | Newsreader 400 | 27 / 34 | empty home, drawer title (22), empty states |
+| `greeting` | Newsreader 400 | 27 / 34 | empty home, empty states |
 | `title` | Inter 500 | 24 / 30 | tab titles (Projects, PRs) |
 | `heading` | Inter 600 | 20 / 26 | markdown H1–H2, screen headings |
 | `body` | Inter 400 | 15 / 24 | answers, user messages |
@@ -75,7 +75,7 @@ where mixed sizes share a paragraph (markdown).
 `MaterialExpressiveTheme` with a Relay `MotionScheme`: the video never overshoots, so recurring
 motion uses **standard** springs and only a few hero moments use **expressive** spatial springs.
 
-- Standard (`MaterialTheme.motionScheme` default*): sheets, drawer, page changes, composer
+- Standard (`MaterialTheme.motionScheme` default*): sheets, page changes, composer
   expand/collapse, list items, tool-call rows, streaming. 150–250ms feel, no bounce.
 - Expressive spatial (explicit, sparingly): the bottom-bar pill sliding, the tooltip pop, the send
   button appearing/morphing (circle → `MorphPolygonShape` while recording), the toast arriving.
@@ -87,7 +87,8 @@ motion uses **standard** springs and only a few hero moments use **expressive** 
 
 ```
 ┌ status bar ───────────────────────────┐
-│ chrome: (☰)        title     (🔍|✎)   │  header, 44dp circles
+│ chrome: computer ⌄      (≡) (🔍|⚙)   │  header, 44dp circles
+│ Threads                               │  the tab's title, 24sp
 │╭─────────────── surface ─────────────╮│  24dp top corners
 ││  screen content                     ││
 ││                                     ││
@@ -98,15 +99,15 @@ motion uses **standard** springs and only a few hero moments use **expressive** 
 ```
 
 - Bottom bar: **Threads, Projects, PRs**. Icons only, long-press/tap shows a `strong` tooltip
-  label. Settings moves to the drawer's gear.
-- ☰ opens the **drawer**: Relay mark + serif title (the computer's name), Pinned and Recent
-  threads (from the activity list, "Show more"), then gear · search field · new-thread button at
-  the bottom. On a Fold's inner screen the drawer is a permanent side pane.
+  label. Settings is the gear in the header, beside search.
+- **No drawer.** We built one and dropped it: it repeated the thread list, search and new thread.
+  Every thread is on the Threads tab, and a new one starts only in its composer. On a Fold's inner
+  screen Home is a pane beside the detail.
 - The Threads tab is the composer-first home: with nothing running it's the greeting; otherwise
   the activity (needs-you, running, recent) above the composer. Typing in the home composer starts
   a new thread (the project/where/model chips come with it).
 - 🔍 opens full-screen **search** (threads and projects, matches in bold).
-- Thread screen: chrome header (☰ or ←, title, ✎ | ⋯), messages on `surface`, composer pinned
+- Thread screen: chrome header (←, title, ✎ | ⋯), messages on `surface`, composer pinned
   above the keyboard, model + effort chips in the expanded composer opening the **model sheet**
   and **effort sheet**.
 - Status toasts ("Finished", "Needs you") float above the composer, right-aligned.

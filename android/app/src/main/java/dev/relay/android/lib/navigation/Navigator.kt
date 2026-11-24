@@ -25,6 +25,3 @@ val LocalNavigator = staticCompositionLocalOf<Navigator> { error("No Navigator: 
 
 /** What a TopBar's back button does: pop, or nothing on a pane's first screen. */
 val Navigator.backAction: (() -> Unit)? get() = if (canGoBack) ({ pop() }) else null
-
-/** Opens the thread drawer (a header's ☰), or null where its threads are already beside the screen. */
-val LocalOpenDrawer = staticCompositionLocalOf<(() -> Unit)?> { null }

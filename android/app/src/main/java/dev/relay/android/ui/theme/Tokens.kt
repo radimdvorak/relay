@@ -15,7 +15,7 @@ object RelayShapes {
     val circle = CircleShape
     /** Thumbnails, inline code, small tiles. */
     val small = RoundedCornerShape(8.dp)
-    /** A row's highlight in the drawer and lists. */
+    /** A row's highlight in lists. */
     val row = RoundedCornerShape(12.dp)
     /** Text fields that aren't pills. */
     val field = RoundedCornerShape(16.dp)
@@ -53,7 +53,7 @@ object Space {
 
 /**
  * Springs per the brief's "Motion": [standard] is the theme's scheme and drives everything that
- * recurs (sheets, the drawer, pages, the composer, list items); [hero] is Material's expressive
+ * recurs (sheets, pages, the composer, list items); [hero] is Material's expressive
  * scheme, for the few moments that should feel alive: the bar's pill sliding, the tooltip
  * popping, the send button appearing, a toast arriving.
  */
@@ -67,7 +67,7 @@ object RelayMotion {
 object Motion {
     /** ease-out-quint: most things. */
     val EaseOutQuint = CubicBezierEasing(0.23f, 1f, 0.32f, 1f)
-    /** The drawer's curve. */
+    /** What slides in from an edge. */
     val Drawer = CubicBezierEasing(0.32f, 0.72f, 0f, 1f)
     const val FAST = 150
     const val BASE = 200

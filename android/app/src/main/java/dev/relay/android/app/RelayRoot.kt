@@ -24,13 +24,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.LocalUriHandler
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
-import androidx.compose.ui.platform.LocalWindowInfo
-import androidx.compose.ui.semantics.clearAndSetSemantics
-import dev.relay.android.features.drawer.DrawerOverlay
-import dev.relay.android.features.drawer.drawerEdgeSwipe
-import dev.relay.android.lib.navigation.LocalOpenDrawer
 import androidx.compose.ui.unit.dp
 import androidx.core.view.WindowCompat
 import androidx.lifecycle.viewmodel.navigation3.rememberViewModelStoreNavEntryDecorator
@@ -106,8 +100,8 @@ fun RelayRoot(container: AppContainer, links: ReceiveChannel<DeepLink>, crash: C
         val isWide by rememberUpdatedState(panes)
         val navigator = remember(backStack) { AppNavigator(backStack) { isWide } }
         val toasts = remember { ToastState() }
-        val shell = rememberShellState(panes && !prefs.sidebarHidden)
         val sidebar = panes && !prefs.sidebarHidden
+        val shell = rememberShellState(sidebar)
         val activity = LocalView.current.context as? Activity
 
         // A new process (an update, or Android reclaiming the app) gets back the stack the old one
@@ -126,7 +120,6 @@ fun RelayRoot(container: AppContainer, links: ReceiveChannel<DeepLink>, crash: C
         LaunchedEffect(navigator) {
             for (link in links) {
                 val route = link.route
-                shell.drawer.close()
                 // A notification posted before a switch: its thread is on the computer it names.
                 if (link.computer != null) {
                     remote.ready.first { it }
@@ -149,13 +142,10 @@ fun RelayRoot(container: AppContainer, links: ReceiveChannel<DeepLink>, crash: C
         LaunchedEffect(unpaired) {
             if (unpaired) navigator.push(Route.Pair())
         }
-        // Home and search say it themselves, as do Settings and pairing.
+        // Home says it, beside the detail too; search, Settings and pairing say it themselves.
         val notice: (@Composable () -> Unit)? =
-            if (top is Route.Home || top is Route.Search || top is Route.Settings || top is Route.Pair) null
+            if (sidebar || top is Route.Home || top is Route.Search || top is Route.Settings || top is Route.Pair) null
             else ({ ConnectionLine(remote) })
-        val openDrawer = { shell.drawer.open() }.takeIf { paired && !panes && top !is Route.Pair }
-        // Unfolded with the drawer out: the pane takes over.
-        LaunchedEffect(panes) { if (panes) shell.drawer.close() }
 
         val tunnelLinks = rememberTunnelLinks(remote, LocalUriHandler.current, navigator)
         CompositionLocalProvider(
@@ -163,17 +153,9 @@ fun RelayRoot(container: AppContainer, links: ReceiveChannel<DeepLink>, crash: C
             LocalToasts provides toasts,
             LocalUriHandler provides tunnelLinks,
             LocalOpensLocalhost provides rememberTunnels(remote),
-            LocalOpenDrawer provides openDrawer,
         ) {
             Box(Modifier.fillMaxSize().background(RelayTheme.colors.chrome)) {
-                val windowWidth = with(LocalDensity.current) { LocalWindowInfo.current.containerSize.width.toDp() }
-                WideLayout(
-                    panes, prefs,
-                    sidebar = { SidePane(container, shell, navigator) },
-                    modifier = Modifier
-                        .drawerEdgeSwipe(shell.drawer, enabled = openDrawer != null && top == Route.Home, screenWidth = windowWidth)
-                        .then(if (shell.drawer.visible) Modifier.clearAndSetSemantics { } else Modifier),
-                ) {
+                WideLayout(panes, prefs, sidebar = { HomePane(container, shell) }) {
                     SharedTransitionLayout {
                         CompositionLocalProvider(LocalScreenNotice provides notice, LocalSharedTransitions provides this.takeIf { !panes }) {
                             NavDisplay(
@@ -201,7 +183,6 @@ fun RelayRoot(container: AppContainer, links: ReceiveChannel<DeepLink>, crash: C
                         .windowInsetsPadding(WindowInsets.safeDrawing)
                         .padding(bottom = if (top.hasComposer) COMPOSER_ROOM else 0.dp),
                 )
-                if (!panes) DrawerOverlay(shell.drawer) { PhoneDrawer(container, shell, navigator) }
                 ToastHost(toasts, Modifier.align(Alignment.BottomCenter).windowInsetsPadding(WindowInsets.safeDrawing))
             }
         }

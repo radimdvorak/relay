@@ -39,12 +39,14 @@ import dev.relay.android.ui.theme.RelayTheme
 internal fun HomeShell(
     tab: HomeTab,
     modifier: Modifier = Modifier,
+    /** Beside the detail: what floats over that has nothing of this to clear. */
+    pane: Boolean = false,
     header: @Composable () -> Unit,
     dock: @Composable (Modifier, onHeight: (Dp) -> Unit) -> Unit,
     page: @Composable ColumnScope.(tab: HomeTab, bottom: Dp) -> Unit,
 ) {
     var dockHeight by remember { mutableStateOf(0.dp) }
-    KeepToastsAbove(dockHeight)
+    if (!pane) KeepToastsAbove(dockHeight)
     val underBar = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
     val pages = rememberSaveableStateHolder()
     val effects = RelayTheme.motion.standard.defaultEffectsSpec<Float>()

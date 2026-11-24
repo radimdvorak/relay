@@ -25,7 +25,7 @@ import dev.relay.android.ui.theme.RelayTheme
 
 /**
  * A fully round 44dp search field: a glass, the query, and a ✕ once there's something to clear.
- * Tool-filled by default (the drawer, lists); pass the raised fill when it sits on the chrome.
+ * Tool-filled by default (lists); pass the raised fill when it sits on the chrome.
  */
 @Composable
 fun SearchField(

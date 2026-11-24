@@ -8,13 +8,11 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import dev.relay.android.features.drawer.DrawerState
-import dev.relay.android.features.drawer.rememberDrawerState
 import dev.relay.android.features.home.HomeTab
 
-/** What the shell keeps across screens: Home's tab, the drawer, and whether the side pane is showing. */
+/** What the shell keeps across screens: Home's tab, and whether Home is the pane beside the detail. */
 @Stable
-class ShellState(tab: MutableState<HomeTab>, val drawer: DrawerState) {
+class ShellState(tab: MutableState<HomeTab>) {
     var tab by tab
     var sidePane by mutableStateOf(false)
 }
@@ -22,8 +20,7 @@ class ShellState(tab: MutableState<HomeTab>, val drawer: DrawerState) {
 @Composable
 internal fun rememberShellState(sidePane: Boolean): ShellState {
     val tab = rememberSaveable { mutableStateOf(HomeTab.Threads) }
-    val drawer = rememberDrawerState()
-    val shell = remember(tab, drawer) { ShellState(tab, drawer) }
+    val shell = remember(tab) { ShellState(tab) }
     shell.sidePane = sidePane
     return shell
 }
