@@ -33,9 +33,9 @@ import androidx.lifecycle.compose.currentStateAsState
 import dev.relay.android.ui.theme.Motion
 import dev.relay.android.ui.theme.RelayTheme
 
-/** Hexta's inset hairline ring: one physical pixel, drawn inside the shape. */
+/** A one-pixel ring drawn inside the shape. Rare now: the toast's rim, a focused field. */
 @Composable
-fun Modifier.ring(color: Color = RelayTheme.colors.border, shape: Shape): Modifier =
+fun Modifier.ring(color: Color = RelayTheme.colors.line, shape: Shape): Modifier =
     border(BorderStroke(RelayTheme.hairline, color), shape)
 
 /** Hexta's tactile press: scale to 0.97 and sink 1dp while held. */

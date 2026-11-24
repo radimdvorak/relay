@@ -20,6 +20,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import io.github.lyxnx.compose.ui.tablericons.TablerIcons
 import io.github.lyxnx.compose.ui.tablericons.outline.ChevronLeft
@@ -41,7 +42,7 @@ val LocalPaneToggle = compositionLocalOf<(@Composable () -> Unit)?> { null }
 /** Set by the shell: a line under every TopBar, e.g. that the computer can't be reached. */
 val LocalScreenNotice = compositionLocalOf<(@Composable () -> Unit)?> { null }
 
-/** A 52dp header: back, a 15sp/500 title with an optional muted line, actions on the right. */
+/** A 56dp header: back, a 16sp/500 title with an optional soft line, actions on the right. For the new shell use [ChromeHeader]. */
 @Composable
 fun TopBar(
     title: String,
@@ -53,7 +54,7 @@ fun TopBar(
     actions: @Composable RowScope.() -> Unit = {},
 ) {
     Row(
-        modifier.fillMaxWidth().height(52.dp).padding(horizontal = 8.dp),
+        modifier.fillMaxWidth().height(56.dp).padding(horizontal = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(4.dp),
     ) {
@@ -66,8 +67,8 @@ fun TopBar(
                 .then(if (onTitleClick != null) Modifier.pressable(onClick = onTitleClick, scale = false) else Modifier)
                 .padding(start = if (onBack == null && leading == null && toggle == null) 8.dp else 4.dp),
         ) {
-            Text(title, style = RelayTheme.type.base.copy(fontWeight = RelayTheme.type.label.fontWeight), maxLines = 1)
-            if (subtitle != null) Text(subtitle, style = RelayTheme.type.xs, color = RelayTheme.colors.mutedForeground, maxLines = 1)
+            Text(title, style = RelayTheme.type.row.copy(fontWeight = FontWeight.Medium), maxLines = 1)
+            if (subtitle != null) Text(subtitle, style = RelayTheme.type.small, color = RelayTheme.colors.inkSoft, maxLines = 1)
         }
         actions()
     }
@@ -90,7 +91,7 @@ fun Screen(
 ) {
     val sides = LocalScreenInsets.current
     Column(
-        modifier.fillMaxSize().background(RelayTheme.colors.background)
+        modifier.fillMaxSize().background(RelayTheme.colors.surface)
             .windowInsetsPadding(WindowInsets.safeDrawing.only(sides)),
     ) {
         if (topBar) {

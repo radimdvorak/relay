@@ -42,7 +42,6 @@ import io.github.lyxnx.compose.ui.tablericons.outline.CircleCheck
 import io.github.lyxnx.compose.ui.tablericons.outline.CircleX
 import io.github.lyxnx.compose.ui.tablericons.outline.InfoCircle
 import dev.relay.android.ui.theme.Motion
-import dev.relay.android.ui.theme.Radii
 import dev.relay.android.ui.theme.RelayTheme
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -168,17 +167,17 @@ private fun ToastCard(toast: Toast, depth: Int, onDismiss: () -> Unit) {
                     else drag.animateTo(0f)
                 },
             )
-            .shadow(16.dp, Radii.xlShape, ambientColor = Color.Black.copy(alpha = 0.3f), spotColor = Color.Black.copy(alpha = 0.3f))
-            .background(c.popover, Radii.xlShape)
-            .ring(c.border, Radii.xlShape)
+            .shadow(10.dp, RelayTheme.shapes.toast, ambientColor = Color.Black.copy(alpha = 0.12f), spotColor = Color.Black.copy(alpha = 0.12f))
+            .background(c.container, RelayTheme.shapes.toast)
+            .ring(c.line, RelayTheme.shapes.toast)
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         if (icon != null) Icon(icon, null, tint = toast.tone.color(c))
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(toast.message, style = RelayTheme.type.label)
-            if (toast.description != null) Text(toast.description, color = c.mutedForeground)
+            Text(toast.message, style = RelayTheme.type.row)
+            if (toast.description != null) Text(toast.description, style = RelayTheme.type.meta, color = c.inkSoft)
         }
         if (toast.actionLabel != null) Button(
             toast.actionLabel,
@@ -186,7 +185,7 @@ private fun ToastCard(toast: Toast, depth: Int, onDismiss: () -> Unit) {
                 toast.onAction?.invoke()
                 onDismiss()
             },
-            variant = ButtonVariant.Outline,
+            variant = ButtonVariant.Secondary,
             size = ButtonSize.Sm,
         )
     }

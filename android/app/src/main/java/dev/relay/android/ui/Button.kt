@@ -8,6 +8,7 @@ import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
@@ -17,7 +18,6 @@ import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.getValue
@@ -27,10 +27,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import dev.relay.android.ui.theme.RelayColors
@@ -38,39 +38,35 @@ import dev.relay.android.ui.theme.RelayTheme
 
 enum class ButtonVariant { Default, Secondary, Outline, Ghost, Destructive, GhostDestructive }
 
-enum class ButtonSize(val height: Dp, val padX: Dp, val icon: Dp, val radius: Dp) {
-    Xs(24.dp, 8.dp, 14.dp, 7.7.dp),
-    Sm(32.dp, 10.dp, 16.dp, 10.dp),
-    Default(36.dp, 12.dp, 16.dp, 10.2.dp),
-    Lg(40.dp, 14.dp, 16.dp, 10.2.dp),
+/** Every button is a pill; sizes step on the 4dp grid. */
+enum class ButtonSize(val height: Dp, val padX: Dp, val icon: Dp) {
+    Xs(28.dp, 10.dp, 14.dp),
+    Sm(36.dp, 14.dp, 16.dp),
+    Default(40.dp, 16.dp, 18.dp),
+    Lg(48.dp, 20.dp, 20.dp),
+    ;
+
+    val radius: Dp get() = height / 2
 }
 
 @Immutable
 private data class Look(val fill: Color, val pressedFill: Color, val content: Color, val ring: Color?)
 
-private fun look(v: ButtonVariant, c: RelayColors): Look {
-    val pressMuted = c.foreground.copy(alpha = 0.06f).compositeOver(c.muted)
-    return when (v) {
-        ButtonVariant.Default -> Look(c.primary, c.primary.copy(alpha = 0.8f), c.onPrimary, null)
-        ButtonVariant.Secondary -> Look(c.muted, pressMuted, c.foreground, null)
-        ButtonVariant.Outline -> Look(
-            if (c.isDark) c.input.copy(alpha = c.input.alpha * 0.3f).compositeOver(c.background) else c.background,
-            c.muted,
-            c.foreground,
-            if (c.isDark) c.input else c.border,
-        )
-        ButtonVariant.Ghost -> Look(Color.Transparent, c.muted, c.foreground, null)
-        ButtonVariant.Destructive -> {
-            val tint = if (c.isDark) 0.2f else 0.1f
-            Look(c.destructive.copy(alpha = tint), c.destructive.copy(alpha = tint + 0.1f), c.destructive, null)
-        }
-        ButtonVariant.GhostDestructive -> Look(Color.Transparent, c.destructive.copy(alpha = 0.1f), c.destructive, null)
+private fun look(v: ButtonVariant, c: RelayColors): Look = when (v) {
+    ButtonVariant.Default -> Look(c.strong, c.strong.copy(alpha = 0.85f), c.onStrong, null)
+    ButtonVariant.Secondary -> Look(c.tool, pressedFill(c.tool, c), c.ink, null)
+    ButtonVariant.Outline -> Look(Color.Transparent, c.tool, c.ink, c.line)
+    ButtonVariant.Ghost -> Look(Color.Transparent, c.tool, c.ink, null)
+    ButtonVariant.Destructive -> {
+        val tint = if (c.isDark) 0.2f else 0.1f
+        Look(c.danger.copy(alpha = tint), c.danger.copy(alpha = tint + 0.1f), c.danger, null)
     }
+    ButtonVariant.GhostDestructive -> Look(Color.Transparent, c.danger.copy(alpha = 0.1f), c.danger, null)
 }
 
 /**
- * Hexta's button. `loading` swaps the leading icon for a spinner and ignores
- * taps. Destructive is a tint, not a solid fill.
+ * A pill button: strong by default, tool-filled as Secondary. `loading` swaps the leading icon
+ * for a spinner and ignores taps. Destructive is a tint, not a solid fill.
  */
 @Composable
 fun Button(
@@ -105,7 +101,7 @@ fun Button(
             }
             Text(
                 text,
-                style = if (size == ButtonSize.Xs) RelayTheme.type.xs.copy(fontWeight = RelayTheme.type.label.fontWeight) else RelayTheme.type.label,
+                style = if (size == ButtonSize.Xs) RelayTheme.type.label else RelayTheme.type.meta.copy(fontWeight = FontWeight.Medium),
                 color = androidx.compose.material3.LocalContentColor.current,
                 maxLines = 1,
             )
@@ -114,7 +110,7 @@ fun Button(
     }
 }
 
-/** A square button holding one icon; ghost by default. */
+/** A round button holding one icon; ghost by default. For header and composer actions use [CircleButton]. */
 @Composable
 fun IconButton(
     icon: ImageVector,
@@ -151,7 +147,7 @@ private fun ButtonBox(
     val l = remember(variant, c) { look(variant, c) }
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
-    val shape = RoundedCornerShape(size.radius)
+    val shape = RelayTheme.shapes.circle
     Box(
         modifier
             .pressable(onClick, enabled = enabled, haptic = haptic, interaction = interaction)
@@ -159,7 +155,7 @@ private fun ButtonBox(
             .alpha(if (dim) 0.5f else 1f)
             .clip(shape)
             .background(if (pressed && enabled) l.pressedFill else l.fill)
-            .then(if (l.ring != null) Modifier.ring(l.ring, shape) else Modifier)
+            .then(if (l.ring != null) Modifier.border(1.dp, l.ring, shape) else Modifier)
             .then(if (square) Modifier.semantics { contentDescription = label } else Modifier)
             .padding(horizontal = if (square) 0.dp else size.padX),
         contentAlignment = Alignment.Center,

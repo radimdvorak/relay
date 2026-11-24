@@ -4,7 +4,6 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.AnimationSpec
 import androidx.compose.animation.core.snap
-import androidx.compose.animation.core.tween
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -20,8 +19,9 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.remember
@@ -36,8 +36,6 @@ import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import dev.relay.android.ui.theme.Motion
-import dev.relay.android.ui.theme.Radii
 import dev.relay.android.ui.theme.RelayTheme
 
 data class TabOption<T>(val value: T, val label: String)
@@ -58,16 +56,15 @@ private fun indicator(slots: Slots, index: Int): Pair<Dp, Dp> {
             settled = true
         }
     }
-    val spec: AnimationSpec<Dp> = if (settled) tween(Motion.SLIDE, easing = Motion.EaseOutQuint) else snap()
+    val spec: AnimationSpec<Dp> = if (settled) MaterialTheme.motionScheme.defaultSpatialSpec() else snap()
     val x by animateDpAsState(slots.x[index] ?: 0.dp, spec, label = "tab-x")
     val w by animateDpAsState(slots.w[index] ?: 0.dp, spec, label = "tab-w")
     return x to w
 }
 
 /**
- * Hexta's segmented tabs: a muted track with a background pill that slides to
- * the chosen one. `fill` spreads the tabs across the width; otherwise they
- * hug their labels and scroll when they don't fit.
+ * Segmented tabs: a round tool track with a raised pill that slides to the chosen one. `fill`
+ * spreads the tabs across the width; otherwise they hug their labels and scroll when they don't fit.
  */
 @Composable
 fun <T> SegmentedTabs(
@@ -76,7 +73,7 @@ fun <T> SegmentedTabs(
     onSelect: (T) -> Unit,
     modifier: Modifier = Modifier,
     fill: Boolean = true,
-    /** The chosen tab wears the computer's Send colour instead of Hexta's faint lift: for a filter that changes the whole list. */
+    /** The chosen tab wears the send colour instead of the raised pill: for a filter that changes the whole list. */
     primary: Boolean = false,
 ) {
     val c = RelayTheme.colors
@@ -84,23 +81,21 @@ fun <T> SegmentedTabs(
     val density = LocalDensity.current
     val index = options.indexOfFirst { it.value == selected }.coerceAtLeast(0)
     val (x, w) = indicator(slots, index)
-    val track = RoundedCornerShape(Radii.lg)
-    val pill = RoundedCornerShape(Radii.lg - 3.dp)
+    val track = RelayTheme.shapes.circle
+    val pill = RelayTheme.shapes.circle
     Box(
         modifier
             .then(if (fill) Modifier.fillMaxWidth() else Modifier)
             .clip(track)
-            .background(c.muted)
+            .background(c.tool)
             .padding(3.dp)
-            .height(32.dp),
+            .height(34.dp),
     ) {
         Box((if (fill) Modifier.fillMaxWidth() else Modifier.horizontalScroll(rememberScrollState())).fillMaxHeight()) {
         if (w > 0.dp) Box(
             Modifier.offset(x = x).width(w).fillMaxHeight().then(
                 if (primary) Modifier.background(c.send, pill)
-                // Tailwind's `bg-input/30` scales the colour's own alpha, it doesn't replace it.
-                else Modifier.background(if (c.isDark) c.input.copy(alpha = c.input.alpha * 0.3f) else c.background, pill)
-                    .ring(if (c.isDark) c.input else c.foreground.copy(alpha = 0.05f), pill),
+                else Modifier.background(if (c.isDark) c.selected else c.raised, pill),
             ),
         )
         Row(
@@ -109,7 +104,8 @@ fun <T> SegmentedTabs(
         ) {
             options.forEachIndexed { i, o ->
                 val on = i == index
-                val color by animateColorAsState(if (on) (if (primary) c.onSend else c.foreground) else c.mutedForeground, label = "seg-color")
+                val chosenInk = if (primary) c.onSend else c.ink
+                val color by animateColorAsState(if (on) chosenInk else c.inkSoft, MaterialTheme.motionScheme.fastEffectsSpec(), label = "seg-color")
                 Box(
                     Modifier
                         .then(if (fill) Modifier.weight(1f) else Modifier)
@@ -124,14 +120,14 @@ fun <T> SegmentedTabs(
                         .pressable({ onSelect(o.value) }, role = Role.Tab, scale = false, haptic = Haptic.Selection)
                         .padding(horizontal = 12.dp),
                     contentAlignment = Alignment.Center,
-                ) { Text(o.label, style = RelayTheme.type.label, color = color, maxLines = 1) }
+                ) { Text(o.label, style = tabLabel(), color = color, maxLines = 1) }
             }
         }
         }
     }
 }
 
-/** Hexta's line tabs: a hairline rule with a 2dp foreground bar sliding under the chosen tab. */
+/** Line tabs: labels with a 2dp ink bar sliding under the chosen one; no rule under the row. */
 @Composable
 fun <T> LineTabs(
     options: List<TabOption<T>>,
@@ -145,7 +141,6 @@ fun <T> LineTabs(
     val index = options.indexOfFirst { it.value == selected }.coerceAtLeast(0)
     val (x, w) = indicator(slots, index)
     Box(modifier.fillMaxWidth().height(40.dp)) {
-        Divider(Modifier.align(Alignment.BottomStart))
         Box(Modifier.horizontalScroll(rememberScrollState()).fillMaxHeight()) {
         Row(Modifier.fillMaxHeight()) {
             options.forEachIndexed { i, o ->
@@ -164,13 +159,16 @@ fun <T> LineTabs(
                         .padding(horizontal = 8.dp),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Text(o.label, style = RelayTheme.type.label, color = if (on) c.foreground else c.mutedForeground, maxLines = 1)
+                    Text(o.label, style = tabLabel(), color = if (on) c.ink else c.inkSoft, maxLines = 1)
                 }
             }
         }
         if (w > 0.dp) Box(
-            Modifier.align(Alignment.BottomStart).offset(x = x).width(w).height(2.dp).background(c.foreground),
+            Modifier.align(Alignment.BottomStart).offset(x = x).width(w).height(2.dp).background(c.ink, RelayTheme.shapes.circle),
         )
         }
     }
 }
+
+@Composable
+private fun tabLabel() = RelayTheme.type.meta.copy(fontWeight = FontWeight.Medium)

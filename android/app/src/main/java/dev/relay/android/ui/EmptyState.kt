@@ -24,14 +24,14 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import dev.relay.android.ui.theme.Radii
+import androidx.compose.ui.unit.sp
 import dev.relay.android.ui.theme.RelayTheme
 import kotlinx.coroutines.delay
 
 /**
- * Hexta's empty state: the three-card fan (or a plain media tile), a 17sp
- * title with tight tracking, a muted line and an optional action. The parts
- * fade up 6dp in turn.
+ * An empty state: the three-card fan (or a plain media tile), a title in the display serif, a
+ * soft line and an optional action. The parts fade up 6dp in turn. The empty home uses
+ * [EmptyGreeting] instead.
  */
 @Composable
 fun EmptyState(
@@ -47,13 +47,13 @@ fun EmptyState(
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         if (icon != null) Rise(0) {
-            if (fan) CardFan(icon) else MediaTile(icon, Modifier, 40.dp, RelayTheme.colors.mutedForeground)
+            if (fan) CardFan(icon) else MediaTile(icon, Modifier, 40.dp, RelayTheme.colors.inkSoft)
         }
         if (icon != null) Spacer(Modifier.height(if (fan) 20.dp else 16.dp))
         Rise(60) {
             Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text(title, style = RelayTheme.type.lg.copy(fontWeight = RelayTheme.type.label.fontWeight, letterSpacing = RelayTheme.type.xxl.letterSpacing), textAlign = TextAlign.Center)
-                if (description != null) Text(description, Modifier.width(300.dp), color = RelayTheme.colors.mutedForeground, textAlign = TextAlign.Center)
+                Text(title, style = RelayTheme.type.greeting.copy(fontSize = 22.sp, lineHeight = 28.sp), textAlign = TextAlign.Center)
+                if (description != null) Text(description, Modifier.width(300.dp), style = RelayTheme.type.meta, color = RelayTheme.colors.inkSoft, textAlign = TextAlign.Center)
             }
         }
         if (action != null) {
@@ -99,15 +99,13 @@ fun CardFan(icon: ImageVector, modifier: Modifier = Modifier, cardSize: Dp = 52.
                     scaleY = 0.9f
                 }
                 .size(w, h)
-                .background(c.card, Radii.lgShape)
-                .ring(c.foreground.copy(alpha = 0.10f), Radii.lgShape),
+                .background(c.tool, RelayTheme.shapes.field),
         )
         Box(
             Modifier.size(w, h)
-                .shadow(6.dp, Radii.lgShape, ambientColor = androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.2f), spotColor = androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.2f))
-                .background(c.card, Radii.lgShape)
-                .ring(c.foreground.copy(alpha = 0.10f), Radii.lgShape),
+                .shadow(6.dp, RelayTheme.shapes.field, ambientColor = androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.12f), spotColor = androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.12f))
+                .background(c.raised, RelayTheme.shapes.field),
             contentAlignment = Alignment.Center,
-        ) { Icon(icon, null, tint = c.mutedForeground, size = 20.dp) }
+        ) { Icon(icon, null, tint = c.inkSoft, size = 20.dp) }
     }
 }
