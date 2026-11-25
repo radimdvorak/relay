@@ -67,7 +67,8 @@ export async function antigravityHelper(home = antigravityHome()) {
         throw error;
       },
     );
-    if (text === undefined) continue;
+    // The CLI leaves an empty mcp_config.json in every profile it runs in.
+    if (text === undefined || !text.trim()) continue;
     let empty = false;
     try {
       const config = JSON.parse(text);

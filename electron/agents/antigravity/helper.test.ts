@@ -40,6 +40,13 @@ it.each([
   await expect(antigravityHelper(root)).rejects.toThrow("global hooks or MCP");
 });
 
+it("takes the empty MCP config the CLI writes into a profile as no servers", async () => {
+  const root = await home();
+  await writeFile(join(root, "config", "mcp_config.json"), "");
+  const helper = await antigravityHelper(root);
+  await helper.close();
+});
+
 it("detects unexpected file work and removes only its temporary workspace", async () => {
   const root = await home();
   const helper = await antigravityHelper(root);
