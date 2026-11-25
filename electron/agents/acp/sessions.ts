@@ -19,6 +19,7 @@ import {
   signsInItself,
   type AcpSessionState,
 } from "./protocol";
+import { keptRunSchema, type KeptRun } from "./steering";
 
 /** What Relay reads off an agent's `initialize`. */
 const capsSchema = z.object({
@@ -59,17 +60,14 @@ const metaSchema = z
         cost: z.number().optional(),
       })
       .optional(),
-    /** `compaction`: an earlier Relay's, which took two prompts. */
-    run: z
-      .object({ id: z.number(), compaction: z.boolean().optional() })
-      .optional(),
+    run: keptRunSchema.optional(),
   })
   .loose();
 
 const startTimeout = 60_000;
 
 /** One agent process and the one session it runs. */
-export class AcpAgent extends HostedAgent<AcpConnection, { id: number }> {
+export class AcpAgent extends HostedAgent<AcpConnection, KeptRun> {
   caps?: AcpCaps;
   /** Started for a Read only thread: with the profile's `readOnlyEnv`, without Relay's tools. */
   readOnly = false;
@@ -95,8 +93,8 @@ export class AcpAgent extends HostedAgent<AcpConnection, { id: number }> {
     super(connection);
   }
 
-  /** What the next Relay reads about this process; `run`, the prompt it's in. */
-  keep(run?: { id: number }) {
+  /** What the next Relay reads about this process; `run`, the turn it's in. */
+  keep(run?: KeptRun) {
     this.connection.keep({
       provider: hostedName(this.profile),
       accountKey: this.profile.accountKey,
@@ -417,7 +415,7 @@ export function reattachAcp(
       connection.continueAfter(
         Math.max(meta.run?.id ?? 0, highestRequestId(entries)),
       );
-      return replayLines(entries, info.split);
+      return replayLines(entries, info.split, meta.run?.takenUp?.after);
     });
     const connection = new AcpConnection(child, profile.name);
     const agent = new AcpAgent(

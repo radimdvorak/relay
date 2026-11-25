@@ -1,6 +1,6 @@
 import type { ChildProcessWithoutNullStreams } from "node:child_process";
 import { terminate } from "../platform/terminate";
-import { LineConnection, type RpcId } from "./line-connection";
+import { LineConnection, type RpcId, type Settled } from "./line-connection";
 import { isRecord } from "../../shared/records";
 
 export type { RpcId } from "./line-connection";
@@ -61,9 +61,9 @@ export abstract class JsonRpcConnection extends LineConnection {
     method: string,
     params: unknown = {},
     id: number = this.reserve(),
+    heard?: (settled: Settled) => void,
   ): Promise<T> {
-    if (this.closed) return Promise.reject(this.stopped());
-    const reply = this.wait(id, method) as Promise<T>;
+    const reply = this.wait(id, method, heard) as Promise<T>;
     this.write({ id, method, params });
     return reply;
   }

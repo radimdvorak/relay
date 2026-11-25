@@ -1,30 +1,56 @@
 // Steers a running turn with another `session/prompt`, for an agent that takes
 // one into the turn it's on (Antigravity 1.5). The earlier prompt then answers
 // at once, and the latest one's answer is the turn's.
+import { z } from "zod";
 import type { AgentOptions } from "../types";
+import type { Settled } from "../line-connection";
 import { guardSteer } from "../turn-kit";
 import { promptResultSchema, type AcpPromptResult } from "./protocol";
 
 type Steer = Parameters<NonNullable<AgentOptions["onControl"]>>[0]["steer"];
 
-/** A prompt on its way to the agent: the request's id, and its answer. */
-export type SentPrompt = { request: number; reply: Promise<unknown> };
+/** Where a turn's prompts stand, for the next Relay to pick up. */
+export const keptRunSchema = z.object({
+  /** The latest prompt's request. */
+  id: z.number(),
+  /** An earlier Relay's compaction, which took two prompts. */
+  compaction: z.boolean().optional(),
+  /** The prompts not answered yet, in order; `steer` names the message one came from. */
+  prompts: z
+    .array(z.object({ request: z.number(), steer: z.string().optional() }))
+    .optional(),
+  /** The last steer taken up, and the request whose answer it follows. */
+  takenUp: z.object({ steer: z.string(), after: z.number() }).optional(),
+});
 
-/** One prompt of the turn; `id` names the message a steer came from. */
-type Prompt = SentPrompt & { answered: boolean; id?: string };
+export type KeptRun = z.infer<typeof keptRunSchema>;
+
+/** One prompt of the turn; `steer` names the message it came from. */
+type Prompt = {
+  request: number;
+  steer?: string;
+  reply: Promise<unknown>;
+  answered: boolean;
+};
+
+type Heard = (settled: Settled) => void;
 
 export class PromptSteering {
   /** The turn's prompts the agent hasn't refused, in the order they were sent. */
-  private prompts: Prompt[];
+  private prompts: Prompt[] = [];
+  private takenUp: KeptRun["takenUp"];
   private ended = false;
 
   constructor(
-    first: SentPrompt,
     private readonly io: {
-      /** Sends a prompt on the turn's session, which a restarted Relay then waits on. */
-      send(prompt: object[]): SentPrompt;
-      /** Has a restarted Relay wait on this request instead of the last one sent. */
-      waitOn(request: number): void;
+      /** The id the next prompt's request gets. */
+      reserve(): number;
+      /** Sends a prompt on the turn's session; `heard` gets its reply before anything said after it. */
+      send(request: number, prompt: object[], heard: Heard): Promise<unknown>;
+      /** Waits on a prompt an earlier Relay sent. */
+      wait(request: number, heard: Heard): Promise<unknown>;
+      /** Keeps where the turn stands for a restarted Relay. */
+      keep(run: KeptRun): void;
       images(images: AgentOptions["images"]): Promise<object[]>;
       /** The turn is over, or stopping. */
       over(): boolean;
@@ -34,9 +60,22 @@ export class PromptSteering {
       steered(id: string): void;
       unread(id: string, error: Error): void;
     },
-  ) {
-    this.prompts = [{ ...first, answered: false }];
-    this.follow(this.prompts[0]);
+  ) {}
+
+  /** Sends the turn's first prompt. */
+  start(prompt: object[]) {
+    this.add(prompt);
+  }
+
+  /** Waits on the prompts an earlier Relay sent, from where it left off. */
+  pickUp(run: KeptRun) {
+    this.takenUp = run.takenUp;
+    // The answer below the steer may not have been saved yet.
+    if (run.takenUp) this.io.steered(run.takenUp.steer);
+    const sent = run.prompts ?? [{ request: run.id }];
+    const prompts = sent.map(({ request, steer }) => this.push(request, steer));
+    for (const prompt of prompts)
+      this.follow(prompt, (heard) => this.io.wait(prompt.request, heard));
   }
 
   readonly steer: Steer = (text, id, images) =>
@@ -52,30 +91,58 @@ export class PromptSteering {
       },
     );
 
-  private add(prompt: object[], id: string | undefined) {
-    const steer: Prompt = { ...this.io.send(prompt), answered: false, id };
-    this.prompts.push(steer);
-    this.follow(steer);
+  private add(prompt: object[], steer?: string) {
+    const next = this.push(this.io.reserve(), steer);
+    this.keep();
+    this.follow(next, (heard) => this.io.send(next.request, prompt, heard));
   }
 
-  private follow(prompt: Prompt) {
-    prompt.reply.then(
-      () => {
-        prompt.answered = true;
-        // The agent let this one go for the next: that's it taking the steer up.
-        const next = this.prompts[this.prompts.indexOf(prompt) + 1];
-        if (next?.id) this.io.steered(next.id);
-      },
-      (error: Error) => {
-        const at = this.prompts.indexOf(prompt);
-        const takenUp = at < 1 || this.prompts[at - 1].answered;
-        if (takenUp) return;
-        // Refused: the turn goes on as it was, without the message.
-        this.prompts.splice(at, 1);
-        if (!this.ended) this.io.waitOn(this.prompts.at(-1)!.request);
-        if (prompt.id && !this.io.over()) this.io.unread(prompt.id, error);
-      },
+  private push(request: number, steer: string | undefined) {
+    const prompt: Prompt = {
+      request,
+      steer,
+      reply: Promise.resolve(),
+      answered: false,
+    };
+    this.prompts.push(prompt);
+    return prompt;
+  }
+
+  private follow(prompt: Prompt, ask: (heard: Heard) => Promise<unknown>) {
+    prompt.reply = ask(({ error }) =>
+      error ? this.failed(prompt, error) : this.answered(prompt),
     );
+    // Whoever waits for the turn hears of a failure; a refused steer has no one.
+    void prompt.reply.catch(() => {});
+  }
+
+  private answered(prompt: Prompt) {
+    prompt.answered = true;
+    const next = this.prompts[this.prompts.indexOf(prompt) + 1];
+    if (!next) return;
+    // The agent let this one go for the next: that's it taking the steer up.
+    if (next.steer) this.takenUp = { steer: next.steer, after: prompt.request };
+    if (!this.ended) this.keep();
+    if (next.steer) this.io.steered(next.steer);
+  }
+
+  private failed(prompt: Prompt, error: Error) {
+    const at = this.prompts.indexOf(prompt);
+    const takenUp = at < 1 || this.prompts[at - 1].answered;
+    if (takenUp) return;
+    // Refused: the turn goes on as it was, without the message.
+    this.prompts.splice(at, 1);
+    if (!this.ended) this.keep();
+    if (prompt.steer && !this.io.over()) this.io.unread(prompt.steer, error);
+  }
+
+  private keep() {
+    const unanswered = this.prompts.filter((prompt) => !prompt.answered);
+    this.io.keep({
+      id: this.prompts.at(-1)!.request,
+      prompts: unanswered.map(({ request, steer }) => ({ request, steer })),
+      takenUp: this.takenUp,
+    });
   }
 
   private get latest() {

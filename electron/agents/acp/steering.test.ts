@@ -1,37 +1,62 @@
 import { expect, it, vi } from "vitest";
-import { PromptSteering } from "./steering";
+import type { Settled } from "../line-connection";
+import { PromptSteering, type KeptRun } from "./steering";
 
-function deferred() {
-  let resolve!: (value: unknown) => void;
-  let reject!: (error: Error) => void;
-  const promise = new Promise<unknown>((yes, no) => {
-    resolve = yes;
-    reject = no;
+type Heard = (settled: Settled) => void;
+
+/** A prompt's request, which the test answers; it's heard first, as a connection has it. */
+function request(heard: Heard) {
+  let settle!: Heard;
+  const reply = new Promise<unknown>((resolve, reject) => {
+    settle = ({ result, error }) => (error ? reject(error) : resolve(result));
   });
-  return { promise, resolve, reject };
+  const answer = (settled: Settled) => {
+    heard(settled);
+    settle(settled);
+  };
+  return {
+    reply,
+    resolve: (result: unknown) => answer({ result }),
+    reject: (error: Error) => answer({ error }),
+  };
 }
 
 /** A turn whose first prompt runs, and whose steers answer as the test says. */
 function turn() {
-  const first = deferred();
-  const steers: ReturnType<typeof deferred>[] = [];
+  const prompts: ReturnType<typeof request>[] = [];
   const state = { waiting: false, over: false };
+  const ask = (heard: Heard) => prompts[prompts.push(request(heard)) - 1].reply;
+  let lastRequest = 0;
   const io = {
-    send: vi.fn((_prompt: object[]) => {
-      const steer = deferred();
-      steers.push(steer);
-      return { request: steers.length + 1, reply: steer.promise };
-    }),
-    waitOn: vi.fn(),
+    reserve: () => ++lastRequest,
+    send: vi.fn((_request: number, _prompt: object[], heard: Heard) =>
+      ask(heard),
+    ),
+    wait: (_request: number, heard: Heard) => ask(heard),
+    keep: vi.fn<(run: KeptRun) => void>(),
     images: async (): Promise<object[]> => [],
     over: () => state.over,
     waiting: () => state.waiting,
     steered: vi.fn(),
     unread: vi.fn(),
   };
-  const steering = new PromptSteering({ request: 1, reply: first.promise }, io);
+  const steering = new PromptSteering(io);
+  steering.start([{ type: "text", text: "Do A" }]);
+  io.send.mockClear();
+  io.keep.mockClear();
+  const steer = (at: number) => ({
+    resolve: (result: unknown) => prompts[at + 1].resolve(result),
+    reject: (error: Error) => prompts[at + 1].reject(error),
+  });
   const interim = vi.fn();
-  return { first, steers, state, io, steering, interim };
+  return {
+    first: prompts[0],
+    steers: [steer(0), steer(1)],
+    state,
+    io,
+    steering,
+    interim,
+  };
 }
 
 const ended = { stopReason: "end_turn" };
@@ -40,7 +65,11 @@ it("goes on with the steer's prompt once the agent lets the first one go", async
   const { first, steers, io, steering, interim } = turn();
   const result = steering.result([], interim);
   await steering.steer("Also do B", "m1");
-  expect(io.send).toHaveBeenCalledWith([{ type: "text", text: "Also do B" }]);
+  expect(io.send).toHaveBeenCalledWith(
+    2,
+    [{ type: "text", text: "Also do B" }],
+    expect.any(Function),
+  );
   expect(io.steered).not.toHaveBeenCalled();
 
   first.resolve({ ...ended, usage: { outputTokens: 1 } });
@@ -74,7 +103,10 @@ it("keeps the turn going when the agent refuses a steer, and says it wasn't read
   steers[0].reject(refusal);
   await vi.waitFor(() => expect(io.unread).toHaveBeenCalledWith("m1", refusal));
   // A restarted Relay must wait on the prompt still running.
-  expect(io.waitOn).toHaveBeenCalledExactlyOnceWith(1);
+  expect(io.keep.mock.lastCall![0]).toEqual({
+    id: 1,
+    prompts: [{ request: 1 }],
+  });
   first.resolve({ ...ended, usage: { outputTokens: 5 } });
   expect(await result).toMatchObject({ usage: { outputTokens: 5 } });
   expect(io.steered).not.toHaveBeenCalled();
@@ -101,9 +133,10 @@ it("leaves what a restarted Relay waits on alone once the turn has ended", async
   await steering.steer("B", "m1");
   stop(new Error("Cancelled by you."));
   await expect(result).rejects.toThrow("Cancelled");
+  io.keep.mockClear();
   steers[0].reject(new Error("Can't add this prompt"));
   await vi.waitFor(() => expect(io.unread).toHaveBeenCalled());
-  expect(io.waitOn).not.toHaveBeenCalled();
+  expect(io.keep).not.toHaveBeenCalled();
   first.resolve(ended);
 });
 
@@ -134,8 +167,8 @@ it("sends nothing while the agent waits for an answer, or once the turn is over"
 
 it("turns away a steer whose preparation finishes right after the active prompt already answered", async () => {
   const { first, io, steering, interim } = turn();
-  const preparing = deferred();
-  io.images = () => preparing.promise as Promise<object[]>;
+  const preparing = Promise.withResolvers<object[]>();
+  io.images = () => preparing.promise;
   const result = steering.result([], interim);
 
   const late = steering.steer("B", "m1");

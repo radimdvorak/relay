@@ -2,6 +2,7 @@ import { agentName } from "../../../shared/agents";
 import { signedOutError } from "../errors";
 import { cancelGrace, TurnText } from "../turn-kit";
 import type { AgentOptions } from "../types";
+import type { Settled } from "../line-connection";
 import { AgentRequests } from "./agent-requests";
 import { AcpRequestError } from "./connection";
 import type { AcpProfile } from "./profiles";
@@ -9,7 +10,7 @@ import { AUTH_REQUIRED, type AcpPromptResult } from "./protocol";
 import { imageBlocks, mcpServers, promptBlocks } from "./prompt";
 import { acquireTurnAgent, openSession, type AcpAgent } from "./sessions";
 import { applySettings } from "./settings";
-import { PromptSteering, type SentPrompt } from "./steering";
+import { PromptSteering, type KeptRun } from "./steering";
 import { antigravityHelper, type TextSpeed } from "../antigravity";
 import { AcpTurnEvents } from "./turn-events";
 
@@ -99,27 +100,20 @@ async function openTurnSession(
   return opened.id;
 }
 
-/** Sends one of the turn's prompts, and keeps its request for a restarted Relay to wait on. */
-function sendPrompt(
-  agent: AcpAgent,
-  sessionId: string,
-  prompt: object[],
-): SentPrompt {
-  const { connection } = agent;
-  const request = connection.reserve();
-  agent.keep({ id: request });
-  const reply = connection.request(
-    "session/prompt",
-    { sessionId, prompt },
-    request,
-  );
-  return { request, reply };
-}
-
-/** The prompt a Relay before this one sent, whose answer is still to come. */
-function pickUpPrompt(agent: AcpAgent, request: number): SentPrompt {
-  return { request, reply: agent.connection.wait(request, "session/prompt") };
-}
+/** How a turn's prompts reach its session, and the next Relay. */
+const promptRequests = (agent: AcpAgent, sessionId: () => string) => ({
+  reserve: () => agent.connection.reserve(),
+  send: (request: number, prompt: object[], heard: (s: Settled) => void) =>
+    agent.connection.request(
+      "session/prompt",
+      { sessionId: sessionId(), prompt },
+      request,
+      heard,
+    ),
+  wait: (request: number, heard: (s: Settled) => void) =>
+    agent.connection.wait(request, "session/prompt", heard),
+  keep: (run: KeptRun) => agent.keep(run),
+});
 
 async function runAcpTurn(
   profile: AcpProfile,
@@ -191,17 +185,22 @@ async function runAcpTurn(
     turnAbort.signal,
   );
   connection.onRequest = requests.answer;
-  const send = (prompt: object[]) => sendPrompt(agent, sessionId!, prompt);
+  const steering = new PromptSteering({
+    ...promptRequests(agent, () => sessionId!),
+    images: (images) => imageBlocks(images, agent, name),
+    over: () => turnAbort.signal.aborted,
+    waiting: () => requests.waiting,
+    steered,
+    unread: (id, error) => options.onSteerUnread?.(id, error),
+  });
 
   let observer: AcpRunObserver | undefined;
   let grace: ReturnType<typeof cancelGrace> | undefined;
   try {
     connection.mark("start");
-    let first: SentPrompt;
     if (adopted) {
       connection.listen(sessionId!, hear);
-      first = pickUpPrompt(agent, adopted.id);
-      void first.reply.catch(() => {});
+      steering.pickUp(adopted);
       try {
         observer = await observe?.(agent, steered);
       } finally {
@@ -217,21 +216,11 @@ async function runAcpTurn(
       connection.listen(sessionId, hear);
       observer = await observe?.(agent, steered);
       signal.throwIfAborted();
-      first = send(prompt);
+      steering.start(prompt);
     }
-    void first.reply.catch(() => {});
     // The agent reports the cancel; if it doesn't, stop waiting anyway.
     grace = cancelGrace(turnAbort.signal);
     if (signal.aborted) stop();
-    const steering = new PromptSteering(first, {
-      send,
-      waitOn: (id) => agent.keep({ id }),
-      images: (images) => imageBlocks(images, agent, name),
-      over: () => turnAbort.signal.aborted,
-      waiting: () => requests.waiting,
-      steered,
-      unread: (id, error) => options.onSteerUnread?.(id, error),
-    });
     if (profile.steersByPrompt && (job.kind === "prompt" || adopted))
       options.onControl?.({ steer: steering.steer });
     const result = await steering.result(
