@@ -10,6 +10,43 @@ import { inspectCodex } from "./codex";
 import { inspectClaude, claudeFiles } from "./claude";
 import { skillItem, sourceOf } from "./presentation";
 
+/** Antigravity's skills: what the CLI reported (including plugins), enriched with paths on disk. */
+async function antigravitySkills(
+  cwd: string,
+  home: string,
+  known: () => Promise<ProviderCommand[] | undefined>,
+): Promise<AgentToolListing> {
+  const [disk, reported] = await Promise.all([
+    discoverAntigravitySkills(cwd, home),
+    known(),
+  ]);
+  if (!reported)
+    return {
+      items: disk.map(skillItem),
+      note: "Read from this agent's skill folders. Start a thread and refresh to include plugin and configured skills.",
+    };
+  const byName = new Map(disk.map((skill) => [skill.name, skill]));
+  const items = reported
+    .filter((command) => command.skill)
+    .map((command) => {
+      const skill = byName.get(command.name);
+      if (skill) return skillItem(skill);
+      return {
+        id: command.name,
+        name: command.displayName || command.name,
+        description: command.description || "Agent skill",
+        source: sourceOf(command.source),
+        state: "enabled" as const,
+        detail:
+          "Offered by the agent's skill catalog. The agent did not report a file path.",
+      };
+    });
+  return {
+    items,
+    note: "Offered by Antigravity for this folder, with paths matched from its skill folders.",
+  };
+}
+
 /**
  * Every call reads afresh. This page describes new sessions, never rewrites
  * configuration. `known` is what an agent Relay can only ask by starting it
@@ -50,18 +87,18 @@ export async function inspectAgentTools(
     };
     let skills: AgentToolListing;
     try {
-      if (provider === "cursor" || provider === "antigravity") {
-        const list =
-          provider === "cursor"
-            ? await discoverCursorSkills(root)
-            : await discoverAntigravitySkills(
-                cwd,
-                accountHome("antigravity", account!),
-              );
+      if (provider === "cursor") {
+        const list = await discoverCursorSkills(root);
         skills = {
           items: list.map(skillItem),
           note: "Read from this agent's skill folders. Session policies may further restrict availability.",
         };
+      } else if (provider === "antigravity") {
+        skills = await antigravitySkills(
+          cwd,
+          accountHome("antigravity", account!),
+          known,
+        );
       } else {
         const list = await known();
         skills = !list
