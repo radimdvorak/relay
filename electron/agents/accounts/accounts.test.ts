@@ -22,6 +22,9 @@ vi.mock("./profiles", () => ({
   profileDir: (provider: string, id: string) => `/profiles/${provider}/${id}`,
 }));
 
+const signInFlow = { done: Promise.resolve(), cancel: () => {} };
+vi.mock("./sign-in", () => ({ startSignIn: async () => signInFlow }));
+
 const { AgentAccounts, accountFor, accountHomes } = await import(".");
 
 function fakeStore(saved: StoredAccounts) {
@@ -104,4 +107,23 @@ it("keeps both of two account changes made at once", async () => {
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
+});
+
+it("tells of a sign-in once it has saved an account, and not of one that saved none", async () => {
+  const accounts = new AgentAccounts(fakeStore(three), () => {});
+  const signIns = vi.fn();
+  accounts.onSignedIn(signIns);
+
+  await accounts.signInAgain("antigravity", "default");
+  await vi.waitFor(async () =>
+    expect(await accounts.state()).toMatchObject({
+      signingIn: null,
+      signInError: expect.stringMatching(/didn't save/),
+    }),
+  );
+  expect(signIns).not.toHaveBeenCalled();
+
+  signedIn.add("antigravity:default");
+  await accounts.signInAgain("antigravity", "default");
+  await vi.waitFor(() => expect(signIns).toHaveBeenCalledOnce());
 });
