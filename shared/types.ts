@@ -40,12 +40,7 @@ import type {
 import type { LineQuestion } from "./questions";
 import type { WatchScope } from "./watch";
 import type { RenderMode } from "./html-render";
-import type {
-  CustomSound,
-  CustomSoundExtension,
-  PlaySoundEvent,
-  SoundSettings,
-} from "./sounds";
+import type { SoundsApi } from "./sounds";
 import type {
   ProjectCheckInfo,
   ProjectCheckState,
@@ -304,6 +299,7 @@ export interface Api
     ThreadWindowsApi,
     PoppedWindowApi,
     ClipboardApi,
+    SoundsApi,
     EditorWindowsApi,
     LanguageServersApi,
     ProjectApi,
@@ -366,18 +362,6 @@ export interface Api
   saveAISettings(settings: AISettings): Promise<AISettings>;
   smartProjectNames(): Promise<boolean>;
   saveSmartProjectNames(enabled: boolean): Promise<boolean>;
-  /** Sounds for threads that finish, need you or fail; nothing plays until one is picked. */
-  soundSettings(): Promise<SoundSettings>;
-  saveSoundSettings(settings: SoundSettings): Promise<SoundSettings>;
-  customSounds(): Promise<CustomSound[]>;
-  /** Keeps an audio file the user picked, by its name without the extension. */
-  addCustomSound(
-    name: string,
-    ext: CustomSoundExtension,
-    bytes: Uint8Array,
-  ): Promise<CustomSound>;
-  customSoundBytes(id: string): Promise<Uint8Array>;
-  removeCustomSound(id: string): Promise<void>;
   /** `/meme`: the list, and which memes have their picture yet. */
   memes(): Promise<MemesState>;
   /** Makes memes.json, or adds built-ins new since, for an agent to download. */
@@ -385,8 +369,6 @@ export interface Api
   openMemesFolder(): Promise<void>;
   /** Opens memes.json in the app that edits JSON, making it first if need be. */
   openMemesList(): Promise<void>;
-  /** Only the menubar's hidden sound player hears these. */
-  onPlaySound(callback: (event: PlaySoundEvent) => void): () => void;
   /** The problem report, looked at afresh: the system, the log and the `gh` login. */
   openBugReport(): Promise<import("./bug-report").BugReportPreview>;
   saveBugReport(
