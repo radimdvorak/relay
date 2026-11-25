@@ -41,6 +41,10 @@ describe("threadPlan", () => {
     expect(threadPlan([asked(), open, answer(undefined, { compaction: true })])).toBeDefined();
   });
 
+  it("shows no plan once the agent deleted every step", () => {
+    expect(threadPlan([asked(), answer(steps("now")), asked(), answer([])])).toBeUndefined();
+  });
+
   it("leaves out a subagent's plan and a side conversation's", () => {
     const own = steps("now");
     const started = answer(own);

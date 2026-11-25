@@ -66,7 +66,11 @@ export function threadPlan(messages: ChatMessage[]): PlanStep[] | undefined {
   let askedSince = false;
   for (const message of main.reverse()) {
     const plan = planOf(message);
-    if (plan) return askedSince && planIsOver(plan) ? undefined : plan;
+    if (plan) {
+      const emptied = !plan.length;
+      const putAway = askedSince && planIsOver(plan);
+      return emptied || putAway ? undefined : plan;
+    }
     if (isFinishedAnswer(message)) return undefined;
     if (message.role === "user") askedSince = true;
   }
