@@ -54,7 +54,7 @@ class ThreadRowsTest {
                 val prefix = if (earlier.value) listOf("earlier", "older-a", "older-b") else listOf("earlier")
                 val keys = prefix + rows.map { it.key } + listOf("chrome", "end")
                 scroll = rememberThreadScroll()
-                ThreadViewport(scroll, keys, ContentSignature(keys.size, "end", version.longValue, endChrome.intValue), Modifier.background(RelayTheme.colors.background).height(500.dp)) {
+                ThreadViewport(scroll, keys, ContentSignature(keys.size, "end", version.longValue, endChrome.intValue), Modifier.background(RelayTheme.colors.surface).height(500.dp)) {
                     items(prefix, key = { it }) { Box(Modifier.fillMaxWidth().height(60.dp)) }
                     items(rows, key = { it.key }) { row ->
                         when (row) {

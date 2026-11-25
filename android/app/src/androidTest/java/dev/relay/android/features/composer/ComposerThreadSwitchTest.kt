@@ -81,7 +81,7 @@ class ComposerThreadSwitchTest {
             }
             RelayTheme {
                 CompositionLocalProvider(LocalNavigator provides navigator, LocalToasts provides ToastState()) {
-                    Column(Modifier.fillMaxSize().background(RelayTheme.colors.background).padding(20.dp)) {
+                    Column(Modifier.fillMaxSize().background(RelayTheme.colors.surface).padding(20.dp)) {
                         Text("Sample remote thread: $id")
                         Composer(remote, id, state)
                     }

@@ -65,7 +65,7 @@ class ThreadViewportTest {
                 val keys = prefix.value + (0 until 30).map { "row-$it" } + listOf("image", "header", "tail", "end")
                 scroll = rememberThreadScroll()
                 ThreadViewport(scroll, keys, ContentSignature(keys.size, keys.last(), growth.intValue.toLong(), 0),
-                    Modifier.background(RelayTheme.colors.background).width(width.intValue.dp).height(viewport.intValue.dp).testTag("viewport"),
+                    Modifier.background(RelayTheme.colors.surface).width(width.intValue.dp).height(viewport.intValue.dp).testTag("viewport"),
                     dock = { Box(Modifier.fillMaxWidth().height(dock.intValue.dp)) }) {
                     items(prefix.value, key = { it }) { row(it, 50) }
                     items(30, key = { "row-$it" }) { i ->
