@@ -155,7 +155,10 @@ it("isolates Google credentials while sharing conversations and skills without c
   );
   await prepareProfile("antigravity", "work");
   expect(
-    await readFile(join(profile, "antigravity-acp", "antigravity-oauth-token"), "utf8"),
+    await readFile(
+      join(profile, "antigravity-acp", "antigravity-oauth-token"),
+      "utf8",
+    ),
   ).toBe("work-token");
   await removeProfile("antigravity", "work");
   expect(await readFile(join(native, "antigravity-oauth-token"), "utf8")).toBe(

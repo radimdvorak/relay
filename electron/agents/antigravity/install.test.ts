@@ -31,7 +31,7 @@ describe("Antigravity's CLI releases", () => {
   });
 
   it("reads Google's release, and runs the CLI out of it", () => {
-    expect(releaseFrom(manifest("1.5.16") )).toMatchObject({
+    expect(releaseFrom(manifest("1.5.16"))).toMatchObject({
       version: "1.5.16",
       archive: tarball("1.5.16"),
       cmd: "antigravity",
@@ -48,9 +48,7 @@ describe("Antigravity's CLI releases", () => {
       ...manifest("1.5.16"),
       url: "https://example.com/cli.tar.gz",
     };
-    expect(() => releaseFrom(elsewhere )).toThrow(
-      /Refusing to download/,
-    );
+    expect(() => releaseFrom(elsewhere)).toThrow(/Refusing to download/);
     expect(() => releaseFrom(manifest("1.5.16"), "win32")).toThrow(
       /Refusing to download/,
     );
@@ -82,7 +80,7 @@ describe("installing Antigravity", () => {
   it("unpacks the newest release and runs it from there, keeping the one before", async () => {
     const root = await mkdtemp(join(tmpdir(), "relay-agy-"));
     await installAntigravity(root, google({ version: "1.5.13" }).fetch, mac);
-    expect(await installedAntigravity(root )).toEqual({
+    expect(await installedAntigravity(root)).toEqual({
       version: "1.5.13",
       command: join(root, "1.5.13", "antigravity"),
       args: [],
@@ -90,9 +88,7 @@ describe("installing Antigravity", () => {
 
     for (const version of ["1.5.15", "1.5.16"])
       await installAntigravity(root, google({ version }).fetch, mac);
-    expect((await installedAntigravity(root ))?.version).toBe(
-      "1.5.16",
-    );
+    expect((await installedAntigravity(root))?.version).toBe("1.5.16");
     expect((await readdir(root)).sort()).toEqual([
       "1.5.15",
       "1.5.16",
@@ -112,10 +108,10 @@ describe("installing Antigravity", () => {
         args: [],
       }),
     );
-    expect(await installedAntigravity(root )).toBeUndefined();
+    expect(await installedAntigravity(root)).toBeUndefined();
 
     await installAntigravity(root, google({ version: "1.5.2" }).fetch, mac);
-    expect(await installedAntigravity(root )).toEqual({
+    expect(await installedAntigravity(root)).toEqual({
       version: "1.5.2",
       command: join(root, "1.5.2", "antigravity"),
       args: [],
@@ -129,9 +125,7 @@ describe("installing Antigravity", () => {
     await expect(installAntigravity(root, tampered.fetch, mac)).rejects.toThrow(
       /doesn't match its published checksum/,
     );
-    expect((await installedAntigravity(root ))?.version).toBe(
-      "1.5.13",
-    );
+    expect((await installedAntigravity(root))?.version).toBe("1.5.13");
   });
 
   it("keeps the installed one when a download fails", async () => {
