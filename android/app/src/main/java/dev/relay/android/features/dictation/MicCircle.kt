@@ -22,8 +22,11 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Outline
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.semantics.Role
@@ -31,6 +34,8 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import dev.relay.android.ui.CircleSize
 import dev.relay.android.ui.Icon
@@ -57,6 +62,20 @@ internal data class MicLook(
     val enabled: Boolean = true,
 )
 
+/** A circle at no [bloom], a soft flower at 1. */
+internal fun micShape(bloom: () -> Float): Shape {
+    val flower = MorphPolygonShape(
+        PolygonShape.circle(PETALS),
+        PolygonShape.star(PETALS, innerRadiusRatio = 0.8f, outerRounding = CornerRounding.fraction(0.5f), innerRounding = CornerRounding.fraction(0.5f)),
+        bloom,
+    )
+    return object : Shape {
+        // A layer can ask before its first measure, and a polygon of no size throws.
+        override fun createOutline(size: Size, layoutDirection: LayoutDirection, density: Density): Outline =
+            if (size.isEmpty()) Outline.Rectangle(Rect.Zero) else flower.createOutline(size, layoutDirection, density)
+    }
+}
+
 /**
  * The mic: a circle that turns into a soft flower while dictating, its petals and bars following
  * the voice. [levels] holds the last [MIC_BARS] loudnesses, 0 to 1. Tap to start and to finish,
@@ -79,12 +98,7 @@ internal fun MicCircle(
     )
     val fill by animateColorAsState(if (look.strong) c.strong else c.tool, MaterialTheme.motionScheme.defaultEffectsSpec(), label = "mic-fill")
     val content by animateColorAsState(if (look.strong) c.onStrong else c.ink, MaterialTheme.motionScheme.defaultEffectsSpec(), label = "mic-icon")
-    val shape = remember {
-        MorphPolygonShape(
-            PolygonShape.circle(PETALS),
-            PolygonShape.star(PETALS, innerRadiusRatio = 0.8f, outerRounding = CornerRounding.fraction(0.5f), innerRounding = CornerRounding.fraction(0.5f)),
-        ) { (live.value * (0.45f + 0.55f * voice.value)).coerceIn(0f, 1f) }
-    }
+    val shape = remember { micShape { (live.value * (0.45f + 0.55f * voice.value)).coerceIn(0f, 1f) } }
     Box(
         modifier
             .size(CircleSize.Composer.diameter)
