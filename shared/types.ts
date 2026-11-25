@@ -41,6 +41,7 @@ import type { LineQuestion } from "./questions";
 import type { WatchScope } from "./watch";
 import type { RenderMode } from "./html-render";
 import type { SoundsApi } from "./sounds";
+import type { TrackpadApi } from "./trackpad";
 import type {
   ProjectCheckInfo,
   ProjectCheckState,
@@ -301,6 +302,7 @@ export interface Api
     ClipboardApi,
     SoundsApi,
     MemesApi,
+    TrackpadApi,
     EditorWindowsApi,
     LanguageServersApi,
     ProjectApi,

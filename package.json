@@ -152,6 +152,7 @@
       "dist-electron/typescript-5/**",
       "dist-electron/onnxruntime/**",
       "dist-electron/apple-speech",
+      "dist-electron/trackpad-taps",
       "dist-electron/agent-host.mjs",
       "dist-electron/cursor-worker.mjs"
     ],

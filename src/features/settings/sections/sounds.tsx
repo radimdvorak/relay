@@ -1,14 +1,57 @@
+import { useQuery } from "@tanstack/react-query";
 import type { SettingEntry } from "../settings-search";
-import { soundEventHints } from "../../../../shared/sounds";
+import {
+  soundEventHints,
+  soundEventLabels,
+  soundEvents,
+} from "../../../../shared/sounds";
 import {
   CustomSoundsSetting,
   SoundEventSetting,
   SoundVolumeSetting,
 } from "../../sounds/SoundSettings";
 
+import { trackpadAvailableQuery } from "../../sounds/state";
+import {
+  TrackpadEventSetting,
+  TrackpadStrengthSetting,
+} from "../../sounds/TrackpadSettings";
+
 const keywords = "sound sounds audio chime ping notification alert beep play";
 
-export function soundEntries(): SettingEntry[] {
+export function useSoundEntries(): SettingEntry[] {
+  const trackpad = useQuery(trackpadAvailableQuery).data;
+  if (!trackpad) return soundEntries();
+  return [...soundEntries(), ...trackpadEntries()];
+}
+
+function trackpadEntries(): SettingEntry[] {
+  const keywords =
+    "trackpad haptic haptics vibrate vibration knock tap force touch";
+  return [
+    ...soundEvents.map((event): SettingEntry => ({
+      id: `trackpad-${event}`,
+      category: "sounds",
+      section: "Trackpad",
+      title: soundEventLabels[event],
+      description: soundEventHints[event],
+      keywords,
+      render: () => <TrackpadEventSetting event={event} />,
+    })),
+    {
+      id: "trackpad-strength",
+      category: "sounds",
+      section: "Trackpad",
+      title: "Strength",
+      description:
+        "How hard the trackpad moves. A project that keeps an event's sound off keeps the trackpad still too.",
+      keywords,
+      render: () => <TrackpadStrengthSetting />,
+    },
+  ];
+}
+
+function soundEntries(): SettingEntry[] {
   return [
     {
       id: "sound-finished",

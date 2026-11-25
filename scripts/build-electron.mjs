@@ -96,31 +96,28 @@ cpSync(
   },
 );
 
-// Dictation can use the speech engine built into macOS 26 and later, through a
-// small Swift program; an Xcode older than 26 can't build it, and Relay then
-// offers only its own engine.
-const speechSource = "electron/dictation/apple-speech.swift",
-  speechOut = "dist-electron/apple-speech";
-// Built once per change of its source or of the architecture: swiftc takes
-// seconds, every dev start.
-const speechArch = process.arch === "x64" ? "x86_64" : "arm64";
-const speechBuiltForThis = () => {
-  if (!existsSync(speechOut)) return false;
-  if (statSync(speechOut).mtimeMs < statSync(speechSource).mtimeMs)
-    return false;
+const macArch = process.arch === "x64" ? "x86_64" : "arm64";
+
+const builtForThis = (source, out) => {
+  if (!existsSync(out)) return false;
+  if (statSync(out).mtimeMs < statSync(source).mtimeMs) return false;
   try {
     return (
-      execFileSync("lipo", ["-archs", speechOut], { encoding: "utf8" })
+      execFileSync("lipo", ["-archs", out], { encoding: "utf8" })
         .trim()
         .split(/\s+/)
-        .join() === speechArch
+        .join() === macArch
     );
   } catch {
     return false;
   }
 };
-if (process.platform === "darwin" && !speechBuiltForThis()) {
-  rmSync(speechOut, { force: true });
+
+// Built once per change of its source or of the architecture: swiftc takes
+// seconds, every dev start.
+function buildMacHelper({ source, out, macos, without }) {
+  if (process.platform !== "darwin" || builtForThis(source, out)) return;
+  rmSync(out, { force: true });
   try {
     execFileSync(
       "xcrun",
@@ -130,16 +127,31 @@ if (process.platform === "darwin" && !speechBuiltForThis()) {
         "5",
         "-O",
         "-target",
-        `${speechArch}-apple-macos26.0`,
-        speechSource,
+        `${macArch}-apple-macos${macos}`,
+        source,
         "-o",
-        speechOut,
+        out,
       ],
       { stdio: "inherit" },
     );
   } catch {
-    console.warn(
-      "Couldn't build apple-speech; dictation offers only Parakeet in this build.",
-    );
+    console.warn(`Couldn't build ${out}; ${without}`);
   }
 }
+
+// Dictation can use the speech engine built into macOS 26 and later, through a
+// small Swift program; an Xcode older than 26 can't build it, and Relay then
+// offers only its own engine.
+buildMacHelper({
+  source: "electron/dictation/apple-speech.swift",
+  out: "dist-electron/apple-speech",
+  macos: "26.0",
+  without: "dictation offers only Parakeet in this build.",
+});
+// Knocks on the trackpad for a thread that needs you.
+buildMacHelper({
+  source: "electron/trackpad/trackpad-taps.swift",
+  out: "dist-electron/trackpad-taps",
+  macos: "12.0",
+  without: "Settings has no trackpad section in this build.",
+});

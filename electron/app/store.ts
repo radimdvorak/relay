@@ -25,6 +25,8 @@ interface State {
   autoCompact?: import("../../shared/context-usage").AutoCompact;
   /** Sounds for threads that finish, need you or fail; unset plays nothing. */
   sounds?: import("../../shared/sounds").SoundSettings;
+  /** What the trackpad does for the same threads; unset does nothing. */
+  trackpad?: import("../../shared/trackpad").TrackpadSettings;
   /** Sound files added in Settings → Sounds, kept in `sounds/` under app data. */
   customSounds?: import("../sounds").StoredCustomSound[];
   /** Draft the message you'd likely send next once a Claude or Codex turn ends; unset is off. */
