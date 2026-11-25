@@ -14,6 +14,7 @@
 //     { elicit: { mode, message, toolCallId, requestedSchema } }  an elicitation/create, waited on
 //     { waitCancel: true }  waits for session/cancel and stops as cancelled
 //   hidesHttpMcp: doesn't say it takes MCP servers over HTTP, as Antigravity's CLI doesn't
+//   turnByRequest: such steps by a phrase in the prompt; the last phrase in it wins
 //   stopReason, usage: how session/prompt ends ("end_turn" by default)
 //   spend: dollars each turn adds; the turn ends with one usage_update
 //     carrying the session's total, as OpenCode 2 reports it
@@ -90,6 +91,14 @@ const ask = (method, params) =>
     send({ id, method, params });
   });
 
+/** The turn for the `turnByRequest` phrase that comes last in the prompt, past Relay's notes and earlier messages. */
+function lastAsked(text) {
+  const asked = Object.entries(scenario.turnByRequest ?? {})
+    .map(([phrase, steps]) => ({ at: text.lastIndexOf(phrase), steps }))
+    .filter(({ at }) => at >= 0);
+  return asked.sort((a, b) => b.at - a.at)[0]?.steps;
+}
+
 async function prompt(m) {
   const text = m.params.prompt?.find((block) => block.type === "text")?.text ?? "";
   const promptError = Object.entries(scenario.promptErrorByPrefix ?? {}).find(([prefix]) => text.startsWith(prefix))?.[1] ?? scenario.promptError;
@@ -97,7 +106,8 @@ async function prompt(m) {
     return send({ id: m.id, error: promptError ?? { code: -32000, message: "Authentication required: provider authentication required" } });
   const sessionId = m.params.sessionId;
   await native("/fixture/turn", { sessionID: sessionId });
-  const steps = Object.entries(scenario.turnByPrefix ?? {}).find(([prefix]) => text.startsWith(prefix))?.[1] ?? scenario.turn ?? [];
+  const prefixed = Object.entries(scenario.turnByPrefix ?? {}).find(([prefix]) => text.startsWith(prefix))?.[1];
+  const steps = prefixed ?? lastAsked(text) ?? scenario.turn ?? [];
   for (const step of steps) {
     if (step.native)
       await native("/fixture/event", { ...step.native, sessionID: sessionId });

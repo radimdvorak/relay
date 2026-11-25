@@ -1,4 +1,5 @@
 import type { AgentActivity } from "../../../shared/projects";
+import { keptSteps, type PlanStep } from "../../../shared/agent-plan";
 import { foundNothing } from "../../../shared/call-actions";
 import { patchPaths } from "../activity";
 import { acpWritten } from "../written-code";
@@ -162,3 +163,18 @@ export const planText = (entries: PlanEntry[]) =>
         `- [${entry.status === "completed" ? "x" : " "}] ${entry.content}${planSuffix[entry.status ?? ""] ?? ""}`,
     )
     .join("\n");
+
+const stepStates: Record<string, PlanStep["state"]> = {
+  in_progress: "now",
+  completed: "done",
+  failed: "failed",
+};
+
+/** The agent's plan as the steps its row keeps. */
+export const planSteps = (entries: { content: string; status?: string | null }[]) =>
+  keptSteps(
+    entries.map((entry) => ({
+      text: entry.content,
+      state: stepStates[entry.status ?? ""] ?? "next",
+    })),
+  );

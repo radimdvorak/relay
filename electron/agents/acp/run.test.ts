@@ -282,6 +282,10 @@ it("updates the live planning checklist, and leaves execution checklists out of 
     "running",
     "complete",
   ]);
+  expect(onActivity.mock.calls.map(([a]) => a.plan)).toEqual([
+    [{ text: "Read the API", state: "now" }],
+    [{ text: "Read the API", state: "done" }],
+  ]);
   onPlan.mockClear();
   await runAcp(acp, options(root, { onPlan }));
   expect(onPlan).not.toHaveBeenCalled();

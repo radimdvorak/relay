@@ -10,7 +10,9 @@ import { flushSync } from "react-dom";
 import { useStoredFlag } from "../../lib/useStoredFlag";
 import { useQuery } from "@tanstack/react-query";
 import type { ChatSummary, Project } from "../../../shared/projects";
+import type { PlanStep } from "../../../shared/agent-plan";
 import { api } from "../../lib/api";
+import { PlanSection } from "../agent-plan/PlanSection";
 import { useWindowFocused } from "../../lib/window-focus";
 import { ChangesSection, type CardChanges } from "./ChangesSection";
 import { ComputerSection, type CardComputer } from "./ComputerSection";
@@ -235,6 +237,7 @@ export function RunningTasks({
   chats,
   handoff,
   changes,
+  plan,
   onOpenChanges,
   onOpenChat,
 }: {
@@ -250,6 +253,8 @@ export function RunningTasks({
   handoff?: (className: string) => ReactNode;
   /** None where the thread has no changes of its own to show, as in a PR thread. */
   changes?: CardChanges;
+  /** The steps of the plan the open thread's agent is on. */
+  plan?: PlanStep[];
   onOpenChanges: () => void;
   onOpenChat: (chat: ChatSummary) => void;
 }) {
@@ -280,6 +285,7 @@ export function RunningTasks({
           {changes && (
             <ChangesSection changes={changes} onOpen={onOpenChanges} />
           )}
+          {plan && <PlanSection steps={plan} />}
           {!!tasks.list.length && (
             <RunningSection
               project={project}
