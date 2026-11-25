@@ -271,6 +271,7 @@ export function RunningTasks({
         <RunningStripe
           computer={computer}
           inWorktree={inWorktree}
+          plan={plan}
           running={tasks.list.length}
           onOpen={toggle}
         />

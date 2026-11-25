@@ -95,6 +95,14 @@ test("the thread's card follows the agent's plan until the message after it's do
     await section.getByRole("button").click();
     await expect(section.locator("li")).toHaveCount(5);
 
+    await page.getByRole("button", { name: "Fold the card" }).click();
+    const stripe = page.getByRole("button", {
+      name: "This computer · 3 of 5: Measure baseline before text-cache optimization",
+    });
+    await expect(stripe).toContainText("3/5");
+    await screenshot(page, { path: join(tmpdir(), "relay-plan-stripe.png") });
+    await stripe.click();
+
     // Stopped halfway, the plan stays where it got to, through a reload too.
     await page.getByRole("button", { name: "Stop answer", exact: true }).click();
     await expect(page.getByRole("button", { name: "Stop answer", exact: true })).toHaveCount(0);
