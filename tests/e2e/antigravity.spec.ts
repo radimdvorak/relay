@@ -314,7 +314,9 @@ test("Antigravity asks fixed questions in full access, compacts, plans, and offe
       .getByRole("button", { name: "Check now", exact: true })
       .click();
     await agents.getByRole("option", { name: /^Antigravity/ }).click();
-    await expect(agents.getByText("~/.gemini", { exact: true })).toBeVisible();
+    await expect(
+      agents.getByText("Signed in · ~/.gemini", { exact: true }),
+    ).toBeVisible();
     await agents
       .getByRole("button", { name: "Add account", exact: true })
       .click();
