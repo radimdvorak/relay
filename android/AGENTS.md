@@ -1,7 +1,7 @@
 # Relay for Android (native)
 
 Relay's phone app: Kotlin + Jetpack Compose, rewritten from scratch from the
-Expo app it replaced. This branch (Relay Experimental) wears the Material 3
+Expo app it replaced. It wears the Material 3
 Expressive rework described in `docs/expressive/`. It talks to the desktop
 over the encrypted bridge. The Expo app is gone; `mobile/...` paths in these
 docs and in comments name its files as of commit aa514caa

@@ -44,9 +44,7 @@ android {
     compileSdk { version = release(37) { minorApiLevel = 1 } }
 
     defaultConfig {
-        // The UI rework ships as its own app, beside Relay (dev.relay.android), with its own pairings.
-        applicationId = "dev.relay.android.experimental"
-        manifestPlaceholders["appLabel"] = "Relay Experimental"
+        applicationId = "dev.relay.android"
         minSdk = 33
         targetSdk = 36
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"

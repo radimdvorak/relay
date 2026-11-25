@@ -1,4 +1,4 @@
-# Relay Experimental: design brief
+# Relay for Android: design brief
 
 The phone app's full rework on branch `android-expressive`. HextaUI goes; the new look follows the
 Claude Android app's structure and calm (spec: `claude-app-spec.md`, frames in
