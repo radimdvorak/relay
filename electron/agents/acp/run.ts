@@ -10,7 +10,7 @@ import { imageBlocks, mcpServers, promptBlocks } from "./prompt";
 import { acquireTurnAgent, openSession, type AcpAgent } from "./sessions";
 import { applySettings } from "./settings";
 import { PromptSteering, type SentPrompt } from "./steering";
-import { antigravityHelper } from "../antigravity";
+import { antigravityHelper, type TextSpeed } from "../antigravity";
 import { AcpTurnEvents } from "./turn-events";
 
 export type AcpRunObserver = {
@@ -171,7 +171,7 @@ async function runAcpTurn(
     },
     () => turnAbort.signal.aborted,
   );
-  const { turn, calls, subagents, hear } = events;
+  const { turn, calls, subagents, speed, hear } = events;
   const steered = (id: string) => {
     turn.below();
     options.onSteered?.(id);
@@ -236,10 +236,10 @@ async function runAcpTurn(
       options.onControl?.({ steer: steering.steer });
     const result = await steering.result(
       [grace.cancelled, overflowed, observer?.failure],
-      (earlier) => reportUsage(options, profile, earlier),
+      (earlier) => reportUsage(options, profile, earlier, speed),
     );
     await observer?.settle();
-    finish(options, profile, result, turn, name);
+    finish(options, profile, result, turn, name, speed);
     const answer = turn.answer();
     const failed = profile.failure?.(answer, calls.size > 0);
     if (failed) {
@@ -303,17 +303,21 @@ function reportUsage(
   options: AgentOptions,
   profile: AcpProfile,
   { usage }: AcpPromptResult,
+  speed?: TextSpeed,
 ) {
-  if (usage)
-    options.onUsage?.({
-      model: options.choice.model || profile.provider,
-      tokens: {
-        input: usage.inputTokens ?? 0,
-        cacheWrite: usage.cachedWriteTokens ?? 0,
-        cacheRead: usage.cachedReadTokens ?? 0,
-        output: outputTokens(usage),
-      },
-    });
+  if (!usage) return;
+  const output = outputTokens(usage);
+  const streamed = speed?.finish(output - (usage.thoughtTokens ?? 0));
+  options.onUsage?.({
+    model: options.choice.model || profile.provider,
+    tokens: {
+      input: usage.inputTokens ?? 0,
+      cacheWrite: usage.cachedWriteTokens ?? 0,
+      cacheRead: usage.cachedReadTokens ?? 0,
+      output,
+    },
+    ...(streamed && { streamed }),
+  });
 }
 
 /** Reads how the turn ended: a reason to fail it, and what it used. */
@@ -323,8 +327,9 @@ function finish(
   result: AcpPromptResult,
   turn: TurnText,
   name: string,
+  speed?: TextSpeed,
 ) {
-  reportUsage(options, profile, result);
+  reportUsage(options, profile, result, speed);
   switch (result.stopReason) {
     case "cancelled":
       throw new Error("Cancelled by you.");

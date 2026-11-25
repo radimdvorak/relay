@@ -11,7 +11,7 @@ const startSchema = z.object({
 });
 
 /** Google's own tool; an MCP server's is named `mcp_<server>_<tool>`. */
-const startsSubagent = (call: Partial<AcpToolCall>) =>
+export const startsSubagent = (call: Partial<AcpToolCall>) =>
   call.name === "invoke_subagent";
 
 /** ACP says a subagent was started, not what it does after or how to stop it. */

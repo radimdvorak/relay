@@ -8,6 +8,7 @@ import {
   antigravityMcp,
   antigravitySteps,
   antigravitySubagents,
+  TextSpeed,
 } from "../antigravity";
 import { acpActivity, acpEdits, planText, type PlanEntry } from "./activity";
 import type { AcpProfile } from "./profiles";
@@ -23,6 +24,8 @@ export class AcpTurnEvents {
     Partial<AcpToolCall> & { toolCallId: string }
   >();
   readonly subagents: AntigravitySubagents | undefined;
+  /** A turn picked up again hears what it missed all at once, so it can't be timed. */
+  readonly speed: TextSpeed | undefined;
   /** Calls that asked the user through a form, with the answers once they're in. */
   private asked = new Map<string, AskedQuestion[] | undefined>();
 
@@ -40,6 +43,10 @@ export class AcpTurnEvents {
       options.onCommentary,
       profile.provider,
     );
+    this.speed =
+      profile.provider === "antigravity" && options.job.kind !== "adopt"
+        ? new TextSpeed()
+        : undefined;
     this.subagents =
       profile.provider === "antigravity" && key
         ? new AntigravitySubagents(antigravitySubagents.open(key))
@@ -125,15 +132,18 @@ export class AcpTurnEvents {
     switch (update.sessionUpdate) {
       case "agent_message_chunk": {
         if (update.content.type !== "text") return;
+        this.speed?.text(update.content.text ?? "");
         this.turn.add(update.content.text ?? "");
         const over = answerLimitError(this.turn.size);
         if (over && !this.stopped()) this.halt(over);
         return;
       }
       case "agent_thought_chunk":
+        this.speed?.pause();
         return;
       case "tool_call":
       case "tool_call_update": {
+        this.speed?.pause();
         if (
           this.profile.provider === "antigravity" &&
           update.toolCallId.startsWith("interaction_")
@@ -160,6 +170,7 @@ export class AcpTurnEvents {
           ),
         } as Partial<AcpToolCall> & { toolCallId: string };
         this.calls.set(update.toolCallId, call);
+        this.speed?.call(call);
         const steps =
           this.profile.provider === "antigravity" && antigravitySteps(call);
         if (steps && call.status !== "failed") {
