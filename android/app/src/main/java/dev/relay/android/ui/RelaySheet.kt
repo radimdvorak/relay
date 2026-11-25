@@ -27,6 +27,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
@@ -155,7 +156,8 @@ internal fun InsetModalSheet(onDismiss: () -> Unit, halfFirst: Boolean, frame: @
 
 /**
  * A sheet open at half height has its lower half below the screen. Its shape ends above the
- * navigation bar all the same, and grows as it's pulled up; pulled down it slides off whole.
+ * navigation bar all the same, fading into what's below, and grows as it's pulled up; pulled down
+ * it slides off whole.
  */
 @Composable
 private fun Modifier.endsAboveBars(windowHeight: Int): Modifier {
@@ -164,12 +166,19 @@ private fun Modifier.endsAboveBars(windowHeight: Int): Modifier {
     val inset = with(density) { SheetInset.roundToPx() }
     val screenEnd = windowHeight - under - inset
     val shape = RelayTheme.shapes.sheet
+    val fill = RelayTheme.colors.raised
     // Where it is, not the sheet's own offset, which can't be read before its first layout.
     var top by remember { mutableFloatStateOf(0f) }
-    return onGloballyPositioned { top = it.positionInWindow().y }.graphicsLayer {
-        clip = true
-        this.shape = CutAt(screenEnd - min(top, windowHeight / 2f), shape)
-    }
+    fun shownHeight() = screenEnd - min(top, windowHeight / 2f)
+    return onGloballyPositioned { top = it.positionInWindow().y }
+        .graphicsLayer {
+            clip = true
+            this.shape = CutAt(shownHeight(), shape)
+        }
+        .drawWithContent {
+            drawContent()
+            fadeEnd(fill, at = shownHeight(), hidden = size.height - shownHeight())
+        }
 }
 
 /** [shape], on no more than the first [height] pixels. */

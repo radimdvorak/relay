@@ -69,8 +69,10 @@ fun Sheet(
 
 @Composable
 private fun SheetBody(description: String?, content: @Composable ColumnScope.() -> Unit) {
+    val scroll = rememberScrollState()
     Column(
-        Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 20.dp),
+        Modifier.fillMaxWidth().fadesCutEnds(scroll, RelayTheme.colors.surface).verticalScroll(scroll)
+            .padding(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 20.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         if (description != null) Text(description, style = RelayTheme.type.meta, color = RelayTheme.colors.inkSoft)

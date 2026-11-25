@@ -1,0 +1,42 @@
+package dev.relay.android.ui
+
+import androidx.compose.foundation.ScrollState
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.unit.dp
+
+private val StartFade = 24.dp
+private val EndFade = 64.dp
+
+/** What [scroll] cuts off at either end goes into [over] rather than stopping at a line. Put it before the scroll. */
+internal fun Modifier.fadesCutEnds(scroll: ScrollState, over: Color) = drawWithContent {
+    drawContent()
+    fadeStart(over, hidden = scroll.value.toFloat())
+    fadeEnd(over, at = size.height, hidden = (scroll.maxValue - scroll.value).toFloat())
+}
+
+/** Into [over] toward the start; comes in over the first of what's [hidden] before it. */
+private fun DrawScope.fadeStart(over: Color, hidden: Float) {
+    val height = StartFade.toPx()
+    val strength = (hidden / height).coerceIn(0f, 1f)
+    drawRect(
+        Brush.verticalGradient(listOf(over.copy(alpha = strength), over.copy(alpha = 0f)), startY = 0f, endY = height),
+        size = Size(size.width, height),
+    )
+}
+
+/** Into [over] toward [at]; comes in over the first of what's [hidden] past it. */
+internal fun DrawScope.fadeEnd(over: Color, at: Float, hidden: Float) {
+    val height = EndFade.toPx()
+    val strength = (hidden / height).coerceIn(0f, 1f)
+    drawRect(
+        Brush.verticalGradient(listOf(over.copy(alpha = 0f), over.copy(alpha = strength)), startY = at - height, endY = at),
+        topLeft = Offset(0f, at - height),
+        size = Size(size.width, height),
+    )
+}
