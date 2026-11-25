@@ -17,7 +17,9 @@ import android.view.ViewGroup
 import android.webkit.WebView
 import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
-import dev.relay.android.features.markdown.MarkdownBlockView
+import dev.relay.android.features.markdown.MarkdownRow
+import dev.relay.android.features.markdown.MarkdownRowView
+import dev.relay.android.features.markdown.MdBlock
 import dev.relay.android.features.thread.scroll.ContentSignature
 import dev.relay.android.features.thread.scroll.ThreadViewport
 import dev.relay.android.remote.model.ChatMessage
@@ -58,7 +60,7 @@ class ThreadRowsTest {
                     items(prefix, key = { it }) { Box(Modifier.fillMaxWidth().height(60.dp)) }
                     items(rows, key = { it.key }) { row ->
                         when (row) {
-                            is ThreadMessageRow.Block -> MarkdownBlockView(row.block, Modifier.onSizeChanged { heights[row.key] = it.height })
+                            is ThreadMessageRow.Block -> MarkdownRowView(row.row, Modifier.onSizeChanged { heights[row.key] = it.height })
                             is ThreadMessageRow.Render -> Box(Modifier.fillMaxWidth().height(230.dp))
                             is ThreadMessageRow.Content -> Box(Modifier.fillMaxWidth().height(20.dp))
                         }
@@ -71,10 +73,10 @@ class ThreadRowsTest {
         compose.waitForIdle(); compose.mainClock.autoAdvance = false
     }
     private fun frame() { compose.mainClock.advanceTimeByFrame(); compose.waitForIdle() }
-    private fun read(index: Int) {
+    private fun read(index: Int, offset: Int = 13) {
         compose.runOnIdle {
             scroll.readerScroll.onPreScroll(Offset(0f, 6f), NestedScrollSource.UserInput)
-            scroll.list.requestScrollToItem(index, 13)
+            scroll.list.requestScrollToItem(index, offset)
         }
         frame()
         compose.runOnIdle { scope.launch { scroll.readerScroll.onPostFling(Velocity.Zero, Velocity.Zero) } }; frame()
@@ -85,7 +87,7 @@ class ThreadRowsTest {
         return result
     }
     @Test fun addingAndRemovingRenderAboveParagraphKeepsParagraphAnchor() {
-        setup(); read(15); val before = anchor()
+        setup(); read(2, offset = 600); val before = anchor()
         compose.runOnIdle { renders.value = listOf(HtmlRender("new-card", "Sample", listOf(HtmlRenderPage()), 0)); version.longValue++ }
         frame(); assertEquals(before, anchor())
         compose.runOnIdle { renders.value = emptyList(); version.longValue++ }; frame(); assertEquals(before, anchor())
@@ -123,7 +125,7 @@ class ThreadRowsTest {
     @Test fun localKatexMathRetainsMeasuredHeightAcrossOffscreenRevisit() {
         withMath.value = true
         setup(); compose.mainClock.autoAdvance = true; read(2)
-        val math = rows.filterIsInstance<ThreadMessageRow.Block>().first { it.block.block is dev.relay.android.features.markdown.MdBlock.Math }.key
+        val math = rows.filterIsInstance<ThreadMessageRow.Block>().first { (it.row as? MarkdownRow.Standalone)?.block is MdBlock.Math }.key
         var typeset = false
         compose.waitUntil(15_000) {
             compose.runOnIdle { findWebView(compose.activity.window.decorView)?.evaluateJavascript("Boolean(document.querySelector('.katex'))") { typeset = it == "true" } }
@@ -131,7 +133,7 @@ class ThreadRowsTest {
         }
         compose.waitForIdle()
         val initial = heights.getValue(math)
-        read(18); val reader = anchor()
+        read(3, offset = 900); val reader = anchor()
         compose.runOnIdle { version.longValue++ }; frame(); assertEquals(reader, anchor())
         read(2)
         assertEquals("settled math reuses measured frame", initial, heights.getValue(math))

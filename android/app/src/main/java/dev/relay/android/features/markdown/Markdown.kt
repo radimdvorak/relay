@@ -118,17 +118,25 @@ fun Markdown(
         MdContext(small, paths, web, image, localhost, native, selectable)
     }
     val content = @Composable {
-        Column(modifier, verticalArrangement = Arrangement.spacedBy(blockGap(context))) {
-            for (block in blocks) Block(block, context)
+        Column(modifier, verticalArrangement = Arrangement.spacedBy(blockGap())) {
+            if (native) {
+                val rows = remember(blocks, image != null) { groupMdBlocks(blocks, hasImages = image != null) }
+                for (row in rows) when (row) {
+                    is MarkdownRow.Prose -> NativeProse(row.blocks, context)
+                    is MarkdownRow.Standalone -> Block(row.block, context)
+                }
+            } else {
+                for (block in blocks) Block(block, context)
+            }
         }
     }
     if (selectable && !native) SelectionContainer { CompositionLocalProvider(LocalInSelection provides true, content) } else content()
 }
 
-/** A single lazy-list row, using the same link, image and native selection behavior as Markdown. */
+/** A single lazy-list row (either a coalesced prose run or a standalone block), using native selection. */
 @Composable
-fun MarkdownBlockView(
-    block: MarkdownBlock,
+fun MarkdownRowView(
+    row: MarkdownRow,
     modifier: Modifier = Modifier,
     openPath: OpenLink? = null,
     image: ShowImage? = null,
@@ -140,7 +148,10 @@ fun MarkdownBlockView(
         MdContext(false, openPath, { href -> runCatching { uri.openUri(href) } }, image,
             localhost, native = true, selectable = selectable)
     }
-    Column(modifier) { Block(block.block, context) }
+    when (row) {
+        is MarkdownRow.Prose -> NativeProse(row.blocks, context, modifier)
+        is MarkdownRow.Standalone -> Column(modifier) { Block(row.block, context) }
+    }
 }
 
 /** Inside a selectable answer: a code block mustn't open a selection of its own within it. */
@@ -161,16 +172,23 @@ private fun headingStyle(level: Int, small: Boolean): TextStyle = when {
 /** Where an item's text starts past its mark. */
 private val ItemIndent = 20.dp
 
-/** Inter's own line, in ems: a TextView's first line is this tall, and its spacing comes after it. */
-private const val NATURAL_LINE = 1.21f
-
-/** A native paragraph ends without the spacing its lines have between them; this gives it back. */
-private val NativeLead = 6.dp
-
 /** Between two blocks, and between two items of a list, over the line height the text itself has. */
-private fun blockGap(ctx: MdContext) = if (ctx.native && !ctx.small) 8.dp + NativeLead else 10.dp
+private fun blockGap() = 10.dp
 
-private fun itemGap(ctx: MdContext) = if (ctx.native && !ctx.small) 4.dp + NativeLead else 4.dp
+private fun itemGap() = 4.dp
+
+@Composable
+private fun BlockList(blocks: List<MdBlock>, ctx: MdContext) {
+    if (ctx.native) {
+        val rows = remember(blocks, ctx.image != null) { groupMdBlocks(blocks, hasImages = ctx.image != null) }
+        for (row in rows) when (row) {
+            is MarkdownRow.Prose -> NativeProse(row.blocks, ctx)
+            is MarkdownRow.Standalone -> Block(row.block, ctx)
+        }
+    } else {
+        for (inner in blocks) Block(inner, ctx)
+    }
+}
 
 @Composable
 private fun Block(block: MdBlock, ctx: MdContext) {
@@ -192,15 +210,15 @@ private fun Block(block: MdBlock, ctx: MdContext) {
                 Modifier
                     .drawBehind { drawRoundRect(bar, size = Size(3.dp.toPx(), size.height), cornerRadius = CornerRadius(1.5.dp.toPx())) }
                     .padding(start = 14.dp),
-                verticalArrangement = Arrangement.spacedBy(blockGap(ctx)),
-            ) { for (inner in block.blocks) Block(inner, quote) }
+                verticalArrangement = Arrangement.spacedBy(blockGap()),
+            ) { BlockList(block.blocks, quote) }
         }
-        is MdBlock.Items -> Column(verticalArrangement = Arrangement.spacedBy(itemGap(ctx))) {
+        is MdBlock.Items -> Column(verticalArrangement = Arrangement.spacedBy(itemGap())) {
             block.items.forEachIndexed { i, item ->
                 Row {
                     ItemMark(item.task, number = if (block.ordered) block.start + i else null, ctx)
-                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(itemGap(ctx))) {
-                        for (inner in item.blocks) Block(inner, ctx)
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(itemGap())) {
+                        BlockList(item.blocks, ctx)
                     }
                 }
             }
@@ -220,8 +238,7 @@ private fun Block(block: MdBlock, ctx: MdContext) {
 @Composable
 private fun ItemMark(task: Boolean?, number: Int?, ctx: MdContext) {
     val c = RelayTheme.colors
-    val body = bodyStyle(ctx.small)
-    val style = if (ctx.native) body.copy(lineHeight = body.fontSize * NATURAL_LINE) else body
+    val style = bodyStyle(ctx.small)
     val line = with(LocalDensity.current) { style.lineHeight.toDp() }
     if (number != null && task == null) return Text(
         "$number.",
@@ -240,7 +257,7 @@ private fun ItemMark(task: Boolean?, number: Int?, ctx: MdContext) {
 }
 
 /** A web image stays a link in the text: loading it would tell its server the thread was read. */
-private fun drawn(inline: MdInline) = inline is MdInline.Image && !isWebUrl(inline.src)
+internal fun isDrawnImage(inline: MdInline) = inline is MdInline.Image && !isWebUrl(inline.src)
 
 /**
  * A paragraph's text stays whole and its images follow it: text can't hold a
@@ -248,7 +265,7 @@ private fun drawn(inline: MdInline) = inline is MdInline.Image && !isWebUrl(inli
  */
 @Composable
 private fun Paragraph(inlines: List<MdInline>, ctx: MdContext) {
-    val images = if (ctx.image == null) emptyList() else inlines.filter(::drawn).map { it as MdInline.Image }
+    val images = if (ctx.image == null) emptyList() else inlines.filter(::isDrawnImage).map { it as MdInline.Image }
     if (images.isEmpty()) {
         Inlines(inlines, ctx, bodyStyle(ctx.small))
         return
@@ -265,7 +282,7 @@ internal fun withoutImages(inlines: List<MdInline>): List<MdInline> {
     val out = ArrayList<MdInline>()
     var gap = false
     for (inline in inlines) {
-        if (drawn(inline)) {
+        if (isDrawnImage(inline)) {
             gap = true
             continue
         }

@@ -31,8 +31,8 @@ import dev.relay.android.features.images.localImagePath
 import dev.relay.android.features.images.localVideoPath
 import dev.relay.android.features.images.messageImages
 import dev.relay.android.features.markdown.FileLinkTarget
-import dev.relay.android.features.markdown.MarkdownBlock
-import dev.relay.android.features.markdown.MarkdownBlockView
+import dev.relay.android.features.markdown.MarkdownRow
+import dev.relay.android.features.markdown.MarkdownRowView
 import dev.relay.android.features.markdown.Markdown
 import dev.relay.android.features.markdown.OpenLink
 import dev.relay.android.features.markdown.ShowImage
@@ -124,7 +124,7 @@ internal fun MessageView(
     state: MessageViewState,
     section: MessageSection,
     onView: (MessageViewing) -> Unit,
-    block: MarkdownBlock? = null,
+    markdownRow: MarkdownRow? = null,
 ) {
     val remote = LocalThreadRemote.current
     val changes = m.changes
@@ -179,7 +179,7 @@ internal fun MessageView(
             // An answer's held text selects, so its menu is the ••• under it; yours opens on a hold.
             .then(on.onActions?.takeIf { user }?.let { act -> Modifier.pointerInput(m.id) { detectTapGestures(onLongPress = { act(m) }) } } ?: Modifier)
             .padding(start = ThreadInset, end = ThreadInset,
-                top = when (section) { MessageSection.Body -> 14.dp; MessageSection.Footer -> 8.dp; else -> 12.dp },
+                top = when (section) { MessageSection.Body -> 10.dp; MessageSection.Footer -> 8.dp; else -> 12.dp },
                 bottom = if (section == MessageSection.Whole || section == MessageSection.Footer) 12.dp else 0.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
@@ -249,8 +249,8 @@ internal fun MessageView(
                         size = 14.dp, tint = c.inkSoft,
                     )
                 }
-            } else if (section == MessageSection.Body && block != null) {
-                MarkdownBlockView(block, openPath = openPath, image = showImage, selectable = m.status != "streaming")
+            } else if (section == MessageSection.Body && markdownRow != null) {
+                MarkdownRowView(markdownRow, openPath = openPath, image = showImage, selectable = m.status != "streaming")
             } else if (section == MessageSection.Whole && m.body.isNotBlank()) {
                 Markdown(
                     m.body, folder = root, openPath = openPath,

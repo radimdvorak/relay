@@ -49,7 +49,7 @@ internal fun ThreadRowView(
                             top = if (row.ordinal == 0) 8.dp else 10.dp))
                 }
                 is ThreadMessageRow.Block -> MessageView(chatId, m, root, 0, callbacks, failures,
-                    state = state, section = MessageSection.Body, block = row.block, onView = onView)
+                    state = state, section = MessageSection.Body, markdownRow = row.row, onView = onView)
                 is ThreadMessageRow.Content -> {
                     MessageView(chatId, m, root, replies, callbacks, failures,
                         state = state, section = row.section, onView = onView)
