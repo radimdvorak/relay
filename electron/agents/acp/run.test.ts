@@ -817,6 +817,22 @@ it.each([true, false])(
   },
 );
 
+it("starts a new paragraph after Antigravity updated its steps", async () => {
+  const steps = {
+    sessionUpdate: "tool_call",
+    toolCallId: "steps",
+    title: "update_steps",
+    name: "update_steps",
+    status: "completed",
+    rawInput: { steps: [{ title: "Look", status: "done" }] },
+  };
+  const { acp, root } = await agent({
+    turn: [say("I'll plan this."), { update: steps }, say("Done")],
+  });
+  const answer = await runAcp(acp, options(root));
+  expect(answer).toBe("I'll plan this.\n\nDone");
+});
+
 it("adds thinking to the output only when the agent's total leaves it out", () => {
   const usage = { inputTokens: 10, outputTokens: 2, thoughtTokens: 3 };
   expect(outputTokens({ ...usage, totalTokens: 15 })).toBe(5);

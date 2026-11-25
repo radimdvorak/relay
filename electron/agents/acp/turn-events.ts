@@ -174,6 +174,7 @@ export class AcpTurnEvents {
         const steps =
           this.profile.provider === "antigravity" && antigravitySteps(call);
         if (steps && call.status !== "failed") {
+          if (!known) this.turn.toNewParagraph();
           // Refused lists fail, so one only counts once its call completed.
           if (call.status === "completed") this.showPlan(steps);
           return;
