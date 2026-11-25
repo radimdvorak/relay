@@ -1,17 +1,24 @@
 import type { ProviderCommand } from "../../../shared/commands";
-import type { AcpProvider } from "./profiles";
+import type { AcpProfile } from "./profiles";
 import { parseUpdate } from "./protocol";
 import { skillCommands } from "../skill-presentation";
 import type { AcpAgent } from "./sessions";
 
+/** Who lists commands: an agent, as one of its accounts, which each have their own skills. */
+type Lister = Pick<AcpProfile, "provider" | "accountKey">;
+
 /** The slash commands each agent listed last, in any of its sessions. */
-const heard = new Map<AcpProvider, ProviderCommand[]>();
+const heard = new Map<string, ProviderCommand[]>();
 
 /** What each agent listed last in a folder; a helper's temporary one drops out again. */
 const heardByFolder = new Map<string, ProviderCommand[]>();
 const FOLDERS_KEPT = 50;
 
-const folderKey = (provider: AcpProvider, cwd: string) => `${provider}\0${cwd}`;
+const listerKey = ({ provider, accountKey }: Lister) =>
+  `${provider}\0${accountKey ?? ""}`;
+
+const folderKey = (lister: Lister, cwd: string) =>
+  `${listerKey(lister)}\0${cwd}`;
 
 function keepForFolder(key: string, commands: ProviderCommand[]) {
   heardByFolder.delete(key);
@@ -27,7 +34,7 @@ function keepForFolder(key: string, commands: ProviderCommand[]) {
  * arrive after the session opens are available to the catalog.
  */
 export function hearCommands(
-  provider: AcpProvider,
+  lister: Lister,
   raw: unknown,
   { agent, cwd }: { agent?: AcpAgent; cwd?: string } = {},
 ) {
@@ -66,11 +73,11 @@ export function hearCommands(
       ];
     },
   );
-  heard.set(provider, commands);
-  if (cwd) keepForFolder(folderKey(provider, cwd), commands);
+  heard.set(listerKey(lister), commands);
+  if (cwd) keepForFolder(folderKey(lister, cwd), commands);
 }
 
-export const heardCommands = (provider: AcpProvider) => heard.get(provider);
+export const heardCommands = (lister: Lister) => heard.get(listerKey(lister));
 
-export const heardInFolder = (provider: AcpProvider, cwd: string) =>
-  heardByFolder.get(folderKey(provider, cwd));
+export const heardInFolder = (lister: Lister, cwd: string) =>
+  heardByFolder.get(folderKey(lister, cwd));

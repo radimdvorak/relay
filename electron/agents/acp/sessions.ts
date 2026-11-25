@@ -154,8 +154,7 @@ async function launch(
     cwd,
   );
   const connection = new AcpConnection(child, profile.name);
-  connection.onUpdate = (update) =>
-    hearCommands(profile.provider, update, { cwd });
+  connection.onUpdate = (update) => hearCommands(profile, update, { cwd });
   return connection;
 }
 
@@ -327,7 +326,7 @@ export async function openSession(
     // Now that the session exists, wire the agent into the update handler
     // so config_option_update events refresh its settings (and models).
     connection.onUpdate = (update) =>
-      hearCommands(agent.profile.provider, update, { agent, cwd });
+      hearCommands(agent.profile, update, { agent, cwd });
     agent.keep();
   };
   if (id && (agent.caps?.resume || agent.caps?.load)) {
@@ -442,7 +441,7 @@ export function reattachAcp(
         cost: meta.session.cost,
       };
     connection.onUpdate = (update) =>
-      hearCommands(profile.provider, update, { agent });
+      hearCommands(agent.profile, update, { agent });
     agent.inflight = meta.run;
     if (!info.open) child.release();
     return agent;

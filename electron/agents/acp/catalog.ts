@@ -43,7 +43,7 @@ async function probe(profile: AcpProfile, cwd: string) {
       `${profile.name} didn't open a session in time.`,
     );
     const session = agent.session!;
-    if (!heardCommands(profile.provider))
+    if (!heardCommands(profile))
       await new Promise((resolve) => setTimeout(resolve, commandsWait));
     // Some agents send models in a config_option_update after the session
     // opens; give them a moment to arrive.
@@ -78,9 +78,8 @@ async function probe(profile: AcpProfile, cwd: string) {
  */
 const listed = (profile: AcpProfile, root: string) =>
   profile.offer
-    ? (heardInFolder(profile.provider, root) ??
-      heardInFolder(profile.provider, homedir()))
-    : heardCommands(profile.provider);
+    ? (heardInFolder(profile, root) ?? heardInFolder(profile, homedir()))
+    : heardCommands(profile);
 
 async function offered(
   profile: AcpProfile,
@@ -89,7 +88,7 @@ async function offered(
 ) {
   const skills = (await profile.skills?.(root)) ?? [];
   if (!profile.offer) return [...commands, ...skillCommands(skills)];
-  if (heardInFolder(profile.provider, root))
+  if (heardInFolder(profile, root))
     return profile.offer({ commands, forThisFolder: true }, skills);
   const atHome = (await profile.skills?.(homedir())) ?? [];
   const onlyAtHome = new Set(
