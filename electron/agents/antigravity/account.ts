@@ -1,7 +1,8 @@
-import { access, readFile, stat } from "node:fs/promises";
+import { readFile, stat } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { setTimeout as sleep } from "node:timers/promises";
 import { z } from "zod";
 
 export const antigravityHome = (env: NodeJS.ProcessEnv = process.env) =>
@@ -40,17 +41,22 @@ export async function usesGoogleSignIn(home: string) {
   return !method || method === "oauth-personal" || method === "oauth-business";
 }
 
-/** The profile's saved Google sign-in; the CLI rewrites it as it renews the access token. */
-export async function readSavedLogin(home: string) {
+async function readTokenFile(home: string): Promise<unknown> {
   const path = tokenFile(home);
   const info = await stat(path).catch(() => undefined);
   if (!info?.isFile() || info.size > 64_000) return undefined;
-  try {
-    const saved: unknown = JSON.parse(await readFile(path, "utf8"));
-    return savedLoginSchema.safeParse(saved).data?.token;
-  } catch {
-    return undefined;
-  }
+  const parse = async (): Promise<unknown> =>
+    JSON.parse(await readFile(path, "utf8"));
+  // The CLI may be halfway through writing a renewed token.
+  return parse()
+    .catch(() => sleep(100).then(parse))
+    .catch(() => undefined);
+}
+
+/** The profile's saved Google sign-in; the CLI rewrites it as it renews the access token. */
+export async function readSavedLogin(home: string) {
+  const saved = await readTokenFile(home);
+  return savedLoginSchema.safeParse(saved).data?.token;
 }
 
 /** Names a sign-in without its secrets; it stays the same as the access token is renewed. */
@@ -67,11 +73,7 @@ export async function readAntigravityAccount(
   home = antigravityHome(),
 ): Promise<{ signedIn: boolean } | undefined> {
   if (!(await usesGoogleSignIn(home))) return undefined;
-  const signedIn = await access(tokenFile(home)).then(
-    () => true,
-    () => false,
-  );
-  return { signedIn };
+  return { signedIn: (await readSavedLogin(home)) !== undefined };
 }
 
 /**

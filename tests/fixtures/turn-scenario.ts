@@ -168,7 +168,10 @@ export async function startScenario(
     join(gemini, "settings.json"),
     JSON.stringify({ auth: { type: "oauth-personal" } }),
   );
-  await writeFile(join(gemini, "antigravity-oauth-token"), "{}");
+  await writeFile(
+    join(gemini, "antigravity-oauth-token"),
+    JSON.stringify({ token: { access_token: "fixture" } }),
+  );
   vi.stubEnv("GEMINI_HOME", join(root, "gemini"));
   for (const [key, value] of Object.entries(options.env ?? {}))
     vi.stubEnv(key, value);

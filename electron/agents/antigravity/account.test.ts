@@ -2,7 +2,10 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, expect, it } from "vitest";
-import { antigravityCredentialRevision } from "./account";
+import {
+  antigravityCredentialRevision,
+  readAntigravityAccount,
+} from "./account";
 
 let home: string;
 
@@ -35,4 +38,16 @@ it("changes its credential revision on signing in, as someone else, out, or anot
   await save("settings.json", { auth: { type: "gemini-api-key" } });
   revisions.push(await antigravityCredentialRevision(home));
   expect(new Set(revisions).size).toBe(revisions.length);
+});
+
+it("is signed in only with a token file that holds a sign-in", async () => {
+  const tokenFile = join(home, "antigravity-acp", "antigravity-oauth-token");
+  const signedOut = { signedIn: false };
+  expect(await readAntigravityAccount(home)).toEqual(signedOut);
+  for (const broken of ["", '{"token":', "{}"]) {
+    await writeFile(tokenFile, broken);
+    expect(await readAntigravityAccount(home)).toEqual(signedOut);
+  }
+  await saveLogin("account-a", "token");
+  expect(await readAntigravityAccount(home)).toEqual({ signedIn: true });
 });
