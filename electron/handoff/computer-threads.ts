@@ -5,10 +5,13 @@ import {
   liveAway,
   type ChatSentTo,
   type PairedComputer,
+  type StartedThere,
 } from "../../shared/handoff";
 import { RENDER_MAX_CHARS } from "../../shared/html-render";
 import type {
+  ComputerThread,
   ComputerThreadHere,
+  ComputerThreadList,
   ComputerThreads as ListedThreads,
 } from "../../shared/computer-threads";
 import { errorMessage } from "../../shared/error-message";
@@ -18,18 +21,35 @@ import {
   projectSessionsBridge,
 } from "../../shared/remote";
 import type {
+  ChatSummary,
   ChatTriage,
   Project,
   ProjectChatSend,
+  StartedBy,
 } from "../../shared/projects";
 import type { TerminalSessionPick } from "../../shared/terminal-sessions";
 import type { Store } from "../app/store";
-import { summaryOf } from "./away";
+import { listed, summaryOf } from "./away";
 import type { ProjectChats } from "../project-chats";
 import type { Projects } from "../projects/projects";
 import type { ComputerInfos } from "./computer-infos";
 import type { Computers } from "./computers";
 import type { HandoffFollowing } from "./following";
+
+/** A thread a lead's agent started on the computer the lead runs on. */
+interface StartedUnder {
+  /** The lead as this computer has it. */
+  lead: ChatSummary;
+  thread: StartedThere;
+}
+
+const startedByOf = (thread: StartedThere, lead: ChatSummary): StartedBy => ({
+  chatId: lead.id,
+  agent: thread.agent,
+  ...(thread.secondOpinionOn
+    ? { secondOpinionOn: thread.secondOpinionOn }
+    : {}),
+});
 
 export class ComputerThreads {
   /** Threads being opened, so a second click waits for the first. */
@@ -82,12 +102,14 @@ export class ComputerThreads {
    * The thread here that follows one on the computer, made the first time:
    * in its project there, added here as one that lives there, and kept as
    * a mirror that runs there, as a thread started in that project from here.
+   * Opened from the list it's a peek; one a lead's agent started there sits
+   * under that lead instead (`under`).
    */
-  open(computerId: string, threadId: string) {
+  open(computerId: string, threadId: string, under?: StartedUnder) {
     const key = `${computerId}:${threadId}`;
     let job = this.opening.get(key);
     if (!job) {
-      job = this.follow(computerId, threadId).finally(() =>
+      job = this.follow(computerId, threadId, under).finally(() =>
         this.opening.delete(key),
       );
       this.opening.set(key, job);
@@ -95,19 +117,83 @@ export class ComputerThreads {
     return job;
   }
 
+  /**
+   * The threads a lead's agent started on the computer it runs on, followed
+   * from here under that lead, so Activity shows them beneath it as it does
+   * the ones started here. A peek's lead isn't listed, so neither are they.
+   */
+  async followStarted(
+    computerId: string,
+    leadId: string,
+    started: StartedThere[],
+  ) {
+    if (!started.length) return;
+    const lead = listed(this.store, leadId);
+    if (!lead || lead.sentTo?.peek) return;
+    const here = this.followedFrom(computerId);
+    for (const thread of started) {
+      if (here.has(thread.id)) continue;
+      await this.open(computerId, thread.id, { lead, thread }).catch((e) =>
+        console.warn(
+          "A thread started on another computer wasn't followed:",
+          e,
+        ),
+      );
+    }
+  }
+
   private async follow(
     computerId: string,
     threadId: string,
+    under: StartedUnder | undefined,
   ): Promise<ComputerThreadHere> {
     const known = this.followedFrom(computerId).get(threadId);
     if (known) return known;
     const { name } = this.computers.get(computerId);
     const client = await this.computers.connected(computerId);
-    const { projects, threads } = await client.call("computerThreads");
-    const thread = threads.find((t) => t.id === threadId);
-    const there = projects.find((p) => p.id === thread?.projectId);
-    if (!thread || !there)
-      throw new Error(`That thread isn't on ${name} anymore.`);
+    const list = await client.call("computerThreads");
+    const thread = list.threads.find((t) => t.id === threadId);
+    if (!thread) throw new Error(`That thread isn't on ${name} anymore.`);
+    const projectId = await this.projectFor(computerId, list, thread, under);
+    const peek = !under;
+    const chat = await this.chats.liveHandoff.followThere(
+      projectId,
+      thread,
+      {
+        id: thread.id,
+        computerId,
+        computer: name,
+        at: Date.now(),
+        state: "away",
+        live: true,
+        kept: 0,
+        folder: true,
+        home: true,
+        ...(peek ? { peek: true as const } : {}),
+      },
+      under && startedByOf(under.thread, under.lead),
+    );
+    await this.following.follow(computerId, chat.id);
+    return { projectId, chatId: chat.id, ...(peek ? { peek } : {}) };
+  }
+
+  /**
+   * The project here a thread on the computer goes in: its lead's, when the
+   * thread was started in the lead's project there, or else its project
+   * there, added here as one that lives there.
+   */
+  private async projectFor(
+    computerId: string,
+    { projects, threads }: ComputerThreadList,
+    thread: ComputerThread,
+    under: StartedUnder | undefined,
+  ) {
+    const leadThere = threads.find((t) => t.id === under?.lead.sentTo?.id);
+    if (under && leadThere?.projectId === thread.projectId)
+      return under.lead.projectId;
+    const there = projects.find((p) => p.id === thread.projectId);
+    const { name } = this.computers.get(computerId);
+    if (!there) throw new Error(`That thread isn't on ${name} anymore.`);
     const project = await this.projects.addRemote(
       { id: computerId, name },
       {
@@ -117,20 +203,7 @@ export class ComputerThreads {
         plain: there.plain,
       },
     );
-    const chat = await this.chats.liveHandoff.followThere(project.id, thread, {
-      id: thread.id,
-      computerId,
-      computer: name,
-      at: Date.now(),
-      state: "away",
-      live: true,
-      kept: 0,
-      folder: true,
-      home: true,
-      peek: true,
-    });
-    await this.following.follow(computerId, chat.id);
-    return { projectId: project.id, chatId: chat.id, peek: true };
+    return project.id;
   }
 
   /**

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { handoffMessageSchema } from "../../shared/handoff";
+import { handoffMessageSchema, type StartedThere } from "../../shared/handoff";
 import type { ChatMessage, ChatSummary } from "../../shared/projects";
 import type { RemoteEvent } from "../../shared/remote";
 import type { RemoteClient } from "../../shared/remote-client";
@@ -36,6 +36,12 @@ export class HandoffFollowing {
     private flush: (chatId: string) => void,
     /** The setup the thread waits on may be done: look again. */
     private checkSetup: (chatId: string) => void,
+    /** Follows the threads the thread's agent started there, under it. */
+    private followStarted: (
+      computerId: string,
+      chatId: string,
+      started: StartedThere[],
+    ) => void,
   ) {}
 
   /** Asks the computer to keep these threads up to date here, and for what's missed. */
@@ -63,6 +69,7 @@ export class HandoffFollowing {
           messages.map((m) => (typeof m === "string" ? m : carried[next++]!)),
         );
         this.chats.liveHandoff.setLive(c.id, answer.live);
+        this.followStarted(computerId, c.id, answer.live.started ?? []);
         this.flush(c.id);
       },
     );
@@ -118,6 +125,8 @@ export class HandoffFollowing {
     handoffId: string,
     event: RemoteEvent,
   ) {
+    if (event.kind === "handoff")
+      this.followStarted(computerId, chat.id, event.live.started ?? []);
     const message = this.stateOrMessage(chat, event, "A live handoff's");
     if (!message) return;
     const prior = this.mirrors.get(chat.id) ?? Promise.resolve();

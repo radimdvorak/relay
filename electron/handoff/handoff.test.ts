@@ -50,6 +50,7 @@ import { RemoteClient } from "../../shared/remote-client";
 import { parsePairingUrl } from "../../shared/remote";
 import { fakeCli } from "../../tests/fixtures/fake-cli";
 import { chatActivitySection, triageState } from "../../shared/chat-activity";
+import { startedFamilies } from "../../shared/started-families";
 import {
   claudeTurns,
   writeClaudeSession,
@@ -2837,6 +2838,70 @@ it("snoozes a thread on another computer here alone, until it moves over there",
   await mini.chats.triage(there, { kind: "settle" });
   await vi.waitFor(() => expect(section()).toBe("settled"));
 });
+
+it.each(["handed-off", "remote-owned"] as const)(
+  "follows the threads a %s thread's agent started there, under it here",
+  async (kind) => {
+    const { laptop, mini, sender, computers, computerId, here, there } =
+      await controlledRemoteThread(kind);
+    // Written in from here, it's no longer only looked at, and lists here.
+    if (kind === "remote-owned") {
+      await sender.forward("sendProjectChat", [
+        here.chatId,
+        input("@codex One more thing"),
+      ]);
+      await finished(mini.chats, there, 4);
+    }
+
+    const started = await mini.chats.create(
+      mini.projectId,
+      { kind: "project" },
+      "checkout",
+      { startedBy: { chatId: there, agent: "codex" } },
+    );
+    await mini.chats.send(started.id, input("@codex Check the tests"));
+    await finished(mini.chats, started.id, 2);
+
+    const underLead = () =>
+      laptop.chats
+        .list(here.projectId)
+        .filter((c) => c.startedBy?.chatId === here.chatId);
+    await vi.waitFor(() => expect(underLead()).toHaveLength(1));
+    const [mirror] = underLead();
+    expect(mirror!.sentTo).toMatchObject({
+      id: started.id,
+      computerId,
+      live: true,
+      home: true,
+    });
+    expect(mirror!.sentTo?.peek).toBeUndefined();
+    expect(mirror!.startedBy).toEqual({ chatId: here.chatId, agent: "codex" });
+    const ids = async (chats: ProjectChats, id: string) =>
+      (await chats.get(id)).messages.map((m) => m.id);
+    await vi.waitFor(async () =>
+      expect(await ids(laptop.chats, mirror!.id)).toEqual(
+        await ids(mini.chats, started.id),
+      ),
+    );
+    // Activity lists it under its lead, as one started here.
+    const families = startedFamilies(laptop.chats.list(here.projectId));
+    expect(families.started.get(here.chatId)?.map((c) => c.id)).toEqual([
+      mirror!.id,
+    ]);
+
+    // Followed again after a reconnect, it's still the one thread here.
+    computers.close();
+    await computers.start();
+    await vi.waitFor(() => expect(computers.status(computerId)).toBe("online"));
+    await mini.chats.send(there, input("@codex And another"));
+    await finished(mini.chats, there);
+    const last = (await mini.chats.get(there)).messages.at(-1)!.id;
+    await vi.waitFor(async () =>
+      expect(await ids(laptop.chats, here.chatId)).toContain(last),
+    );
+    expect(underLead()).toHaveLength(1);
+  },
+);
 
 it("shows a page the other computer's thread showed, fetched from there and kept here", async () => {
   const { laptop, mini, sender, computerId, computers } =

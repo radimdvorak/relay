@@ -149,7 +149,19 @@ export type HandoffLive = Pick<
     queuePaused?: true;
     /** Activity marks and the clock they are compared against, from the thread's computer. */
     triage?: HandoffTriage;
+    /** The threads its agent started there, which the computer following it follows too. */
+    started?: StartedThere[];
   };
+
+/** A thread a live handoff's agent started on its computer, as the one following the lead sees it. */
+export interface StartedThere {
+  /** What it's followed by: its id there. */
+  id: string;
+  /** The agent that started it. */
+  agent: AgentProvider;
+  /** The lead's answer it gives a second opinion on, by that message's id here. */
+  secondOpinionOn?: string;
+}
 
 /** The thread runs on the computer it was handed to and is followed live from here. */
 export const liveAway = (chat: Pick<ChatSummary, "sentTo">) =>

@@ -5,6 +5,7 @@ import {
   type ChatSentTo,
   type HandoffLive,
   type HeldSend,
+  type StartedThere,
 } from "../../shared/handoff";
 import type {
   ChatMessage,
@@ -12,12 +13,10 @@ import type {
   KnownMessages,
   ProjectChat,
   ProjectChatSend,
+  StartedBy,
 } from "../../shared/projects";
 import { promptTitle } from "../../shared/prompt-title";
-import {
-  handoffTriage,
-  type HandoffTriage,
-} from "../../shared/handoff-triage";
+import { handoffTriage, type HandoffTriage } from "../../shared/handoff-triage";
 import { sentSettingsOf } from "../../shared/projects";
 import type { ChatCore } from "./core";
 import { chatSummary } from "./chat-summaries";
@@ -113,12 +112,14 @@ export class LiveHandoff {
 
   /**
    * A thread that lives on another computer, followed from here: kept as a
-   * mirror of what's written there, which comes once it's followed.
+   * mirror of what's written there, which comes once it's followed. One a
+   * lead's agent started there sits under that lead here too (`startedBy`).
    */
   async followThere(
     projectId: string,
     thread: ComputerThread,
     sentTo: ChatSentTo,
+    startedBy?: StartedBy,
   ) {
     const chat: ProjectChat = {
       id: randomUUID(),
@@ -129,6 +130,7 @@ export class LiveHandoff {
       created: Date.now(),
       updated: thread.updated,
       ...(thread.branch ? { branch: thread.branch } : {}),
+      ...(startedBy ? { startedBy } : {}),
       messages: [],
       sentTo,
     };
@@ -194,6 +196,7 @@ export class LiveHandoff {
     const chat = await this.core.storage.load(id);
     const listed = this.list(chat.projectId).find((c) => c.id === id);
     const requests = this.core.active.requests(id);
+    const started = this.startedHere(chat);
     return structuredClone({
       triage: handoffTriage(listed ?? chatSummary(chat)),
       ...(listed?.running
@@ -216,6 +219,33 @@ export class LiveHandoff {
       ...(chat.queue?.length ? { queue: chat.queue } : {}),
       ...(chat.scheduled?.length ? { scheduled: chat.scheduled } : {}),
       ...(chat.queuePaused ? { queuePaused: true as const } : {}),
+      ...(started.length ? { started } : {}),
+    });
+  }
+
+  /**
+   * The threads the lead's agent started here that the computer following
+   * the lead can follow too: this computer's own, not handed on, archived or
+   * a deep review's.
+   */
+  private startedHere(lead: ProjectChat): StartedThere[] {
+    const carried = lead.carriedIds ?? {};
+    return (this.core.store.get().chats ?? []).flatMap((c) => {
+      if (c.startedBy?.chatId !== lead.id) return [];
+      const ownHere = !c.cameFrom && !c.sentTo;
+      const listed = !c.archivedAt && !c.reviewer && c.scope.kind !== "review";
+      if (!ownHere || !listed) return [];
+      // The answer it checks, by the id the following computer knows it by.
+      const opinionOn = c.startedBy.secondOpinionOn;
+      return [
+        {
+          id: c.id,
+          agent: c.startedBy.agent,
+          ...(opinionOn
+            ? { secondOpinionOn: carried[opinionOn] ?? opinionOn }
+            : {}),
+        },
+      ];
     });
   }
 
