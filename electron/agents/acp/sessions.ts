@@ -59,7 +59,10 @@ const metaSchema = z
         cost: z.number().optional(),
       })
       .optional(),
-    run: z.object({ id: z.number() }).optional(),
+    /** `compaction`: an earlier Relay's, which took two prompts. */
+    run: z
+      .object({ id: z.number(), compaction: z.boolean().optional() })
+      .optional(),
   })
   .loose();
 
@@ -407,6 +410,9 @@ export function reattachAcp(
   return sessionsOf(profile).reattach(owns, (found) => {
     const meta = savedMeta(found, metaSchema);
     if (!meta?.caps || meta.provider !== hostedName(profile)) return;
+    // An earlier Relay's compaction can't be adopted as one answer. Its saved
+    // chat still names the original session.
+    if (profile.provider === "antigravity" && meta.run?.compaction) return;
     const { info } = found;
     const child = new HostedChild(found.attachProcess(), (entries) => {
       connection.continueAfter(
