@@ -2,13 +2,18 @@ package dev.relay.android.shots
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.snapshots.Snapshot
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Density
+import dev.relay.android.features.home.StatusNews
+import dev.relay.android.features.home.StatusToastHost
 import dev.relay.android.features.thread.ThreadCache
 import dev.relay.android.features.thread.ThreadScreen
 import dev.relay.android.lib.navigation.LocalNavigator
@@ -30,6 +35,7 @@ import dev.relay.android.remote.model.RemoteOverview
 import dev.relay.android.remote.model.RemoteProject
 import dev.relay.android.remote.model.ResumeSettings
 import dev.relay.android.ui.LocalToasts
+import dev.relay.android.ui.ToastHost
 import dev.relay.android.ui.ToastState
 import dev.relay.android.ui.theme.RelayTheme
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -91,6 +97,36 @@ class ThreadShots : ShotTest() {
         CompositionLocalProvider(LocalDensity provides Density(LocalDensity.current.density, 1.3f)) { Thread("thread-large", conversation, false) { it } }
     }
 
+    /** What the app says over an open thread: a message and another thread's news, clear of whatever the dock holds. */
+    @Test
+    fun toasts() {
+        val waiting: (RemoteChat) -> RemoteChat = { it.copy(requests = listOf(ThreadSamples.approval)) }
+        Shot("thread-toast-message", dark = true, act = ::dockMeasured) { Toasted(message = true, news = false) { it } }
+        Shot("thread-toast-news", dark = true, act = ::dockMeasured) { Toasted(message = false, news = true) { it } }
+        Shot("thread-toast-both", dark = true, act = ::dockMeasured) { Toasted(message = true, news = true) { it } }
+        Shot("thread-toast-approval", dark = true, act = ::dockMeasured) { Toasted(message = true, news = true, waiting) }
+    }
+
+    /** The thread loads off the main thread, and nothing but the test says its dock was measured once it's in. */
+    private fun dockMeasured() {
+        compose.mainClock.advanceTimeBy(600)
+        compose.waitForIdle()
+        Snapshot.sendApplyNotifications()
+    }
+
+    @Composable
+    private fun Toasted(message: Boolean, news: Boolean, edit: (RemoteChat) -> RemoteChat) = RelayTheme(desktopDark) {
+        val toasts = remember { ToastState().apply { if (message) show("Copied") } }
+        CompositionLocalProvider(LocalToasts provides toasts) {
+            Thread("thread-toasts", conversation, running = false, toasts, edit)
+            val needsYou = StatusNews("2", "Why is the sidebar empty?", StatusNews.Kind.NeedsYou)
+            Box(Modifier.fillMaxSize()) {
+                if (news) StatusToastHost(needsYou, Modifier.align(Alignment.BottomEnd).fillMaxWidth(), {}, {})
+                ToastHost(toasts, Modifier.align(Alignment.BottomCenter))
+            }
+        }
+    }
+
     private fun screen(name: String, messages: List<ChatMessage>, running: Boolean = false, edit: (RemoteChat) -> RemoteChat = { it }) {
         for (dark in both) Shot(name, dark = dark) { Thread(name, messages, running, edit) }
         Shot(name, ShotDevice.FoldInner, dark = false) { Thread(name, messages, running, edit) }
@@ -98,7 +134,11 @@ class ThreadShots : ShotTest() {
     }
 
     @Composable
-    private fun Thread(id: String, messages: List<ChatMessage>, running: Boolean, edit: (RemoteChat) -> RemoteChat) {
+    private fun Thread(id: String, messages: List<ChatMessage>, running: Boolean, edit: (RemoteChat) -> RemoteChat) =
+        Thread(id, messages, running, remember { ToastState() }, edit)
+
+    @Composable
+    private fun Thread(id: String, messages: List<ChatMessage>, running: Boolean, toasts: ToastState, edit: (RemoteChat) -> RemoteChat) {
         val context = LocalContext.current
         val remote = remember {
             val chat = edit(
@@ -111,7 +151,7 @@ class ThreadShots : ShotTest() {
             ThreadCache.of(context).save("pc", id, chat)
             sampleRemote(folder, chat)
         }
-        CompositionLocalProvider(LocalNavigator provides NoNavigator, LocalToasts provides remember { ToastState() }) {
+        CompositionLocalProvider(LocalNavigator provides NoNavigator, LocalToasts provides toasts) {
             Box(Modifier.fillMaxSize()) { ThreadScreen(id, remote) }
         }
     }

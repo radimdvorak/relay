@@ -7,7 +7,6 @@ import dev.relay.android.ui.LocalSharedTransitions
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.windowInsetsPadding
@@ -25,7 +24,6 @@ import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.LocalView
-import androidx.compose.ui.unit.dp
 import androidx.core.view.WindowCompat
 import androidx.lifecycle.viewmodel.navigation3.rememberViewModelStoreNavEntryDecorator
 import androidx.navigation3.runtime.entryProvider
@@ -180,19 +178,13 @@ fun RelayRoot(container: AppContainer, links: ReceiveChannel<DeepLink>, crash: C
                     hidden = top is Route.Pair,
                     pane = panes,
                     modifier = Modifier.align(Alignment.BottomEnd)
-                        .windowInsetsPadding(WindowInsets.safeDrawing)
-                        .padding(bottom = if (top.hasComposer) COMPOSER_ROOM else 0.dp),
+                        .windowInsetsPadding(WindowInsets.safeDrawing),
                 )
                 ToastHost(toasts, Modifier.align(Alignment.BottomCenter).windowInsetsPadding(WindowInsets.safeDrawing))
             }
         }
     }
 }
-
-/** What a composer at the screen's bottom takes, for what floats over the screen. */
-private val COMPOSER_ROOM = 100.dp
-
-private val Route?.hasComposer get() = this is Route.Thread || this is Route.Reply || this is Route.NewThread
 
 @Composable
 private fun SystemBars(dark: Boolean) {

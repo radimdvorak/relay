@@ -60,7 +60,7 @@ internal fun sampleThread(
 
 private val now get() = System.currentTimeMillis()
 
-private val busy = listOf(
+internal val busy = listOf(
     sampleThread("2", "relay", "Why does the composer jump on rotate?", 9) { copy(waiting = true, branch = "fix/rotate") },
     sampleThread("1", "relay", "Redesign the Android app", 2) { copy(running = true, runningSince = now - 4 * MINUTE, branch = "android-expressive") },
     sampleThread("k1", "relay", "Rework the thread screen", 2) { copy(running = true, runningSince = now - 3 * MINUTE, startedBy = StartedBy("1", "claude")) },

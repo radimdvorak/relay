@@ -66,6 +66,7 @@ import dev.relay.android.remote.files.uploadAll
 import dev.relay.android.lib.navigation.ComposerStart
 import dev.relay.android.lib.navigation.NEW_THREAD_MORPH
 import dev.relay.android.lib.navigation.NextComposerOpening
+import dev.relay.android.ui.keepsToastsAbove
 import dev.relay.android.ui.screenSettled
 import dev.relay.android.ui.sharedBox
 import dev.relay.android.ui.theme.RelayTheme
@@ -325,7 +326,7 @@ private fun NewThreadComposer(route: Route.NewThread, remote: Remote, active: St
                 settings = s
             },
             running = false,
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier.fillMaxWidth().keepsToastsAbove(),
             disabled = !online,
             collapsed = rise.waiting,
             placeholder = if (picked == SCRATCH) "Ask anything" else "Message",

@@ -11,13 +11,16 @@ import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -33,6 +36,7 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -63,8 +67,18 @@ class ToastState {
     val toasts = mutableStateListOf<Toast>()
     private var next = 0L
 
-    /** Room kept free under the stack for something floating at the bottom of the screen. */
-    var clearance by mutableStateOf(0.dp)
+    private val claims = mutableStateListOf<ToastClearance>()
+
+    /** Room kept free under the stack for what floats at the bottom of the newest screen to claim it. */
+    val clearance: Dp get() = claims.lastOrNull()?.height ?: 0.dp
+
+    internal fun claim(one: ToastClearance) {
+        claims.add(one)
+    }
+
+    internal fun release(one: ToastClearance) {
+        claims.remove(one)
+    }
 
     fun show(
         message: String,
@@ -94,14 +108,31 @@ val LocalToasts = staticCompositionLocalOf<ToastState> { error("No ToastHost abo
 
 private const val VISIBLE = 3
 
+/** One screen's room at the bottom. Screens overlap while one slides over another, so each has its own. */
+@Stable
+internal class ToastClearance {
+    var height by mutableStateOf(0.dp)
+}
+
 /** Keeps toasts [height] higher while the caller is on screen, so they don't cover it. */
 @Composable
 fun KeepToastsAbove(height: Dp) {
     val toasts = LocalToasts.current
-    DisposableEffect(toasts, height) {
-        toasts.clearance = height
-        onDispose { toasts.clearance = 0.dp }
+    val claim = remember { ToastClearance() }
+    SideEffect { claim.height = height }
+    DisposableEffect(toasts) {
+        toasts.claim(claim)
+        onDispose { toasts.release(claim) }
     }
+}
+
+/** Keeps toasts above what this is put on, however tall it grows. */
+@Composable
+fun Modifier.keepsToastsAbove(): Modifier {
+    val density = LocalDensity.current
+    var height by remember { mutableStateOf(0.dp) }
+    KeepToastsAbove(height)
+    return onSizeChanged { height = with(density) { it.height.toDp() } }
 }
 
 /** Draws the stack at the bottom of its box; put it last in the root so it floats over everything. */
@@ -113,9 +144,12 @@ fun ToastHost(state: ToastState, modifier: Modifier = Modifier) {
         contentAlignment = Alignment.BottomCenter,
     ) {
         val shown = state.toasts.takeLast(VISIBLE)
-        shown.forEachIndexed { i, toast ->
-            key(toast.id) {
-                ToastCard(toast, depth = shown.lastIndex - i, onDismiss = { state.dismiss(toast.id) })
+        // As wide as the widest needs, all of them, or one behind would stick out at the sides.
+        Box(Modifier.widthIn(max = 420.dp).width(IntrinsicSize.Max), contentAlignment = Alignment.BottomCenter) {
+            shown.forEachIndexed { i, toast ->
+                key(toast.id) {
+                    ToastCard(toast, depth = shown.lastIndex - i, onDismiss = { state.dismiss(toast.id) })
+                }
             }
         }
     }
@@ -147,7 +181,6 @@ private fun ToastCard(toast: Toast, depth: Int, onDismiss: () -> Unit) {
     }
     Row(
         Modifier
-            .widthIn(max = 420.dp)
             .fillMaxWidth()
             .graphicsLayer {
                 val e = enter.value

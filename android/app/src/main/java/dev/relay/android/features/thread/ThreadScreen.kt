@@ -92,6 +92,7 @@ import dev.relay.android.ui.CirclePair
 import dev.relay.android.ui.CircleAction
 import dev.relay.android.ui.ButtonSize
 import dev.relay.android.ui.ButtonVariant
+import dev.relay.android.ui.keepsToastsAbove
 import dev.relay.android.features.thread.logic.Clock
 import io.github.lyxnx.compose.ui.tablericons.outline.DotsVertical
 import io.github.lyxnx.compose.ui.tablericons.outline.Edit
@@ -358,7 +359,7 @@ private fun ThreadBody(id: String, rootId: String?, remote: Remote, locked: Bool
                 restorationComplete = fetched > 0 || error != null || (!online && t != null),
                 historyResult = historyResult,
                 empty = if (t == null && listed.isEmpty()) ({ NothingToRead(error, linkState, computerName(remote)) { scope.launchLoad(model) } }) else null,
-                dockModifier = Modifier.fadesThreadEnd(),
+                dockModifier = Modifier.keepsToastsAbove().fadesThreadEnd(),
                 dock = {
                     Strips(t, summary, rootId, running, actions)
                     if (rootId == null) SubagentStrip(
