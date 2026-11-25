@@ -16,7 +16,7 @@ const make = (tasks: ClaudeTasks, id: string, subject: string) =>
 const move = (tasks: ClaudeTasks, taskId: string, status: string, output: unknown = ok) =>
   tasks.after("TaskUpdate", { taskId, status }, output);
 
-it("follows a plan one task at a time", () => {
+it("follows a checklist one task at a time", () => {
   const tasks = new ClaudeTasks();
   make(tasks, "1", "Build");
   make(tasks, "2", "Test");
@@ -37,7 +37,7 @@ it("changes nothing for a task Claude Code didn't find, or one it can't read", (
   expect(tasks.after("TaskCreate", {}, "Error")).toBeUndefined();
 });
 
-it("starts over in a turn after the plan is done, and adds to one that isn't", () => {
+it("starts over in a turn after the checklist is done, and adds to one that isn't", () => {
   const tasks = new ClaudeTasks();
   make(tasks, "1", "Build");
   tasks.beginTurn();
@@ -51,7 +51,7 @@ it("starts over in a turn after the plan is done, and adds to one that isn't", (
   expect(make(tasks, "4", "Announce")).toHaveLength(2);
 });
 
-it("picks a resumed session's plan up from what Claude Code saved", async () => {
+it("picks a resumed session's checklist up from what Claude Code saved", async () => {
   const home = await mkdtemp(join(tmpdir(), "relay-tasks-"));
   const dir = join(home, "tasks", "session");
   await mkdir(dir, { recursive: true });
@@ -80,13 +80,13 @@ it("shows a turn's changes as one row, and a subagent's as its own calls", () =>
   rows.call({ id: "b", name: "TaskUpdate", input: { taskId: "1", status: "in_progress" } }, null);
   result("b", ok);
   expect(onActivity.mock.calls.map(([a]) => [a.id, a.detail])).toEqual([
-    ["plan:a", "○ Build"],
-    ["plan:a", "→ Build"],
+    ["checklist:a", "○ Build"],
+    ["checklist:a", "→ Build"],
   ]);
   rows.call({ id: "c", name: "TaskCreate", input: { subject: "Dig" } }, "agent-call");
   const last = onActivity.mock.lastCall![0];
-  expect(last).toMatchObject({ id: "c", label: "Updated the plan", parentId: "agent-call" });
-  expect(last.plan).toBeUndefined();
+  expect(last).toMatchObject({ id: "c", label: "Updated progress", parentId: "agent-call" });
+  expect(last.checklist).toBeUndefined();
 });
 
 it("reads the older to-do list whole", () => {

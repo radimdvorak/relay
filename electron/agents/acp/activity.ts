@@ -1,5 +1,5 @@
 import type { AgentActivity } from "../../../shared/projects";
-import { keptSteps, type PlanStep } from "../../../shared/agent-plan";
+import { keptSteps, type ChecklistStep } from "../../../shared/agent-checklist";
 import { foundNothing } from "../../../shared/call-actions";
 import { patchPaths } from "../activity";
 import { acpWritten } from "../written-code";
@@ -164,14 +164,14 @@ export const planText = (entries: PlanEntry[]) =>
     )
     .join("\n");
 
-const stepStates: Record<string, PlanStep["state"]> = {
+const stepStates: Record<string, ChecklistStep["state"]> = {
   in_progress: "now",
   completed: "done",
   failed: "failed",
 };
 
-/** The agent's plan as the steps its row keeps. */
-export const planSteps = (entries: { content: string; status?: string | null }[]) =>
+/** The agent's checklist as the steps its row keeps. */
+export const checklistSteps = (entries: { content: string; status?: string | null }[]) =>
   keptSteps(
     entries.map((entry) => ({
       text: entry.content,

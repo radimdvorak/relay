@@ -165,9 +165,9 @@ describe("a turn", () => {
       { model: "muse-wonder-full-1.0", tokens: { input: 400, cacheRead: 600, cacheWrite: 0, output: 50 } },
     ]);
     expect(heard.context).toEqual([{ usedTokens: 40000, maxTokens: 1000000 }]);
-    expect([...heard.activity.values()].find((a) => a.label === "Updated the plan")).toMatchObject({
+    expect([...heard.activity.values()].find((a) => a.label === "Updated progress")).toMatchObject({
       detail: "✓ Read the logs\n→ Fix it",
-      plan: [
+      checklist: [
         { text: "Read the logs", state: "done" },
         { text: "Fix it", state: "now" },
       ],

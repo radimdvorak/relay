@@ -1,9 +1,9 @@
 import { Check, X } from "lucide-react";
-import type { PlanStep } from "../../../shared/agent-plan";
-import "./agent-plan.css";
+import type { ChecklistStep } from "../../../shared/agent-checklist";
+import "./agent-checklist.css";
 
 /** Ticked, half-filled while the agent is on it, crossed when it failed, or an empty ring. */
-function StepMark({ state }: { state: PlanStep["state"] }) {
+function StepMark({ state }: { state: ChecklistStep["state"] }) {
   if (state === "done") return <Check size={14} aria-hidden />;
   if (state === "failed") return <X size={14} aria-hidden />;
   return (
@@ -14,17 +14,17 @@ function StepMark({ state }: { state: PlanStep["state"] }) {
   );
 }
 
-const spoken: Record<PlanStep["state"], string> = {
+const spoken: Record<ChecklistStep["state"], string> = {
   next: "Not started",
   now: "Working on it",
   done: "Done",
   failed: "Failed",
 };
 
-/** A plan's steps and where each stands. Still: the running call is what moves. */
-export function PlanList({ steps }: { steps: PlanStep[] }) {
+/** A checklist's steps and where each stands. Still: the running call is what moves. */
+export function Checklist({ steps }: { steps: ChecklistStep[] }) {
   return (
-    <ol className="plan-list">
+    <ol className="checklist">
       {steps.map((step, index) => (
         <li key={index} data-state={step.state}>
           <StepMark state={step.state} />

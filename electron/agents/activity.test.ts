@@ -234,10 +234,10 @@ it("shows a plan update once, not again when Codex repeats it", () => {
   expect(first).toEqual({
     id: "plan:thread:1",
     kind: "tool",
-    label: "Updated the plan",
+    label: "Updated progress",
     status: "complete",
     detail: "✓ Read the code\n→ Fix it",
-    plan: [
+    checklist: [
       { text: "Read the code", state: "done" },
       { text: "Fix it", state: "now" },
     ],

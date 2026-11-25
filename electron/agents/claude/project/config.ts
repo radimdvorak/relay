@@ -190,7 +190,7 @@ export function sessionConfig(
     extraArgs: chromeArgs,
     env: withWorktreeEnv(env, {
       // Claude Code leaves its task tools out for newer models; the thread's
-      // card shows the plan it keeps with them.
+      // card shows the checklist it keeps with them.
       CLAUDE_CODE_ENABLE_TODO_TOOLS: env.CLAUDE_CODE_ENABLE_TODO_TOOLS ?? "1",
       ...options.env,
       ...(options.contextWindow === "200k"

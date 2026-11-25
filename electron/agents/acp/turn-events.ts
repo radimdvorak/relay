@@ -10,7 +10,7 @@ import {
   antigravitySubagents,
   TextSpeed,
 } from "../antigravity";
-import { acpActivity, acpEdits, planSteps, planText, type PlanEntry } from "./activity";
+import { acpActivity, acpEdits, checklistSteps, planText, type PlanEntry } from "./activity";
 import type { AcpProfile } from "./profiles";
 import { parseUpdate, type AcpToolCall } from "./protocol";
 import type { AcpAgent } from "./sessions";
@@ -111,9 +111,9 @@ export class AcpTurnEvents {
       kind: "tool",
       // Written down, the update is done, whatever steps are left.
       status: "complete",
-      label: "Updated the plan",
+      label: "Updated progress",
       detail,
-      plan: planSteps(entries),
+      checklist: checklistSteps(entries),
     });
     if (this.options.interactionMode === "plan") this.options.onPlan?.(detail);
   }

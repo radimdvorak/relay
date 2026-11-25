@@ -32,7 +32,7 @@ type Verdict =
   // Cut short: Claude is still working, so the session must close.
   | { answer: string; cutShort?: true };
 
-/** The plan Claude Code saved for the session this one resumed. */
+/** The checklist Claude Code saved for the session this one resumed. */
 const resumedTasks = ({ options, account, threadId }: ClaudeSession) => {
   const id = threadId ?? options.session?.id;
   return id ? savedTasks(accountHome("claude", account ?? SYSTEM_ACCOUNT), id) : [];

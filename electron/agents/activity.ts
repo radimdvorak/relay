@@ -1,4 +1,4 @@
-import { keptSteps, type PlanStep } from "../../shared/agent-plan";
+import { keptSteps, type ChecklistStep } from "../../shared/agent-checklist";
 import type { AgentActivity } from "../../shared/projects";
 import { isImagePath } from "../../shared/answer-images";
 import { relayToolLabel } from "../relay-mcp";
@@ -163,22 +163,22 @@ function toolOutput(item: Record<string, unknown>) {
     .join("\n");
 }
 
-const planMarks: Record<PlanStep["state"], string> = {
+const checklistMarks: Record<ChecklistStep["state"], string> = {
   done: "✓",
   now: "→",
   next: "○",
   failed: "✗",
 };
 
-const codexStepStates: Record<string, PlanStep["state"]> = {
+const codexStepStates: Record<string, ChecklistStep["state"]> = {
   completed: "done",
   inProgress: "now",
 };
 
-/** The plan as the text a row opens to. */
-export const planDetail = (steps: PlanStep[]) =>
+/** The checklist as the text a row opens to. */
+export const checklistDetail = (steps: ChecklistStep[]) =>
   steps
-    .map((step) => `${planMarks[step.state]} ${step.text}`)
+    .map((step) => `${checklistMarks[step.state]} ${step.text}`)
     .join("\n")
     .slice(0, 8000);
 
@@ -194,7 +194,7 @@ export function codexPlanActivity(
   const plan = (value as { plan?: unknown } | null)?.plan;
   if (!Array.isArray(plan)) return;
   const steps = keptSteps(
-    plan.flatMap((s): PlanStep[] =>
+    plan.flatMap((s): ChecklistStep[] =>
       typeof s?.step === "string"
         ? [{ text: s.step, state: codexStepStates[s.status] ?? "next" }]
         : [],
@@ -204,10 +204,10 @@ export function codexPlanActivity(
   return {
     id: key.slice(0, 180),
     kind: "tool",
-    label: "Updated the plan",
+    label: "Updated progress",
     status: "complete",
-    detail: planDetail(steps),
-    plan: steps,
+    detail: checklistDetail(steps),
+    checklist: steps,
   };
 }
 
@@ -307,10 +307,10 @@ export function claudeActivity(
     case "TodoWrite":
     case "TaskCreate":
     case "TaskUpdate":
-      return call("tool", "Updated the plan");
+      return call("tool", "Updated progress");
     case "TaskList":
     case "TaskGet":
-      return call("tool", "Read the plan");
+      return call("tool", "Checked progress");
     // Claude's advisor runs server-side; its advice comes back encrypted.
     case "advisor":
       return call("tool", "Asked the advisor");

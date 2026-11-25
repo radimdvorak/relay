@@ -1,16 +1,16 @@
-// The plan Claude keeps with its own task tools, followed across a session's
+// The checklist Claude keeps with its own task tools, followed across a session's
 // turns. A call names one task by id, so the rest has to be remembered.
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { z } from "zod";
-import { keptSteps, type PlanStep } from "../../../../shared/agent-plan";
+import { keptSteps, type ChecklistStep } from "../../../../shared/agent-checklist";
 
-const planTools = ["TaskCreate", "TaskUpdate", "TodoWrite"] as const;
-type PlanTool = (typeof planTools)[number];
+const taskTools = ["TaskCreate", "TaskUpdate", "TodoWrite"] as const;
+type TaskTool = (typeof taskTools)[number];
 
-/** A call Claude changes its plan with. */
-export const isPlanTool = (name: string): name is PlanTool =>
-  (planTools as readonly string[]).includes(name);
+/** A call Claude changes its checklist with. */
+export const isTaskTool = (name: string): name is TaskTool =>
+  (taskTools as readonly string[]).includes(name);
 
 const statusSchema = z.enum(["pending", "in_progress", "completed"]);
 
@@ -38,7 +38,7 @@ const todosSchema = z.object({
   todos: z.array(z.object({ content: z.string(), status: statusSchema })),
 });
 
-const states: Record<z.infer<typeof statusSchema>, PlanStep["state"]> = {
+const states: Record<z.infer<typeof statusSchema>, ChecklistStep["state"]> = {
   pending: "next",
   in_progress: "now",
   completed: "done",
@@ -49,7 +49,7 @@ const byId = (a: SavedTask, b: SavedTask) => Number(a.id) - Number(b.id);
 /**
  * The tasks Claude Code saved for a session. Read in one go: they're a few
  * small files, asked for once, when a session that was resumed first changes
- * its plan. None when there are none, or another version keeps them elsewhere.
+ * its checklist. None when there are none, or another version keeps them elsewhere.
  */
 export function savedTasks(home: string, sessionId: string): SavedTask[] {
   const dir = join(home, "tasks", sessionId);
@@ -68,20 +68,20 @@ export function savedTasks(home: string, sessionId: string): SavedTask[] {
 }
 
 export class ClaudeTasks {
-  private steps = new Map<string, PlanStep>();
+  private steps = new Map<string, ChecklistStep>();
   private restored = false;
   private startsTurn = true;
 
   /** `saved` is what Claude Code has on disk for the session. */
   constructor(private saved: () => SavedTask[] = () => []) {}
 
-  /** A task made in a new turn starts a new plan, if the last one is over. */
+  /** A task made in a new turn starts a new checklist, if the last one is over. */
   beginTurn() {
     this.startsTurn = true;
   }
 
-  /** The plan once a call came back, or undefined when the call changed nothing. */
-  after(name: PlanTool, input: unknown, output: unknown) {
+  /** The checklist once a call came back, or undefined when the call changed nothing. */
+  after(name: TaskTool, input: unknown, output: unknown) {
     if (name === "TodoWrite") return this.written(input);
     this.restore();
     const changed =
@@ -106,7 +106,7 @@ export class ClaudeTasks {
     const made = createdSchema.safeParse(output);
     if (!made.success) return false;
     const { id, subject } = made.data.task;
-    if (this.startsTurn) this.dropFinishedPlan(id);
+    if (this.startsTurn) this.dropFinishedChecklist(id);
     this.startsTurn = false;
     // Read off the disk, it may already be further along.
     const known = this.steps.get(id);
@@ -129,7 +129,7 @@ export class ClaudeTasks {
   }
 
   /** Drops the tasks made before `id`, when every one of them is done. */
-  private dropFinishedPlan(id: string) {
+  private dropFinishedChecklist(id: string) {
     const before = [...this.steps.keys()].filter((key) => Number(key) < Number(id));
     const finished = before.every((key) => this.steps.get(key)!.state === "done");
     if (finished) for (const key of before) this.steps.delete(key);

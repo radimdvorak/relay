@@ -1,6 +1,6 @@
-import { keptSteps, type PlanStep } from "../../../shared/agent-plan";
+import { keptSteps, type ChecklistStep } from "../../../shared/agent-checklist";
 import type { AgentActivity } from "../../../shared/projects";
-import { mcpCall, planDetail } from "../activity";
+import { mcpCall, checklistDetail } from "../activity";
 
 /** Where the SDK serves custom tools from: Relay's tools (relay-tools.ts) and a reviewer's read-only git (git-tool.ts). */
 const CUSTOM_TOOLS_SERVER = "custom-user-tools";
@@ -37,17 +37,17 @@ export function cursorPlan(call: CursorCall): string | undefined {
     : undefined;
 }
 
-const stepStates: Record<string, PlanStep["state"]> = {
+const stepStates: Record<string, ChecklistStep["state"]> = {
   inProgress: "now",
   completed: "done",
 };
 
-/** The plan a finished call left: its to-do list, less what Cursor called off. */
+/** The checklist a finished call left: its to-do list, less what Cursor called off. */
 function cursorSteps(call: CursorCall) {
   const todos = call.result?.todos;
   if (!Array.isArray(todos)) return undefined;
   return keptSteps(
-    todos.flatMap((todo): PlanStep[] =>
+    todos.flatMap((todo): ChecklistStep[] =>
       typeof todo?.content === "string" && todo.status !== "cancelled"
         ? [{ text: todo.content, state: stepStates[todo.status] ?? "next" }]
         : [],
@@ -121,9 +121,9 @@ export function cursorActivity(
       };
     }
     case "updateTodos": {
-      const plan = cursorSteps(call);
-      const row = make("tool", "Updated the plan", plan && planDetail(plan));
-      return { ...row, ...(plan ? { plan } : {}) };
+      const checklist = cursorSteps(call);
+      const row = make("tool", "Updated progress", checklist && checklistDetail(checklist));
+      return { ...row, ...(checklist ? { checklist } : {}) };
     }
     case "readLints":
       return make("tool", "Checked lints");

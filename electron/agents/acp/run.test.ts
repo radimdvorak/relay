@@ -282,7 +282,7 @@ it("updates the live planning checklist, and leaves execution checklists out of 
     "complete",
     "complete",
   ]);
-  expect(onActivity.mock.calls.map(([a]) => a.plan)).toEqual([
+  expect(onActivity.mock.calls.map(([a]) => a.checklist)).toEqual([
     [{ text: "Read the API", state: "now" }],
     [{ text: "Read the API", state: "done" }],
   ]);
@@ -323,10 +323,15 @@ it("shows Antigravity's update_steps as the plan, once accepted and without skip
   await runAcp(acp, options(root, { onActivity: (a) => rows.push(a) }));
   expect(rows.filter((row) => row.id === "antigravity-plan")).toEqual([
     expect.objectContaining({
-      label: "Updated the plan",
+      label: "Updated progress",
       status: "complete",
       detail:
         "- [x] Write a.txt\n- [ ] Write b.txt (working on it)\n- [ ] Write d.txt (failed)",
+      checklist: [
+        { text: "Write a.txt", state: "done" },
+        { text: "Write b.txt", state: "now" },
+        { text: "Write d.txt", state: "failed" },
+      ],
     }),
   ]);
   // The refused list is a failed call, and leaves the plan alone.

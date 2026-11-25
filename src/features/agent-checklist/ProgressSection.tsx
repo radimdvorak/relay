@@ -1,10 +1,10 @@
 import { useEffect, useRef } from "react";
 import { ChevronRight } from "lucide-react";
-import { currentStep, planProgress, type PlanStep } from "../../../shared/agent-plan";
+import { currentStep, checklistProgress, type ChecklistStep } from "../../../shared/agent-checklist";
 import { useStoredFlag } from "../../lib/useStoredFlag";
-import { PlanList } from "./PlanList";
+import { Checklist } from "./Checklist";
 
-/** Scrolls a long plan to the step the agent is on, as it gets there. */
+/** Scrolls a long checklist to the step the agent is on, as it gets there. */
 function useCurrentInView(at: number) {
   const list = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -20,22 +20,22 @@ function useCurrentInView(at: number) {
   return list;
 }
 
-function PlanSteps({ steps }: { steps: PlanStep[] }) {
+function ScrolledSteps({ steps }: { steps: ChecklistStep[] }) {
   const current = currentStep(steps);
   const list = useCurrentInView(current ? steps.indexOf(current) : 0);
   return (
-    <div className="plan-section-steps" ref={list}>
-      <PlanList steps={steps} />
+    <div className="progress-section-steps" ref={list}>
+      <Checklist steps={steps} />
     </div>
   );
 }
 
-/** The plan the thread's agent is on, in the thread's card; the fold is the same for every thread. */
-export function PlanSection({ steps }: { steps: PlanStep[] }) {
-  const [folded, setFolded] = useStoredFlag("relay-plan-folded");
-  const { at, of } = planProgress(steps);
+/** The checklist the thread's agent is on, in the thread's card; the fold is the same for every thread. */
+export function ProgressSection({ steps }: { steps: ChecklistStep[] }) {
+  const [folded, setFolded] = useStoredFlag("relay-progress-folded");
+  const { at, of } = checklistProgress(steps);
   return (
-    <section className="running-tasks-section plan-section">
+    <section className="running-tasks-section progress-section">
       <button
         type="button"
         className="running-tasks-label"
@@ -43,12 +43,12 @@ export function PlanSection({ steps }: { steps: PlanStep[] }) {
         onClick={() => setFolded(!folded)}
       >
         <ChevronRight size={12} aria-hidden />
-        Plan
-        <span className="plan-section-count">
+        Progress
+        <span className="progress-section-count">
           {at} of {of}
         </span>
       </button>
-      {!folded && <PlanSteps steps={steps} />}
+      {!folded && <ScrolledSteps steps={steps} />}
     </section>
   );
 }

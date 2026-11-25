@@ -202,10 +202,10 @@ describe("a Cursor turn", () => {
     const { seen, options } = turn("[[todos]]");
     await runCursor(options);
     expect(seen.activity.at(-1)).toMatchObject({
-      label: "Updated the plan",
+      label: "Updated progress",
       status: "complete",
       detail: "✓ Read the logs\n→ Fix it",
-      plan: [
+      checklist: [
         { text: "Read the logs", state: "done" },
         { text: "Fix it", state: "now" },
       ],

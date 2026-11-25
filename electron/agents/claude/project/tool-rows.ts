@@ -9,11 +9,11 @@ import {
   claudeActivity,
   claudeCommand,
   claudeEditedPaths,
-  planDetail,
+  checklistDetail,
 } from "../../activity";
 import type { ClaudeRunOptions } from "./config";
 import { ForkParents, type ForkStart } from "../forks";
-import { ClaudeTasks, isPlanTool } from "./tasks";
+import { ClaudeTasks, isTaskTool } from "./tasks";
 
 type Results = Exclude<SDKUserMessage["message"]["content"], string>;
 
@@ -61,10 +61,10 @@ export class ToolRows {
   /** SendMessage calls waiting on their result, which says whether it went out. */
   private peerSends = new Map<string, { to: string; message: string }>();
 
-  /** Calls changing the plan, waiting on their results. */
-  private planCalls = new Map<string, { name: string; input: unknown }>();
-  /** The turn's one plan row, named after the first call that changed it. */
-  private planRow?: string;
+  /** Calls changing the checklist, waiting on their results. */
+  private taskCalls = new Map<string, { name: string; input: unknown }>();
+  /** The turn's one checklist row, named after the first call that changed it. */
+  private checklistRow?: string;
 
   constructor(
     private options: ClaudeRunOptions,
@@ -111,8 +111,8 @@ export class ToolRows {
     parent: string | null,
   ) {
     parent = this.parentOf(parent);
-    if (!parent && isPlanTool(tool.name)) {
-      this.planCalls.set(tool.id, tool);
+    if (!parent && isTaskTool(tool.name)) {
+      this.taskCalls.set(tool.id, tool);
       return;
     }
     const activity = claudeActivity(tool.id, tool.name, tool.input);
@@ -157,8 +157,8 @@ export class ToolRows {
     parent = this.parentOf(parent);
     for (const result of content)
       if (result.type === "tool_result") {
-        if (this.planCalls.has(result.tool_use_id)) {
-          this.planned(result.tool_use_id, returned);
+        if (this.taskCalls.has(result.tool_use_id)) {
+          this.showChecklist(result.tool_use_id, returned);
           continue;
         }
         const call = this.calls.get(result.tool_use_id);
@@ -185,21 +185,21 @@ export class ToolRows {
       }
   }
 
-  /** One row for the turn's plan, as it stands after each change. */
-  private planned(id: string, returned: unknown) {
-    const call = this.planCalls.get(id)!;
-    this.planCalls.delete(id);
-    if (!isPlanTool(call.name)) return;
-    const plan = this.tasks.after(call.name, call.input, returned);
-    if (!plan) return;
-    this.planRow ??= `plan:${id}`.slice(0, 180);
+  /** One row for the turn's checklist, as it stands after each change. */
+  private showChecklist(id: string, returned: unknown) {
+    const call = this.taskCalls.get(id)!;
+    this.taskCalls.delete(id);
+    if (!isTaskTool(call.name)) return;
+    const checklist = this.tasks.after(call.name, call.input, returned);
+    if (!checklist) return;
+    this.checklistRow ??= `checklist:${id}`.slice(0, 180);
     this.options.onActivity?.({
-      id: this.planRow,
+      id: this.checklistRow,
       kind: "tool",
-      label: "Updated the plan",
+      label: "Updated progress",
       status: "complete",
-      detail: planDetail(plan),
-      plan,
+      detail: checklistDetail(checklist),
+      checklist,
     });
   }
 

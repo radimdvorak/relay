@@ -10,9 +10,9 @@ import { flushSync } from "react-dom";
 import { useStoredFlag } from "../../lib/useStoredFlag";
 import { useQuery } from "@tanstack/react-query";
 import type { ChatSummary, Project } from "../../../shared/projects";
-import type { PlanStep } from "../../../shared/agent-plan";
+import type { ChecklistStep } from "../../../shared/agent-checklist";
 import { api } from "../../lib/api";
-import { PlanSection } from "../agent-plan/PlanSection";
+import { ProgressSection } from "../agent-checklist/ProgressSection";
 import { useWindowFocused } from "../../lib/window-focus";
 import { ChangesSection, type CardChanges } from "./ChangesSection";
 import { ComputerSection, type CardComputer } from "./ComputerSection";
@@ -237,7 +237,7 @@ export function RunningTasks({
   chats,
   handoff,
   changes,
-  plan,
+  checklist,
   onOpenChanges,
   onOpenChat,
 }: {
@@ -253,8 +253,8 @@ export function RunningTasks({
   handoff?: (className: string) => ReactNode;
   /** None where the thread has no changes of its own to show, as in a PR thread. */
   changes?: CardChanges;
-  /** The steps of the plan the open thread's agent is on. */
-  plan?: PlanStep[];
+  /** The steps of the checklist the open thread's agent is on. */
+  checklist?: ChecklistStep[];
   onOpenChanges: () => void;
   onOpenChat: (chat: ChatSummary) => void;
 }) {
@@ -271,7 +271,7 @@ export function RunningTasks({
         <RunningStripe
           computer={computer}
           inWorktree={inWorktree}
-          plan={plan}
+          checklist={checklist}
           running={tasks.list.length}
           onOpen={toggle}
         />
@@ -286,7 +286,7 @@ export function RunningTasks({
           {changes && (
             <ChangesSection changes={changes} onOpen={onOpenChanges} />
           )}
-          {plan && <PlanSection steps={plan} />}
+          {checklist && <ProgressSection steps={checklist} />}
           {!!tasks.list.length && (
             <RunningSection
               project={project}

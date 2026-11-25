@@ -7,7 +7,7 @@ import { execFileSync } from "node:child_process";
 import { fakeCli, pathWith } from "../fixtures/fake-cli";
 import { openCodeNativeFixture } from "../fixtures/opencode-native";
 
-const plan = (...statuses: string[]) => ({
+const checklist = (...statuses: string[]) => ({
   update: {
     sessionUpdate: "plan",
     entries: [
@@ -26,9 +26,9 @@ const says = (text: string) => ({
 
 const done = Array<string>(5).fill("completed");
 
-/** Relay with a fake OpenCode that keeps a plan, stops in the middle of it and finishes it on request. */
+/** Relay with a fake OpenCode that keeps a checklist, stops in the middle of it and finishes it on request. */
 async function launch() {
-  const root = await realpath(await mkdtemp(join(tmpdir(), "relay-plan-")));
+  const root = await realpath(await mkdtemp(join(tmpdir(), "relay-progress-")));
   const bin = join(root, "bin");
   await mkdir(bin);
   const idle = await readFile(resolve("tests/fixtures/room-agent.cjs"), "utf8");
@@ -48,8 +48,8 @@ async function launch() {
         nativeUrl: native.url,
         serviceUrl: native.url,
         turnByRequest: {
-          "Speed up the text path": [plan("completed", "completed", "in_progress"), { waitCancel: true }],
-          "Finish it": [plan(...done), says("All five are done.")],
+          "Speed up the text path": [checklist("completed", "completed", "in_progress"), { waitCancel: true }],
+          "Finish it": [checklist(...done), says("All five are done.")],
           Thanks: [says("Any time.")],
         },
       }),
@@ -65,7 +65,7 @@ async function launch() {
   return { app, page, root, native };
 }
 
-test("the thread's card follows the agent's plan until the message after it's done", async () => {
+test("the thread's card follows the agent's checklist until the message after it's done", async () => {
   test.setTimeout(90_000);
   const { app, page, root, native } = await launch();
   try {
@@ -83,12 +83,12 @@ test("the thread's card follows the agent's plan until the message after it's do
     };
 
     await send("Speed up the text path");
-    const section = page.locator(".plan-section");
-    await expect(section.getByRole("button")).toHaveText("Plan3 of 5");
+    const section = page.locator(".progress-section");
+    await expect(section.getByRole("button")).toHaveText("Progress3 of 5");
     const states = () =>
       section.locator("li").evaluateAll((steps) => steps.map((s) => (s as HTMLElement).dataset.state));
     expect(await states()).toEqual(["done", "done", "now", "next", "next"]);
-    await screenshot(page, { path: join(tmpdir(), "relay-plan-card.png") });
+    await screenshot(page, { path: join(tmpdir(), "relay-progress-card.png") });
 
     await section.getByRole("button").click();
     await expect(section.locator("li")).toHaveCount(0);
@@ -96,8 +96,8 @@ test("the thread's card follows the agent's plan until the message after it's do
     await expect(section.locator("li")).toHaveCount(5);
 
     // Its row in the turn opens to the same steps.
-    await page.getByText("Updated the plan").click();
-    const listed = page.getByRole("article", { name: "opencode answer" }).locator(".plan-list li");
+    await page.getByText("Updated progress").click();
+    const listed = page.getByRole("article", { name: "opencode answer" }).locator(".checklist li");
     await expect(listed).toHaveCount(5);
     await expect(listed.last()).toBeVisible();
 
@@ -106,18 +106,18 @@ test("the thread's card follows the agent's plan until the message after it's do
       name: "This computer · 3 of 5: Measure baseline before text-cache optimization",
     });
     await expect(stripe).toContainText("3/5");
-    await screenshot(page, { path: join(tmpdir(), "relay-plan-stripe.png") });
+    await screenshot(page, { path: join(tmpdir(), "relay-progress-stripe.png") });
     await stripe.click();
 
-    // Stopped halfway, the plan stays where it got to, through a reload too.
+    // Stopped halfway, the checklist stays where it got to, through a reload too.
     await page.getByRole("button", { name: "Stop answer", exact: true }).click();
     await expect(page.getByRole("button", { name: "Stop answer", exact: true })).toHaveCount(0);
     await page.reload();
-    await expect(section.getByRole("button")).toHaveText("Plan3 of 5");
+    await expect(section.getByRole("button")).toHaveText("Progress3 of 5");
 
     await send("Finish it");
     await expect(page.getByText("All five are done.")).toBeVisible();
-    await expect(section.getByRole("button")).toHaveText("Plan5 of 5");
+    await expect(section.getByRole("button")).toHaveText("Progress5 of 5");
     await send("Thanks");
     await expect(page.getByText("Any time.")).toBeVisible();
     await expect(section).toHaveCount(0);

@@ -31,7 +31,7 @@ import {
   askedQuestions,
   isQuestionCall,
 } from "../../../shared/asked-questions";
-import { PlanList } from "../agent-plan/PlanList";
+import { Checklist } from "../agent-checklist/Checklist";
 import { AnsweredQuestions } from "./AnsweredQuestions";
 import { StartedThreadMarks } from "./StartedThreads";
 
@@ -47,7 +47,7 @@ export const icons = {
 
 export function iconOf(a: AgentActivity) {
   if (isQuestionCall(a)) return MessageCircleQuestion;
-  return a.plan ? ListChecks : icons[a.kind];
+  return a.checklist ? ListChecks : icons[a.kind];
 }
 
 /** Each agent call's own tool calls, by the agent call's id, and how to show their paths. */
@@ -181,9 +181,9 @@ function ToolIcon({
 const questionWords = (a: AgentActivity) =>
   a.status === "running" ? liveLabel(a) : doneLabel(a);
 
-/** What the call gave back: its plan's steps, or what it printed. */
+/** What the call gave back: its checklist's steps, or what it printed. */
 function CallDetail({ activity: a }: { activity: AgentActivity }) {
-  if (a.plan) return <PlanList steps={a.plan} />;
+  if (a.checklist) return <Checklist steps={a.checklist} />;
   return a.detail ? <pre>{a.detail}</pre> : null;
 }
 
