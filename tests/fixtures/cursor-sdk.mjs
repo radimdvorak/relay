@@ -232,6 +232,19 @@ class FakeAgent {
         say({ type: "model-call-completed", usage: secondRequest });
         return { status: "finished", result: "Tokens per second" };
       }
+      if (/\[\[todos\]\]/.test(prompt)) {
+        const changed = [{ content: "Fix it", status: "inProgress" }];
+        const call = { type: "updateTodos", args: { todos: changed } };
+        const todos = [
+          { content: "Read the logs", status: "completed" },
+          { content: "Ask around", status: "cancelled" },
+          ...changed,
+        ];
+        say({ type: "tool-call-started", callId: "t1", toolCall: call });
+        const result = { status: "success", value: { todos, totalCount: 3 } };
+        say({ type: "tool-call-completed", callId: "t1", toolCall: { ...call, result } });
+        return { status: "finished", result: "On it." };
+      }
       if (/\[\[plan\]\]/.test(prompt)) {
         say({
           type: "tool-call-completed",
