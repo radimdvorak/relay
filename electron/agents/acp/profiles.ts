@@ -1,5 +1,6 @@
 import type { InteractionMode, RuntimeMode } from "../../../shared/agent-modes";
 import type { AgentModel, RegistryProvider } from "../../../shared/agents";
+import type { ProviderCommand } from "../../../shared/commands";
 import { findExecutable } from "../../platform/executables";
 import { readOnlyEnv } from "./amp-review";
 import {
@@ -10,6 +11,7 @@ import {
   antigravityHome,
   antigravityCommand,
   antigravityFailure,
+  antigravityOffer,
 } from "../antigravity";
 import { discoverAntigravitySkills } from "../antigravity";
 import { openCodeCommand } from "../opencode/command";
@@ -87,6 +89,11 @@ export interface AcpProfile {
   home?: string;
   /** A complete process environment, with inherited credentials removed for an account. */
   environment?: Record<string, string>;
+  /** How Relay offers the commands it listed, for an agent that lists its skills among them. */
+  offer?(
+    listed: { commands: ProviderCommand[]; forThisFolder: boolean },
+    skills: AgentSkill[],
+  ): ProviderCommand[];
   /** Skills it doesn't list over ACP, read from its folders for `cwd`. */
   skills?(cwd: string): Promise<AgentSkill[]>;
   /** Selected skills that the agent doesn't expand from ACP prompt text. */
@@ -166,6 +173,7 @@ const antigravity: AcpProfile = {
   compact: "/compact",
   plan: "/plan",
   skills: (cwd) => discoverAntigravitySkills(cwd),
+  offer: antigravityOffer,
   failure: antigravityFailure,
   install:
     "Set Antigravity up in Settings → Agents: Relay downloads it from Google.",

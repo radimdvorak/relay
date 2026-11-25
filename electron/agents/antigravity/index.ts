@@ -16,6 +16,7 @@ export {
 export { antigravityQuestion, answerAntigravityQuestion } from "./questions";
 export { AntigravitySubagents, antigravitySubagents } from "./subagents";
 export { antigravityFailure } from "./failure";
+export { antigravityOffer } from "./listed-skills";
 export { antigravityMcp } from "./mcp";
 export { antigravitySteps } from "./steps";
 export { antigravityHelper } from "./helper";
