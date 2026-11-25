@@ -26,6 +26,7 @@ const cache = join(homedir(), ".gradle/caches/modules-2/files-2.1");
 const texts = {
   "org.bouncycastle": { title: "Bouncy Castle", file: "bouncy-castle.txt" },
   "org.commonmark": { title: "commonmark-java", file: "commonmark-java.txt" },
+  "org.checkerframework": { title: "Checker Framework qualifiers", file: "checker-qual.txt" },
   "org.nibor.autolink": { title: "autolink-java", file: "autolink-java.txt" },
   "io.nayuki": { title: "QR Code generator library", file: "qrcodegen.txt" },
   "androidx.datastore:datastore-preferences-external-protobuf": {
