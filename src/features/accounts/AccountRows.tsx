@@ -228,43 +228,6 @@ function RowMenu({
 }
 
 /**
- * Waits for the code Google's page shows once the user has signed in there,
- * for a sign-in the CLI can't finish from the browser on its own.
- */
-function SignInCode({ label, onError }: { label: string; onError: OnError }) {
-  const [code, setCode] = useState("");
-  const cancel = () => api.cancelAgentAccountSignIn().catch(onError);
-  return (
-    <form
-      className="accounts-adding"
-      onSubmit={(e) => {
-        e.preventDefault();
-        if (!code.trim()) return;
-        api.enterAgentAccountSignInCode(code.trim()).catch(onError);
-      }}
-    >
-      <span>
-        Sign in to <b>{label}</b> in your browser, then paste Google's code
-      </span>
-      <input
-        autoFocus
-        aria-label="Sign-in code"
-        placeholder="Code"
-        value={code}
-        onChange={(e) => setCode(e.target.value)}
-        onKeyDown={(e) => e.key === "Escape" && cancel()}
-      />
-      <button type="submit" className="primary-action" disabled={!code.trim()}>
-        Sign in
-      </button>
-      <button type="button" onClick={cancel}>
-        Cancel
-      </button>
-    </form>
-  );
-}
-
-/**
  * Names a new account, then runs the CLI's own browser sign-in with a
  * folder of its own; it joins the list once that finishes.
  */
@@ -281,8 +244,6 @@ function AddAccount({
   const [name, setName] = useState("");
   const waiting =
     state.signingIn?.provider === provider ? state.signingIn : null;
-  if (waiting?.asksForCode)
-    return <SignInCode label={waiting.label} onError={onError} />;
   if (waiting)
     return (
       <span className="accounts-adding" role="status">

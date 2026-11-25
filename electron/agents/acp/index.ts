@@ -58,10 +58,7 @@ function profileRuntime(profile: AcpProfile): AgentRuntime {
     const bound = antigravityProfile(who.env, who.id);
     return {
       ...bound,
-      credentialsRevision: await antigravityCredentialRevision(
-        bound.home!,
-        !!who.env.AGY_ACP_FORCE_FILE_STORAGE,
-      ),
+      credentialsRevision: await antigravityCredentialRevision(bound.home!),
     };
   };
   const catalog = async () => {

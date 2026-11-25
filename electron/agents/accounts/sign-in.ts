@@ -1,9 +1,7 @@
 // Signs an account in with the CLI's own browser flow, run with the account's
 // folder as its home. Relay never sees the token: the CLI saves it there.
-import { shell } from "electron";
 import { signInAcp } from "../acp/sign-in";
 import { antigravityProfile } from "../acp/profiles";
-import { startCodeLogin } from "../antigravity/login";
 import type { ChildProcess } from "node:child_process";
 import type { AccountProvider } from "../../../shared/agent-accounts";
 import { findExecutable, spawnExecutable } from "../../platform/executables";
@@ -21,8 +19,6 @@ const TIMEOUT = 10 * 60_000;
 export interface SignIn {
   done: Promise<void>;
   cancel(): void;
-  /** For a sign-in that ends with the user pasting the code Google shows. */
-  enterCode?(code: string): void;
 }
 
 /** Starts the login; `done` settles when the CLI exits, rejecting with what it said. */
@@ -30,9 +26,6 @@ export async function startSignIn(
   provider: AccountProvider,
   env: Record<string, string>,
 ): Promise<SignIn> {
-  // A separate profile keeps its token in a file, which only `--login` writes.
-  if (provider === "antigravity" && env.AGY_ACP_FORCE_FILE_STORAGE)
-    return startCodeLogin(env, (url) => shell.openExternal(url));
   if (provider === "antigravity") {
     const controller = new AbortController();
     return {

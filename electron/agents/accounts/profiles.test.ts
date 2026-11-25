@@ -147,7 +147,6 @@ it("isolates Google credentials while sharing conversations and skills without c
   ).toBe(true);
   const env = accountEnv("antigravity", "work");
   expect(env.GEMINI_HOME).toBe(profile);
-  expect(env.AGY_ACP_FORCE_FILE_STORAGE).toBe("1");
   expect(env.GEMINI_API_KEY).toBeUndefined();
   expect(env.GOOGLE_APPLICATION_CREDENTIALS).toBeUndefined();
   await writeFile(

@@ -88,7 +88,7 @@ it("reads the access token the CLI saved, from the profile's file", async () => 
       },
     }),
   );
-  expect(await readQuotaCredential(home, true)).toMatchObject({
+  expect(await readQuotaCredential(home)).toMatchObject({
     accessToken: "access",
     expiresAt: Date.parse("2026-11-24T16:00:00Z"),
   });

@@ -1,5 +1,3 @@
-import { createHash } from "node:crypto";
-import { readFile, stat } from "node:fs/promises";
 import { z } from "zod";
 import { SYSTEM_ACCOUNT } from "../../../shared/agent-accounts";
 import {
@@ -8,18 +6,8 @@ import {
   type ProviderUsage,
   type UsageWindow,
 } from "../../../shared/provider-usage";
-import { runExecutable } from "../../platform/executables";
 import { profileDir, usualHome } from "../accounts/profiles";
-import { antigravityAuthMethod, keychainItem, tokenFile } from "./account";
-
-/** How the CLI saves a Google sign-in (Go's oauth2 token), in its file or keyring item. */
-const savedLoginSchema = z.object({
-  token: z.object({
-    access_token: z.string().min(1),
-    refresh_token: z.string().optional(),
-    expiry: z.string().optional(),
-  }),
-});
+import { loginFingerprint, readSavedLogin, usesGoogleSignIn } from "./account";
 
 /**
  * The CLI's current access token. It saves no OAuth client, so Relay can't
@@ -157,56 +145,19 @@ export function mapGeminiModelQuota(raw: unknown): UsageWindow[] {
   ];
 }
 
-/** Go's keyring stores the secret encoded, behind a prefix naming how. */
-function decodeKeyringSecret(text: string) {
-  const [prefix, encoding] = text.startsWith("go-keyring-base64:")
-    ? ["go-keyring-base64:", "base64" as const]
-    : text.startsWith("go-keyring-encoded:")
-      ? ["go-keyring-encoded:", "hex" as const]
-      : ["", undefined];
-  if (!encoding) return text;
-  return Buffer.from(text.slice(prefix.length), encoding).toString("utf8");
-}
-
-/** The saved sign-in's text: the profile's file, else on macOS the shared Keychain item. */
-async function savedLogin(home: string, fileStorage: boolean) {
-  const path = tokenFile(home);
-  const info = await stat(path).catch(() => undefined);
-  if (info?.isFile() && info.size < 64_000) return readFile(path, "utf8");
-  if (info || fileStorage || process.platform !== "darwin") return;
-  const found = await runExecutable(
-    "/usr/bin/security",
-    ["find-generic-password", ...keychainItem, "-w"],
-    12_000,
-  ).catch(() => undefined);
-  return found?.code === 0 ? decodeKeyringSecret(found.stdout.trim()) : undefined;
-}
-
 /** Read afresh on every operation, so an external sign-in is picked up without restarting. */
 export async function readQuotaCredential(
   home: string,
-  fileStorage: boolean,
 ): Promise<QuotaCredential | undefined> {
-  const method = await antigravityAuthMethod(home);
-  if (method && method !== "oauth-personal" && method !== "oauth-business")
-    return;
-  const text = await savedLogin(home, fileStorage);
-  if (!text || text.length > 64_000) return;
-  let saved: unknown;
-  try {
-    saved = JSON.parse(text);
-  } catch {
-    return;
-  }
-  const token = savedLoginSchema.safeParse(saved).data?.token;
-  if (!token) return;
-  return {
-    accessToken: token.access_token,
-    expiresAt: Date.parse(token.expiry ?? "") || 0,
-    fingerprint: createHash("sha256")
-      .update(token.refresh_token || token.access_token)
-      .digest("hex"),
-  };
+  if (!(await usesGoogleSignIn(home))) return undefined;
+  const login = await readSavedLogin(home);
+  return (
+    login && {
+      accessToken: login.access_token,
+      expiresAt: Date.parse(login.expiry ?? "") || 0,
+      fingerprint: loginFingerprint(login),
+    }
+  );
 }
 
 class QuotaAuthError extends Error {}
@@ -342,15 +293,12 @@ export function readAntigravityUsage(account = SYSTEM_ACCOUNT) {
     account === SYSTEM_ACCOUNT
       ? usualHome("antigravity")
       : profileDir("antigravity", account);
-  const fileStorage =
-    account !== SYSTEM_ACCOUNT || !!process.env.AGY_ACP_FORCE_FILE_STORAGE;
-  const key = `${home}:${fileStorage}`;
-  let reader = readers.get(key);
+  let reader = readers.get(home);
   if (!reader)
     readers.set(
-      key,
+      home,
       (reader = createAntigravityUsageReader(() =>
-        readQuotaCredential(home, fileStorage),
+        readQuotaCredential(home),
       )),
     );
   return reader();

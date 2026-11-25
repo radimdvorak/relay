@@ -47,13 +47,7 @@ export interface AgentAccountsState {
   accounts: AgentAccount[];
   inUse: Record<AccountProvider, string>;
   /** A sign-in Relay started and is waiting on, in the browser. */
-  signingIn: {
-    provider: AccountProvider;
-    id: string;
-    label: string;
-    /** It waits for the code Google's page shows, pasted back into Relay. */
-    asksForCode: boolean;
-  } | null;
+  signingIn: { provider: AccountProvider; id: string; label: string } | null;
   /** Why the last sign-in didn't finish. */
   signInError: string | null;
 }

@@ -16,8 +16,6 @@ describe("Antigravity's sign-in on disk", () => {
     own = join(home, "antigravity-acp");
     await mkdir(own);
     vi.stubEnv("GEMINI_HOME", home);
-    // Off the keychain, so the token is a file this test can write.
-    vi.stubEnv("AGY_ACP_FORCE_FILE_STORAGE", "1");
   });
   const save = (name: string, value: unknown) =>
     writeFile(join(own, name), JSON.stringify(value));
@@ -31,8 +29,7 @@ describe("Antigravity's sign-in on disk", () => {
     expect(await antigravity()).toEqual({ signedIn: true });
   });
 
-  it("starts the CLI with its folders in the profile, updating only through Relay", async () => {
-    vi.stubEnv("AGY_ACP_FORCE_FILE_STORAGE", "");
+  it("starts the CLI with its folders and sign-in in the account's profile, updating only through Relay", async () => {
     const home = join(own, "..");
     await mkdir(join(home, "cli", "1.5.16"), { recursive: true });
     await writeFile(join(home, "cli", "1.5.16", "antigravity"), "");
@@ -41,25 +38,25 @@ describe("Antigravity's sign-in on disk", () => {
       JSON.stringify({ version: "1.5.16", cmd: "antigravity", args: [] }),
     );
     configureAntigravity({ root: join(home, "cli"), fetch });
+    const other = antigravityProfile({ GEMINI_HOME: "/accounts/b" }, "b");
 
-    const usual = await acpProfiles.antigravity.command();
-    expect(usual.args).toEqual([
-      "acp",
-      "--gemini-dir",
-      home,
-      "--app-data-dir",
-      "antigravity-acp",
-    ]);
-    expect(usual.env).toEqual({ AGY_CLI_DISABLE_AUTO_UPDATE: "1" });
-
-    // Another account's sign-in must stay out of the one shared Keychain item.
-    const other = antigravityProfile(
-      { GEMINI_HOME: "/accounts/b", AGY_ACP_FORCE_FILE_STORAGE: "1" },
-      "b",
-    );
-    const { args, env } = await other.command();
-    expect(args).toContain("/accounts/b");
-    expect(env?.SSH_CONNECTION).toBeTruthy();
+    for (const [profile, folder] of [
+      [acpProfiles.antigravity, home],
+      [other, "/accounts/b"],
+    ] as const) {
+      const { args, env } = await profile.command();
+      expect(args).toEqual([
+        "acp",
+        "--gemini-dir",
+        folder,
+        "--app-data-dir",
+        "antigravity-acp",
+      ]);
+      expect(env).toEqual({
+        AGY_CLI_DISABLE_AUTO_UPDATE: "1",
+        AGY_CLI_FORCE_FILE_TOKEN_STORAGE: "1",
+      });
+    }
   });
 
   it("leaves other sign-ins to Antigravity", async () => {

@@ -133,13 +133,13 @@ const amp: AcpProfile = {
   failure: (answer) => /^Error: (.+)/s.exec(answer.trim())?.[1],
 };
 
-async function antigravityLine(home: string, fileStorage: boolean) {
+async function antigravityLine(home: string) {
   const found = await currentAntigravity();
   if (!found)
     throw new Error(
       "Antigravity isn't downloaded yet. Set it up in Settings → Agents.",
     );
-  return antigravityCommand(found, home, fileStorage);
+  return antigravityCommand(found, home);
 }
 
 /** Google's Antigravity CLI, which Relay downloads; see antigravity/install. */
@@ -149,11 +149,7 @@ const antigravity: AcpProfile = {
   setUp: async () => {
     await ensureAntigravity();
   },
-  command: () =>
-    antigravityLine(
-      antigravityHome(),
-      !!process.env.AGY_ACP_FORCE_FILE_STORAGE,
-    ),
+  command: () => antigravityLine(antigravityHome()),
   // Planning uses /plan, not a permission mode. Full access is Relay approving
   // every ask: the CLI has no mode that skips them.
   wishes: ({ runtime, interaction, readOnly }) => {
@@ -164,7 +160,7 @@ const antigravity: AcpProfile = {
     ];
   },
   authMethod: async () => (await antigravityAuthMethod()) ?? "oauth-personal",
-  account: readAntigravityAccount,
+  account: () => readAntigravityAccount(),
   takesHttpMcp: true,
   steersByPrompt: true,
   compact: compactPrompt,
@@ -211,16 +207,15 @@ export function antigravityProfile(
   accountKey: string,
 ): AcpProfile {
   const home = antigravityHome(env);
-  const fileStorage = !!env.AGY_ACP_FORCE_FILE_STORAGE;
   return {
     ...antigravity,
     accountKey,
     home,
     environment: env,
-    command: () => antigravityLine(home, fileStorage),
+    command: () => antigravityLine(home),
     authMethod: async () =>
       (await antigravityAuthMethod(home)) ?? "oauth-personal",
-    account: () => readAntigravityAccount(home, fileStorage),
+    account: () => readAntigravityAccount(home),
     skills: (cwd) => discoverAntigravitySkills(cwd, home),
   };
 }

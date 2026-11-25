@@ -69,23 +69,6 @@ const googleLogin = JSON.stringify({
   token: { access_token: "fixture", refresh_token: "fixture-login", expiry: "2099-01-01T00:00:00Z" },
 });
 
-// `agy acp --login`: prints Google's link, then reads the code its page shows.
-if (process.argv.includes("--login")) {
-  const home = process.argv[process.argv.indexOf("--gemini-dir") + 1];
-  console.log("Open this link in a browser to log in with Google:\n\n  https://accounts.google.com/o/oauth2/auth?fixture\n");
-  require("node:readline").createInterface({ input: process.stdin }).once("line", (code) => {
-    if (code !== "fixture-code") {
-      process.stderr.write("couldn't log in: Malformed auth code.\n");
-      process.exit(1);
-    }
-    const dir = require("node:path").join(home, "antigravity-acp");
-    fs.mkdirSync(dir, { recursive: true });
-    fs.writeFileSync(require("node:path").join(dir, "antigravity-oauth-token"), googleLogin);
-    process.exit(0);
-  });
-  return;
-}
-
 // Like Antigravity, a process started after a saved Google login is signed in.
 const savedGoogleLogin = () =>
   !!scenario.saveGoogleLogin &&

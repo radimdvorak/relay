@@ -93,7 +93,7 @@ test("Antigravity asks fixed questions in full access, compacts, plans, and offe
     saveGoogleLogin: true,
     resume: true,
     sessions: ["s1", "s2"],
-    captureEnvKeys: ["GEMINI_HOME", "AGY_ACP_FORCE_FILE_STORAGE"],
+    captureEnvKeys: ["GEMINI_HOME"],
     configOptions: [
       {
         id: "model",
@@ -172,15 +172,13 @@ test("Antigravity asks fixed questions in full access, compacts, plans, and offe
       RELAY_DEV_URL: "",
       RELAY_TEST_DATA: data,
       GEMINI_HOME: home,
-      AGY_ACP_FORCE_FILE_STORAGE: "1",
       RELAY_ACP_LOG: capture,
       RELAY_ACP_SCENARIO: JSON.stringify(scenario),
     },
   });
   try {
     const page = await app.firstWindow();
-    await app.evaluate(({ net, shell }) => {
-      shell.openExternal = async () => {};
+    await app.evaluate(({ net }) => {
       net.fetch = async () => new Response(null, { status: 503 });
       globalThis.fetch = async (input) => {
         const url = String(input);
@@ -326,10 +324,6 @@ test("Antigravity asks fixed questions in full access, compacts, plans, and offe
     await agents
       .getByRole("button", { name: "Sign in with Antigravity", exact: true })
       .click();
-    await agents
-      .getByRole("textbox", { name: "Sign-in code" })
-      .fill("fixture-code");
-    await agents.getByRole("button", { name: "Sign in", exact: true }).click();
     const workRow = agents
       .locator(".accounts-row")
       .filter({ hasText: "Work Google" });

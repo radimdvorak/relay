@@ -2,7 +2,7 @@ import { access, readFile, stat } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { runExecutable } from "../../platform/executables";
+import { z } from "zod";
 
 export const antigravityHome = (env: NodeJS.ProcessEnv = process.env) =>
   env.GEMINI_HOME || join(homedir(), ".gemini");
@@ -10,18 +10,23 @@ export const antigravityHome = (env: NodeJS.ProcessEnv = process.env) =>
 /** The folder Relay's Antigravity keeps its settings, sign-in and history in, under `home`. */
 export const appDataDir = "antigravity-acp";
 
-/** Where the CLI keeps a Google sign-in when it doesn't use the Keychain. */
-export const tokenFile = (home: string) =>
+/** Where the CLI keeps the profile's Google sign-in. */
+const tokenFile = (home: string) =>
   join(home, appDataDir, "antigravity-oauth-token");
 
-/** The CLI's one Keychain item, shared by every profile on the computer. */
-export const keychainItem = ["-s", "gemini", "-a", "antigravity"];
+const settingsFile = (home: string) => join(home, appDataDir, "settings.json");
+
+/** How the CLI saves a Google sign-in: Go's oauth2 token. */
+const savedLoginSchema = z.object({
+  token: z.object({
+    access_token: z.string().min(1),
+    refresh_token: z.string().min(1).optional(),
+    expiry: z.string().optional(),
+  }),
+});
 
 export async function antigravityAuthMethod(home = antigravityHome()) {
-  const settings = await readFile(
-    join(home, appDataDir, "settings.json"),
-    "utf8",
-  )
+  const settings = await readFile(settingsFile(home), "utf8")
     .then((text) => JSON.parse(text) as { auth?: { type?: unknown } })
     .catch(() => undefined);
   return typeof settings?.auth?.type === "string"
@@ -29,64 +34,59 @@ export async function antigravityAuthMethod(home = antigravityHome()) {
     : undefined;
 }
 
-const exists = (path: string) =>
-  access(path).then(
+/** Whether the profile uses a Google sign-in, as it does until it chose a key. */
+export async function usesGoogleSignIn(home: string) {
+  const method = await antigravityAuthMethod(home);
+  return !method || method === "oauth-personal" || method === "oauth-business";
+}
+
+/** The profile's saved Google sign-in; the CLI rewrites it as it renews the access token. */
+export async function readSavedLogin(home: string) {
+  const path = tokenFile(home);
+  const info = await stat(path).catch(() => undefined);
+  if (!info?.isFile() || info.size > 64_000) return undefined;
+  try {
+    const saved: unknown = JSON.parse(await readFile(path, "utf8"));
+    return savedLoginSchema.safeParse(saved).data?.token;
+  } catch {
+    return undefined;
+  }
+}
+
+/** Names a sign-in without its secrets; it stays the same as the access token is renewed. */
+export const loginFingerprint = (login: {
+  access_token: string;
+  refresh_token?: string;
+}) =>
+  createHash("sha256")
+    .update(login.refresh_token ?? login.access_token)
+    .digest("hex");
+
+/** Whether a Google sign-in is saved; undefined for a profile that uses another kind. */
+export async function readAntigravityAccount(
+  home = antigravityHome(),
+): Promise<{ signedIn: boolean } | undefined> {
+  if (!(await usesGoogleSignIn(home))) return undefined;
+  const signedIn = await access(tokenFile(home)).then(
     () => true,
     () => false,
   );
-
-/** Whether the Keychain holds the CLI's sign-in, never reading the secret; undefined when it can't tell. */
-async function inKeychain() {
-  const found = await runExecutable(
-    "/usr/bin/security",
-    ["find-generic-password", ...keychainItem],
-    5000,
-  ).catch(() => undefined);
-  if (found?.code === 0) return true;
-  return found?.code === 44 ? false : undefined;
+  return { signedIn };
 }
 
 /**
- * Checks only whether a Google sign-in exists. With `fileStorage` the CLI
- * keeps it in a file; otherwise in the system's keyring, which Relay can only
- * look into on macOS. Elsewhere it can't tell, and the first turn says.
+ * Changes when someone signs in, out or as someone else, or picks another way
+ * to. Not when the CLI renews its access token, which it does every hour:
+ * threads' processes restart on a change, ending what runs in them.
  */
-export async function readAntigravityAccount(
-  home = antigravityHome(),
-  fileStorage = !!process.env.AGY_ACP_FORCE_FILE_STORAGE,
-): Promise<{ signedIn: boolean } | undefined> {
-  const choice = await antigravityAuthMethod(home);
-  if (choice && choice !== "oauth-personal" && choice !== "oauth-business")
-    return undefined;
-  if (await exists(tokenFile(home))) return { signedIn: true };
-  if (fileStorage) return { signedIn: false };
-  if (process.platform !== "darwin") return undefined;
-  const found = await inKeychain();
-  return found === undefined ? undefined : { signedIn: found };
-}
-
-/** Notices external sign-ins/settings changes without reading a Keychain secret. */
-export async function antigravityCredentialRevision(
-  home: string,
-  fileStorage: boolean,
-) {
-  const parts = await Promise.all(
-    [join(home, appDataDir, "settings.json"), tokenFile(home)].map(
-      async (path) => {
-        const info = await stat(path).catch(() => undefined);
-        return info
-          ? `${path}:${info.ino}:${info.size}:${info.mtimeMs}:${info.ctimeMs}`
-          : path;
-      },
-    ),
-  );
-  if (process.platform === "darwin" && !fileStorage) {
-    const metadata = await runExecutable(
-      "/usr/bin/security",
-      ["find-generic-password", ...keychainItem],
-      5000,
-    ).catch(() => undefined);
-    parts.push(metadata?.stdout ?? "");
-  }
-  return createHash("sha256").update(parts.join("\0")).digest("hex");
+export async function antigravityCredentialRevision(home: string) {
+  const [settings, login] = await Promise.all([
+    readFile(settingsFile(home), "utf8").catch(() => ""),
+    readSavedLogin(home),
+  ]);
+  return createHash("sha256")
+    .update(settings)
+    .update("\0")
+    .update(login ? loginFingerprint(login) : "")
+    .digest("hex");
 }
