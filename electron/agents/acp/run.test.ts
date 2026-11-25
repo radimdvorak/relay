@@ -821,7 +821,13 @@ it("adds thinking to the output only when the agent's total leaves it out", () =
   const usage = { inputTokens: 10, outputTokens: 2, thoughtTokens: 3 };
   expect(outputTokens({ ...usage, totalTokens: 15 })).toBe(5);
   expect(outputTokens({ ...usage, totalTokens: 12 })).toBe(2);
-  expect(outputTokens(usage)).toBe(2);
+  expect(outputTokens(usage)).toBe(5);
+  // Some count what came from the cache as input, some beside it.
+  const cached = { ...usage, cachedReadTokens: 4 };
+  for (const totalTokens of [15, 19])
+    expect(outputTokens({ ...cached, totalTokens })).toBe(5);
+  for (const totalTokens of [12, 16])
+    expect(outputTokens({ ...cached, totalTokens })).toBe(2);
 });
 
 it("asks the user when the mode does, and answers with the option they picked", async () => {

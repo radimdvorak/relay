@@ -284,18 +284,18 @@ type AcpUsage = NonNullable<AcpPromptResult["usage"]>;
 
 /**
  * ACP leaves open whether `outputTokens` counts thinking. Antigravity 1.5's
- * does, so adding `thoughtTokens` counted it twice; the total says which.
+ * does, so adding `thoughtTokens` counted it twice; the total says which,
+ * whether or not `inputTokens` counts what came from the cache.
  */
 export function outputTokens(usage: AcpUsage) {
   const output = usage.outputTokens ?? 0;
   const thoughts = usage.thoughtTokens ?? 0;
-  if (usage.totalTokens === undefined) return output;
-  const input =
-    (usage.inputTokens ?? 0) +
-    (usage.cachedReadTokens ?? 0) +
-    (usage.cachedWriteTokens ?? 0);
-  const thoughtsLeftOut = usage.totalTokens === input + output + thoughts;
-  return thoughtsLeftOut ? output + thoughts : output;
+  const input = usage.inputTokens ?? 0;
+  const cached = (usage.cachedReadTokens ?? 0) + (usage.cachedWriteTokens ?? 0);
+  const countsThoughts = [input + output, input + cached + output].includes(
+    usage.totalTokens ?? NaN,
+  );
+  return countsThoughts ? output : output + thoughts;
 }
 
 /** What one of the turn's prompts used; a steered turn has several. */
