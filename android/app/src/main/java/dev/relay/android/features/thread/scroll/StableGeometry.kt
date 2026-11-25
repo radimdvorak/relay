@@ -8,6 +8,7 @@ import androidx.compose.ui.layout.MeasureResult
 import androidx.compose.ui.layout.MeasureScope
 import androidx.compose.ui.node.LayoutModifierNode
 import androidx.compose.ui.node.ModifierNodeElement
+import androidx.compose.ui.node.invalidateMeasurement
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.constrainHeight
 
@@ -50,6 +51,9 @@ private class StableGeometryNode(var state: StableGeometryState, var holding: Bo
         val height = constraints.constrainHeight(state.height(child.width, child.height, holding))
         return layout(child.width, height) { child.placeRelative(0, 0) }
     }
+
+    // A lazy row back on screen keeps the size it was last measured at, unless asked again.
+    override fun onAttach() = invalidateMeasurement()
 
     override fun onDetach() = state.forget()
 }
