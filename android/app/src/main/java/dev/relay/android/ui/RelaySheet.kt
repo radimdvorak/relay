@@ -20,16 +20,27 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
 import dev.relay.android.ui.theme.LocalRelayColors
@@ -37,6 +48,7 @@ import dev.relay.android.ui.theme.RelayTheme
 import io.github.lyxnx.compose.ui.tablericons.TablerIcons
 import io.github.lyxnx.compose.ui.tablericons.outline.ArrowLeft
 import io.github.lyxnx.compose.ui.tablericons.outline.X
+import kotlin.math.min
 
 /** How far an inset sheet stays from the screen's sides and bottom. */
 private val SheetInset = 8.dp
@@ -134,8 +146,36 @@ internal fun InsetModalSheet(onDismiss: () -> Unit, halfFirst: Boolean, frame: @
                 .heightIn(max = room * SHEET_MAX)
                 .padding(start = SheetInset, end = SheetInset, bottom = SheetInset)
                 .nestedScroll(KeepUpFlingsOffSheet),
-        ) { OverKeyboard(frame) }
+        ) {
+            val ends = if (halfFirst) Modifier.endsAboveBars(windowHeight) else Modifier
+            Box(ends) { OverKeyboard(frame) }
+        }
     }
+}
+
+/**
+ * A sheet open at half height has its lower half below the screen. Its shape ends above the
+ * navigation bar all the same, and grows as it's pulled up; pulled down it slides off whole.
+ */
+@Composable
+private fun Modifier.endsAboveBars(windowHeight: Int): Modifier {
+    val density = LocalDensity.current
+    val under = WindowInsets.ime.union(WindowInsets.navigationBars).getBottom(density)
+    val inset = with(density) { SheetInset.roundToPx() }
+    val screenEnd = windowHeight - under - inset
+    val shape = RelayTheme.shapes.sheet
+    // Where it is, not the sheet's own offset, which can't be read before its first layout.
+    var top by remember { mutableFloatStateOf(0f) }
+    return onGloballyPositioned { top = it.positionInWindow().y }.graphicsLayer {
+        clip = true
+        this.shape = CutAt(screenEnd - min(top, windowHeight / 2f), shape)
+    }
+}
+
+/** [shape], on no more than the first [height] pixels. */
+private class CutAt(private val height: Float, private val shape: Shape) : Shape {
+    override fun createOutline(size: Size, layoutDirection: LayoutDirection, density: Density) =
+        shape.createOutline(size.copy(height = min(size.height, height)), layoutDirection, density)
 }
 
 /** How much of the room between the system bars a bottom sheet's content may take. */
