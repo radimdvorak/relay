@@ -1,6 +1,6 @@
 import type { AutoCompact } from "./context-usage";
 import type { BlameQuery, LineBlame } from "./blame";
-import type { MemesState } from "./memes";
+import type { MemesApi } from "./memes";
 import type { ExtensionRef, ThemeSearchPage, VsCodeTheme } from "./open-vsx";
 import type { ProjectApi } from "./projects";
 import type { PullReadinessApi } from "./pull-readiness";
@@ -300,6 +300,7 @@ export interface Api
     PoppedWindowApi,
     ClipboardApi,
     SoundsApi,
+    MemesApi,
     EditorWindowsApi,
     LanguageServersApi,
     ProjectApi,
@@ -362,13 +363,6 @@ export interface Api
   saveAISettings(settings: AISettings): Promise<AISettings>;
   smartProjectNames(): Promise<boolean>;
   saveSmartProjectNames(enabled: boolean): Promise<boolean>;
-  /** `/meme`: the list, and which memes have their picture yet. */
-  memes(): Promise<MemesState>;
-  /** Makes memes.json, or adds built-ins new since, for an agent to download. */
-  prepareMemes(): Promise<MemesState>;
-  openMemesFolder(): Promise<void>;
-  /** Opens memes.json in the app that edits JSON, making it first if need be. */
-  openMemesList(): Promise<void>;
   /** The problem report, looked at afresh: the system, the log and the `gh` login. */
   openBugReport(): Promise<import("./bug-report").BugReportPreview>;
   saveBugReport(
