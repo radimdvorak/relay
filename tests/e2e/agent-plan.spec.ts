@@ -95,6 +95,12 @@ test("the thread's card follows the agent's plan until the message after it's do
     await section.getByRole("button").click();
     await expect(section.locator("li")).toHaveCount(5);
 
+    // Its row in the turn opens to the same steps.
+    await page.getByText("Updated the plan").click();
+    const listed = page.getByRole("article", { name: "opencode answer" }).locator(".plan-list li");
+    await expect(listed).toHaveCount(5);
+    await expect(listed.last()).toBeVisible();
+
     await page.getByRole("button", { name: "Fold the card" }).click();
     const stripe = page.getByRole("button", {
       name: "This computer · 3 of 5: Measure baseline before text-cache optimization",

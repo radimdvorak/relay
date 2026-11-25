@@ -57,3 +57,12 @@
   padding: 2px 8px 4px;
   overflow-y: auto;
 }
+
+/* Under its row in a turn's trace, past the row's icon and gap. */
+.agent-step > .plan-list {
+  margin: 0 0 6px 21px;
+}
+.agent-step > .plan-list li {
+  padding: 2.5px 0;
+  font-size: 12px;
+}

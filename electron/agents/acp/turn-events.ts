@@ -109,9 +109,8 @@ export class AcpTurnEvents {
     this.options.onActivity?.({
       id: `${this.profile.provider}-plan`,
       kind: "tool",
-      status: entries.some((e) => e.status === "in_progress")
-        ? "running"
-        : "complete",
+      // Written down, the update is done, whatever steps are left.
+      status: "complete",
       label: "Updated the plan",
       detail,
       plan: planSteps(entries),

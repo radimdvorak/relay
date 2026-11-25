@@ -279,7 +279,7 @@ it("updates the live planning checklist, and leaves execution checklists out of 
     "The proposed plan.",
   ]);
   expect(onActivity.mock.calls.map(([a]) => a.status)).toEqual([
-    "running",
+    "complete",
     "complete",
   ]);
   expect(onActivity.mock.calls.map(([a]) => a.plan)).toEqual([
@@ -324,7 +324,7 @@ it("shows Antigravity's update_steps as the plan, once accepted and without skip
   expect(rows.filter((row) => row.id === "antigravity-plan")).toEqual([
     expect.objectContaining({
       label: "Updated the plan",
-      status: "running",
+      status: "complete",
       detail:
         "- [x] Write a.txt\n- [ ] Write b.txt (working on it)\n- [ ] Write d.txt (failed)",
     }),
