@@ -31,7 +31,6 @@ import dev.relay.android.features.settings.SettingsScreen
 import dev.relay.android.features.thread.SubagentRunScreen
 import dev.relay.android.features.thread.ThreadScreen
 import dev.relay.android.features.search.SearchScreen
-import dev.relay.android.lib.navigation.FADES_IN
 import dev.relay.android.lib.navigation.MORPHS_IN
 import dev.relay.android.lib.navigation.Route
 import dev.relay.android.ui.LocalScreenAnimation
@@ -46,7 +45,7 @@ import dev.relay.android.ui.theme.RelayTheme
  */
 fun EntryProviderScope<NavKey>.appEntries(container: AppContainer, shell: ShellState) {
     entry<Route.Home> { if (shell.sidePane) PaneEmpty() else Animated { AppHome(container, shell, pane = false, selected = null) } }
-    entry<Route.Search>(metadata = mapOf(FADES_IN to true)) { Animated { SearchScreen(it, container.remote, container.home) } }
+    entry<Route.Search>(metadata = mapOf(MORPHS_IN to true)) { Animated { SearchScreen(it, container.remote, container.home) } }
     entry<Route.Settings> { SettingsScreen(container.remote, container.updates, container.notifications, container.push, container.lock, container.prefs, container.scope, container.relayStop::stop) }
     entry<Route.Gallery> { GalleryScreen() }
     entry<Route.Licences> { LicencesScreen() }

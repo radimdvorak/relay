@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.runtime.Composable
@@ -52,7 +53,9 @@ import dev.relay.android.ui.LocalScreenInsets
 import dev.relay.android.ui.SearchField
 import dev.relay.android.ui.Spinner
 import dev.relay.android.ui.fill
-import dev.relay.android.ui.screenSettled
+import dev.relay.android.ui.sharedBox
+import dev.relay.android.ui.PairShapes
+import dev.relay.android.lib.navigation.SEARCH_MORPH
 import dev.relay.android.ui.theme.RelayTheme
 import io.github.lyxnx.compose.ui.tablericons.TablerIcons
 import io.github.lyxnx.compose.ui.tablericons.outline.ArrowLeft
@@ -67,11 +70,11 @@ fun SearchScreen(route: Route.Search, remote: Remote, home: HomeServices) {
     var query by rememberSaveable { mutableStateOf("") }
     var withPulls by rememberSaveable { mutableStateOf(route.pulls) }
     val focus = remember { FocusRequester() }
-    val settled = screenSettled()
-    // The keyboard comes once the screen is in; coming back from a result leaves it away.
+    // The keyboard comes along with the field; coming back from a result leaves it away.
     var focused by rememberSaveable { mutableStateOf(false) }
-    LaunchedEffect(settled) {
-        if (!settled || focused) return@LaunchedEffect
+    val arrival = rememberSearchArrival(route, returning = remember { focused })
+    LaunchedEffect(Unit) {
+        if (focused) return@LaunchedEffect
         focused = true
         focus.requestFocus()
     }
@@ -81,6 +84,7 @@ fun SearchScreen(route: Route.Search, remote: Remote, home: HomeServices) {
         query, { query = it },
         placeholder = if (route.pulls) "Search pull requests and threads" else "Search threads and projects",
         focus, onBack = { navigator.pop() },
+        arrival = arrival,
     ) {
         val o = overview
         if (o == null) Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Spinner(color = RelayTheme.colors.inkSoft) }
@@ -109,6 +113,7 @@ internal fun SearchFrame(
     placeholder: String,
     focus: FocusRequester?,
     onBack: () -> Unit,
+    arrival: SearchArrival = SearchArrival(),
     results: @Composable () -> Unit,
 ) {
     ChromeScreen(
@@ -120,7 +125,7 @@ internal fun SearchFrame(
                         CircleButton(TablerIcons.Outline.ArrowLeft, "Close search", onBack, tone = CircleTone.Raised)
                         SearchField(
                             query, onQuery,
-                            Modifier.weight(1f),
+                            Modifier.weight(1f).sharedBox(SEARCH_MORPH, PairShapes.startGrowing),
                             placeholder = placeholder,
                             focusRequester = focus,
                             fill = CircleTone.Raised.fill(RelayTheme.colors),
@@ -132,8 +137,9 @@ internal fun SearchFrame(
         modifier = Modifier.background(RelayTheme.colors.chrome).windowInsetsPadding(
             WindowInsets.safeDrawing.only(LocalScreenInsets.current).only(WindowInsetsSides.Horizontal),
         ),
+        sheet = arrival.sheet,
     ) {
-        results()
+        AnimatedVisibility(arrival.resultsShown, Modifier.fillMaxSize().then(arrival.results), enter = arrival.resultsIn) { results() }
         // Solid under Android's navigation bar: its buttons have no scrim of their own.
         Spacer(
             Modifier.align(Alignment.BottomCenter).fillMaxWidth().windowInsetsBottomHeight(WindowInsets.navigationBars)

@@ -61,8 +61,8 @@ sealed interface Route : NavKey {
 /** Shared-bounds key of Home's New thread button and the New thread Send it becomes. */
 const val NEW_THREAD_MORPH = "new-thread"
 
+/** Shared-bounds key of Home's search button and the search screen's field, which it grows into. */
+const val SEARCH_MORPH = "search"
+
 /** Entry metadata of a screen that rises in under the button that opened it, not slides in. */
 const val MORPHS_IN = "relay.morphsIn"
-
-/** Entry metadata of a screen that fades in place of the one before it. */
-const val FADES_IN = "relay.fadesIn"

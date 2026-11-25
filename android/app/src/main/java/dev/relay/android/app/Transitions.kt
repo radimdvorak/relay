@@ -12,7 +12,6 @@ import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.ui.unit.IntOffset
 import androidx.navigation3.scene.Scene
-import dev.relay.android.lib.navigation.FADES_IN
 import dev.relay.android.lib.navigation.MORPHS_IN
 import dev.relay.android.ui.theme.RelayMotion
 
@@ -23,7 +22,8 @@ private val effects = RelayMotion.standard.defaultEffectsSpec<Float>()
 private fun Scene<*>.has(mark: String) = entries.lastOrNull()?.metadata?.get(mark) == true
 
 /**
- * New thread's composer stands where Home's does, so only what's around it changes. Slow to start:
+ * New thread's composer stands where Home's does, and search's field grows out of its button, so
+ * only what's around them changes. Slow to start:
  * the frame that builds the screen takes a good part of this, and a linear fade would be over by the
  * first one seen.
  */
@@ -33,7 +33,7 @@ private val covers = tween<Float>(COVER_MS, easing = FastOutLinearInEasing)
 /** How [target] comes in: over the last screen, or in its place when the list beside it [swapped] them. */
 internal fun forward(target: Scene<*>, swapped: Boolean): ContentTransform =
     when {
-        swapped || target.has(FADES_IN) -> crossfade()
+        swapped -> crossfade()
         target.has(MORPHS_IN) -> cover()
         else -> slideIn()
     }
@@ -41,7 +41,6 @@ internal fun forward(target: Scene<*>, swapped: Boolean): ContentTransform =
 /** How [leaving] goes back where it came from. */
 internal fun back(leaving: Scene<*>): ContentTransform =
     when {
-        leaving.has(FADES_IN) -> crossfade()
         leaving.has(MORPHS_IN) -> uncover()
         else -> slideOut()
     }

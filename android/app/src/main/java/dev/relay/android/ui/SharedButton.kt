@@ -52,9 +52,12 @@ fun Modifier.sharedButton(key: Any): Modifier {
     }
 }
 
+/** How quickly a [sharedBox] grows; what moves with one uses it too. */
+const val GROWTH_STIFFNESS = 500f
+
 /** No bounce: a box this wide overshooting its edges reads as a jolt. */
 private val growth = BoundsTransform { _: Rect, _: Rect ->
-    spring(stiffness = 500f, visibilityThreshold = Rect.VisibilityThreshold)
+    spring(stiffness = GROWTH_STIFFNESS, visibilityThreshold = Rect.VisibilityThreshold)
 }
 
 /**

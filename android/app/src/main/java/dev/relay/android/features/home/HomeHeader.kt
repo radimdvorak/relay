@@ -19,13 +19,16 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
+import dev.relay.android.lib.navigation.SEARCH_MORPH
 import dev.relay.android.ui.ChromeHeader
 import dev.relay.android.ui.CircleAction
 import dev.relay.android.ui.CirclePair
 import dev.relay.android.ui.CircleTone
 import dev.relay.android.ui.LocalPaneToggle
+import dev.relay.android.ui.PairShapes
 import dev.relay.android.ui.Text
 import dev.relay.android.ui.fill
+import dev.relay.android.ui.sharedBox
 import dev.relay.android.ui.theme.RelayTheme
 import io.github.lyxnx.compose.ui.tablericons.TablerIcons
 import io.github.lyxnx.compose.ui.tablericons.outline.Search
@@ -77,6 +80,7 @@ internal fun HomeHeader(
                 CirclePair(
                     CircleAction(TablerIcons.Outline.Search, "Search", onSearch),
                     CircleAction(TablerIcons.Outline.Settings, "Settings", onSettings),
+                    firstModifier = Modifier.sharedBox(SEARCH_MORPH, PairShapes.startGrowing),
                 )
             },
         )

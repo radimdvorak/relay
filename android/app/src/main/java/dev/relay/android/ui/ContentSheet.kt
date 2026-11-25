@@ -29,10 +29,11 @@ fun ContentSheet(modifier: Modifier = Modifier, content: @Composable BoxScope.()
 fun ChromeScreen(
     header: @Composable ColumnScope.() -> Unit,
     modifier: Modifier = Modifier,
+    sheet: Modifier = Modifier,
     content: @Composable BoxScope.() -> Unit,
 ) {
     Column(modifier.fillMaxSize().background(RelayTheme.colors.chrome)) {
         header()
-        ContentSheet(Modifier.weight(1f), content)
+        ContentSheet(Modifier.weight(1f).then(sheet), content)
     }
 }

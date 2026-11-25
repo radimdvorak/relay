@@ -17,11 +17,15 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.github.lyxnx.compose.ui.tablericons.TablerIcons
 import io.github.lyxnx.compose.ui.tablericons.outline.Search
 import io.github.lyxnx.compose.ui.tablericons.outline.X
 import dev.relay.android.ui.theme.RelayTheme
+
+/** Where a round button's glass stands, so one can grow into the field. */
+private val GLASS_INSET = (CircleSize.Header.diameter - CircleSize.Header.icon) / 2
 
 /**
  * A fully round 44dp search field: a glass, the query, and a ✕ once there's something to clear.
@@ -50,14 +54,14 @@ fun SearchField(
         cursorBrush = SolidColor(c.ink),
         decorationBox = { field ->
             Row(
-                Modifier.fillMaxWidth().height(44.dp).background(fill, RelayTheme.shapes.circle)
-                    .padding(start = 14.dp, end = if (value.isEmpty()) 14.dp else 8.dp),
+                Modifier.fillMaxWidth().height(CircleSize.Header.diameter).background(fill, RelayTheme.shapes.circle)
+                    .padding(start = GLASS_INSET, end = if (value.isEmpty()) 14.dp else 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                horizontalArrangement = Arrangement.spacedBy(GLASS_INSET),
             ) {
-                Icon(TablerIcons.Outline.Search, null, tint = c.inkSoft, size = 20.dp)
+                Icon(TablerIcons.Outline.Search, null, tint = c.inkSoft, size = CircleSize.Header.icon)
                 Box(Modifier.weight(1f)) {
-                    if (value.isEmpty()) Text(placeholder, style = text, color = c.inkFaint, maxLines = 1)
+                    if (value.isEmpty()) Text(placeholder, style = text, color = c.inkFaint, maxLines = 1, overflow = TextOverflow.Clip)
                     field()
                 }
                 if (value.isNotEmpty()) CircleButton(
