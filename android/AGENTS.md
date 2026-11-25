@@ -55,7 +55,7 @@ your task says so.
   `tool`, `ink`/`inkSoft`/`inkFaint`, `strong` …), never their own colours or
   radii. The look: a grey chrome band, content on a sheet with 24dp top
   corners, 44dp circle buttons, no dividers or hairline rings (tonal fills and
-  whitespace separate things), 15sp body, Newsreader only for display lines.
+  whitespace separate things), 15sp body, Relay Ribbon only for display lines.
   Recurring motion uses the standard springs; `RelayTheme.motion.hero` only for
   the brief's few hero moments. Chips are controls, never decoration: no
   pill/chip badges (status is a coloured glyph or coloured text).

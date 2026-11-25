@@ -29,18 +29,15 @@ val Inter = FontFamily(
     inter(FontWeight.Bold),
 )
 
-/** Newsreader's optical size axis set for display sizes, where its contrast and spacing are drawn for. */
-private fun newsreader(weight: FontWeight) = Font(
-    R.font.newsreader_variable,
-    weight = weight,
-    variationSettings = FontVariation.Settings(
-        FontVariation.weight(weight.weight),
-        FontVariation.Setting("opsz", 24f),
-    ),
+/**
+ * Relay's own display face, drawn in one weight (android/tools/relay-ribbon). The heavier weights
+ * point at the same file, so Compose doesn't fake a bold.
+ */
+val RelayRibbon = FontFamily(
+    Font(R.font.relay_ribbon, FontWeight.Normal),
+    Font(R.font.relay_ribbon, FontWeight.Medium),
+    Font(R.font.relay_ribbon, FontWeight.SemiBold),
 )
-
-/** The display serif: the home greeting, empty states. */
-val Newsreader = FontFamily(newsreader(FontWeight.Normal), newsreader(FontWeight.Medium))
 
 val JetBrainsMono = FontFamily(
     Font(R.font.jetbrains_mono_regular, FontWeight.Normal),
@@ -50,11 +47,11 @@ val JetBrainsMono = FontFamily(
 /** The type scale in docs/expressive/design-brief.md ("Type"). */
 @Immutable
 data class RelayType(
-    /** Newsreader 27/34: the empty home's line, empty states. */
+    /** Relay Ribbon 27/34: the empty home's line, empty states. */
     val greeting: TextStyle,
-    /** 22/28 at 500: a tab's title on the chrome (Projects, PRs). */
+    /** Relay Ribbon 22/28 at 500: a tab's title on the chrome (Projects, PRs). */
     val title: TextStyle,
-    /** 20/26 at 600: markdown H1–H2, headings inside a screen. */
+    /** Relay Ribbon 20/26 at 600: markdown H1–H2, headings inside a screen. */
     val heading: TextStyle,
     /** 17/22 at 500: the centred title of a sheet or dialog. */
     val sheetTitle: TextStyle,
@@ -96,9 +93,9 @@ private fun style(
 )
 
 val DefaultType = RelayType(
-    greeting = style(27, 34, tracking = (-0.01).em, family = Newsreader),
-    title = style(22, 28, FontWeight.Medium, (-0.02).em),
-    heading = style(20, 26, FontWeight.SemiBold, (-0.01).em),
+    greeting = style(27, 34, tracking = (-0.01).em, family = RelayRibbon),
+    title = style(22, 28, FontWeight.Medium, (-0.02).em, RelayRibbon),
+    heading = style(20, 26, FontWeight.SemiBold, (-0.01).em, RelayRibbon),
     sheetTitle = style(17, 22, FontWeight.Medium),
     body = style(15, 24),
     row = style(16, 22),

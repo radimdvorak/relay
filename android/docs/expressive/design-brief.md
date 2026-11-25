@@ -12,7 +12,7 @@ What changes: every screen's look and the app's shell.
 ## Not copied
 
 No Claude spark, no Anthropic fonts, no "Ask Claude". Relay's own mark on the empty home; the
-display serif is **Newsreader** (OFL, bundled variable font in `res/font/`); UI text stays **Inter**
+display face is our own **Relay Ribbon** (`android/tools/relay-ribbon`, one weight); UI text stays **Inter**
 (already bundled), code stays JetBrains Mono. Copy says Relay things: "What should we work on?",
 "Message", "Search threads".
 
@@ -48,9 +48,9 @@ raised → `surfaceContainerLowest` …) so stock M3 components look right witho
 
 | Style | Font | Size / line | Use |
 |---|---|---|---|
-| `greeting` | Newsreader 400 | 27 / 34 | empty home, empty states |
-| `title` | Inter 500 | 22 / 28 | tab titles (Projects, PRs) |
-| `heading` | Inter 600 | 20 / 26 | markdown H1–H2, screen headings |
+| `greeting` | Relay Ribbon | 27 / 34 | empty home, empty states |
+| `title` | Relay Ribbon | 22 / 28 | tab titles (Projects, PRs) |
+| `heading` | Relay Ribbon | 20 / 26 | markdown H1–H2, screen headings |
 | `body` | Inter 400 | 15 / 24 | answers, user messages |
 | `row` | Inter 400–500 | 16 / 22 | composer text, inputs |
 | `listTitle` / `listMeta` | Inter 400–500 | 15 / 20, 13 / 17 | list rows: no louder than the text they open |
