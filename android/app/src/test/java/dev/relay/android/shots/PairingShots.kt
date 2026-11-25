@@ -38,6 +38,7 @@ class PairingShots : ShotTest() {
     @Test
     fun largeType() {
         val sample = SampleApp()
+        Shot("pairing-larger-type", dark = true) { WithToasts(fontScale = 1.2f) { Pairing(sample) } }
         Shot("pairing-large-type", dark = true) { WithToasts(fontScale = 1.6f) { Pairing(sample) } }
     }
 

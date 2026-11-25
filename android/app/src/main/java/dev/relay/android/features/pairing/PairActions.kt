@@ -7,6 +7,7 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -24,6 +25,7 @@ import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -39,10 +41,12 @@ private val ActionHeight = 56.dp
 private val RoundCorner = ActionHeight / 2
 private val SeamCorner = 8.dp
 private val PressedSeamCorner = 20.dp
-/** How much of its neighbour's room a pressed half takes. */
+/** How much wider than its half a pressed one grows, out of its neighbour. */
 private const val PRESS_SWELL = 0.12f
-/** Above this text size the two labels no longer fit beside each other. */
-private const val STACK_FONT_SCALE = 1.3f
+private val ActionPadding = 16.dp
+private val ActionIcon = 20.dp
+private val IconGap = 8.dp
+private val SeamGap = 3.dp
 
 internal class PairAction(val text: String, val icon: ImageVector?, val onClick: () -> Unit)
 
@@ -54,27 +58,40 @@ internal fun PairAction(action: PairAction, modifier: Modifier = Modifier) {
 }
 
 /**
- * Two halves of one pill, the first the one to take: Material's connected button group. A pressed
- * half rounds at the seam and swells into its neighbour.
+ * Two equal halves of one pill, the first the one to take: Material's connected button group. A
+ * pressed half rounds at the seam and swells into its neighbour. Stacked when a label needs more
+ * than its half.
  */
 @Composable
 internal fun PairActions(first: PairAction, second: PairAction) {
     val firstTouch = remember { MutableInteractionSource() }
     val secondTouch = remember { MutableInteractionSource() }
-    if (LocalDensity.current.fontScale > STACK_FONT_SCALE) {
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    val widest = maxOf(actionWidth(first), actionWidth(second))
+    BoxWithConstraints(Modifier.fillMaxWidth()) {
+        // What's left of a half while its neighbour is pressed.
+        val narrowestHalf = (maxWidth - SeamGap) / (2f + PRESS_SWELL)
+        if (widest <= narrowestHalf) Halves(first, firstTouch, second, secondTouch)
+        else Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             ActionSurface(first, firstTouch, strong = true, RelayTheme.shapes.circle, Modifier.fillMaxWidth())
             ActionSurface(second, secondTouch, strong = false, RelayTheme.shapes.circle, Modifier.fillMaxWidth())
         }
-        return
     }
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(3.dp)) {
-        val firstSeam = seamCorner(firstTouch)
-        val secondSeam = seamCorner(secondTouch)
+}
+
+@Composable
+private fun Halves(
+    first: PairAction,
+    firstTouch: MutableInteractionSource,
+    second: PairAction,
+    secondTouch: MutableInteractionSource,
+) {
+    val firstSeam = seamCorner(firstTouch)
+    val secondSeam = seamCorner(secondTouch)
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(SeamGap)) {
         ActionSurface(
             first, firstTouch, strong = true,
             RoundedCornerShape(RoundCorner, firstSeam, firstSeam, RoundCorner),
-            Modifier.weight(1.15f + swell(firstTouch)),
+            Modifier.weight(1f + swell(firstTouch)),
         )
         ActionSurface(
             second, secondTouch, strong = false,
@@ -82,6 +99,17 @@ internal fun PairActions(first: PairAction, second: PairAction) {
             Modifier.weight(1f + swell(secondTouch)),
         )
     }
+}
+
+@Composable
+private fun actionStyle() = RelayTheme.type.body.copy(fontWeight = FontWeight.Medium)
+
+/** The width an action needs to show its whole label. */
+@Composable
+private fun actionWidth(action: PairAction): Dp {
+    val label = rememberTextMeasurer().measure(action.text, actionStyle(), maxLines = 1).size.width
+    val icon = if (action.icon == null) 0.dp else ActionIcon + IconGap
+    return with(LocalDensity.current) { label.toDp() } + icon + ActionPadding * 2
 }
 
 @Composable
@@ -124,15 +152,15 @@ private fun ActionSurface(
             .clip(shape)
             .background(actionFill(strong, pressed))
             .heightIn(min = ActionHeight)
-            .padding(horizontal = 16.dp, vertical = 8.dp),
+            .padding(horizontal = ActionPadding, vertical = 8.dp),
         contentAlignment = Alignment.Center,
     ) {
         ContentColor(content) {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                if (action.icon != null) Icon(action.icon, null, size = 20.dp)
+            Row(horizontalArrangement = Arrangement.spacedBy(IconGap), verticalAlignment = Alignment.CenterVertically) {
+                if (action.icon != null) Icon(action.icon, null, size = ActionIcon)
                 Text(
                     action.text,
-                    style = RelayTheme.type.body.copy(fontWeight = FontWeight.Medium),
+                    style = actionStyle(),
                     color = content,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
