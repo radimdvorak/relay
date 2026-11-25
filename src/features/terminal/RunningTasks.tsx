@@ -142,6 +142,25 @@ function morph(
   }, settle);
 }
 
+/** Whether the card is folded into its stripe, and how it opens and folds. */
+function useCardFold(card: HTMLElement | null) {
+  const [folded, setFolded] = useStoredFlag("relay-tasks-collapsed");
+  const roomy = useRoomBeside(card);
+  // Without room it stays folded, and opens only until it's closed or the
+  // room comes back; the choice saved for a roomy pane stays as it was.
+  const [peeking, setPeeking] = useState(false);
+  if (roomy && peeking) setPeeking(false);
+  const collapsed = roomy ? folded : !peeking;
+  // Open beside the thread, not over it: the thread makes room.
+  const docked = roomy && !collapsed;
+  usePaneMarks(card, docked);
+  const toggle = () =>
+    morph(card, collapsed ? "open" : "close", () =>
+      roomy ? setFolded(!folded) : setPeeking(!peeking),
+    );
+  return { collapsed, docked, toggle };
+}
+
 /** The project's running tasks, polled; only an open card in front asks what each costs. */
 function useProjectTasks(project: Project, collapsed: boolean) {
   // Each look reads the system's whole process list: on Windows, through WMI,
@@ -234,22 +253,9 @@ export function RunningTasks({
   onOpenChanges: () => void;
   onOpenChat: (chat: ChatSummary) => void;
 }) {
-  const [folded, setFolded] = useStoredFlag("relay-tasks-collapsed");
   const [card, setCard] = useState<HTMLElement | null>(null);
-  const roomy = useRoomBeside(card);
-  // Without room it stays folded, and opens only until it's closed or the
-  // room comes back; the choice saved for a roomy pane stays as it was.
-  const [peeking, setPeeking] = useState(false);
-  if (roomy && peeking) setPeeking(false);
-  const collapsed = roomy ? folded : !peeking;
+  const { collapsed, docked, toggle } = useCardFold(card);
   const tasks = useProjectTasks(project, collapsed);
-  // Open beside the thread, not over it: the thread makes room.
-  const docked = roomy && !collapsed;
-  usePaneMarks(card, docked);
-  const toggle = () =>
-    morph(card, collapsed ? "open" : "close", () =>
-      roomy ? setFolded(!folded) : setPeeking(!peeking),
-    );
   return (
     <aside
       ref={setCard}
