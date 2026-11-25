@@ -243,16 +243,7 @@ async function runAcpTurn(
       cancel();
       await observer.settle().catch(() => {});
     }
-    if (error instanceof AcpRequestError && error.code === AUTH_REQUIRED) {
-      // Its process owns cached credentials. A new login must get a fresh process.
-      agent.close();
-      throw signedOutError(
-        profile.provider,
-        profile.provider === "opencode"
-          ? "OpenCode's model provider needs you to sign in again. Reconnect the provider, then resume the answer."
-          : undefined,
-      );
-    }
+    if (isSignedOut(error)) throw dropSignedOut(agent, profile);
     throw error;
   } finally {
     subagents?.settle(signal.aborted || turnAbort.signal.aborted);
@@ -267,6 +258,20 @@ async function runAcpTurn(
     if (adopted) connection.dropOrphans();
     agent.settle(!!key);
   }
+}
+
+const isSignedOut = (error: unknown) =>
+  error instanceof AcpRequestError && error.code === AUTH_REQUIRED;
+
+/** Closes an agent whose login was refused, and says so: its process keeps the old credentials. */
+function dropSignedOut(agent: AcpAgent, profile: AcpProfile) {
+  agent.close();
+  return signedOutError(
+    profile.provider,
+    profile.provider === "opencode"
+      ? "OpenCode's model provider needs you to sign in again. Reconnect the provider, then resume the answer."
+      : undefined,
+  );
 }
 
 type AcpUsage = NonNullable<AcpPromptResult["usage"]>;
