@@ -23,7 +23,7 @@ function turn() {
       return { request: steers.length + 1, reply: steer.promise };
     }),
     waitOn: vi.fn(),
-    images: async () => [],
+    images: async (): Promise<object[]> => [],
     over: () => state.over,
     waiting: () => state.waiting,
     steered: vi.fn(),
@@ -130,4 +130,20 @@ it("sends nothing while the agent waits for an answer, or once the turn is over"
   await result;
   await expect(steering.steer("B", "m1")).rejects.toThrow(/turn has finished/);
   expect(io.send).not.toHaveBeenCalled();
+});
+
+it("turns away a steer whose preparation finishes right after the active prompt already answered", async () => {
+  const { first, io, steering, interim } = turn();
+  const preparing = deferred();
+  io.images = () => preparing.promise as Promise<object[]>;
+  const result = steering.result([], interim);
+
+  const late = steering.steer("B", "m1");
+  first.resolve(ended);
+  preparing.resolve([]);
+
+  await expect(late).rejects.toThrow(/turn has finished/);
+  expect(await result).toEqual(ended);
+  expect(io.send).not.toHaveBeenCalled();
+  expect(io.steered).not.toHaveBeenCalled();
 });

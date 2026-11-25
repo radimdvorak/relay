@@ -41,7 +41,7 @@ export class PromptSteering {
 
   readonly steer: Steer = (text, id, images) =>
     guardSteer(
-      () => !this.ended && !this.io.over(),
+      () => !this.ended && !this.io.over() && !this.prompts.at(-1)!.answered,
       async () => [{ type: "text", text }, ...(await this.io.images(images))],
       (prompt) => {
         if (this.io.waiting())
