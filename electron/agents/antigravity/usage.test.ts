@@ -13,7 +13,16 @@ import {
 const credential = (
   accessToken: string,
   expiresAt = Date.now() + 3_600_000,
-): QuotaCredential => ({ fingerprint: accessToken, accessToken, expiresAt });
+): QuotaCredential => ({
+  fingerprint: accessToken,
+  accessToken,
+  expiresAt,
+  renewable: true,
+});
+
+const cannotRenew = async () => {
+  throw new Error("offline");
+};
 
 const bucket = (
   bucketId: string,
@@ -107,7 +116,7 @@ it("sends the CLI's own token, and rereads it once after Google refuses it", asy
     }
     return json(summary);
   });
-  const service = createAntigravityUsageReader(read, fetcher);
+  const service = createAntigravityUsageReader(read, cannotRenew, fetcher);
   expect((await service()).windows).toHaveLength(4);
   expect(read).toHaveBeenCalledTimes(2);
   expect(sent.slice(-2)).toEqual(["Bearer renewed", "Bearer renewed"]);
@@ -118,6 +127,7 @@ it.each([403, 429, 500])(
   async (status) => {
     const service = createAntigravityUsageReader(
       async () => credential("same"),
+      cannotRenew,
       vi.fn<typeof fetch>(async () => json({}, status)),
     );
     const failed = await service();
@@ -134,7 +144,7 @@ it("bounds auth retries and picks up a removed or replaced login on the next ope
       ? json({}, 401)
       : json(summary),
   );
-  const service = createAntigravityUsageReader(read, fetcher);
+  const service = createAntigravityUsageReader(read, cannotRenew, fetcher);
   expect((await service()).message).toMatch(/sign in.*again/i);
   expect(fetcher).toHaveBeenCalledTimes(4);
   expect(read).toHaveBeenCalledTimes(2);
@@ -144,14 +154,40 @@ it("bounds auth retries and picks up a removed or replaced login on the next ope
   expect((await service()).windows).toHaveLength(4);
 });
 
-it("asks for a turn to renew a token that ran out, without sending it to Google", async () => {
+it("has the CLI renew a token that ran out, and reads with the new one", async () => {
+  let saved = credential("stale", Date.now() - 1000);
+  const renew = vi.fn(async () => {
+    saved = credential("renewed");
+  });
+  const sent: string[] = [];
+  const fetcher = vi.fn<typeof fetch>(async (_url, init) => {
+    sent.push((init!.headers as Record<string, string>).Authorization);
+    return json(summary);
+  });
+  const service = createAntigravityUsageReader(
+    async () => saved,
+    renew,
+    fetcher,
+  );
+  expect((await service()).windows).toHaveLength(4);
+  await service();
+  expect(renew).toHaveBeenCalledOnce();
+  expect(new Set(sent)).toEqual(new Set(["Bearer renewed"]));
+});
+
+it("doesn't send a token that couldn't be renewed, and reads again once someone signs in", async () => {
+  vi.spyOn(console, "warn").mockImplementation(() => {});
+  let saved = credential("stale", Date.now() - 1000);
   const fetcher = vi.fn<typeof fetch>(async () => json(summary));
   const service = createAntigravityUsageReader(
-    async () => credential("stale", Date.now() - 1000),
+    async () => saved,
+    cannotRenew,
     fetcher,
   );
   expect((await service()).message).toMatch(/needs renewing/);
   expect(fetcher).not.toHaveBeenCalled();
+  saved = credential("signed in again");
+  expect((await service()).windows).toHaveLength(4);
 });
 
 it("reads Gemini's pool from the model list when the summary covers only Claude and GPT", async () => {
@@ -179,6 +215,7 @@ it("reads Gemini's pool from the model list when the summary covers only Claude 
   });
   const service = createAntigravityUsageReader(
     async () => credential("one"),
+    cannotRenew,
     fetcher,
   );
   expect(
@@ -250,6 +287,7 @@ it("identifies as a current antigravity hub client so Google includes the Gemini
   });
   const service = createAntigravityUsageReader(
     async () => credential("one"),
+    cannotRenew,
     fetcher,
   );
   await service();

@@ -3,6 +3,7 @@ import type { AgentRuntime } from "../types";
 import { acpCatalog } from "./catalog";
 import type { AgentProvider, RegistryProvider } from "../../../shared/agents";
 import { runAccount } from "../accounts";
+import { accountEnv } from "../accounts/profiles";
 import {
   antigravitySubagents,
   antigravityCredentialRevision,
@@ -21,7 +22,7 @@ import {
   newestAntigravity,
   updateAntigravity,
 } from "../antigravity";
-import { signInAcp, signOutAcp } from "./sign-in";
+import { renewAcpSignIn, signInAcp, signOutAcp } from "./sign-in";
 import { AcpRegistry, acpRegistry, registryProfile } from "./registry";
 
 export type { AcpProvider } from "./profiles";
@@ -107,6 +108,12 @@ function profileRuntime(profile: AcpProfile): AgentRuntime {
     reattach: (owns) => reattachAcp(profile, owns),
   };
 }
+
+/** Has Antigravity renew an account's saved sign-in without anyone there. */
+export const renewAntigravitySignIn = (account: string) =>
+  renewAcpSignIn(
+    antigravityProfile(accountEnv("antigravity", account), account),
+  );
 
 /** What Settings' agent rows ask of Antigravity: the server Relay downloaded, and whether it's signed in. */
 export const antigravityIo: SdkIo = {

@@ -18,6 +18,7 @@ import {
   mapCodexUsage,
 } from "../../shared/provider-usage-responses";
 import { readClaudeUsage } from "./claude/project";
+import { renewAntigravitySignIn } from "./acp";
 import { readAntigravityUsage } from "./antigravity";
 import { readMuseUsage } from "./muse";
 import { readCursorUsage } from "./cursor/plan-usage";
@@ -63,7 +64,9 @@ const readers: Record<
 > = {
   claude: { load: loadClaude, ttl: CLAUDE_TTL },
   codex: { load: loadCodex },
-  antigravity: { load: readAntigravityUsage },
+  antigravity: {
+    load: (account) => readAntigravityUsage(account, renewAntigravitySignIn),
+  },
   // Only one Muse sign-in: its accounts aren't Relay's to switch.
   muse: { load: () => readMuseUsage() },
   // A month-long limit moves slowly, and each reading signs in afresh.

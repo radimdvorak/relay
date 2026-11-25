@@ -7,16 +7,24 @@ import {
   type UsageWindow,
 } from "../../../shared/provider-usage";
 import { profileDir, usualHome } from "../accounts/profiles";
-import { loginFingerprint, readSavedLogin, usesGoogleSignIn } from "./account";
+import {
+  antigravityAuthMethod,
+  loginFingerprint,
+  readSavedLogin,
+  usesGoogleSignIn,
+} from "./account";
+import { createSignInRenewal, hasRunOut } from "./renewal";
 
 /**
  * The CLI's current access token. It saves no OAuth client, so Relay can't
- * refresh it; the CLI does, whenever it runs.
+ * refresh it; only the CLI can.
  */
 export type QuotaCredential = {
   fingerprint: string;
   accessToken: string;
   expiresAt: number;
+  /** The CLI holds what it takes to renew it without anyone signing in. */
+  renewable: boolean;
 };
 
 const endpoints = [
@@ -150,19 +158,21 @@ export async function readQuotaCredential(
   home: string,
 ): Promise<QuotaCredential | undefined> {
   if (!(await usesGoogleSignIn(home))) return undefined;
+  const method = await antigravityAuthMethod(home);
   const login = await readSavedLogin(home);
   return (
     login && {
       accessToken: login.access_token,
       expiresAt: Date.parse(login.expiry ?? "") || 0,
       fingerprint: loginFingerprint(login),
+      renewable: !!login.refresh_token && method !== "oauth-business",
     }
   );
 }
 
 class QuotaAuthError extends Error {}
 
-/** The CLI's saved token ran out; it renews it on its next turn. */
+/** The CLI's saved token ran out, and it couldn't renew it just now. */
 class QuotaExpiredError extends Error {}
 
 type Request = (url: string, init: RequestInit) => Promise<Response>;
@@ -212,6 +222,8 @@ const unavailable = (message: string): ProviderUsage => ({
 /** Reads limits with the CLI's own access token; never changes or removes a saved login. */
 export function createAntigravityUsageReader(
   read: () => Promise<QuotaCredential | undefined>,
+  /** Has the CLI renew the saved sign-in. */
+  renew: () => Promise<void>,
   fetcher: typeof fetch = fetch,
   now = Date.now,
 ) {
@@ -221,18 +233,23 @@ export function createAntigravityUsageReader(
       redirect: "manual",
       signal: AbortSignal.timeout(12_000),
     });
-  const bearerOf = (credential: QuotaCredential) => {
-    if (credential.expiresAt <= now() + 60_000) throw new QuotaExpiredError();
-    return credential.accessToken;
+  const renewal = createSignInRenewal(renew, read, now);
+  /** The saved sign-in, renewed if its token ran out. */
+  const readCurrent = async () => {
+    const saved = await read();
+    if (!saved || !hasRunOut(saved, now())) return saved;
+    const renewed = await renewal(saved);
+    if (renewed && hasRunOut(renewed, now())) throw new QuotaExpiredError();
+    return renewed;
   };
   return async (): Promise<ProviderUsage> => {
     try {
-      let credential = await read();
+      let credential = await readCurrent();
       if (!credential)
         return unavailable("Sign in with Google to see Antigravity limits.");
       // A quota read is safe to retry once after a documented bearer-token refusal.
       for (let attempt = 0; attempt < 2; attempt++) {
-        const bearer = bearerOf(credential);
+        const bearer = credential.accessToken;
         const responses = await Promise.allSettled(
           endpoints.map((endpoint) =>
             readEndpoint(request, endpoint, bearer),
@@ -251,7 +268,7 @@ export function createAntigravityUsageReader(
         );
         // The CLI may have renewed its token since; read it again once.
         if (refused && attempt === 0) {
-          credential = await read();
+          credential = await readCurrent();
           if (!credential)
             return unavailable(
               "Sign in with Google to see Antigravity limits.",
@@ -288,7 +305,10 @@ const readers = new Map<
   ReturnType<typeof createAntigravityUsageReader>
 >();
 
-export function readAntigravityUsage(account = SYSTEM_ACCOUNT) {
+export function readAntigravityUsage(
+  account: string,
+  renew: (account: string) => Promise<void>,
+) {
   const home =
     account === SYSTEM_ACCOUNT
       ? usualHome("antigravity")
@@ -297,8 +317,9 @@ export function readAntigravityUsage(account = SYSTEM_ACCOUNT) {
   if (!reader)
     readers.set(
       home,
-      (reader = createAntigravityUsageReader(() =>
-        readQuotaCredential(home),
+      (reader = createAntigravityUsageReader(
+        () => readQuotaCredential(home),
+        () => renew(account),
       )),
     );
   return reader();
