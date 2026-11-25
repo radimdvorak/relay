@@ -20,7 +20,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -35,6 +34,7 @@ import dev.relay.android.remote.client.RemoteClient
 import dev.relay.android.ui.RowTextInset
 import dev.relay.android.ui.Text
 import dev.relay.android.ui.pressable
+import dev.relay.android.ui.floatShadow
 import dev.relay.android.ui.theme.RelayTheme
 
 // The desktop composer's slash menu (mobile/src/ui/CommandMenu.tsx): Relay's
@@ -121,7 +121,7 @@ fun CommandMenu(items: List<MenuItem>, loading: Boolean, failed: Boolean, onPick
         Text(text, Modifier.padding(horizontal = RowTextInset, vertical = 10.dp), style = RelayTheme.type.meta, color = c.inkSoft)
     Column(
         modifier.fillMaxWidth().heightIn(max = 296.dp)
-            .shadow(8.dp, shape, ambientColor = Color.Black, spotColor = Color.Black.copy(alpha = 0.5f))
+            .floatShadow(shape)
             .clip(shape).background(c.raised),
     ) {
         LazyColumn(Modifier.weight(1f, fill = false), contentPadding = PaddingValues(6.dp)) {

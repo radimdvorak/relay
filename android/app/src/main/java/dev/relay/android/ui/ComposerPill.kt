@@ -11,8 +11,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.layout.Placeable
 import androidx.compose.ui.unit.Constraints
@@ -67,8 +65,7 @@ fun ComposerPill(
     Layout(
         contents = listOf(row(leading), field, row(chips), row(trailing), { Column { header() } }),
         modifier = modifier
-            // The system already draws shadows faint; a colour thinner than this one vanishes on the surface.
-            .shadow(8.dp, shape, ambientColor = Color.Black, spotColor = Color.Black.copy(alpha = 0.5f))
+            .floatShadow(shape)
             .clip(shape)
             .background(c.raised),
     ) { (leadSlot, fieldSlot, chipSlot, trailSlot, headerSlot), constraints ->

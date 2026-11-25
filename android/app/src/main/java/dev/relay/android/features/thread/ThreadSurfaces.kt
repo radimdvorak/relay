@@ -10,7 +10,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
@@ -21,6 +20,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import dev.relay.android.ui.Text
 import dev.relay.android.ui.pressable
+import dev.relay.android.ui.floatShadow
 import dev.relay.android.ui.theme.RelayTheme
 
 /** How far the conversation's text sits from the screen's edges. */
@@ -56,7 +56,7 @@ internal fun Modifier.dockCard(tint: Color): Modifier {
     val shape = RelayTheme.shapes.composer
     val fill = tint.copy(alpha = if (c.isDark) 0.14f else 0.10f).compositeOver(c.raised)
     return this
-        .shadow(10.dp, shape, ambientColor = Color.Black.copy(alpha = 0.10f), spotColor = Color.Black.copy(alpha = 0.10f))
+        .floatShadow(shape)
         .clip(shape)
         .background(fill)
 }
