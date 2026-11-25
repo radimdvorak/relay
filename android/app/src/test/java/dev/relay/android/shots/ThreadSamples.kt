@@ -77,6 +77,28 @@ object ThreadSamples {
 
 Dim the lights, light a few candles, and enjoy your evening!"""
 
+    val TABLES = """
+| 5 lines | App CPU | WindowServer |
+|---|---|---|
+| Reacton, whole window, 120fps | 6.0% | ~49% |
+| Reacton, layer, 60fps | 3.6% | ~35% |
+| Reacton, layer, 20fps | **1.6%** | 25-43% (noisy) |
+| Electron, stepped 20fps | **9%** | 19-27% |
+
+| Size | Time |
+|---|---|
+| 1k | 3ms |
+
+| Option | What it does | Upside | Downside |
+|---|---|---|---|
+| Fit | Shrinks the wide columns | Everything on screen at once | More lines in each row |
+| Scroll | Keeps every column wide | Short rows | Half of it is hidden |
+
+| File | Was | Now | Change | Tests | Owner | Notes |
+|---|---|---|---|---|---|---|
+| `features/markdown/MarkdownTable.kt` | 72 lines | 128 lines | +56 | 4 | Reviewer | Columns share the width |
+""".trimIndent()
+
     const val MARKDOWN = """The inset was read **twice**: once by `Scaffold` and once by the composer itself, see [Composer.kt](https://example.com).
 
 # First heading

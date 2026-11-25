@@ -12,12 +12,31 @@ import androidx.compose.ui.unit.dp
 
 private val StartFade = 24.dp
 private val EndFade = 64.dp
+private val SideFade = 32.dp
 
 /** What [scroll] cuts off at either end goes into [over] rather than stopping at a line. Put it before the scroll. */
 internal fun Modifier.fadesCutEnds(scroll: ScrollState, over: Color) = drawWithContent {
     drawContent()
     fadeStart(over, hidden = scroll.value.toFloat())
     fadeEnd(over, at = size.height, hidden = (scroll.maxValue - scroll.value).toFloat())
+}
+
+/** What [scroll] cuts off at its side goes into [over]. Put it before the scroll. */
+internal fun Modifier.fadesCutSide(scroll: ScrollState, over: Color) = drawWithContent {
+    drawContent()
+    val fade = SideFade.toPx()
+    val before = (scroll.value / fade).coerceIn(0f, 1f)
+    val after = ((scroll.maxValue - scroll.value) / fade).coerceIn(0f, 1f)
+    val clear = over.copy(alpha = 0f)
+    if (before > 0f) drawRect(
+        Brush.horizontalGradient(listOf(over.copy(alpha = before), clear), startX = 0f, endX = fade),
+        size = Size(fade, size.height),
+    )
+    if (after > 0f) drawRect(
+        Brush.horizontalGradient(listOf(clear, over.copy(alpha = after)), startX = size.width - fade, endX = size.width),
+        topLeft = Offset(size.width - fade, 0f),
+        size = Size(fade, size.height),
+    )
 }
 
 /** Into [over] toward the start; comes in over the first of what's [hidden] before it. */

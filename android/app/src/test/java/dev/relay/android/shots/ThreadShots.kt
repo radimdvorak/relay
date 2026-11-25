@@ -70,6 +70,9 @@ class ThreadShots : ShotTest() {
     fun markdown() = screen("thread-markdown", listOf(ThreadSamples.user("u1", "Show me everything"), ThreadSamples.answer("m1", ThreadSamples.MARKDOWN)))
 
     @Test
+    fun tables() = screen("thread-tables", listOf(ThreadSamples.user("u1", "Compare them"), ThreadSamples.answer("m1", ThreadSamples.TABLES)))
+
+    @Test
     fun streaming() = screen("thread-streaming", listOf(
         ThreadSamples.user("u1", "A longer message, to see how several lines of it wrap inside the bubble on the right, with a file: `/tmp/pastes/0a1b2c3d-0000-4000-8000-000000000000/report.pdf`"),
         ThreadSamples.answer("m1", "", status = "streaming", minutesAgo = 1, trace = ThreadSamples.liveTrace),
