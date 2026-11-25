@@ -15,6 +15,7 @@ const ownCommands = new Set([
   "learn",
   "plan",
   "schedule",
+  "swarm",
   "teamwork",
 ]);
 
