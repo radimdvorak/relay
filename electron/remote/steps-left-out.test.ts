@@ -83,6 +83,17 @@ describe("withStepsLeftOut", () => {
     expect(folded.stepsLeftOut).toBe(11);
   });
 
+  it("keeps the turn's own checklist as it last stood", () => {
+    const checklist = [{ text: "Build", state: "now" as const }];
+    const turn = answer("a4", [
+      call("p1", "tool", "Updated progress", { checklist }),
+      call("p2", "tool", "Updated progress", { checklist }),
+      call("theirs", "tool", "Updated progress", { checklist, parentId: "ag" }),
+      call("c1", "command", "npm test"),
+    ]);
+    expect(keptIds(withStepsLeftOut(turn))).toEqual(["p2", "c1"]);
+  });
+
   it("leaves a turn without calls as it is", () => {
     const turn = answer("a3", [note("n1", "Just thinking out loud.")]);
     expect(withStepsLeftOut(turn)).toBe(turn);

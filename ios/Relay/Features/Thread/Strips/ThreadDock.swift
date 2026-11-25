@@ -2,7 +2,7 @@ import RelayRemote
 import SwiftUI
 
 /// What docks over a thread's composer, as on the desktop and Android: the
-/// goal, a usage limit and work that stopped; the subagents and started
+/// goal, a usage limit and work that stopped; the agent's progress; the subagents and started
 /// threads at work; background work waiting; a settled thread's note. Last of
 /// them, one that asks for something comes first.
 struct ThreadDock: View {
@@ -33,11 +33,13 @@ struct ThreadDock: View {
         let waiting = outsideBatch(pending, batch)
         let stopped = thread?.stopped?.items ?? []
         let limit = running ? nil : summary?.limitResume
+        let checklist = dockedChecklist(thread?.messages ?? [], running: running)
         let pressing = (!waiting.isEmpty && !running) || limit != nil || !stopped.isEmpty
         VStack(spacing: 0) {
             if let goal = summary?.goal { GoalStrip(goal: goal, running: running) }
             if let limit { LimitStrip(chatId: chatId, plan: limit) }
             if !stopped.isEmpty { StoppedStrip(chatId: chatId, items: stopped) }
+            if let checklist { ProgressStrip(steps: checklist) }
             SubagentStrip(agents: agents, batch: batch, started: started, root: thread?.root) {
                 listedStarted = started
                 listing = true
@@ -47,7 +49,7 @@ struct ThreadDock: View {
                 SettledStrip(chatId: chatId, whenDone: summary.settleWhenDone != nil)
             }
         }
-        .animation(.snappy(duration: 0.2), value: [summary?.goal != nil, limit != nil, !stopped.isEmpty, !waiting.isEmpty])
+        .animation(.snappy(duration: 0.2), value: [summary?.goal != nil, limit != nil, !stopped.isEmpty, checklist != nil, !waiting.isEmpty])
         // Look again as a turn starts and ends, even when it finishes between reads.
         .subagentPoll(enabled: true, again: running || out > 0 || agents.anyOut, nudge: "\(running):\(out)") {
             await agents.refresh(connection)

@@ -83,6 +83,19 @@ public struct AgentActivity: Codable, Sendable, Equatable, Identifiable {
     public var actions: [CallAction]?
     /// The call wrote code, left out of the thread; `activityWritten` has it.
     public var wroteCode: Bool?
+    /// The agent's own steps as they stood after this call (shared/agent-checklist.ts); older desktops leave it out.
+    public var checklist: [ChecklistStep]?
+}
+
+/// A step the agent set itself: "next" | "now" | "done" | "failed".
+public struct ChecklistStep: Codable, Sendable, Equatable {
+    public var text: String
+    public var state: String
+
+    public init(text: String, state: String) {
+        self.text = text
+        self.state = state
+    }
 }
 
 public struct McpCall: Codable, Sendable, Equatable {

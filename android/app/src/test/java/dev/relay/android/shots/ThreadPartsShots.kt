@@ -15,12 +15,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import dev.relay.android.features.thread.AgentRun
+import dev.relay.android.features.thread.ChecklistSteps
 import dev.relay.android.features.thread.GoalStrip
 import dev.relay.android.features.thread.LimitStrip
 import dev.relay.android.features.thread.LocalReadingBack
 import dev.relay.android.features.thread.LocalThreadRemote
 import dev.relay.android.features.thread.MenuRows
 import dev.relay.android.features.thread.Peek
+import dev.relay.android.features.thread.ProgressSteps
+import dev.relay.android.features.thread.ProgressStrip
 import dev.relay.android.features.thread.QuietCard
 import dev.relay.android.features.thread.QueueList
 import dev.relay.android.features.thread.SettledStrip
@@ -108,6 +111,19 @@ class ThreadPartsShots : ShotTest() {
             listOf(RemoteQueued("q3", "Morning summary", at = ThreadSamples.now + 7_200_000)),
             running = true, compacting = false, paused = false, {}, {}, {}, { _, _ -> },
         )
+    }
+
+    @Test
+    fun progress() = part("parts-progress") {
+        Column(Modifier.padding(horizontal = 18.dp).padding(bottom = 24.dp)) {
+            ChecklistSteps(ThreadSamples.checklist)
+        }
+        ProgressStrip(ThreadSamples.checklist)
+        Box(Modifier.weight(1f).padding(8.dp), contentAlignment = Alignment.BottomCenter) {
+            RelaySheetFrame("Progress · 3 of 5", {}) {
+                Column(Modifier.padding(start = 20.dp, end = 20.dp, bottom = 20.dp)) { ProgressSteps(ThreadSamples.checklist) }
+            }
+        }
     }
 
     @Test

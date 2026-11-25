@@ -246,6 +246,24 @@ if (!seeded) {
       ],
     },
   ]);
+  const progress = [
+    ["Install React reconciler in scratch demo", "done"],
+    ["Add per-phase telemetry and test hooks to C++ engine", "done"],
+    ["Measure baseline before text-cache optimization", "now"],
+    ["Add shaped-text cache and real React reconciler", "next"],
+    ["Run full automated stress and correctness suite", "next"],
+  ].map(([text, state]) => ({ text, state }));
+  const traced = (activity: any) => ({ kind: "activity", id: activity.id, activity });
+  thread(relay, "Cache shaped text", 1, [
+    message("user", "Measure the text path, then add a shaped-text cache.", 5),
+    message("assistant", "", 1, {
+      status: "streaming",
+      trace: [
+        traced(step("Updated progress", "tool", { checklist: progress })),
+        traced(step("bun bench/baseline.ts --rows 2000", "command", { status: "running" })),
+      ],
+    }),
+  ], { running: true, runningSince: now - 4 * min });
   thread(relay, "Port the bridge to Swift", 1, [
     message("user", "Port shared/remote-client to Swift for the iPhone app.", 30),
     message("assistant", "Done with crypto and wire: CryptoKit matches noble byte for byte. Now on the route racing.", 1, {

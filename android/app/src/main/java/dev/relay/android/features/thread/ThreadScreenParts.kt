@@ -11,11 +11,13 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.items
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import dev.relay.android.features.thread.logic.dockedChecklist
 import dev.relay.android.remote.Bridge
 import dev.relay.android.remote.client.LinkState
 import dev.relay.android.remote.model.RemoteChat
@@ -96,4 +98,6 @@ internal fun Strips(
     summary?.goal?.let { GoalStrip(it, running) }
     summary?.limitResume?.takeIf { !running }?.let { LimitStrip(it, actions::setLimitResume) }
     t?.stopped?.items?.takeIf { it.isNotEmpty() }?.let { StoppedStrip(it, actions::resolveStopped) }
+    val messages = t?.messages.orEmpty()
+    remember(messages, running) { dockedChecklist(messages, running) }?.let { ProgressStrip(it) }
 }

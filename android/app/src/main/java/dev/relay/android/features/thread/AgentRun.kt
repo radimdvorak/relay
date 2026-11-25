@@ -70,6 +70,7 @@ import io.github.lyxnx.compose.ui.tablericons.outline.Clock
 import io.github.lyxnx.compose.ui.tablericons.outline.CornerDownRight
 import io.github.lyxnx.compose.ui.tablericons.outline.FilePencil
 import io.github.lyxnx.compose.ui.tablericons.outline.FileText
+import io.github.lyxnx.compose.ui.tablericons.outline.ListCheck
 import io.github.lyxnx.compose.ui.tablericons.outline.MessageCircleQuestion
 import io.github.lyxnx.compose.ui.tablericons.outline.Robot
 import io.github.lyxnx.compose.ui.tablericons.outline.Search
@@ -87,7 +88,11 @@ fun kindIcon(kind: String): ImageVector = when (kind) {
     else -> TablerIcons.Outline.Tool
 }
 
-private fun iconOf(a: AgentActivity) = if (isQuestionCall(a)) TablerIcons.Outline.MessageCircleQuestion else kindIcon(a.kind)
+private fun iconOf(a: AgentActivity) = when {
+    isQuestionCall(a) -> TablerIcons.Outline.MessageCircleQuestion
+    a.checklist != null -> TablerIcons.Outline.ListCheck
+    else -> kindIcon(a.kind)
+}
 
 /**
  * True while the reader is scrolled back in the thread. A turn that ends then
@@ -257,8 +262,10 @@ internal fun ToolRow(a: AgentActivity) {
     }
     val preview = trace.chatId.isNotEmpty() && looksAtImage(a)
     val under = @Composable { if (preview) Box(Modifier.padding(start = TraceIndent)) { Preview(a, label) } }
+    val steps = a.checklist
     // Its threads list under the turn; the ids it returned say nothing to a reader.
-    if ((a.detail == null || isStartThreads(a)) && calls.isEmpty()) {
+    val saysMore = steps != null || (a.detail != null && !isStartThreads(a))
+    if (!saysMore && calls.isEmpty()) {
         Column {
             Step(content = heading)
             under()
@@ -267,7 +274,8 @@ internal fun ToolRow(a: AgentActivity) {
     }
     Fold(heading, under = { under() }) {
         if (calls.isNotEmpty()) SubagentRows(calls)
-        if (a.detail != null) Detail(a)
+        if (steps != null) ChecklistSteps(steps, Modifier.padding(start = TraceIndent, bottom = 8.dp))
+        else if (a.detail != null) Detail(a)
     }
 }
 

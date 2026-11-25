@@ -8,6 +8,7 @@ import dev.relay.android.remote.model.AskedQuestion
 import dev.relay.android.remote.model.AsyncAgentQuestions
 import dev.relay.android.remote.model.CallAction
 import dev.relay.android.remote.model.ChatMessage
+import dev.relay.android.remote.model.ChecklistStep
 import dev.relay.android.remote.model.QuestionOption
 import dev.relay.android.remote.model.SecretRequest
 import dev.relay.android.remote.model.TurnFileChange
@@ -20,6 +21,14 @@ import kotlinx.serialization.json.put
 
 /** Made-up messages for the thread's shots. */
 object ThreadSamples {
+    val checklist = listOf(
+        ChecklistStep("Install React reconciler in scratch demo", "done"),
+        ChecklistStep("Add per-phase telemetry and test hooks to C++ engine", "done"),
+        ChecklistStep("Measure baseline before text-cache optimization", "now"),
+        ChecklistStep("Add shaped-text cache and real React reconciler", "next"),
+        ChecklistStep("Run full automated stress and correctness suite", "next"),
+    )
+
     val now = System.currentTimeMillis()
     private const val MINUTE = 60_000L
 
