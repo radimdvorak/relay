@@ -59,6 +59,8 @@ export class PromptSteering {
       /** The agent took the steer up: what follows answers it. */
       steered(id: string): void;
       unread(id: string, error: Error): void;
+      /** A prompt that keeps a turn going the agent ended too early, if it did. */
+      carryOn(result: AcpPromptResult): string | undefined;
     },
   ) {}
 
@@ -166,7 +168,11 @@ export class PromptSteering {
             ...endings.filter((e) => e !== undefined),
           ]),
         );
-        if (reply === this.latest) return result;
+        if (reply === this.latest) {
+          const text = this.io.over() ? undefined : this.io.carryOn(result);
+          if (!text) return result;
+          this.add([{ type: "text", text }]);
+        }
         interim(result);
       }
     } finally {

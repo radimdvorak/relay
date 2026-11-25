@@ -10,6 +10,7 @@ import { AUTH_REQUIRED, type AcpPromptResult } from "./protocol";
 import { imageBlocks, mcpServers, promptBlocks } from "./prompt";
 import { acquireTurnAgent, openSession, type AcpAgent } from "./sessions";
 import { applySettings } from "./settings";
+import { gaveUpOnRefusals } from "./read-only";
 import { PromptSteering, type KeptRun } from "./steering";
 import { antigravityHelper, type TextSpeed } from "../antigravity";
 import { AcpTurnEvents } from "./turn-events";
@@ -184,6 +185,7 @@ async function runAcpTurn(
     events.asking,
     turnAbort.signal,
   );
+  const { refusals } = requests;
   connection.onRequest = requests.answer;
   const steering = new PromptSteering({
     ...promptRequests(agent, () => sessionId!),
@@ -192,6 +194,10 @@ async function runAcpTurn(
     waiting: () => requests.waiting,
     steered,
     unread: (id, error) => options.onSteerUnread?.(id, error),
+    carryOn: (ended) =>
+      refusals.endedBy(ended, turn.answer())
+        ? refusals.carryOn(events.completedCalls)
+        : undefined,
   });
 
   let observer: AcpRunObserver | undefined;
@@ -228,7 +234,10 @@ async function runAcpTurn(
       (earlier) => reportUsage(options, profile, earlier, speed),
     );
     await observer?.settle();
-    finish(options, profile, result, turn, name, speed);
+    reportUsage(options, profile, result, speed);
+    if (!signal.aborted && refusals.endedBy(result, turn.answer()))
+      throw gaveUpOnRefusals(name);
+    finish(result, turn, name);
     const answer = turn.answer();
     const failed = profile.failure?.(answer, calls.size > 0);
     if (failed) {
@@ -314,16 +323,8 @@ function reportUsage(
   });
 }
 
-/** Reads how the turn ended: a reason to fail it, and what it used. */
-function finish(
-  options: AgentOptions,
-  profile: AcpProfile,
-  result: AcpPromptResult,
-  turn: TurnText,
-  name: string,
-  speed?: TextSpeed,
-) {
-  reportUsage(options, profile, result, speed);
+/** Fails the turn when how it ended says so. */
+function finish(result: AcpPromptResult, turn: TurnText, name: string) {
   switch (result.stopReason) {
     case "cancelled":
       throw new Error("Cancelled by you.");

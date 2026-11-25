@@ -53,6 +53,12 @@ export class AcpTurnEvents {
         : undefined;
   }
 
+  /** How many calls went through. */
+  get completedCalls() {
+    return [...this.calls.values()].filter((c) => c.status === "completed")
+      .length;
+  }
+
   /**
    * Shows the call asking the user as a question, or a row of its own when
    * the agent named none. The returned function records their answers, or

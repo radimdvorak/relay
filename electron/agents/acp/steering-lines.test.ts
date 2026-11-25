@@ -59,6 +59,7 @@ function relay(log: string[] = [], after?: number) {
       steered.push(id);
     },
     unread: () => {},
+    carryOn: () => undefined,
   });
   return {
     connection,

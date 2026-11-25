@@ -13,6 +13,7 @@
 //     { ask: { toolCall, options } }  a request_permission, waited on
 //     { elicit: { mode, message, toolCallId, requestedSchema } }  an elicitation/create, waited on
 //     { waitCancel: true }  waits for session/cancel and stops as cancelled
+//     { end: "cancelled" }  ends the prompt there, with that stop reason
 //   hidesHttpMcp: doesn't say it takes MCP servers over HTTP, as Antigravity's CLI doesn't
 //   turnByRequest: such steps by a phrase in the prompt; the last phrase in it wins
 //   stopReason, usage: how session/prompt ends ("end_turn" by default)
@@ -122,6 +123,7 @@ async function prompt(m) {
       await ask("session/request_permission", { sessionId, ...step.ask });
     if (step.elicit)
       await ask("elicitation/create", { sessionId, ...step.elicit });
+    if (step.end) return send({ id: m.id, result: { stopReason: step.end } });
     if (step.waitCancel) {
       await new Promise((resolve) => (cancelled = resolve));
       return send({ id: m.id, result: { stopReason: "cancelled" } });

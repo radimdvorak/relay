@@ -39,6 +39,7 @@ function turn() {
     waiting: () => state.waiting,
     steered: vi.fn(),
     unread: vi.fn(),
+    carryOn: () => undefined,
   };
   const steering = new PromptSteering(io);
   steering.start([{ type: "text", text: "Do A" }]);

@@ -4,13 +4,14 @@ import type { AgentDecision } from "../../../shared/agent-modes";
 import { mcpCall } from "../activity";
 import { answerAntigravityQuestion, antigravityMcp } from "../antigravity";
 import type { AgentOptions } from "../types";
-import { editKinds, lookKinds, rawField } from "./activity";
+import { editKinds, rawField } from "./activity";
 import {
   cancelledPermission,
   permissionRequestSchema,
   picked,
   type AcpPermissionRequest,
 } from "./protocol";
+import { readOnlyAllows } from "./read-only";
 
 const decisionKinds: Record<Exclude<AgentDecision, "cancel">, string> = {
   accept: "allow_once",
@@ -90,6 +91,8 @@ export async function permission(
   raw: unknown,
   signal: AbortSignal,
   isAntigravity: boolean,
+  /** Hears of a call turned down because the turn only reads. */
+  refused: () => void,
 ) {
   const request = permissionRequestSchema.parse(raw);
   if (isAntigravity && request.toolCall.toolCallId?.startsWith("interaction_"))
@@ -107,11 +110,18 @@ export async function permission(
     return answer(reject());
   if (isAntigravity && readsAttachedAudio(options, request))
     return answer(allow());
-  if (options.readOnly && !lookKinds.has(kind)) return answer(reject());
+  if (options.readOnly) {
+    // Once only: an "always" would outlive the read-only turn.
+    const once = optionOf(request, "allow_once");
+    if (once && readOnlyAllows(options, request, isAntigravity))
+      return answer(once);
+    refused();
+    return answer(reject());
+  }
   if (options.runtimeMode === "full-access") return answer(allow());
   if (options.runtimeMode === "auto-accept-edits" && editKinds.has(kind))
     return answer(allow());
-  if (!options.onRequest || options.readOnly) return answer(reject());
+  if (!options.onRequest) return answer(reject());
 
   const decisions = (
     Object.keys(decisionKinds) as (keyof typeof decisionKinds)[]

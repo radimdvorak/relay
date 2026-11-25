@@ -5,10 +5,12 @@ import { AcpRequestError } from "./connection";
 import { answerElicitation } from "./elicitation";
 import { permission } from "./permission";
 import type { AcpProfile } from "./profiles";
+import { ReadOnlyRefusals } from "./read-only";
 import type { AcpTurnEvents } from "./turn-events";
 
 /** Answers the running turn's requests, and knows whether one is still unanswered. */
 export class AgentRequests {
+  readonly refusals = new ReadOnlyRefusals();
   private open = 0;
 
   constructor(
@@ -42,6 +44,7 @@ export class AgentRequests {
         params,
         this.signal,
         this.profile.provider === "antigravity",
+        this.refusals.add,
       );
     if (method === "elicitation/create")
       return answerElicitation(
