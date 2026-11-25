@@ -237,6 +237,10 @@ it("shows a plan update once, not again when Codex repeats it", () => {
     label: "Updated the plan",
     status: "complete",
     detail: "✓ Read the code\n→ Fix it",
+    plan: [
+      { text: "Read the code", state: "done" },
+      { text: "Fix it", state: "now" },
+    ],
   });
   expect(plans.update("thread", plan)).toBeUndefined();
   expect(

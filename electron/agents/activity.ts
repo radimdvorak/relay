@@ -1,3 +1,4 @@
+import { keptSteps, type PlanStep } from "../../shared/agent-plan";
 import type { AgentActivity } from "../../shared/projects";
 import { isImagePath } from "../../shared/answer-images";
 import { relayToolLabel } from "../relay-mcp";
@@ -162,11 +163,24 @@ function toolOutput(item: Record<string, unknown>) {
     .join("\n");
 }
 
-const planMarks: Record<string, string> = {
-  completed: "✓",
-  inProgress: "→",
-  pending: "○",
+const planMarks: Record<PlanStep["state"], string> = {
+  done: "✓",
+  now: "→",
+  next: "○",
+  failed: "✗",
 };
+
+const codexStepStates: Record<string, PlanStep["state"]> = {
+  completed: "done",
+  inProgress: "now",
+};
+
+/** The plan as the text a row opens to. */
+export const planDetail = (steps: PlanStep[]) =>
+  steps
+    .map((step) => `${planMarks[step.state]} ${step.text}`)
+    .join("\n")
+    .slice(0, 8000);
 
 /**
  * A Codex `turn/plan/updated` as Claude's TodoWrite reads: one "Updated the
@@ -179,18 +193,21 @@ export function codexPlanActivity(
 ): AgentActivity | undefined {
   const plan = (value as { plan?: unknown } | null)?.plan;
   if (!Array.isArray(plan)) return;
-  const steps = plan.flatMap((s) =>
-    s && typeof s.step === "string" && s.step.trim()
-      ? [`${planMarks[s.status] ?? "○"} ${s.step.trim()}`]
-      : [],
+  const steps = keptSteps(
+    plan.flatMap((s): PlanStep[] =>
+      typeof s?.step === "string"
+        ? [{ text: s.step, state: codexStepStates[s.status] ?? "next" }]
+        : [],
+    ),
   );
-  if (!steps.length) return;
+  if (!steps) return;
   return {
     id: key.slice(0, 180),
     kind: "tool",
     label: "Updated the plan",
     status: "complete",
-    detail: steps.join("\n").slice(0, 8000),
+    detail: planDetail(steps),
+    plan: steps,
   };
 }
 
