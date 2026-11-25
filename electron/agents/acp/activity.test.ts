@@ -118,3 +118,14 @@ describe("a command Antigravity ran", () => {
     );
   });
 });
+
+it("shows what a command printed beside its exit code, whatever the field", () => {
+  const activity = acpActivity({
+    toolCallId: "c",
+    kind: "execute",
+    status: "completed",
+    rawInput: { command: "npm test" },
+    rawOutput: { exit_code: 1, stdout: "1 failed", stderr: "" },
+  });
+  expect(activity).toMatchObject({ status: "failed", detail: "1 failed" });
+});

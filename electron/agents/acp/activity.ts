@@ -64,14 +64,13 @@ function output(call: Partial<AcpToolCall>): {
     item.type === "content" && item.content?.text ? [item.content.text] : [],
   );
   const raw = texts.length ? texts.join("\n") : call.rawOutput;
+  const printed = () =>
+    typeof raw === "string"
+      ? raw
+      : rawField(raw, "output", "stdout", "error", "message");
   const exitCode = antigravityExitCode(call.rawOutput);
-  if (exitCode !== undefined)
-    return {
-      text: typeof raw === "string" ? raw : rawField(raw, "output"),
-      exitCode,
-    };
-  if (typeof raw !== "string")
-    return { text: rawField(raw, "output", "stdout", "error", "message") };
+  if (exitCode !== undefined) return { text: printed(), exitCode };
+  if (typeof raw !== "string") return { text: printed() };
   if (!raw.trimStart().startsWith("{")) return { text: raw };
   try {
     const result = JSON.parse(raw) as {
