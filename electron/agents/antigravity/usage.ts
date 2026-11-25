@@ -153,6 +153,12 @@ export function mapGeminiModelQuota(raw: unknown): UsageWindow[] {
   ];
 }
 
+/** When a token runs out; never as far as anyone knows for one saved without a time, or Go's zero time. */
+function expiryOf(expiry = "") {
+  const at = Date.parse(expiry);
+  return at > 0 ? at : Infinity;
+}
+
 /** Read afresh on every operation, so an external sign-in is picked up without restarting. */
 export async function readQuotaCredential(
   home: string,
@@ -163,7 +169,7 @@ export async function readQuotaCredential(
   return (
     login && {
       accessToken: login.access_token,
-      expiresAt: Date.parse(login.expiry ?? "") || 0,
+      expiresAt: expiryOf(login.expiry),
       fingerprint: loginFingerprint(login),
       renewable: !!login.refresh_token && method !== "oauth-business",
     }

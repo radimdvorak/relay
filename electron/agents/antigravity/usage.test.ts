@@ -103,6 +103,28 @@ it("reads the access token the CLI saved, from the profile's file", async () => 
   });
 });
 
+it.each([undefined, "0001-01-01T00:00:00Z"])(
+  "uses a saved token that doesn't say when it runs out (%s)",
+  async (expiry) => {
+    const home = await mkdtemp(join(tmpdir(), "relay-agy-usage-"));
+    await mkdir(join(home, "antigravity-acp"));
+    await writeFile(
+      join(home, "antigravity-acp", "antigravity-oauth-token"),
+      JSON.stringify({
+        token: { access_token: "access", refresh_token: "refresh", expiry },
+      }),
+    );
+    const renew = vi.fn(async () => {});
+    const service = createAntigravityUsageReader(
+      () => readQuotaCredential(home),
+      renew,
+      async () => json(summary),
+    );
+    expect((await service()).windows).toHaveLength(4);
+    expect(renew).not.toHaveBeenCalled();
+  },
+);
+
 it("sends the CLI's own token, and rereads it once after Google refuses it", async () => {
   let saved = credential("first");
   const read = vi.fn(async () => saved);
