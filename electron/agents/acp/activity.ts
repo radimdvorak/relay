@@ -39,6 +39,12 @@ const field = (raw: unknown, ...keys: string[]) => {
   return "";
 };
 
+/** Antigravity calls a command that failed completed; its raw output says how it ended. */
+function antigravityExitCode(rawOutput: unknown) {
+  const code = (rawOutput as { exit_code?: unknown } | null | undefined)?.exit_code;
+  return typeof code === "number" ? code : undefined;
+}
+
 /**
  * What a call printed, out of its content blocks, or its raw output where it
  * has none. Some adapters pass a shell result on as its JSON, {output, exitCode}.
@@ -48,6 +54,9 @@ function output(call: Partial<AcpToolCall>): { text: string; exitCode?: number }
     item.type === "content" && item.content?.text ? [item.content.text] : [],
   );
   const raw = texts.length ? texts.join("\n") : call.rawOutput;
+  const exitCode = antigravityExitCode(call.rawOutput);
+  if (exitCode !== undefined)
+    return { text: typeof raw === "string" ? raw : field(raw, "output"), exitCode };
   if (typeof raw !== "string") return { text: field(raw, "output", "stdout", "error", "message") };
   if (!raw.trimStart().startsWith("{")) return { text: raw };
   try {
@@ -77,7 +86,7 @@ export function acpEdits(call: Partial<AcpToolCall>): string[] {
  * what changed, so `call` is everything heard about it so far.
  */
 export function acpActivity(call: Partial<AcpToolCall> & { toolCallId: string }): AgentActivity {
-  const command = field(call.rawInput, "command", "cmd");
+  const command = field(call.rawInput, "command", "cmd", "CommandLine");
   const tool = /^([\w.-]+)(?::|$)/.exec(call.title ?? "")?.[1]?.toLowerCase() ?? "";
   const patched = patchPaths(patchOf(call));
   const kind =
