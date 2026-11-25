@@ -6,7 +6,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -18,6 +17,7 @@ import dev.relay.android.features.home.StatusNews
 import dev.relay.android.features.home.StatusToastHost
 import dev.relay.android.ui.KeepToastsAbove
 import dev.relay.android.ui.LocalToasts
+import dev.relay.android.ui.ToastEdge
 import dev.relay.android.ui.ToastHost
 import dev.relay.android.ui.ToastState
 import dev.relay.android.ui.Tone
@@ -60,10 +60,15 @@ class ToastShots : ShotTest() {
     }
 
     @Test
-    fun overThreads() {
-        Shot("toasts-over-message", dark = true) { OverThreads(message = true, news = false) }
-        Shot("toasts-over-news", dark = true) { OverThreads(message = false, news = true) }
-        Shot("toasts-over-both", dark = true) { OverThreads(message = true, news = true) }
+    fun overThreads() = Shot("toasts-over-threads", dark = true) {
+        On(desktopDark) {
+            val toasts = remember { ToastState().apply { show("Settled", "Fix the composer jump", actionLabel = "Undo", onAction = {}) } }
+            CompositionLocalProvider(LocalToasts provides toasts) {
+                KeepToastsAbove(125.dp)
+                SampleThreadsTab(busy)
+                ToastHost(toasts, ToastEdge.Bottom, Modifier.align(Alignment.BottomEnd))
+            }
+        }
     }
 
     private fun inEveryTheme(name: String, content: @Composable BoxScope.() -> Unit) {
@@ -76,21 +81,5 @@ class ToastShots : ShotTest() {
     }
 
     @Composable
-    private fun Said(say: ToastState.() -> Unit) = ToastHost(remember { ToastState().apply(say) })
-
-    @Composable
-    private fun OverThreads(message: Boolean, news: Boolean) = On(desktopDark) {
-        val toasts = remember {
-            ToastState().apply {
-                if (message) show("Settled", "Fix the composer jump", actionLabel = "Undo", onAction = {})
-            }
-        }
-        CompositionLocalProvider(LocalToasts provides toasts) {
-            KeepToastsAbove(125.dp)
-            SampleThreadsTab(busy)
-            ToastHost(toasts, Modifier.align(Alignment.BottomCenter))
-            val needsYou = StatusNews("2", "Why does the composer jump on rotate?", StatusNews.Kind.NeedsYou)
-            if (news) StatusToastHost(needsYou, Modifier.align(Alignment.BottomEnd).fillMaxWidth(), {}, {})
-        }
-    }
+    private fun Said(say: ToastState.() -> Unit) = ToastHost(remember { ToastState().apply(say) }, ToastEdge.Bottom)
 }

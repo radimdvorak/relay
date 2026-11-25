@@ -164,7 +164,7 @@ class HomeShots : ShotTest() {
         Shot("home-toast-desktop", dark = true) {
             OnDesktopPalette {
                 SampleThreadsTab(busy, drafts)
-                Box(Modifier.fillMaxSize().padding(bottom = 125.dp), contentAlignment = Alignment.BottomEnd) {
+                Box(Modifier.fillMaxSize().padding(top = 76.dp), contentAlignment = Alignment.TopCenter) {
                     StatusToastHost(StatusNews("2", "Why does the composer jump on rotate?", StatusNews.Kind.NeedsYou), Modifier.fillMaxWidth(), {}, {})
                 }
             }

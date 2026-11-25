@@ -49,6 +49,11 @@ import dev.relay.android.ui.theme.RelayTheme
 import dev.relay.android.ui.theme.resolveColors
 import dev.relay.android.ui.theme.withContrast
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.padding
+import androidx.compose.ui.unit.dp
+import dev.relay.android.features.home.HomeTab
+import dev.relay.android.ui.ToastEdge
 import kotlinx.coroutines.channels.ReceiveChannel
 import kotlinx.coroutines.flow.first
 
@@ -98,6 +103,7 @@ fun RelayRoot(container: AppContainer, links: ReceiveChannel<DeepLink>, crash: C
         val isWide by rememberUpdatedState(panes)
         val navigator = remember(backStack) { AppNavigator(backStack) { isWide } }
         val toasts = remember { ToastState() }
+        SideEffect { toasts.plainEdge = if (top.hasComposer) ToastEdge.Top else ToastEdge.Bottom }
         val sidebar = panes && !prefs.sidebarHidden
         val shell = rememberShellState(sidebar)
         val activity = LocalView.current.context as? Activity
@@ -172,19 +178,27 @@ fun RelayRoot(container: AppContainer, links: ReceiveChannel<DeepLink>, crash: C
                         }
                     }
                 }
-                StatusToasts(
-                    remote,
-                    openId = (top as? Route.Thread)?.id,
-                    hidden = top is Route.Pair,
-                    pane = panes,
-                    modifier = Modifier.align(Alignment.BottomEnd)
-                        .windowInsetsPadding(WindowInsets.safeDrawing),
-                )
-                ToastHost(toasts, Modifier.align(Alignment.BottomCenter).windowInsetsPadding(WindowInsets.safeDrawing))
+                Column(Modifier.align(Alignment.TopCenter).windowInsetsPadding(WindowInsets.safeDrawing).padding(top = HEADER_ROOM)) {
+                    val threadsListed = shell.tab == HomeTab.Threads && (sidebar || top == Route.Home)
+                    StatusToasts(
+                        remote,
+                        openId = (top as? Route.Thread)?.id,
+                        hidden = top is Route.Pair,
+                        listed = threadsListed,
+                        pane = panes,
+                    )
+                    ToastHost(toasts, ToastEdge.Top)
+                }
+                ToastHost(toasts, ToastEdge.Bottom, Modifier.align(Alignment.BottomEnd).windowInsetsPadding(WindowInsets.safeDrawing))
             }
         }
     }
 }
+
+/** A screen's header and a little air, for what shows under it. */
+private val HEADER_ROOM = 76.dp
+
+private val Route?.hasComposer get() = this is Route.Thread || this is Route.Reply || this is Route.NewThread
 
 @Composable
 private fun SystemBars(dark: Boolean) {

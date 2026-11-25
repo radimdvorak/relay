@@ -17,6 +17,9 @@ import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.swipeDown
+import androidx.compose.ui.test.swipeUp
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -31,7 +34,7 @@ import org.robolectric.annotation.Config
 
 @RunWith(AndroidJUnit4::class)
 @Config(sdk = [36])
-class ToastClearanceTest {
+class ToastTest {
     @get:Rule val compose = createAndroidComposeRule<ComponentActivity>()
 
     private val toasts = ToastState()
@@ -69,12 +72,37 @@ class ToastClearanceTest {
         assertEquals(0.dp, toasts.clearance)
     }
 
+    @Test
+    fun overAThreadOnlyWhatCanBeUndoneStaysAtTheBottom() {
+        toasts.plainEdge = ToastEdge.Top
+        toasts.show("Couldn't stop it")
+        toasts.undo("Settled") {}
+        assertEquals(listOf(ToastEdge.Top, ToastEdge.Bottom), toasts.toasts.map { it.edge })
+    }
+
+    @Test
+    fun aToastAtTheTopIsSwipedUpAndNotDown() {
+        toasts.plainEdge = ToastEdge.Top
+        toasts.show("Couldn't stop it", durationMs = 60_000)
+        compose.mainClock.autoAdvance = false
+        compose.setContent { RelayTheme(RelayPaperDark) { ToastHost(toasts, ToastEdge.Top) } }
+        compose.mainClock.advanceTimeBy(1_000)
+
+        compose.onNodeWithText("Couldn't stop it").performTouchInput { swipeDown() }
+        compose.mainClock.advanceTimeBy(1_000)
+        assertEquals(1, toasts.toasts.size)
+
+        compose.onNodeWithText("Couldn't stop it").performTouchInput { swipeUp(startY = bottom, endY = top - 300f) }
+        compose.mainClock.advanceTimeBy(1_000)
+        assertEquals(0, toasts.toasts.size)
+    }
+
     private fun show(dock: () -> Dp) = compose.setContent {
         RelayTheme(RelayPaperDark) {
             CompositionLocalProvider(LocalToasts provides toasts) {
                 Box(Modifier.fillMaxSize()) {
                     Box(Modifier.align(Alignment.BottomCenter).testTag("dock").keepsToastsAbove().fillMaxWidth().height(dock()))
-                    ToastHost(toasts, Modifier.align(Alignment.BottomCenter))
+                    ToastHost(toasts, ToastEdge.Bottom, Modifier.align(Alignment.BottomEnd))
                 }
             }
         }

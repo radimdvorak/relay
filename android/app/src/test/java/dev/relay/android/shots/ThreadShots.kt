@@ -1,8 +1,9 @@
 package dev.relay.android.shots
 
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.remember
@@ -12,6 +13,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.dp
 import dev.relay.android.features.home.StatusNews
 import dev.relay.android.features.home.StatusToastHost
 import dev.relay.android.features.thread.ThreadCache
@@ -35,8 +37,10 @@ import dev.relay.android.remote.model.RemoteOverview
 import dev.relay.android.remote.model.RemoteProject
 import dev.relay.android.remote.model.ResumeSettings
 import dev.relay.android.ui.LocalToasts
+import dev.relay.android.ui.ToastEdge
 import dev.relay.android.ui.ToastHost
 import dev.relay.android.ui.ToastState
+import dev.relay.android.ui.Tone
 import dev.relay.android.ui.theme.RelayTheme
 import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.Rule
@@ -97,15 +101,17 @@ class ThreadShots : ShotTest() {
         CompositionLocalProvider(LocalDensity provides Density(LocalDensity.current.density, 1.3f)) { Thread("thread-large", conversation, false) { it } }
     }
 
-    /** What the app says over an open thread: a message and another thread's news, clear of whatever the dock holds. */
+    /** What the app says over an open thread: at its top, with something to undo at the bottom, clear of the dock. */
     @Test
     fun toasts() {
         val waiting: (RemoteChat) -> RemoteChat = { it.copy(requests = listOf(ThreadSamples.approval)) }
-        Shot("thread-toast-message", dark = true, act = ::dockMeasured) { Toasted(message = true, news = false) { it } }
-        Shot("thread-toast-news", dark = true, act = ::dockMeasured) { Toasted(message = false, news = true) { it } }
-        Shot("thread-toast-both", dark = true, act = ::dockMeasured) { Toasted(message = true, news = true) { it } }
-        Shot("thread-toast-approval", dark = true, act = ::dockMeasured) { Toasted(message = true, news = true, waiting) }
+        Shot("thread-toast-error", dark = true, act = ::dockMeasured) { Toasted({ show("Couldn't stop it", "Stop may still go through", tone = Tone.Destructive) }, null) { it } }
+        Shot("thread-toast-news", dark = true, act = ::dockMeasured) { Toasted({}, needsYou) { it } }
+        Shot("thread-toast-both", dark = true, act = ::dockMeasured) { Toasted({ show("Couldn't stop it", tone = Tone.Destructive) }, needsYou) { it } }
+        Shot("thread-toast-approval", dark = true, act = ::dockMeasured) { Toasted({ undo("Settled") {} }, needsYou, waiting) }
     }
+
+    private val needsYou = StatusNews("2", "Why is the sidebar empty?", StatusNews.Kind.NeedsYou)
 
     /** The thread loads off the main thread, and nothing but the test says its dock was measured once it's in. */
     private fun dockMeasured() {
@@ -115,14 +121,16 @@ class ThreadShots : ShotTest() {
     }
 
     @Composable
-    private fun Toasted(message: Boolean, news: Boolean, edit: (RemoteChat) -> RemoteChat) = RelayTheme(desktopDark) {
-        val toasts = remember { ToastState().apply { if (message) show("Copied") } }
+    private fun Toasted(say: ToastState.() -> Unit, news: StatusNews?, edit: (RemoteChat) -> RemoteChat) = RelayTheme(desktopDark) {
+        val toasts = remember { ToastState().apply { plainEdge = ToastEdge.Top }.apply(say) }
         CompositionLocalProvider(LocalToasts provides toasts) {
             Thread("thread-toasts", conversation, running = false, toasts, edit)
-            val needsYou = StatusNews("2", "Why is the sidebar empty?", StatusNews.Kind.NeedsYou)
             Box(Modifier.fillMaxSize()) {
-                if (news) StatusToastHost(needsYou, Modifier.align(Alignment.BottomEnd).fillMaxWidth(), {}, {})
-                ToastHost(toasts, Modifier.align(Alignment.BottomCenter))
+                Column(Modifier.align(Alignment.TopCenter).padding(top = 76.dp)) {
+                    StatusToastHost(news, Modifier, {}, {})
+                    ToastHost(toasts, ToastEdge.Top)
+                }
+                ToastHost(toasts, ToastEdge.Bottom, Modifier.align(Alignment.BottomEnd))
             }
         }
     }

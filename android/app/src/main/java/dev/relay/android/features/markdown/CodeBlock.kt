@@ -15,6 +15,7 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -38,7 +39,6 @@ import androidx.compose.ui.unit.sp
 import dev.relay.android.ui.ButtonSize
 import dev.relay.android.ui.Haptic
 import dev.relay.android.ui.IconButton
-import dev.relay.android.ui.LocalToasts
 import dev.relay.android.ui.Text
 import dev.relay.android.ui.pressable
 import dev.relay.android.ui.theme.RelayColors
@@ -47,6 +47,8 @@ import io.github.lyxnx.compose.ui.tablericons.TablerIcons
 import io.github.lyxnx.compose.ui.tablericons.outline.Copy
 import kotlinx.coroutines.launch
 import androidx.compose.ui.text.font.FontWeight
+import io.github.lyxnx.compose.ui.tablericons.outline.Check
+import kotlinx.coroutines.delay
 
 /** The first lines only; a phone isn't where to read a generated bundle. */
 const val MAX_CODE_LINES = 5000
@@ -55,6 +57,9 @@ const val MAX_CODE_LINES = 5000
 internal const val FOLDED_CODE_LINES = 15
 
 /** Blocks shorter than this read better without line numbers. */
+/** How long the copy button says it did. */
+private const val COPIED_MS = 1_500L
+
 private const val NUMBERED_FROM = 5
 
 /** prism-react-renderer's One Dark and One Light, by token kind. */
@@ -105,8 +110,13 @@ internal fun CodeBlock(language: String, code: String, modifier: Modifier = Modi
     val numbered = text.size >= NUMBERED_FROM
     val gutter = (text.size.toString().length * 8 + 12).dp
     val clipboard = LocalClipboard.current
-    val toasts = LocalToasts.current
     val scope = rememberCoroutineScope()
+    var copied by remember(code) { mutableStateOf(false) }
+    LaunchedEffect(copied) {
+        if (!copied) return@LaunchedEffect
+        delay(COPIED_MS)
+        copied = false
+    }
 
     Column(
         modifier
@@ -126,12 +136,12 @@ internal fun CodeBlock(language: String, code: String, modifier: Modifier = Modi
                 maxLines = 1,
             )
             IconButton(
-                TablerIcons.Outline.Copy,
-                "Copy code",
+                if (copied) TablerIcons.Outline.Check else TablerIcons.Outline.Copy,
+                if (copied) "Copied" else "Copy code",
                 onClick = {
                     scope.launch {
                         clipboard.setClipEntry(ClipEntry(ClipData.newPlainText("code", code)))
-                        toasts.show("Copied")
+                        copied = true
                     }
                 },
                 size = ButtonSize.Sm,

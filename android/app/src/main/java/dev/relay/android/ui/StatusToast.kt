@@ -17,7 +17,7 @@ import androidx.compose.ui.unit.dp
 import dev.relay.android.ui.theme.RelayTheme
 
 /**
- * A thread's news, floating right-aligned above the composer: a small line with the thread's
+ * A thread's news, floating under the header: a small line with the thread's
  * icon and title, and the status under it in larger ink ("Finished", "Needs you"). Its look
  * only; the shell decides when it comes and goes.
  */

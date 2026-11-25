@@ -107,7 +107,7 @@ class HomeMotionShots : ShotTest() {
     @Composable
     private fun Toasts(shown: StatusNews?) {
         SampleThreadsTab()
-        Box(Modifier.fillMaxSize().padding(bottom = 125.dp), contentAlignment = Alignment.BottomEnd) {
+        Box(Modifier.fillMaxSize().padding(top = 76.dp), contentAlignment = Alignment.TopCenter) {
             StatusToastHost(shown, Modifier.fillMaxWidth(), {}, {})
         }
     }

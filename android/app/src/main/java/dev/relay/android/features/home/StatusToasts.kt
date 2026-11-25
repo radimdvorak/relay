@@ -2,34 +2,25 @@ package dev.relay.android.features.home
 
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.ContentTransform
-import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.slideInVertically
-import androidx.compose.foundation.gestures.Orientation
-import androidx.compose.foundation.gestures.draggable
-import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.TransformOrigin
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.contentDescription
@@ -42,8 +33,10 @@ import dev.relay.android.lib.navigation.Route
 import dev.relay.android.remote.Remote
 import dev.relay.android.remote.model.RemoteEvent
 import dev.relay.android.ui.Haptic
-import dev.relay.android.ui.LocalToasts
 import dev.relay.android.ui.StatusToast
+import dev.relay.android.ui.ToastEdge
+import dev.relay.android.ui.origin
+import dev.relay.android.ui.swipesAway
 import dev.relay.android.ui.pressable
 import dev.relay.android.ui.rememberHaptics
 import dev.relay.android.ui.rememberInFront
@@ -53,7 +46,6 @@ import io.github.lyxnx.compose.ui.tablericons.TablerIcons
 import io.github.lyxnx.compose.ui.tablericons.filled.Message
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import kotlin.math.abs
 
 /** A question stays long enough to read and reach; the rest only to be noticed. */
 private const val QUESTION_MS = 10_000L
@@ -64,7 +56,7 @@ private const val CATCH_UP_MS = 5_000L
 
 /**
  * Says over whatever is open that another thread finished, failed or needs you; a tap opens it.
- * Draws at the bottom end of [modifier]'s box, above what floats there ([LocalToasts]' clearance).
+ * Drawn at the top, over what's read least: a thread's end and its composer are at the bottom.
  */
 @Composable
 fun StatusToasts(
@@ -73,6 +65,8 @@ fun StatusToasts(
     openId: String?,
     /** Nowhere to say it: pairing, a crash page. */
     hidden: Boolean,
+    /** The thread list is on screen and says it already. */
+    listed: Boolean,
     /** Beside the list: open it as the whole pane. */
     pane: Boolean,
     modifier: Modifier = Modifier,
@@ -82,8 +76,11 @@ fun StatusToasts(
     val overview by remote.overview.collectAsState()
     val inFront by rememberInFront()
     val queue = rememberStatusNews(remote, openId, inFront)
+    LaunchedEffect(listed, queue.news) {
+        if (listed) queue.clear()
+    }
     val worthSaying = stillNews(queue.news, overview?.listed.orEmpty(), openId)
-    val shown = if (inFront && !hidden) worthSaying.firstOrNull() else null
+    val shown = if (inFront && !hidden && !listed) worthSaying.firstOrNull() else null
 
     LaunchedEffect(shown) {
         if (shown == null) return@LaunchedEffect
@@ -115,6 +112,10 @@ private class StatusQueue {
     fun drop(one: StatusNews) {
         news = news - one
     }
+
+    fun clear() {
+        news = emptyList()
+    }
 }
 
 @Composable
@@ -143,7 +144,7 @@ private fun rememberStatusNews(remote: Remote, openId: String?, inFront: Boolean
     return queue
 }
 
-/** One toast at a time at the bottom end: [shown]'s, arriving, giving way to the next, and leaving. */
+/** One toast at a time under the header: [shown]'s, arriving, giving way to the next, and leaving. */
 @Composable
 internal fun StatusToastHost(
     shown: StatusNews?,
@@ -151,53 +152,37 @@ internal fun StatusToastHost(
     onOpen: (StatusNews) -> Unit,
     onDismiss: (StatusNews) -> Unit,
 ) {
-    val toasts = LocalToasts.current
-    // Out of the way of a message toast ("Settled · Undo"), which spans the same edge.
-    val over = if (toasts.toasts.isEmpty()) 0.dp else 76.dp
-    // The spring dips a little past where it's going, below zero too, and padding can't.
-    val lift by animateDpAsState(toasts.clearance + over, MaterialTheme.motionScheme.defaultSpatialSpec(), label = "status-lift")
-    val arrive = scaleIn(RelayTheme.motion.hero.fastSpatialSpec(), 0.85f, TransformOrigin(1f, 1f)) +
-        slideInVertically(RelayTheme.motion.hero.fastSpatialSpec()) { it / 4 } +
+    val arrive = scaleIn(RelayTheme.motion.hero.fastSpatialSpec(), 0.85f, ToastEdge.Top.origin()) +
+        slideInVertically(RelayTheme.motion.hero.fastSpatialSpec()) { -it / 4 } +
         fadeIn(RelayTheme.motion.hero.fastEffectsSpec())
-    Box(modifier.fillMaxWidth().padding(16.dp).padding(bottom = lift.coerceAtLeast(0.dp)), contentAlignment = Alignment.BottomEnd) {
+    Box(modifier.fillMaxWidth().padding(horizontal = 16.dp), contentAlignment = Alignment.TopCenter) {
         AnimatedContent(
             shown,
             transitionSpec = { ContentTransform(arrive, fadeOut(tween(100)), sizeTransform = null) },
-            contentAlignment = Alignment.BottomEnd,
+            contentAlignment = Alignment.TopCenter,
             label = "status-toast",
         ) { news ->
-            if (news != null) SwipeableToast(news, { onOpen(news) }, { onDismiss(news) })
+            if (news != null) NewsToast(news, { onOpen(news) }, { onDismiss(news) })
         }
     }
 }
 
 @Composable
-private fun SwipeableToast(news: StatusNews, onOpen: () -> Unit, onDismiss: () -> Unit) {
-    val scope = rememberCoroutineScope()
-    val drag = remember { Animatable(0f) }
-    StatusToast(
-        thread = news.title,
-        status = news.kind.label,
-        icon = TablerIcons.Filled.Message,
-        statusColor = news.kind.color(RelayTheme.colors),
-        modifier = Modifier
-            .graphicsLayer {
-                translationX = drag.value
-                alpha = 1f - (abs(drag.value) / size.width.coerceAtLeast(1f)).coerceIn(0f, 1f)
-            }
-            .draggable(
-                rememberDraggableState { dx -> scope.launch { drag.snapTo((drag.value + dx).coerceAtLeast(0f)) } },
-                Orientation.Horizontal,
-                onDragStopped = { velocity -> if (drag.value > 120f || velocity > 1200f) onDismiss() else drag.animateTo(0f) },
-            )
-            .semantics(mergeDescendants = true) {
-                contentDescription = "${news.title}: ${news.kind.label}. Open it."
-                liveRegion = LiveRegionMode.Polite
-                customActions = listOf(CustomAccessibilityAction("Dismiss") { onDismiss(); true })
-            }
-            .pressable(onOpen),
-    )
-}
+private fun NewsToast(news: StatusNews, onOpen: () -> Unit, onDismiss: () -> Unit) = StatusToast(
+    thread = news.title,
+    status = news.kind.label,
+    icon = TablerIcons.Filled.Message,
+    statusColor = news.kind.color(RelayTheme.colors),
+    modifier = Modifier
+        .padding(bottom = 8.dp)
+        .swipesAway(ToastEdge.Top, onDismiss = onDismiss)
+        .semantics(mergeDescendants = true) {
+            contentDescription = "${news.title}: ${news.kind.label}. Open it."
+            liveRegion = LiveRegionMode.Polite
+            customActions = listOf(CustomAccessibilityAction("Dismiss") { onDismiss(); true })
+        }
+        .pressable(onOpen),
+)
 
 private fun StatusNews.Kind.color(c: RelayColors): Color = when (this) {
     StatusNews.Kind.NeedsYou -> c.waiting
