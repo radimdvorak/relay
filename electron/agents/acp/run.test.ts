@@ -183,6 +183,69 @@ it("dispatches native compact and plan commands first, keeping context inside th
   expect(onPlan).toHaveBeenLastCalledWith("Done.");
 });
 
+it("compacts Antigravity's conversation in place, and leaves out the size from before that it reports", async () => {
+  const { acp, root, sent } = await agent(
+    {
+      turn: [say("Done.")],
+      turnByPrefix: {
+        "/compact": [
+          {
+            update: {
+              sessionUpdate: "usage_update",
+              used: 76_982,
+              size: 1_048_576,
+            },
+          },
+        ],
+      },
+    },
+    { provider: "antigravity", compact: "/compact" },
+  );
+  const onContext = vi.fn();
+  const onId = vi.fn(async () => {});
+  const session = { key: root, onId };
+  await runAcp(acp, options(root, { session }));
+  await runAcp(
+    acp,
+    options(root, {
+      job: { kind: "compact" },
+      session: { ...session, id: "s1" },
+      onContext,
+    }),
+  );
+  expect(onContext).not.toHaveBeenCalled();
+  expect(onId).toHaveBeenCalledExactlyOnceWith("s1");
+  expect(
+    (await sent())
+      .filter((m) => m.method === "session/prompt")
+      .map((m) => [m.params.sessionId, m.params.prompt[0].text]),
+  ).toEqual([
+    ["s1", expect.anything()],
+    ["s1", "/compact"],
+  ]);
+});
+
+it("refuses tools while Antigravity compacts", async () => {
+  const { acp, root } = await agent(
+    {
+      turn: [
+        {
+          update: {
+            sessionUpdate: "tool_call",
+            toolCallId: "bad",
+            title: "Edit a file",
+            kind: "edit",
+          },
+        },
+      ],
+    },
+    { provider: "antigravity", compact: "/compact" },
+  );
+  await expect(
+    runAcp(acp, options(root, { job: { kind: "compact" } })),
+  ).rejects.toThrow("text-only");
+});
+
 it("updates the live planning checklist, and leaves execution checklists out of proposed plans", async () => {
   const { acp, root } = await agent(
     {

@@ -59,24 +59,20 @@ const metaSchema = z
         cost: z.number().optional(),
       })
       .optional(),
-    run: z
-      .object({ id: z.number(), compaction: z.boolean().optional() })
-      .optional(),
+    run: z.object({ id: z.number() }).optional(),
   })
   .loose();
 
 const startTimeout = 60_000;
 
 /** One agent process and the one session it runs. */
-export class AcpAgent extends HostedAgent<
-  AcpConnection,
-  { id: number; compaction?: boolean }
-> {
+export class AcpAgent extends HostedAgent<AcpConnection, { id: number }> {
   caps?: AcpCaps;
   /** Started for a Read only thread: with the profile's `readOnlyEnv`, without Relay's tools. */
   readOnly = false;
   /** Where its sessions reach Relay's tools, "" for nowhere; unknown for one a Relay before this kept. */
   relayUrl?: string;
+
   /**
    * `base`: the settings it opened with, which Default goes back to. `cost`:
    * what the session had cost at the agent's last report, which the next one
@@ -97,7 +93,7 @@ export class AcpAgent extends HostedAgent<
   }
 
   /** What the next Relay reads about this process; `run`, the prompt it's in. */
-  keep(run?: { id: number; compaction?: boolean }) {
+  keep(run?: { id: number }) {
     this.connection.keep({
       provider: hostedName(this.profile),
       accountKey: this.profile.accountKey,
@@ -410,9 +406,6 @@ export function reattachAcp(
   return sessionsOf(profile).reattach(owns, (found) => {
     const meta = savedMeta(found, metaSchema);
     if (!meta?.caps || meta.provider !== hostedName(profile)) return;
-    // A two-prompt compaction cannot be adopted as one answer. Its saved chat
-    // still names the original session until the replacement is fully ready.
-    if (profile.provider === "antigravity" && meta.run?.compaction) return;
     const { info } = found;
     const child = new HostedChild(found.attachProcess(), (entries) => {
       connection.continueAfter(

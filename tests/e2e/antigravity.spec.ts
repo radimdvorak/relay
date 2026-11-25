@@ -147,12 +147,7 @@ test("Antigravity asks fixed questions in full access, compacts, plans, and offe
       say("Selected Production."),
     ],
     turnByPrefix: {
-      "Summarize this conversation": [
-        say(
-          "The user selected Production. The next task is to design the API.",
-        ),
-      ],
-      "[Compacted conversation]": [say("Ready to continue.")],
+      "/compact": [],
       "/plan": [
         {
           update: {
@@ -273,19 +268,12 @@ test("Antigravity asks fixed questions in full access, compacts, plans, and offe
       .click();
     await expect
       .poll(async () =>
-        (await readFile(capture, "utf8")).includes("[Compacted conversation]"),
+        (await readFile(capture, "utf8")).includes('"text":"/compact"'),
       )
       .toBe(true);
-    await page
-      .getByRole("button", { name: "Show what the context was compacted to" })
-      .click();
     await expect(
-      page.getByText(
-        "The user selected Production. The next task is to design the API.",
-        { exact: true },
-      ),
+      page.getByText("Context compacted", { exact: true }),
     ).toBeVisible();
-    await page.keyboard.press("Escape");
     await page.getByLabel("Message project").fill("/plan on");
     await page
       .getByRole("button", { name: "Send message", exact: true })

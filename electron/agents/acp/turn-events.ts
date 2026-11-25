@@ -111,6 +111,14 @@ export class AcpTurnEvents {
     if (this.options.interactionMode === "plan") this.options.onPlan?.(detail);
   }
 
+  /** While Antigravity compacts, it reports the size from before; the next turn says the new one. */
+  private sizeIsOld() {
+    return (
+      this.options.job.kind === "compact" &&
+      this.profile.provider === "antigravity"
+    );
+  }
+
   hear = (raw: unknown) => {
     const update = parseUpdate(raw);
     if (!update) return;
@@ -182,10 +190,11 @@ export class AcpTurnEvents {
         if (update.title) this.options.onTitle?.(update.title);
         return;
       case "usage_update":
-        this.options.onContext?.({
-          usedTokens: update.used,
-          ...(update.size ? { maxTokens: update.size } : {}),
-        });
+        if (!this.sizeIsOld())
+          this.options.onContext?.({
+            usedTokens: update.used,
+            ...(update.size ? { maxTokens: update.size } : {}),
+          });
         // The session's cost so far, which OpenCode only reports once a
         // turn ends; a turn counts what it added since the last report.
         if (

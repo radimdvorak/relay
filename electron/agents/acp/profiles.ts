@@ -10,7 +10,6 @@ import {
   antigravityHome,
   antigravityCommand,
   antigravityFailure,
-  compactPrompt,
 } from "../antigravity";
 import { discoverAntigravitySkills } from "../antigravity";
 import { openCodeCommand } from "../opencode/command";
@@ -164,7 +163,7 @@ const antigravity: AcpProfile = {
   account: () => readAntigravityAccount(),
   takesHttpMcp: true,
   steersByPrompt: true,
-  compact: compactPrompt,
+  compact: "/compact",
   plan: "/plan",
   skills: (cwd) => discoverAntigravitySkills(cwd),
   failure: antigravityFailure,

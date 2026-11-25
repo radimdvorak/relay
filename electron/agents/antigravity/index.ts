@@ -20,4 +20,3 @@ export { antigravityMcp } from "./mcp";
 export { antigravitySteps } from "./steps";
 export { antigravityHelper } from "./helper";
 export { readAntigravityUsage } from "./usage";
-export { compactAntigravity, compactPrompt } from "./compact";

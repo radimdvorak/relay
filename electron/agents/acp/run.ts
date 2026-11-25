@@ -10,7 +10,7 @@ import { imageBlocks, mcpServers, promptBlocks } from "./prompt";
 import { acquireTurnAgent, openSession, type AcpAgent } from "./sessions";
 import { applySettings } from "./settings";
 import { PromptSteering, type SentPrompt } from "./steering";
-import { antigravityHelper, compactAntigravity } from "../antigravity";
+import { antigravityHelper } from "../antigravity";
 import { AcpTurnEvents } from "./turn-events";
 
 export type AcpRunObserver = {
@@ -35,8 +35,6 @@ export async function runAcp(
   options: AgentOptions,
   observe?: Observe,
 ): Promise<string> {
-  if (profile.provider === "antigravity" && options.job.kind === "compact")
-    return compactAntigravity(profile, options, runAcpTurn);
   if (profile.provider !== "antigravity" || options.job.kind !== "helper")
     return runAcpTurn(profile, options, observe);
   options.signal.throwIfAborted();
@@ -106,12 +104,10 @@ function sendPrompt(
   agent: AcpAgent,
   sessionId: string,
   prompt: object[],
-  compacting: boolean,
 ): SentPrompt {
-  const { connection, profile } = agent;
-  const compaction = profile.provider === "antigravity" && compacting;
+  const { connection } = agent;
   const request = connection.reserve();
-  agent.keep({ id: request, ...(compaction && { compaction }) });
+  agent.keep({ id: request });
   const reply = connection.request(
     "session/prompt",
     { sessionId, prompt },
@@ -195,8 +191,7 @@ async function runAcpTurn(
     turnAbort.signal,
   );
   connection.onRequest = requests.answer;
-  const send = (prompt: object[]) =>
-    sendPrompt(agent, sessionId!, prompt, job.kind === "compact");
+  const send = (prompt: object[]) => sendPrompt(agent, sessionId!, prompt);
 
   let observer: AcpRunObserver | undefined;
   let grace: ReturnType<typeof cancelGrace> | undefined;
