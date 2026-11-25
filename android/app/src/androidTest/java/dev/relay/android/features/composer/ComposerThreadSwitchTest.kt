@@ -50,7 +50,7 @@ class ComposerThreadSwitchTest {
     private val opus = ResumeSettings("claude", ModelChoice("opus"), null, "auto", "default")
     private val gpt = opus.copy(provider = "codex", choice = ModelChoice("gpt-6-sol"))
     private val state = ComposerState(screenFollows = true)
-    private var id by mutableStateOf("opus-thread")
+    private var id by mutableStateOf("first-thread")
     private val navigator = object : Navigator {
         override val stack = listOf(Route.Home)
         override val canGoBack = false
@@ -92,9 +92,11 @@ class ComposerThreadSwitchTest {
         compose.onNodeWithContentDescription("Message").performClick()
         compose.onNodeWithText("opus", substring = true).assertIsDisplayed()
         compose.runOnIdle {
-            id = "gpt-thread"
+            id = "second-thread"
             state.chat = thread(id, gpt)
         }
+        // Another thread starts folded.
+        compose.onNodeWithContentDescription("Message").performClick()
         compose.onNodeWithText("gpt-6-sol", substring = true).assertIsDisplayed()
         compose.runOnIdle {
             assertEquals(gpt, state.settings)
