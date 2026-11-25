@@ -6,7 +6,7 @@ Claude Android app's structure and calm (spec: `claude-app-spec.md`, frames in
 (`m3-expressive.md`, `compose-api.md`, `google-reference-apps.md`). Read this file first; the
 others when your slice touches them.
 
-What stays: everything Relay does (bridge, ViewModels, features, the pairing screen as it is).
+What stays: everything Relay does (bridge, ViewModels, features, the pairing screen's field and scanner).
 What changes: every screen's look and the app's shell.
 
 ## Not copied

@@ -16,11 +16,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithContent
-import androidx.compose.ui.geometry.CornerRadius
-import androidx.compose.ui.geometry.RoundRect
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.PathMeasure
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.unit.dp
 import dev.relay.android.features.updates.ApkInstall
@@ -30,6 +28,7 @@ import dev.relay.android.features.updates.LookForAppRow
 import dev.relay.android.features.updates.Updates
 import dev.relay.android.features.updates.about
 import dev.relay.android.features.updates.appOffer
+import dev.relay.android.ui.CircleButton
 import dev.relay.android.ui.ListGroup
 import dev.relay.android.ui.Sheet
 import dev.relay.android.ui.theme.RelayTheme
@@ -50,14 +49,14 @@ internal fun PairUpdateButton(updates: Updates, modifier: Modifier = Modifier) {
     val progress = (apk.about(offer.version) as? ApkInstall.Downloading)?.takeIf { !it.quiet }?.done
     val c = RelayTheme.colors
     Box(modifier) {
-        PairIconButton(
+        CircleButton(
             TablerIcons.Outline.Download,
             "Update to Relay ${offer.version}",
             { open = true },
             Modifier.progressRing(progress, c.accent),
         )
         if (progress == null) Box(
-            Modifier.align(Alignment.TopEnd).offset((-4).dp, 4.dp).size(11.dp)
+            Modifier.align(Alignment.TopEnd).offset((-9).dp, 9.dp).size(11.dp)
                 .border(2.dp, c.tool, CircleShape).padding(2.dp).background(c.accent, CircleShape),
         )
     }
@@ -70,18 +69,18 @@ internal fun PairUpdateButton(updates: Updates, modifier: Modifier = Modifier) {
     }
 }
 
-/** Traces the button's outline clockwise from its top-left as [progress] goes from 0 to 1. */
+/** Traces the circle clockwise from its top as [progress] goes from 0 to 1. */
 private fun Modifier.progressRing(progress: Float?, color: Color) = drawWithContent {
     drawContent()
     if (progress == null) return@drawWithContent
     val stroke = 2.dp.toPx()
-    val inset = stroke / 2
-    val radius = PairCorner.toPx() - inset
-    val outline = Path().apply {
-        addRoundRect(RoundRect(inset, inset, size.width - inset, size.height - inset, CornerRadius(radius)))
-    }
-    val measure = PathMeasure().apply { setPath(outline, false) }
-    val traced = Path()
-    measure.getSegment(0f, measure.length * progress.coerceIn(0f, 1f), traced, true)
-    drawPath(traced, color, style = Stroke(stroke))
+    drawArc(
+        color,
+        startAngle = -90f,
+        sweepAngle = 360f * progress.coerceIn(0f, 1f),
+        useCenter = false,
+        topLeft = Offset(stroke / 2, stroke / 2),
+        size = Size(size.width - stroke, size.height - stroke),
+        style = Stroke(stroke),
+    )
 }

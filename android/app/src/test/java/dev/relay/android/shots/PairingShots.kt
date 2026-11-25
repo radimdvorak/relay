@@ -15,7 +15,7 @@ import dev.relay.android.ui.theme.RelayTheme
 import java.io.File
 import org.junit.Test
 
-/** Pairing keeps its look through the rework: these are compared against the commit the branch started from. */
+/** Pairing around the field, which the JVM has no GL to draw. */
 class PairingShots : ShotTest() {
     private val link = "relay-remote://pair?h=192.0.2.10&p=4711&k=${"k".repeat(43)}&c=${"c".repeat(32)}&n=Studio"
 
@@ -33,6 +33,12 @@ class PairingShots : ShotTest() {
             val sample = SampleApp()
             Shot("pairing-first", device, dark = true) { Pairing(sample) }
         }
+    }
+
+    @Test
+    fun largeType() {
+        val sample = SampleApp()
+        Shot("pairing-large-type", dark = true) { WithToasts(fontScale = 1.6f) { Pairing(sample) } }
     }
 
     @Test
@@ -64,7 +70,7 @@ class PairingShots : ShotTest() {
         val sample = SampleApp()
         compose.mainClock.autoAdvance = false
         Shot("pairing-behind-paste", dark = true) { Pairing(sample) }
-        compose.onNodeWithText("Paste a pairing link").performClick()
+        compose.onNodeWithText("Paste link").performClick()
         compose.mainClock.advanceTimeBy(1_000)
         compose.onNode(isDialog()).captureRoboImage(File(System.getProperty("relay.shots.dir"), "pairing-paste.png").path)
         compose.onNodeWithText("Cancel").assertExists()

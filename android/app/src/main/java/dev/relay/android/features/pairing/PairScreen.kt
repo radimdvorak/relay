@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.displayCutout
@@ -32,6 +33,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -48,7 +50,6 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
@@ -61,7 +62,9 @@ import dev.relay.android.remote.PairingLink
 import dev.relay.android.remote.Remote
 import dev.relay.android.remote.parsePairingUrl
 import dev.relay.android.features.updates.Updates
+import dev.relay.android.ui.CircleButton
 import dev.relay.android.ui.Icon
+import dev.relay.android.ui.LocalTakesTaps
 import dev.relay.android.ui.Text
 import dev.relay.android.ui.pressable
 import dev.relay.android.ui.rememberReducedMotion
@@ -165,7 +168,7 @@ private fun PairStage(remote: Remote, updates: Updates, link: String?, stopRelay
             val shown = face == PairingScan.Face.Pairing || (face == PairingScan.Face.Scan && covers)
             Text(
                 hint,
-                style = PairType.text.copy(
+                style = RelayTheme.type.body.copy(
                     textAlign = TextAlign.Center,
                     shadow = if (covers) Shadow(Color.Black.copy(alpha = 0.5f), blurRadius = 12f) else null,
                 ),
@@ -180,17 +183,16 @@ private fun PairStage(remote: Remote, updates: Updates, link: String?, stopRelay
         Box(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.systemBars.union(WindowInsets.displayCutout))) {
             Welcome(face == PairingScan.Face.Idle)
             val closeShown = face == PairingScan.Face.Scan || (face == PairingScan.Face.Idle && !firstRun)
-            if (closeShown) PairIconButton(
+            if (closeShown) CircleButton(
                 TablerIcons.Outline.X,
                 if (face == PairingScan.Face.Scan) "Close camera" else "Close",
                 { if (face == PairingScan.Face.Scan) scan.close() else nav.pop() },
-                Modifier.padding(start = 16.dp, top = 8.dp),
-                tint = if (covers) Color.White else null,
+                Modifier.padding(start = 16.dp, top = 12.dp),
             )
             // Paired, updates are in Settings; with nothing paired this is the only way to them.
             if (face == PairingScan.Face.Idle && computers.isEmpty()) PairUpdateButton(
                 updates,
-                Modifier.align(Alignment.TopEnd).padding(end = 16.dp, top = 8.dp),
+                Modifier.align(Alignment.TopEnd).padding(end = 16.dp, top = 12.dp),
             )
 
             Column(
@@ -202,63 +204,37 @@ private fun PairStage(remote: Remote, updates: Updates, link: String?, stopRelay
                     val target = linked
                     Shown(face == PairingScan.Face.Idle, away = 18.dp) {
                         if (target != null) Copy("Pair with ${target.name}?", "On the same Wi-Fi this phone connects to it directly.", error)
-                        else Copy("Pair with your computer", "On your computer, open Relay, go to Settings → Phone and scan the code shown there.", error)
+                        else Copy("Pair with your computer", "On your computer, open Relay, go to Settings\u00A0→\u00A0Phone and scan the code shown there.", error)
                     }
                     Shown(face == PairingScan.Face.Paired, away = (-12).dp) {
                         Copy("Paired with $name", "Its threads show up here as soon as they start.", null)
                     }
                 }
-                Spacer(Modifier.height(40.dp))
+                Spacer(Modifier.height(28.dp))
                 Box(contentAlignment = Alignment.BottomCenter) {
                     Shown(face == PairingScan.Face.Idle, away = 46.dp) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             val target = linked
-                            if (target != null) {
-                                PairButton("Pair", { pair(target) }, Modifier.fillMaxWidth(), loading = pairing)
-                            } else {
-                                PairButton(
-                                    "Scan code",
-                                    {
-                                        error = null
-                                        if (cameraAllowed(context)) scan.start() else ask.launch(Manifest.permission.CAMERA)
-                                    },
-                                    Modifier.fillMaxWidth(),
-                                    icon = TablerIcons.Outline.Camera,
-                                    enabled = !pairing,
-                                )
-                                PairButton(
-                                    "Paste a pairing link",
-                                    {
-                                        val parsed = parsePairingUrl(clipboardText(context))
-                                        if (parsed != null) pair(parsed) else pasting = true
-                                    },
-                                    Modifier.fillMaxWidth(),
-                                    outline = true,
-                                    icon = TablerIcons.Outline.Clipboard,
-                                    enabled = !pairing,
-                                )
-                            }
-                            // Reaching the computer from outside its network takes Tailscale on both.
-                            Row(
-                                Modifier.pressable({ uri.openUri(TAILSCALE_PLAY) }, role = Role.Button).padding(vertical = 4.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(4.dp),
-                            ) {
-                                Text("Away from home? ", style = PairType.small, color = c.inkSoft)
-                                Text("Get Tailscale", style = PairType.small.copy(fontWeight = FontWeight.Medium))
-                                Icon(TablerIcons.Outline.ExternalLink, null, tint = c.inkSoft, size = 12.dp)
-                            }
-                            // Paired, it's in Settings; with nothing paired this is the only way to stop.
-                            if (computers.isEmpty()) Text(
-                                "Stop Relay",
-                                Modifier.pressable(stopRelay, role = Role.Button).padding(vertical = 4.dp),
-                                style = PairType.small,
-                                color = c.inkSoft,
+                            if (target != null) PairAction(PairAction("Pair", null) { if (!pairing) pair(target) })
+                            else PairActions(
+                                PairAction("Scan code", TablerIcons.Outline.Camera) {
+                                    error = null
+                                    if (cameraAllowed(context)) scan.start() else ask.launch(Manifest.permission.CAMERA)
+                                },
+                                PairAction("Paste link", TablerIcons.Outline.Clipboard) {
+                                    val parsed = parsePairingUrl(clipboardText(context))
+                                    if (parsed != null) pair(parsed) else pasting = true
+                                },
+                            )
+                            PairNotes(
+                                onTailscale = { uri.openUri(TAILSCALE_PLAY) },
+                                // Paired, it's in Settings; with nothing paired this is the only way to stop.
+                                onStop = stopRelay.takeIf { computers.isEmpty() },
                             )
                         }
                     }
                     Shown(face == PairingScan.Face.Paired, away = 46.dp) {
-                        PairButton("Continue", { nav.home() }, Modifier.fillMaxWidth())
+                        PairAction(PairAction("Continue", null) { nav.home() })
                     }
                 }
             }
@@ -273,8 +249,8 @@ private fun Welcome(on: Boolean) {
     Shown(on, away = (-12).dp, Modifier.fillMaxWidth().padding(top = 8.dp)) {
         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Image(painterResource(R.drawable.splash_mark), null, Modifier.size(56.dp))
-            Text("Relay", style = PairType.heading.copy(fontSize = 34.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = (-0.6).sp))
-            Text("Your agents, in your pocket", style = PairType.text, color = RelayTheme.colors.inkSoft)
+            Text("Relay", style = RelayTheme.type.greeting.copy(fontSize = 40.sp, lineHeight = 48.sp))
+            Text("Your agents, in your pocket", style = RelayTheme.type.body, color = RelayTheme.colors.inkSoft)
         }
     }
 }
@@ -282,14 +258,37 @@ private fun Welcome(on: Boolean) {
 @Composable
 private fun Copy(title: String, text: String, error: String?) {
     Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(title, style = PairType.heading.copy(textAlign = TextAlign.Center))
-        Text(text, style = PairType.text.copy(lineHeight = 20.sp, textAlign = TextAlign.Center), color = RelayTheme.colors.inkSoft)
+        Text(title, style = RelayTheme.type.greeting.copy(textAlign = TextAlign.Center))
+        Text(text, style = RelayTheme.type.body.copy(lineHeight = 22.sp, textAlign = TextAlign.Center), color = RelayTheme.colors.inkSoft)
         if (error != null) Text(
             error,
-            style = PairType.small.copy(textAlign = TextAlign.Center),
+            style = RelayTheme.type.meta.copy(textAlign = TextAlign.Center),
             color = RelayTheme.colors.danger,
             modifier = Modifier.padding(top = 4.dp),
         )
+    }
+}
+
+/** Quiet ways on from here, under the buttons. */
+@Composable
+private fun PairNotes(onTailscale: () -> Unit, onStop: (() -> Unit)?) {
+    val c = RelayTheme.colors
+    val note = RelayTheme.type.listMeta
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        // Reaching the computer from outside its network takes Tailscale on both.
+        Row(
+            Modifier.pressable(onTailscale).heightIn(min = 40.dp).padding(horizontal = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(5.dp),
+        ) {
+            Text("Away from home?", style = note, color = c.inkSoft)
+            Text("Get Tailscale", style = note.copy(fontWeight = FontWeight.Medium))
+            Icon(TablerIcons.Outline.ExternalLink, null, tint = c.inkSoft, size = 14.dp)
+        }
+        if (onStop != null) Box(
+            Modifier.pressable(onStop).heightIn(min = 40.dp).padding(horizontal = 12.dp),
+            contentAlignment = Alignment.Center,
+        ) { Text("Stop Relay", style = note, color = c.inkSoft) }
     }
 }
 
@@ -304,7 +303,7 @@ private fun Shown(on: Boolean, away: Dp, modifier: Modifier = Modifier, content:
             translationY = (1 - k) * away.toPx()
         },
         contentAlignment = Alignment.Center,
-    ) { content() }
+    ) { CompositionLocalProvider(LocalTakesTaps provides on) { content() } }
 }
 
 private fun cameraAllowed(context: Context) =
