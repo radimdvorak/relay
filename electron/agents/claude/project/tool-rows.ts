@@ -9,9 +9,11 @@ import {
   claudeActivity,
   claudeCommand,
   claudeEditedPaths,
+  planDetail,
 } from "../../activity";
 import type { ClaudeRunOptions } from "./config";
 import { ForkParents, type ForkStart } from "../forks";
+import { ClaudeTasks, isPlanTool } from "./tasks";
 
 type Results = Exclude<SDKUserMessage["message"]["content"], string>;
 
@@ -59,7 +61,17 @@ export class ToolRows {
   /** SendMessage calls waiting on their result, which says whether it went out. */
   private peerSends = new Map<string, { to: string; message: string }>();
 
-  constructor(private options: ClaudeRunOptions) {}
+  /** Calls changing the plan, waiting on their results. */
+  private planCalls = new Map<string, { name: string; input: unknown }>();
+  /** The turn's one plan row, named after the first call that changed it. */
+  private planRow?: string;
+
+  constructor(
+    private options: ClaudeRunOptions,
+    private tasks = new ClaudeTasks(),
+  ) {
+    tasks.beginTurn();
+  }
 
   /** A forked skill gets the row an Agent call would have; its calls fold under it. */
   fork(message: ForkStart) {
@@ -98,8 +110,12 @@ export class ToolRows {
     tool: { id: string; name: string; input: unknown },
     parent: string | null,
   ) {
-    const activity = claudeActivity(tool.id, tool.name, tool.input);
     parent = this.parentOf(parent);
+    if (!parent && isPlanTool(tool.name)) {
+      this.planCalls.set(tool.id, tool);
+      return;
+    }
+    const activity = claudeActivity(tool.id, tool.name, tool.input);
     // A subagent's calls fold under the agent call that started it.
     if (parent) activity.parentId = parent.slice(0, 180);
     this.calls.set(tool.id, activity);
@@ -136,10 +152,15 @@ export class ToolRows {
     this.options.onActivity?.(finished);
   }
 
-  results(content: Results, parent: string | null) {
+  /** `returned` is what the call gave back as data, where a frame holds one result. */
+  results(content: Results, parent: string | null, returned?: unknown) {
     parent = this.parentOf(parent);
     for (const result of content)
       if (result.type === "tool_result") {
+        if (this.planCalls.has(result.tool_use_id)) {
+          this.planned(result.tool_use_id, returned);
+          continue;
+        }
         const call = this.calls.get(result.tool_use_id);
         const output =
           typeof result.content === "string"
@@ -162,6 +183,24 @@ export class ToolRows {
         this.options.onActivity?.(finished);
         this.sent(result.tool_use_id, finished.status === "complete", output);
       }
+  }
+
+  /** One row for the turn's plan, as it stands after each change. */
+  private planned(id: string, returned: unknown) {
+    const call = this.planCalls.get(id)!;
+    this.planCalls.delete(id);
+    if (!isPlanTool(call.name)) return;
+    const plan = this.tasks.after(call.name, call.input, returned);
+    if (!plan) return;
+    this.planRow ??= `plan:${id}`.slice(0, 180);
+    this.options.onActivity?.({
+      id: this.planRow,
+      kind: "tool",
+      label: "Updated the plan",
+      status: "complete",
+      detail: planDetail(plan),
+      plan,
+    });
   }
 
   private sent(id: string, complete: boolean, output: string) {

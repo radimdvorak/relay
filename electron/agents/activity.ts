@@ -305,7 +305,12 @@ export function claudeActivity(
     case "Agent":
       return call("agent", text("description"));
     case "TodoWrite":
+    case "TaskCreate":
+    case "TaskUpdate":
       return call("tool", "Updated the plan");
+    case "TaskList":
+    case "TaskGet":
+      return call("tool", "Read the plan");
     // Claude's advisor runs server-side; its advice comes back encrypted.
     case "advisor":
       return call("tool", "Asked the advisor");

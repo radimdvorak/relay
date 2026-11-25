@@ -40,6 +40,7 @@ import {
   threadAdvisorSchema,
 } from "../../../../shared/advisor";
 import { ClaudeWork } from "./pending";
+import type { ClaudeTasks } from "./tasks";
 import { hostedHandlers, sessionCallbacks } from "./requests";
 import { readSettings, sdk, type ClaudeInput, type ClaudeStream } from "./sdk";
 import { ClaudeFrames, holdOpen, pump, type ClaudeTurn } from "./stream";
@@ -130,6 +131,8 @@ export type ClaudeSession = {
   requests: RequestUsage;
   /** Its `/goal`, read across turns; made the first time a turn runs. */
   goal?: ClaudeGoalWatch;
+  /** Its plan, read across turns; made the first time a turn runs. */
+  tasks?: ClaudeTasks;
   /** What its side questions cost; made with the first frame it reads. */
   meter?: ClaudeMeter;
   /** Its side checks, one at a time so the meter measures each alone. */
