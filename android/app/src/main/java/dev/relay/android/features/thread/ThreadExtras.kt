@@ -4,7 +4,6 @@ package dev.relay.android.features.thread
 // the queue), worded the same, with the phone's thumb-sized actions.
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
@@ -12,7 +11,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text as MaterialText
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -22,19 +20,12 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.geometry.CornerRadius
-import androidx.compose.ui.graphics.PathEffect
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import dev.relay.android.features.thread.logic.Clock
 import dev.relay.android.features.thread.logic.agentName
 import dev.relay.android.features.thread.logic.lowerFirst
@@ -48,12 +39,22 @@ import dev.relay.android.remote.model.LimitResume
 import dev.relay.android.remote.model.RemoteQueued
 import dev.relay.android.remote.model.ThreadGoal
 import dev.relay.android.remote.outbox.Outgoing
+import dev.relay.android.ui.Button
+import dev.relay.android.ui.ButtonSize
+import dev.relay.android.ui.ButtonVariant
+import dev.relay.android.ui.CircleButton
+import dev.relay.android.ui.CircleSize
+import dev.relay.android.ui.CircleTone
 import dev.relay.android.ui.ConfirmDialog
 import dev.relay.android.ui.Icon
 import dev.relay.android.ui.Text
 import dev.relay.android.ui.pressable
 import dev.relay.android.ui.theme.RelayTheme
 import io.github.lyxnx.compose.ui.tablericons.TablerIcons
+import io.github.lyxnx.compose.ui.tablericons.outline.ArrowDown
+import io.github.lyxnx.compose.ui.tablericons.outline.ArrowUp
+import io.github.lyxnx.compose.ui.tablericons.outline.Pencil
+import io.github.lyxnx.compose.ui.tablericons.outline.Trash
 import io.github.lyxnx.compose.ui.tablericons.outline.Alarm
 import io.github.lyxnx.compose.ui.tablericons.outline.Checks
 import io.github.lyxnx.compose.ui.tablericons.outline.ChevronDown
@@ -64,22 +65,20 @@ import io.github.lyxnx.compose.ui.tablericons.outline.Target
 import io.github.lyxnx.compose.ui.tablericons.outline.Terminal2
 import io.github.lyxnx.compose.ui.tablericons.outline.X
 import kotlinx.coroutines.launch
-
-private val stripShape = RoundedCornerShape(12.dp)
+import androidx.compose.foundation.layout.heightIn
 
 @Composable
 private fun Strip(content: @Composable ColumnScope.() -> Unit) {
-    val c = RelayTheme.colors
     Column(
-        Modifier.padding(start = 12.dp, end = 12.dp, bottom = 8.dp).fillMaxWidth()
-            .border(RelayTheme.hairline, c.border, stripShape).background(c.card, stripShape).padding(10.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+        Modifier.padding(start = DockInset, end = DockInset, bottom = 8.dp).fillMaxWidth()
+            .dockStrip().padding(start = 16.dp, end = 10.dp, top = 8.dp, bottom = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
     ) { content() }
 }
 
 @Composable
 private fun Item(modifier: Modifier = Modifier, content: @Composable RowScope.() -> Unit) =
-    Row(modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+    Row(modifier.fillMaxWidth().heightIn(min = 36.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         content()
     }
 
@@ -90,23 +89,23 @@ private fun RowScope.Line(head: String, tail: String, maxLines: Int = Int.MAX_VA
     MaterialText(
         buildAnnotatedString {
             append(head)
-            withStyle(SpanStyle(color = c.mutedForeground)) { append(tail) }
+            withStyle(SpanStyle(color = c.inkSoft)) { append(tail) }
         },
         Modifier.weight(1f),
-        style = RelayTheme.type.sm.copy(lineHeight = 19.sp),
-        color = c.foreground,
+        style = RelayTheme.type.meta,
+        color = c.ink,
         maxLines = maxLines,
         overflow = TextOverflow.Ellipsis,
     )
 }
 
 @Composable
-private fun StripHint(text: String, color: androidx.compose.ui.graphics.Color = RelayTheme.colors.mutedForeground, maxLines: Int = Int.MAX_VALUE) =
-    Text(text, style = RelayTheme.type.xs.copy(lineHeight = 17.sp), color = color, maxLines = maxLines)
+private fun StripHint(text: String, color: androidx.compose.ui.graphics.Color = RelayTheme.colors.inkSoft, maxLines: Int = Int.MAX_VALUE) =
+    Text(text, style = RelayTheme.type.small, color = color, maxLines = maxLines)
 
 @Composable
-private fun StripIcon(icon: ImageVector, tint: androidx.compose.ui.graphics.Color = RelayTheme.colors.mutedForeground) =
-    Icon(icon, null, size = 15.dp, tint = tint)
+private fun StripIcon(icon: ImageVector, tint: androidx.compose.ui.graphics.Color = RelayTheme.colors.inkSoft) =
+    Icon(icon, null, size = TraceIcon, tint = tint)
 
 @Composable
 private fun Actions(content: @Composable RowScope.() -> Unit) =
@@ -153,7 +152,7 @@ fun WaitingStrip(pending: List<ChatPending>, onStop: suspend (ChatPending) -> Un
             Icon(
                 if (open) TablerIcons.Outline.ChevronUp else TablerIcons.Outline.ChevronDown,
                 if (open) "Hide the list" else "Show each one with Stop",
-                tint = RelayTheme.colors.mutedForeground,
+                tint = RelayTheme.colors.inkFaint,
             )
         }
         if (open && pending.size > 1) for (item in pending) {
@@ -174,7 +173,7 @@ fun GoalStrip(goal: ThreadGoal, running: Boolean) {
     val c = RelayTheme.colors
     Strip {
         Item {
-            StripIcon(TablerIcons.Outline.Target, if (shown.working) c.accent else c.mutedForeground)
+            StripIcon(TablerIcons.Outline.Target, if (shown.working) c.accent else c.inkSoft)
             Line(shown.title, " · ${shown.objective}${if (shown.usage.isNotEmpty()) " · ${shown.usage}" else ""}", maxLines = 3)
         }
         shown.detail?.let { StripHint(it, maxLines = 2) }
@@ -312,24 +311,16 @@ fun QueueList(
 
     @Composable
     fun Queued(item: RemoteQueued, index: Int, later: Boolean) {
-        val shape = RoundedCornerShape(10.dp)
         Row(
             Modifier.fillMaxWidth()
                 .then(if (later) Modifier else Modifier.pressable(onClick = {}, onLongClick = { holding = item to index }, scale = false))
-                .background(c.background, shape)
-                .drawBehind {
-                    drawRoundRect(
-                        c.border,
-                        cornerRadius = CornerRadius(10.dp.toPx()),
-                        style = Stroke(1.dp.toPx(), pathEffect = PathEffect.dashPathEffect(floatArrayOf(4.dp.toPx(), 3.dp.toPx()))),
-                    )
-                }
-                .padding(horizontal = 10.dp, vertical = 8.dp),
+                .background(c.container, RelayTheme.shapes.card)
+                .padding(start = 16.dp, end = 6.dp, top = 10.dp, bottom = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(withoutMention(item.body), style = RelayTheme.type.sm.copy(lineHeight = 19.sp), maxLines = 2)
+                Text(withoutMention(item.body), style = RelayTheme.type.meta, maxLines = 2)
                 val status = item.error ?: listOfNotNull(
                     when {
                         later && item.at != null -> "Sends ${clock.wakeLabel(item.at, System.currentTimeMillis())}"
@@ -338,18 +329,17 @@ fun QueueList(
                     },
                     item.images?.takeIf { it > 0 }?.let { "$it ${if (it == 1) "image" else "images"}" },
                 ).joinToString(" · ")
-                StripHint(status, color = if (item.error != null) c.destructive else c.mutedForeground)
+                StripHint(status, color = if (item.error != null) c.danger else c.inkSoft)
             }
             Action(if (compacting) "Send next" else if (running) "Steer now" else "Send now") { onSteer(item.id) }
-            Icon(
-                TablerIcons.Outline.X, "Cancel and return to the composer",
-                Modifier.pressable(onClick = { fire { onEdit(item) } }),
-                tint = c.mutedForeground,
+            CircleButton(
+                TablerIcons.Outline.X, "Cancel and return to the composer", { fire { onEdit(item) } },
+                size = CircleSize.Small, tone = CircleTone.Clear,
             )
         }
     }
 
-    Column(Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, bottom = 8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+    Column(Modifier.fillMaxWidth().padding(start = ThreadInset, end = ThreadInset, bottom = 12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         if (paused && queue.isNotEmpty()) StripHint("Queue paused. Send one now to carry on.")
         queue.forEachIndexed { i, q -> Queued(q, i, later = false) }
         scheduled.forEachIndexed { i, q -> Queued(q, i, later = true) }
@@ -357,10 +347,10 @@ fun QueueList(
     holding?.let { (item, index) ->
         MenuSheet(
             buildList {
-                if (index > 0) add(MenuItem("Move up") { fire { onMove(item.id, index - 1) } })
-                if (index < queue.size - 1) add(MenuItem("Move down") { fire { onMove(item.id, index + 1) } })
-                add(MenuItem("Edit", hint = "Back to the composer, out of the queue.") { fire { onEdit(item) } })
-                add(MenuItem("Delete", destructive = true) { fire { onRemove(item.id) } })
+                if (index > 0) add(MenuItem("Move up", icon = TablerIcons.Outline.ArrowUp) { fire { onMove(item.id, index - 1) } })
+                if (index < queue.size - 1) add(MenuItem("Move down", icon = TablerIcons.Outline.ArrowDown) { fire { onMove(item.id, index + 1) } })
+                add(MenuItem("Edit", hint = "Back to the composer, out of the queue.", icon = TablerIcons.Outline.Pencil) { fire { onEdit(item) } })
+                add(MenuItem("Delete", destructive = true, icon = TablerIcons.Outline.Trash) { fire { onRemove(item.id) } })
             },
             onClose = { holding = null },
             title = withoutMention(item.body).take(60),
@@ -384,12 +374,10 @@ fun Action(
     confirm: Confirm? = null,
     onPress: suspend () -> Unit,
 ) {
-    val c = RelayTheme.colors
     val failures = LocalFailures.current
     val scope = rememberCoroutineScope()
     var busy by remember { mutableStateOf(false) }
     var asking by remember { mutableStateOf(false) }
-    val shape = RoundedCornerShape(8.dp)
     val go = {
         busy = true
         scope.launch {
@@ -412,22 +400,11 @@ fun Action(
         cancelText = confirm.no,
         destructive = confirm.destructive,
     )
-    Text(
+    Button(
         if (busy) busyLabel ?: label else label,
-        Modifier
-            .pressable(
-                enabled = !busy,
-                onClick = {
-                    if (busy) return@pressable
-                    if (confirm != null) asking = true else go()
-                },
-            )
-            .alpha(if (busy) 0.5f else 1f)
-            .border(1.dp, if (primary) c.accent else c.border, shape)
-            .then(if (primary) Modifier.background(c.accent, shape) else Modifier)
-            .padding(horizontal = 10.dp, vertical = 6.dp),
-        style = RelayTheme.type.xs.copy(fontWeight = FontWeight.SemiBold),
-        color = if (primary) c.onAccent else c.foreground,
-        maxLines = 1,
+        onClick = { if (confirm != null) asking = true else go() },
+        variant = if (primary) ButtonVariant.Default else ButtonVariant.Secondary,
+        size = ButtonSize.Sm,
+        enabled = !busy,
     )
 }

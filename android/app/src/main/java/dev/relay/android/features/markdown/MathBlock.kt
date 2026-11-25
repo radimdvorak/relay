@@ -28,8 +28,8 @@ private fun Source(tex: String, modifier: Modifier = Modifier) {
     Text(
         tex,
         modifier,
-        style = RelayTheme.type.mono.copy(fontSize = 12.5.sp, lineHeight = 18.sp),
-        color = RelayTheme.colors.mutedForeground,
+        style = RelayTheme.type.code.copy(fontSize = 12.5.sp, lineHeight = 18.sp),
+        color = RelayTheme.colors.inkSoft,
     )
 }
 

@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.collectAsState
@@ -30,7 +29,6 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import dev.relay.android.features.images.ImageCache
 import dev.relay.android.remote.Bridge
 import dev.relay.android.remote.Remote
@@ -42,7 +40,6 @@ import dev.relay.android.ui.Icon
 import dev.relay.android.ui.IconButton
 import dev.relay.android.ui.Text
 import dev.relay.android.ui.pressable
-import dev.relay.android.ui.ring
 import dev.relay.android.ui.theme.RelayTheme
 import io.github.lyxnx.compose.ui.tablericons.TablerIcons
 import io.github.lyxnx.compose.ui.tablericons.outline.AppWindow
@@ -109,25 +106,23 @@ fun MessageRenders(
 @Composable
 private fun RenderNote(render: HtmlRender, computer: String) {
     val c = RelayTheme.colors
-    val shape = RoundedCornerShape(10.dp)
     val variants = render.pages.mapNotNull { it.label?.takeIf(String::isNotEmpty) }
     Row(
         Modifier
             .fillMaxWidth()
-            .clip(shape)
-            .background(c.card)
-            .ring(c.border, shape)
-            .padding(horizontal = 12.dp, vertical = 10.dp),
-        horizontalArrangement = Arrangement.spacedBy(9.dp),
+            .clip(RelayTheme.shapes.card)
+            .background(c.container)
+            .padding(16.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        Icon(TablerIcons.Outline.AppWindow, null, Modifier.padding(top = 2.dp), tint = c.mutedForeground, size = 15.dp)
+        Icon(TablerIcons.Outline.AppWindow, null, tint = c.inkSoft, size = 18.dp)
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-            Text(render.title, style = RelayTheme.type.sm.copy(fontWeight = FontWeight.SemiBold), color = c.foreground, maxLines = 2)
+            Text(render.title, style = RelayTheme.type.meta.copy(fontWeight = FontWeight.Medium), color = c.ink, maxLines = 2)
             Text(
                 (if (variants.size > 1) "${variants.size} versions: ${variants.joinToString(", ")}. " else "") +
                     "Open this thread on $computer to see ${if (variants.size > 1) "them" else "it"}.",
-                style = RelayTheme.type.xs.copy(fontSize = 12.sp, lineHeight = 17.sp),
-                color = c.mutedForeground,
+                style = RelayTheme.type.meta,
+                color = c.inkSoft,
             )
         }
     }
@@ -138,7 +133,6 @@ private fun RenderCard(remote: Remote, chatId: String, render: HtmlRender, onCom
     val c = RelayTheme.colors
     var index by rememberSaveable(render.id) { mutableIntStateOf(0) }
     var expanded by rememberSaveable(render.id) { mutableStateOf(false) }
-    val shape = RoundedCornerShape(10.dp)
     val compose: ((String) -> Unit)? = remember(onCompose, chatId, render.id) {
         onCompose?.let { send ->
             val from = "$chatId:${render.id}"
@@ -154,11 +148,11 @@ private fun RenderCard(remote: Remote, chatId: String, render: HtmlRender, onCom
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(render.title, Modifier.weight(1f), style = RelayTheme.type.xs.copy(fontSize = 12.sp), color = c.mutedForeground, maxLines = 1)
+            Text(render.title, Modifier.weight(1f), style = RelayTheme.type.meta, color = c.inkSoft, maxLines = 1)
             if (render.pages.size > 1) Variants(render, index, { index = it })
-            IconButton(TablerIcons.Outline.ArrowsDiagonal, "Expand", { expanded = true }, size = ButtonSize.Xs, tint = c.mutedForeground)
+            IconButton(TablerIcons.Outline.ArrowsDiagonal, "Expand", { expanded = true }, size = ButtonSize.Sm, tint = c.inkSoft)
         }
-        Box(Modifier.fillMaxWidth().clip(shape).ring(c.border, shape)) {
+        Box(Modifier.fillMaxWidth().clip(RelayTheme.shapes.field).background(c.surface)) {
             // Another variant is another page, not a redraw of this one.
             key(index) { RenderPage(remote, chatId, render, index, compose) }
         }
@@ -173,7 +167,7 @@ internal fun Variants(
     index: Int,
     onIndex: (Int) -> Unit,
     modifier: Modifier = Modifier,
-    style: TextStyle = RelayTheme.type.xs.copy(fontSize = 12.sp),
+    style: TextStyle = RelayTheme.type.meta,
 ) {
     val c = RelayTheme.colors
     Row(modifier, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -182,8 +176,8 @@ internal fun Variants(
             Text(
                 page.label?.takeIf(String::isNotEmpty) ?: "${i + 1}",
                 Modifier.pressable({ onIndex(i) }, role = Role.Tab, scale = false),
-                style = if (on) style.copy(fontWeight = FontWeight.SemiBold) else style,
-                color = if (on) c.foreground else c.mutedForeground,
+                style = if (on) style.copy(fontWeight = FontWeight.Medium) else style,
+                color = if (on) c.ink else c.inkSoft,
             )
         }
     }
@@ -206,8 +200,8 @@ private fun RenderPage(remote: Remote, chatId: String, render: HtmlRender, index
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text(
                     if (loaded.failed) "This page couldn't be loaded." else "Loading page…",
-                    style = RelayTheme.type.xs.copy(fontSize = 12.sp),
-                    color = c.mutedForeground,
+                    style = RelayTheme.type.meta,
+                    color = c.inkSoft,
                 )
             }
         }

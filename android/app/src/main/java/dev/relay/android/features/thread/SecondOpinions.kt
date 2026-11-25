@@ -3,8 +3,6 @@ package dev.relay.android.features.thread
 // Second opinions on a thread's answers (src/features/second-opinion): asking
 // one, the cards under the answer it checks, and sending one back.
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,7 +11,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.wrapContentHeight
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.collectAsState
@@ -118,7 +115,7 @@ fun SecondOpinionCards(chatId: String, answer: ChatMessage, root: String?) {
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         for (thread in listed) OpinionCard(thread, peek(thread.id).answer, answer.provider, root, opinions)
         if (ask != null) OpinionFrame(ask.provider, "Second opinion", if (ask.error != null) "failed" else "starting…", onOpen = null) {
-            ask.error?.let { Text(it, color = RelayTheme.colors.destructive) }
+            ask.error?.let { Text(it, style = RelayTheme.type.meta, color = RelayTheme.colors.danger) }
         }
     }
 }
@@ -131,8 +128,8 @@ private fun OpinionCard(thread: RemoteChatSummary, reply: ChatMessage?, checked:
     val provider = thread.provider ?: reply?.provider
     OpinionFrame(provider, opinionTitle(provider, reply?.model?.name), state, onOpen = { navigator.push(Route.Thread(thread.id)) }) {
         when {
-            state == "failed" -> Text(reply?.error?.let { agentError(it).message } ?: "It failed.", color = c.destructive)
-            reply == null || reply.body.isBlank() -> Text("Checking the answer…", color = c.mutedForeground)
+            state == "failed" -> Text(reply?.error?.let { agentError(it).message } ?: "It failed.", style = RelayTheme.type.meta, color = c.danger)
+            reply == null || reply.body.isBlank() -> Text("Checking the answer…", style = RelayTheme.type.meta, color = c.inkSoft)
             else -> Folded { Markdown(reply.body, folder = root, small = true) }
         }
         if (state == "finished") SendBack(thread.id, checked, opinions)
@@ -143,20 +140,16 @@ private fun OpinionCard(thread: RemoteChatSummary, reply: ChatMessage?, checked:
 @Composable
 private fun OpinionFrame(provider: String?, title: String, status: String, onOpen: (() -> Unit)?, body: @Composable () -> Unit) {
     val c = RelayTheme.colors
-    val shape = RoundedCornerShape(10.dp)
-    Column(
-        Modifier.fillMaxWidth().border(RelayTheme.hairline, c.border, shape).background(c.card, shape).padding(12.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
+    QuietCard(padding = 16.dp) {
         Row(
             Modifier.fillMaxWidth().then(onOpen?.let { Modifier.pressable(onClick = it, scale = false) } ?: Modifier),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(7.dp),
+            horizontalArrangement = Arrangement.spacedBy(TraceGap),
         ) {
-            if (provider != null) ProviderIcon(provider, c.mutedForeground, size = 13.dp)
-            Text(title, Modifier.weight(1f), style = RelayTheme.type.sm.copy(fontWeight = FontWeight.SemiBold), maxLines = 1)
-            Text(status, style = RelayTheme.type.xs, color = if (status == "failed") c.destructive else c.mutedForeground)
-            if (onOpen != null) Icon(TablerIcons.Outline.ChevronRight, "Open its thread", size = 14.dp, tint = c.faint)
+            if (provider != null) ProviderIcon(provider, c.inkSoft, size = TraceIcon)
+            Text(title, Modifier.weight(1f), style = RelayTheme.type.meta.copy(fontWeight = FontWeight.Medium), maxLines = 1)
+            Text(status, style = RelayTheme.type.small, color = if (status == "failed") c.danger else c.inkSoft)
+            if (onOpen != null) Icon(TablerIcons.Outline.ChevronRight, "Open its thread", size = 16.dp, tint = c.inkFaint)
         }
         body()
     }
@@ -167,13 +160,13 @@ private fun OpinionFrame(provider: String?, title: String, status: String, onOpe
 private fun SendBack(opinionId: String, checked: String, opinions: SecondOpinions) {
     val c = RelayTheme.colors
     val who = agentName(checked)
-    if (opinionId in opinions.sent) return Text("Sent to $who.", style = RelayTheme.type.xs, color = c.mutedForeground)
+    if (opinionId in opinions.sent) return Text("Sent to $who.", style = RelayTheme.type.small, color = c.inkSoft)
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         val error = opinions.sendErrors[opinionId]
-        Text(unsentLine(checked, error), Modifier.weight(1f), style = RelayTheme.type.xs, color = if (error != null) c.destructive else c.mutedForeground)
+        Text(unsentLine(checked, error), Modifier.weight(1f), style = RelayTheme.type.small, color = if (error != null) c.danger else c.inkSoft)
         Button(
             "Send to $who", { opinions.sendBack(opinionId) },
-            variant = ButtonVariant.Outline, size = ButtonSize.Sm, loading = opinions.sending[opinionId] == true,
+            variant = ButtonVariant.Secondary, size = ButtonSize.Sm, loading = opinions.sending[opinionId] == true,
         )
     }
 }
@@ -185,7 +178,7 @@ private const val LINE_EM = 1.6f
 @Composable
 fun Folded(lines: Int = 6, content: @Composable () -> Unit) {
     val c = RelayTheme.colors
-    val fold = with(LocalDensity.current) { (RelayTheme.type.sm.fontSize * LINE_EM * lines).toDp() }
+    val fold = with(LocalDensity.current) { (RelayTheme.type.meta.fontSize * LINE_EM * lines).toDp() }
     val foldPx = with(LocalDensity.current) { fold.toPx() }
     var height by remember { mutableStateOf(0) }
     var open by remember { mutableStateOf(false) }
@@ -195,12 +188,7 @@ fun Folded(lines: Int = 6, content: @Composable () -> Unit) {
             // Measured whole, so it knows it's long while folded and as a streaming answer grows.
             Box(Modifier.fillMaxWidth().wrapContentHeight(Alignment.Top, unbounded = true).onSizeChanged { height = it.height }) { content() }
         }
-        if (long) Text(
-            if (open) "Show less" else "Show all",
-            Modifier.pressable(onClick = { open = !open }, scale = false),
-            style = RelayTheme.type.xs.copy(fontWeight = FontWeight.SemiBold),
-            color = c.accent,
-        )
+        if (long) TextAction(if (open) "Show less" else "Show all", { open = !open })
     }
 }
 
@@ -211,18 +199,14 @@ fun Folded(lines: Int = 6, content: @Composable () -> Unit) {
 @Composable
 fun SecondOpinionAskedView(asked: SecondOpinionAsked, root: String?) {
     val c = RelayTheme.colors
-    val shape = RoundedCornerShape(10.dp)
-    val heading = RelayTheme.type.xs.copy(fontWeight = FontWeight.SemiBold)
-    Column(
-        Modifier.fillMaxWidth().border(RelayTheme.hairline, c.border, shape).padding(12.dp),
-        verticalArrangement = Arrangement.spacedBy(6.dp),
-    ) {
-        Text("Second opinion", style = RelayTheme.type.sm.copy(fontWeight = FontWeight.SemiBold))
+    val heading = RelayTheme.type.label
+    QuietCard(padding = 16.dp) {
+        Text("Second opinion", style = RelayTheme.type.meta.copy(fontWeight = FontWeight.Medium))
         if (asked.question.isNotBlank()) {
-            Text("Question", style = heading, color = c.mutedForeground)
+            Text("Question", style = heading, color = c.inkSoft)
             Markdown(asked.question, folder = root, small = true)
         }
-        Text("Answer", style = heading, color = c.mutedForeground)
+        Text("Answer", style = heading, color = c.inkSoft)
         Folded(lines = 4) { Markdown(asked.answer, folder = root, small = true) }
     }
 }

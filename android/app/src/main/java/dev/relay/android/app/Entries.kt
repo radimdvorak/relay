@@ -8,8 +8,6 @@ import androidx.navigation3.runtime.EntryProviderScope
 import androidx.navigation3.runtime.NavKey
 import androidx.navigation3.ui.LocalNavAnimatedContentScope
 import dev.relay.android.app.gallery.GalleryScreen
-import dev.relay.android.app.screens.PaneEmpty
-import dev.relay.android.app.screens.PlaceholderScreen
 import dev.relay.android.features.composer.sendToThread
 import dev.relay.android.features.files.FileScreen
 import dev.relay.android.features.files.FilesScreen
@@ -32,10 +30,11 @@ import dev.relay.android.features.settings.LicencesScreen
 import dev.relay.android.features.settings.SettingsScreen
 import dev.relay.android.features.thread.SubagentRunScreen
 import dev.relay.android.features.thread.ThreadScreen
+import dev.relay.android.features.search.SearchScreen
 import dev.relay.android.lib.navigation.MORPHS_IN
 import dev.relay.android.lib.navigation.Route
 import dev.relay.android.ui.LocalScreenAnimation
-import dev.relay.android.ui.theme.HextaDark
+import dev.relay.android.ui.theme.RelayPaperDark
 import dev.relay.android.ui.theme.RelayTheme
 
 /**
@@ -44,8 +43,9 @@ import dev.relay.android.ui.theme.RelayTheme
  *
  *     entry<Route.Thread> { ThreadScreen(it.id, container.remote) }
  */
-fun EntryProviderScope<NavKey>.appEntries(container: AppContainer, wide: () -> Boolean) {
-    entry<Route.Home> { if (wide()) PaneEmpty() else Animated { AppHome(container, pane = false, selected = null) } }
+fun EntryProviderScope<NavKey>.appEntries(container: AppContainer, shell: ShellState) {
+    entry<Route.Home> { if (shell.sidePane) PaneEmpty() else Animated { AppHome(container, shell, pane = false, selected = null) } }
+    entry<Route.Search>(metadata = mapOf(MORPHS_IN to true)) { Animated { SearchScreen(it, container.remote, container.home) } }
     entry<Route.Settings> { SettingsScreen(container.remote, container.updates, container.notifications, container.push, container.lock, container.prefs, container.scope, container.relayStop::stop) }
     entry<Route.Gallery> { GalleryScreen() }
     entry<Route.Licences> { LicencesScreen() }
@@ -53,7 +53,7 @@ fun EntryProviderScope<NavKey>.appEntries(container: AppContainer, wide: () -> B
     // Relay's own colours, dark on black whatever the theme: pairing another computer shouldn't
     // wear the one already paired's, and the field glows best on black.
     entry<Route.Pair> {
-        RelayTheme(HextaDark.copy(background = Color.Black)) { PairScreen(container.remote, container.updates, it.link, container.relayStop::stop) }
+        RelayTheme(RelayPaperDark.copy(surface = Color.Black)) { PairScreen(container.remote, container.updates, it.link, container.relayStop::stop) }
     }
     // Home's New thread button flies into the screen as its Send; one opened from a draft or a project slides in.
     entry<Route.NewThread>(metadata = { if (it == Route.NewThread()) mapOf(MORPHS_IN to true) else emptyMap() }) { route ->
@@ -67,7 +67,10 @@ fun EntryProviderScope<NavKey>.appEntries(container: AppContainer, wide: () -> B
         container.threadSeen.markSeen(id, updated)
         container.notifications.clearThread(id)
     }
-    entry<Route.Thread> { ThreadScreen(it.id, container.remote, locked = container.lock.locked.collectAsState().value, onSeen = seen) }
+    entry<Route.Thread> {
+        val locked = container.lock.locked.collectAsState().value
+        ThreadScreen(it.id, container.remote, locked = locked, onSeen = seen)
+    }
     entry<Route.Reply> {
         ThreadScreen(it.id, container.remote, rootId = it.rootId, locked = container.lock.locked.collectAsState().value, onSeen = seen)
     }

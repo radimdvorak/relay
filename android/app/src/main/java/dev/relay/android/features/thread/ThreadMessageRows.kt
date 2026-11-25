@@ -1,13 +1,14 @@
 package dev.relay.android.features.thread
 
-import dev.relay.android.features.markdown.MarkdownBlock
 import dev.relay.android.features.markdown.MarkdownCache
+import dev.relay.android.features.markdown.MarkdownRow
+import dev.relay.android.features.markdown.groupMarkdownRows
 import dev.relay.android.remote.model.ChatMessage
 import dev.relay.android.remote.model.HtmlRender
 
 internal enum class MessageSection { Whole, Header, Body, Footer }
 
-/** Content before the reader's paragraph can settle without moving that paragraph's anchor. */
+/** Content before the reader's prose can settle without moving its anchor; consecutive prose stays one row for continuous selection. */
 internal sealed interface ThreadMessageRow {
     val message: ChatMessage
     val key: String
@@ -18,8 +19,8 @@ internal sealed interface ThreadMessageRow {
     data class Render(override val message: ChatMessage, val render: HtmlRender, val ordinal: Int) : ThreadMessageRow {
         override val key = "${message.id}:render:${render.id}"
     }
-    data class Block(override val message: ChatMessage, val block: MarkdownBlock) : ThreadMessageRow {
-        override val key = "${message.id}:line:${block.sourceLine}"
+    data class Block(override val message: ChatMessage, val row: MarkdownRow) : ThreadMessageRow {
+        override val key = "${message.id}:line:${row.sourceLine}"
     }
 }
 
@@ -41,7 +42,7 @@ internal class ThreadBodyRows {
                 add(ThreadMessageRow.Content(message, MessageSection.Header))
                 message.renders.orEmpty().forEachIndexed { i, render -> add(ThreadMessageRow.Render(message, render, i)) }
                 val blocks = bodies.getOrPut(message.id) { MarkdownCache() }.positioned(message.body)
-                blocks.forEach { add(ThreadMessageRow.Block(message, it)) }
+                groupMarkdownRows(blocks, hasImages = true).forEach { add(ThreadMessageRow.Block(message, it)) }
                 add(ThreadMessageRow.Content(message, MessageSection.Footer))
             }
         }

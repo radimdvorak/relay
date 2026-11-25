@@ -43,7 +43,7 @@ fun projectHue(name: String): Int {
     return kotlin.math.abs(hash % 360)
 }
 
-/** Hexta's avatar: 24/32/40dp, muted fill, a 10% hairline ring, image or initials. */
+/** An avatar: 24/32/40dp on the tool fill, an image or initials. */
 @Composable
 fun Avatar(
     name: String,
@@ -55,14 +55,14 @@ fun Avatar(
     val c = RelayTheme.colors
     val shape = if (rounded) RoundedCornerShape(size * 0.25f) else CircleShape
     Box(
-        modifier.size(size).clip(shape).background(c.muted).ring(c.foreground.copy(alpha = 0.10f), shape),
+        modifier.size(size).clip(shape).background(c.tool),
         contentAlignment = Alignment.Center,
     ) {
         if (image != null) Image(image, null, Modifier.size(size), contentScale = ContentScale.Crop)
         else Text(
             initials(name),
             style = RelayTheme.type.label.copy(fontSize = (size.value * 0.38f).sp),
-            color = c.mutedForeground,
+            color = c.inkSoft,
         )
     }
 }

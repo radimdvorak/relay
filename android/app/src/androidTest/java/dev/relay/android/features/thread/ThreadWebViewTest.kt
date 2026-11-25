@@ -37,7 +37,7 @@ class ThreadWebViewTest {
                 val keys = listOf("before", "html", "tail", "end")
                 val page = remember { phoneRenderDocument("<html><body style='margin:0'><div id='sample' style='height:180px'>Sample card</div></body></html>", RenderTheme(true, emptyMap())) }
                 scroll = rememberThreadScroll()
-                ThreadViewport(scroll, keys, ContentSignature(4, "end", tail.intValue.toLong(), 0), Modifier.background(RelayTheme.colors.background).height(500.dp)) {
+                ThreadViewport(scroll, keys, ContentSignature(4, "end", tail.intValue.toLong(), 0), Modifier.background(RelayTheme.colors.surface).height(500.dp)) {
                     item("before") { Box(Modifier.fillMaxWidth().height(700.dp)) }
                     item("html") { RenderFrame(page, 180, onSize = { measured = it }) }
                     item("tail") { Box(Modifier.fillMaxWidth().height(tail.intValue.dp)) }

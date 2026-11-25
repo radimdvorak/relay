@@ -16,12 +16,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import dev.relay.android.features.push.Push
 import dev.relay.android.ui.ConfirmDialog
+import dev.relay.android.ui.Group
 import dev.relay.android.ui.ListRow
 import dev.relay.android.ui.Switch
 
-/** Settings' "Background notifications" row: asks Android first, or points at its settings. */
+/** Settings' notifications: turning them on asks Android first, or points at its settings. */
 @Composable
-fun NotificationSwitchRow(notifications: ThreadNotifications, push: Push, computer: String) {
+fun NotificationsSection(notifications: ThreadNotifications, push: Push, computer: String) {
     val context = LocalContext.current
     val on by notifications.on.collectAsState()
     val pushed by push.delivering.collectAsState()
@@ -37,24 +38,31 @@ fun NotificationSwitchRow(notifications: ThreadNotifications, push: Push, comput
             else -> refused = true
         }
     }
-    ListRow(
-        "Background notifications",
-        subtitle = if (pushed) "When a thread finishes or needs you while Relay is closed. $computer sends them " +
-            "through Relay's push service and Google's Firebase, so Relay needn't stay connected."
-        else "When a thread finishes or needs you while Relay is closed. A worker keeps Relay connected " +
-            "to $computer for that, with a quiet notice in the shade, and uses some battery. To spare it, " +
-            "they can come up to 30s late.",
-        subtitleLines = 5,
-        trailing = { Switch(on, ::change) },
-        onClick = { change(!on) },
-    )
-    if (on && push.available) ListRow(
-        "Hide thread titles",
-        subtitle = "Notifications say only that a thread finished or needs you, so its title never leaves $computer.",
-        subtitleLines = 3,
-        trailing = { Switch(hideTitles, push::setHideTitles) },
-        onClick = { push.setHideTitles(!hideTitles) },
-    )
+    Group(label = "Notifications") {
+        item {
+            ListRow(
+                "Background notifications",
+                titleLines = 2,
+                subtitle = if (pushed) "When a thread finishes or needs you while Relay is closed. $computer sends them " +
+                    "through Relay's push service and Google's Firebase, so Relay needn't stay connected."
+                else "When a thread finishes or needs you while Relay is closed. A worker keeps Relay connected " +
+                    "to $computer for that, with a quiet notice in the shade, and uses some battery. To spare it, " +
+                    "they can come up to 30s late.",
+                subtitleLines = 8,
+                trailing = { Switch(on, ::change) },
+                onClick = { change(!on) },
+            )
+        }
+        if (on && push.available) item {
+            ListRow(
+                "Hide thread titles",
+                subtitle = "Notifications say only that a thread finished or needs you, so its title never leaves $computer.",
+                subtitleLines = 4,
+                trailing = { Switch(hideTitles, push::setHideTitles) },
+                onClick = { push.setHideTitles(!hideTitles) },
+            )
+        }
+    }
     if (refused) ConfirmDialog(
         "Notifications are off for Relay",
         onConfirm = {

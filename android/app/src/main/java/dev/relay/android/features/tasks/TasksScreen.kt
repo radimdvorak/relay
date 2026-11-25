@@ -25,7 +25,6 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import dev.relay.android.features.git.AskHost
 import dev.relay.android.features.git.Asks
-import dev.relay.android.features.git.EmptyNote
 import dev.relay.android.features.git.Loading
 import dev.relay.android.features.git.ago
 import dev.relay.android.features.git.call
@@ -45,9 +44,13 @@ import dev.relay.android.ui.Button
 import dev.relay.android.ui.ButtonSize
 import dev.relay.android.ui.ButtonVariant
 import dev.relay.android.ui.Card
-import dev.relay.android.ui.Screen
+import dev.relay.android.ui.EmptyState
+import dev.relay.android.ui.Page
+import dev.relay.android.ui.navBarRoom
 import dev.relay.android.ui.Text
 import dev.relay.android.ui.theme.RelayTheme
+import io.github.lyxnx.compose.ui.tablericons.TablerIcons
+import io.github.lyxnx.compose.ui.tablericons.outline.Terminal2
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -113,7 +116,6 @@ class TasksModel(private val remote: Remote, private val projectId: String) : Vi
 @Composable
 fun TasksScreen(remote: Remote, projectId: String) {
     val nav = LocalNavigator.current
-    val c = RelayTheme.colors
     val model = viewModel(key = "tasks:$projectId") { TasksModel(remote, projectId) }
     val tasks by model.tasks.collectAsStateWithLifecycle()
     val error by model.error.collectAsStateWithLifecycle()
@@ -127,61 +129,62 @@ fun TasksScreen(remote: Remote, projectId: String) {
             delay(3000)
         }
     }
-    Screen("Tasks", onBack = nav.backAction) {
+    Page("Tasks", onBack = nav.backAction) {
         val now = tasks
         when {
             now == null && error != null -> Box(Modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.Center) {
-                Text(error!!, color = c.mutedForeground, textAlign = TextAlign.Center)
+                Text(error!!, color = RelayTheme.colors.inkSoft, textAlign = TextAlign.Center)
             }
             now == null -> Loading()
-            else -> LazyColumn(
-                Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                if (now.isEmpty()) item { EmptyNote("Nothing is running in this project.", Modifier.fillMaxWidth()) }
-                items(now, key = { it.id }) { task -> TaskCard(task, busy[task.id], model, open) }
-            }
+            else -> TaskList(now, busy, model::restart, model::stop, open)
         }
     }
     AskHost(model.asks)
 }
 
 @Composable
-private fun TaskCard(task: ProjectTask, busy: String?, model: TasksModel, open: ((Int) -> Unit)?) {
+internal fun TaskList(
+    tasks: List<ProjectTask>,
+    /** Task id → what's being done to it. */
+    busy: Map<String, String>,
+    onRestart: (ProjectTask) -> Unit,
+    onStop: (ProjectTask) -> Unit,
+    onOpen: ((port: Int) -> Unit)?,
+) {
+    if (tasks.isEmpty()) return Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        EmptyState("Nothing is running", description = "Dev servers and processes left running in this project show up here.", icon = TablerIcons.Outline.Terminal2)
+    }
+    LazyColumn(
+        Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 24.dp + navBarRoom()),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        items(tasks, key = { it.id }) { task -> TaskCard(task, busy[task.id], { onRestart(task) }, { onStop(task) }, onOpen) }
+    }
+}
+
+@Composable
+private fun TaskCard(task: ProjectTask, busy: String?, onRestart: () -> Unit, onStop: () -> Unit, onOpen: ((Int) -> Unit)?) {
     val c = RelayTheme.colors
-    Card(Modifier.fillMaxWidth(), padding = 12.dp, gap = 6.dp) {
-        Text(task.title, style = RelayTheme.type.base.copy(fontWeight = FontWeight.SemiBold))
+    Card(Modifier.fillMaxWidth(), padding = 16.dp, gap = 6.dp) {
+        Text(task.title, style = RelayTheme.type.row.copy(fontWeight = FontWeight.Medium))
         SelectionContainer {
-            Text(task.command, style = RelayTheme.type.mono.copy(fontSize = 12.sp, lineHeight = 17.sp), color = c.mutedForeground, maxLines = 3)
+            Text(task.command, style = RelayTheme.type.code.copy(fontSize = 12.sp, lineHeight = 17.sp), color = c.inkSoft, maxLines = 3)
         }
-        Text(taskMeta(task), style = RelayTheme.type.xs, color = c.mutedForeground)
+        Text(taskMeta(task), style = RelayTheme.type.meta, color = c.inkSoft)
         // A task can listen on a few ports; their buttons wrap.
         FlowRow(
-            Modifier.fillMaxWidth().padding(top = 4.dp),
+            Modifier.fillMaxWidth().padding(top = 8.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            if (open != null) for (port in task.ports) Button(
-                "Open :$port",
-                { open(port) },
-                variant = ButtonVariant.Outline,
-                size = ButtonSize.Sm,
-            )
-            Button(
-                if (busy == "restart") "Restarting…" else "Restart",
-                { model.restart(task) },
-                variant = ButtonVariant.Outline,
-                size = ButtonSize.Sm,
-                enabled = busy == null,
-            )
-            Button(
-                if (busy == "stop") "Stopping…" else "Stop",
-                { model.stop(task) },
-                variant = ButtonVariant.Outline,
-                size = ButtonSize.Sm,
-                enabled = busy == null,
-            )
+            if (onOpen != null) for (port in task.ports) TaskButton("Open :$port") { onOpen(port) }
+            TaskButton(if (busy == "restart") "Restarting…" else "Restart", enabled = busy == null, onClick = onRestart)
+            TaskButton(if (busy == "stop") "Stopping…" else "Stop", enabled = busy == null, onClick = onStop)
         }
     }
 }
+
+@Composable
+private fun TaskButton(text: String, enabled: Boolean = true, onClick: () -> Unit) =
+    Button(text, onClick, variant = ButtonVariant.Secondary, size = ButtonSize.Sm, enabled = enabled)

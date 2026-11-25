@@ -42,7 +42,7 @@ class ThreadHistoryRecoveryTest {
                     (0 until tailRows.intValue).map { "new-tail-$it" } + listOf("tail", "bottom")
                 scroll = rememberThreadScroll()
                 ThreadViewport(scroll, keys, ContentSignature(keys.size, "bottom", tailVersion.longValue, 0),
-                    Modifier.background(RelayTheme.colors.background).height(500.dp),
+                    Modifier.background(RelayTheme.colors.surface).height(500.dp),
                     historyResult = historyResult.value) {
                     item("earlier") { Box(Modifier.fillMaxWidth().height(60.dp)) }
                     items(older.value, key = { it }) { paragraph(it) }

@@ -13,10 +13,12 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.onRoot
+import androidx.compose.ui.test.performClick
 import androidx.test.platform.app.InstrumentationRegistry
 import android.graphics.Bitmap
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.v2.createComposeRule
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.unit.dp
 import dev.relay.android.features.composer.logic.composeSend
@@ -48,7 +50,7 @@ class ComposerThreadSwitchTest {
     private val opus = ResumeSettings("claude", ModelChoice("opus"), null, "auto", "default")
     private val gpt = opus.copy(provider = "codex", choice = ModelChoice("gpt-6-sol"))
     private val state = ComposerState(screenFollows = true)
-    private var id by mutableStateOf("opus-thread")
+    private var id by mutableStateOf("first-thread")
     private val navigator = object : Navigator {
         override val stack = listOf(Route.Home)
         override val canGoBack = false
@@ -79,18 +81,22 @@ class ComposerThreadSwitchTest {
             }
             RelayTheme {
                 CompositionLocalProvider(LocalNavigator provides navigator, LocalToasts provides ToastState()) {
-                    Column(Modifier.fillMaxSize().background(RelayTheme.colors.background).padding(20.dp)) {
+                    Column(Modifier.fillMaxSize().background(RelayTheme.colors.surface).padding(20.dp)) {
                         Text("Sample remote thread: $id")
                         Composer(remote, id, state)
                     }
                 }
             }
         }
+        // The model's chip is in the card the composer grows into.
+        compose.onNodeWithContentDescription("Message").performClick()
         compose.onNodeWithText("opus", substring = true).assertIsDisplayed()
         compose.runOnIdle {
-            id = "gpt-thread"
+            id = "second-thread"
             state.chat = thread(id, gpt)
         }
+        // Another thread starts folded.
+        compose.onNodeWithContentDescription("Message").performClick()
         compose.onNodeWithText("gpt-6-sol", substring = true).assertIsDisplayed()
         compose.runOnIdle {
             assertEquals(gpt, state.settings)

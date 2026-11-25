@@ -14,7 +14,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
@@ -46,7 +45,6 @@ import dev.relay.android.ui.Icon
 import dev.relay.android.ui.ProgressBar
 import dev.relay.android.ui.Text
 import dev.relay.android.ui.pressable
-import dev.relay.android.ui.ring
 import dev.relay.android.ui.theme.RelayTheme
 import io.github.lyxnx.compose.ui.tablericons.TablerIcons
 import io.github.lyxnx.compose.ui.tablericons.filled.PlayerPlay
@@ -128,7 +126,7 @@ fun AnswerVideo(
     }
 
     val c = RelayTheme.colors
-    val shape = RoundedCornerShape(10.dp)
+    val shape = RelayTheme.shapes.field
     BoxWithConstraints(modifier.fillMaxWidth()) {
         val height = minOf(maxWidth / ratio, ANSWER_HEIGHT.dp)
         val width = minOf(maxWidth, height * ratio)
@@ -139,7 +137,7 @@ fun AnswerVideo(
             else -> ::start
         }
         Box(
-            Modifier.width(width).height(height).clip(shape).background(c.muted).ring(c.border, shape)
+            Modifier.width(width).height(height).clip(shape).background(c.tool)
                 .then(if (tap != null) Modifier.pressable(tap, role = Role.Button, scale = false) else Modifier),
             contentAlignment = Alignment.Center,
         ) {
@@ -153,16 +151,16 @@ fun AnswerVideo(
                     is VideoState.Loading -> {
                         val progress = if (s.size > 0) s.done.toFloat() / s.size else null
                         ProgressBar(progress, Modifier.width(140.dp))
-                        Text(if (s.size > 0) "${megabytes(s.done)} of ${megabytes(s.size)}" else "Loading…", color = c.mutedForeground)
+                        Text(if (s.size > 0) "${megabytes(s.done)} of ${megabytes(s.size)}" else "Loading…", style = RelayTheme.type.meta, color = c.inkSoft)
                     }
                     is VideoState.Failed -> {
-                        Text(s.reason, color = c.mutedForeground, textAlign = TextAlign.Center)
-                        if (supported) Text("Tap to try again", color = c.foreground)
+                        Text(s.reason, style = RelayTheme.type.meta, color = c.inkSoft, textAlign = TextAlign.Center)
+                        if (supported) Text("Tap to try again", style = RelayTheme.type.meta, color = c.ink)
                     }
                     else -> {
                         if (supported) PlayButton(dim = !ready)
-                        Text(name, color = c.mutedForeground, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        if (!supported) Text("Update Relay on the computer to play videos here", color = c.mutedForeground, textAlign = TextAlign.Center)
+                        Text(name, style = RelayTheme.type.meta, color = c.inkSoft, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        if (!supported) Text("Update Relay on the computer to play videos here", style = RelayTheme.type.meta, color = c.inkSoft, textAlign = TextAlign.Center)
                     }
                 }
             }
@@ -174,10 +172,10 @@ fun AnswerVideo(
 private fun PlayButton(dim: Boolean) {
     val c = RelayTheme.colors
     Box(
-        Modifier.size(48.dp).clip(CircleShape).background(c.background.copy(alpha = 0.85f)).ring(c.border, CircleShape),
+        Modifier.size(56.dp).clip(CircleShape).background(c.raised),
         contentAlignment = Alignment.Center,
     ) {
-        Icon(TablerIcons.Filled.PlayerPlay, "Play", tint = if (dim) c.mutedForeground else c.foreground)
+        Icon(TablerIcons.Filled.PlayerPlay, "Play", tint = if (dim) c.inkSoft else c.ink)
     }
 }
 

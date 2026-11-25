@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The ribbon R of assets/relay-mark.svg in one colour, a touch heavier than the app icon's: without its
+     folds' shading the true widths go hairline at 28-40dp. The tips still taper. Cropped to the R; tint it. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+  android:width="28dp"
+  android:height="28dp"
+  android:viewportWidth="460"
+  android:viewportHeight="460">
+  <group
+    android:translateX="-79.5"
+    android:translateY="-55.5">
+    <path android:fillColor="#FF000000" android:pathData="M112,60C184,110 240,196 266,290C284,354 286,404 264,430C253,442 235,444 214,436C236,414 232,362 225,320C211,236 174,138 112,60Z" />
+    <path android:fillColor="#FF000000" android:pathData="M110,280C101,254 112,234 141,220L178,241C159,248 151,260 157,281C166,313 188,349 214,379C231,399 243,411 262,422C252,444 232,446 212,438C180,425 150,387 129,347C114,318 108,296 110,280Z" />
+    <path android:fillColor="#FF000000" android:pathData="M411,306C398,325 352,316 332,322C328,325 344,336 358,346C393,370 437,395 467,421C495,445 515,468 514,488C513,500 503,508 488,510C497,500 497,492 489,482C474,465 447,450 413,430C374,406 338,384 310,360C286,339 269,318 279,298C291,277 327,271 352,273C375,275 397,288 411,306Z" />
+    <path android:fillColor="#FF000000" android:pathData="M110,281C100,247 112,218 142,208C173,196 213,197 247,204C299,214 354,235 391,254C413,266 423,287 410,308C379,295 339,281 299,269C259,257 225,249 196,250C161,250 136,261 124,281Z" />
+  </group>
+</vector>

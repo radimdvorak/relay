@@ -13,6 +13,7 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -33,12 +34,12 @@ import androidx.lifecycle.compose.currentStateAsState
 import dev.relay.android.ui.theme.Motion
 import dev.relay.android.ui.theme.RelayTheme
 
-/** Hexta's inset hairline ring: one physical pixel, drawn inside the shape. */
+/** A one-pixel ring drawn inside the shape. Rare now: the toast's rim, a focused field. */
 @Composable
-fun Modifier.ring(color: Color = RelayTheme.colors.border, shape: Shape): Modifier =
+fun Modifier.ring(color: Color = RelayTheme.colors.line, shape: Shape): Modifier =
     border(BorderStroke(RelayTheme.hairline, color), shape)
 
-/** Hexta's tactile press: scale to 0.97 and sink 1dp while held. */
+/** A tactile press: scale to 0.97 and sink 1dp while held. */
 @Composable
 fun Modifier.pressScale(interaction: MutableInteractionSource, enabled: Boolean = true): Modifier {
     val pressed by interaction.collectIsPressedAsState()
@@ -51,6 +52,9 @@ fun Modifier.pressScale(interaction: MutableInteractionSource, enabled: Boolean 
         translationY = (1f - scale) / 0.03f * sink
     }
 }
+
+/** False inside what is on its way out: a tap there is meant for what's behind it. */
+val LocalTakesTaps = compositionLocalOf { true }
 
 /**
  * A tap target without Material's ripple: press scale, optional haptic, and a
@@ -66,9 +70,12 @@ fun Modifier.pressable(
     scale: Boolean = true,
     interaction: MutableInteractionSource = remember { MutableInteractionSource() },
 ): Modifier {
+    // Not merely disabled: that would still keep the tap from what's behind.
+    if (!LocalTakesTaps.current) return this
     val haptics = rememberHaptics()
     val click by rememberUpdatedState(onClick)
-    val pressed = if (scale) pressScale(interaction, enabled) else Modifier
+    // On a fresh Modifier: as an extension of this one it would repeat everything before it.
+    val pressed = if (scale) Modifier.pressScale(interaction, enabled) else Modifier
     val tap = {
         haptic?.let(haptics::perform)
         click()

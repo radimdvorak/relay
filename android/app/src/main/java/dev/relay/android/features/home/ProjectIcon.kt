@@ -38,11 +38,11 @@ fun ProvideProjectIcons(home: HomeServices, content: @Composable () -> Unit) {
 
 /** The project's own icon, as the desktop's sidebar shows it; its folder otherwise. */
 @Composable
-fun ProjectIcon(project: RemoteProject, modifier: Modifier = Modifier, size: Dp = 17.dp) {
-    val muted = RelayTheme.colors.mutedForeground
-    if (project.scratch == true) return Icon(TablerIcons.Outline.Notebook, null, modifier, tint = muted, size = size)
-    IconFile(LocalProjectIconPath.current(project.id), modifier.size(size), RoundedCornerShape(4.dp)) {
-        Icon(TablerIcons.Outline.Folder, null, modifier, tint = muted, size = size)
+fun ProjectIcon(project: RemoteProject, modifier: Modifier = Modifier, size: Dp = 20.dp) {
+    val tint = RelayTheme.colors.inkSoft
+    if (project.scratch == true) return Icon(TablerIcons.Outline.Notebook, null, modifier, tint = tint, size = size)
+    IconFile(LocalProjectIconPath.current(project.id), modifier.size(size), RoundedCornerShape(size * 0.24f)) {
+        Icon(TablerIcons.Outline.Folder, null, modifier, tint = tint, size = size)
     }
 }
 

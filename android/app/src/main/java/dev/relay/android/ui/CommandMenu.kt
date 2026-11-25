@@ -15,6 +15,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.input.TextFieldLineLimits
+import androidx.compose.foundation.text.input.TextFieldState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -28,7 +30,6 @@ import androidx.compose.ui.unit.dp
 import io.github.lyxnx.compose.ui.tablericons.TablerIcons
 import io.github.lyxnx.compose.ui.tablericons.outline.Check
 import io.github.lyxnx.compose.ui.tablericons.outline.Search
-import dev.relay.android.ui.theme.Radii
 import dev.relay.android.ui.theme.RelayTheme
 
 data class CommandItem(
@@ -44,13 +45,12 @@ data class CommandItem(
 data class CommandGroup(val heading: String?, val items: List<CommandItem>)
 
 /**
- * Hexta's command menu: a 44dp search row over grouped, inset rows. Filters
- * by label itself unless `filter` is false (the caller filters, e.g. remotely).
+ * A command menu: a 48dp search row over grouped, inset rows. Filters by label itself unless
+ * `filter` is false (the caller filters, e.g. remotely).
  */
 @Composable
 fun CommandMenu(
-    query: String,
-    onQueryChange: (String) -> Unit,
+    query: TextFieldState,
     groups: List<CommandGroup>,
     onSelect: (CommandItem) -> Unit,
     modifier: Modifier = Modifier,
@@ -59,44 +59,44 @@ fun CommandMenu(
     filter: Boolean = true,
     framed: Boolean = true,
 ) {
+    TakesKeyboard()
     val c = RelayTheme.colors
-    val shown = if (!filter || query.isBlank()) groups else groups.map { g ->
-        g.copy(items = g.items.filter { it.label.contains(query.trim(), ignoreCase = true) })
+    val needle = query.text.trim()
+    val shown = if (!filter || needle.isEmpty()) groups else groups.map { g ->
+        g.copy(items = g.items.filter { it.label.contains(needle, ignoreCase = true) })
     }.filter { it.items.isNotEmpty() }
     Column(
         modifier
-            .then(if (framed) Modifier.clip(Radii.xlShape).background(c.popover).ring(c.border, Radii.xlShape) else Modifier),
+            .then(if (framed) Modifier.clip(RelayTheme.shapes.sheet).background(c.raised) else Modifier),
     ) {
         Row(
-            Modifier.fillMaxWidth().height(44.dp).padding(horizontal = 12.dp),
+            Modifier.fillMaxWidth().height(48.dp).padding(horizontal = 16.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            Icon(TablerIcons.Outline.Search, null, tint = c.mutedForeground)
+            Icon(TablerIcons.Outline.Search, null, tint = c.inkSoft, size = 20.dp)
             BasicTextField(
                 query,
-                onQueryChange,
                 Modifier.weight(1f),
-                singleLine = true,
-                textStyle = RelayTheme.type.input.copy(color = c.foreground),
-                cursorBrush = SolidColor(c.foreground),
+                lineLimits = TextFieldLineLimits.SingleLine,
+                textStyle = RelayTheme.type.row.copy(color = c.ink),
+                cursorBrush = SolidColor(c.ink),
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                decorationBox = { field ->
+                decorator = { field ->
                     Box {
-                        if (query.isEmpty()) Text(placeholder, style = RelayTheme.type.input, color = c.faint)
+                        if (query.text.isEmpty()) Text(placeholder, style = RelayTheme.type.row, color = c.inkFaint)
                         field()
                     }
                 },
             )
         }
-        Divider()
         LazyColumn(Modifier.fillMaxWidth().padding(6.dp)) {
             if (shown.isEmpty()) item {
-                Text(empty, Modifier.fillMaxWidth().padding(vertical = 20.dp), color = c.mutedForeground, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                Text(empty, Modifier.fillMaxWidth().padding(vertical = 20.dp), style = RelayTheme.type.meta, color = c.inkSoft, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
             }
             shown.forEach { group ->
                 if (group.heading != null) item(key = "h:${group.heading}") {
-                    Text(group.heading, Modifier.padding(horizontal = 8.dp, vertical = 6.dp), style = RelayTheme.type.caption, color = c.mutedForeground)
+                    SectionLabel(group.heading, Modifier.padding(bottom = 4.dp))
                 }
                 items(group.items, key = { "${group.heading}:${it.id}" }) { CommandRow(it) { onSelect(it) } }
             }
@@ -112,17 +112,17 @@ private fun CommandRow(item: CommandItem, onClick: () -> Unit) {
     Row(
         Modifier
             .fillMaxWidth()
-            .clip(Radii.mdShape)
+            .clip(RelayTheme.shapes.row)
             .pressable(onClick, enabled = item.enabled, scale = false, interaction = interaction)
-            .background(if (pressed) c.muted else androidx.compose.ui.graphics.Color.Transparent)
-            .heightIn(min = 40.dp)
-            .padding(horizontal = 10.dp, vertical = 6.dp),
+            .background(if (pressed) c.selected else androidx.compose.ui.graphics.Color.Transparent)
+            .heightIn(min = 48.dp)
+            .padding(horizontal = RowTextInset, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        if (item.icon != null) Icon(item.icon, null, tint = c.mutedForeground)
-        Text(item.label, Modifier.weight(1f), color = if (item.enabled) c.foreground else c.faint, maxLines = 1)
-        if (item.hint != null) Text(item.hint, style = RelayTheme.type.xs, color = c.faint, maxLines = 1)
-        if (item.checked) Icon(TablerIcons.Outline.Check, null, tint = c.foreground)
+        if (item.icon != null) Icon(item.icon, null, tint = c.inkSoft, size = 20.dp)
+        Text(item.label, Modifier.weight(1f), style = RelayTheme.type.row, color = if (item.enabled) c.ink else c.inkFaint, maxLines = 1)
+        if (item.hint != null) Text(item.hint, style = RelayTheme.type.meta, color = c.inkSoft, maxLines = 1)
+        if (item.checked) Icon(TablerIcons.Outline.Check, null, tint = c.ink, size = 18.dp)
     }
 }

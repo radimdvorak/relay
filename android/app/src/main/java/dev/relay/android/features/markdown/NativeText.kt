@@ -1,41 +1,30 @@
 package dev.relay.android.features.markdown
 
 import android.content.Context
+import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.Typeface
 import android.text.Layout
 import android.text.Spannable
-import android.text.SpannableStringBuilder
 import android.text.Spanned
-import android.text.TextPaint
 import android.text.method.ArrowKeyMovementMethod
 import android.text.method.LinkMovementMethod
-import android.text.style.BackgroundColorSpan
 import android.text.style.ClickableSpan
-import android.text.style.ForegroundColorSpan
-import android.text.style.MetricAffectingSpan
-import android.text.style.StrikethroughSpan
-import android.text.style.StyleSpan
-import android.text.style.TypefaceSpan
 import android.util.TypedValue
 import android.view.MotionEvent
-import android.view.View
 import android.view.ViewConfiguration
 import android.widget.TextView
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.layout.onSizeChanged
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.isUnspecified
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.Density
-import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.res.ResourcesCompat
 import dev.relay.android.R
@@ -43,25 +32,54 @@ import dev.relay.android.features.diagnostics.LocalScrollTrace
 import dev.relay.android.ui.theme.RelayColors
 import dev.relay.android.ui.theme.RelayTheme
 import java.util.concurrent.ConcurrentHashMap
-import kotlin.math.roundToInt
 
 /*
- * An answer's text as Android's own TextView. Compose's selection handles
+ * An answer's prose as Android's own TextView. Compose's selection handles
  * catch only about 25dp around them, so a touch just below one cleared the
  * selection and the menu flickered; the system's handles, magnifier and menu
- * are the ones the rest of the phone has. Each paragraph is a view of its own,
- * so a selection stays within it; code blocks and tables keep Compose's.
+ * are the ones the rest of the phone has. Consecutive prose blocks (paragraphs,
+ * headings, lists, blockquotes and rules) are laid out together in one TextView
+ * so selection drags cleanly across them; code blocks, tables, math and local
+ * images keep their own rows.
  */
 
-/** [inlines] in [style], selectable when [selectable]; links and paths open through [ctx]. */
+/** A contiguous run of prose [blocks] rendered in one selectable native TextView. */
+@Composable
+internal fun NativeProse(blocks: List<MdBlock>, ctx: MdContext, modifier: Modifier = Modifier) {
+    val c = RelayTheme.colors
+    val type = RelayTheme.type
+    val density = LocalDensity.current
+    val context = LocalContext.current
+    val fonts = remember(context) { Fonts.prose(context) }
+    val text = remember(blocks, ctx, c, type, density, fonts) { spannedProse(blocks, ctx, c, type, density, fonts) }
+    if (text.isEmpty()) return
+    val base = bodyStyle(ctx.small).copy(color = if (ctx.quoted) c.inkSoft else c.ink)
+    NativeTextView(text, base, ctx.selectable, modifier)
+}
+
+/** A single inline run in [style], selectable when [selectable]; used inside standalone blocks (e.g. image-bearing paragraphs). */
 @Composable
 internal fun NativeInlines(inlines: List<MdInline>, ctx: MdContext, style: TextStyle, selectable: Boolean, modifier: Modifier = Modifier) {
     val c = RelayTheme.colors
+    val type = RelayTheme.type
     val density = LocalDensity.current
     val context = LocalContext.current
-    val mono = Fonts.mono(context)
-    val inter = Fonts.inter(context)
-    val text = remember(inlines, ctx, c, density, mono, inter) { spannedOf(inlines, ctx, c, density, mono, inter) }
+    val fonts = remember(context) { Fonts.prose(context) }
+    val text = remember(inlines, ctx, c, type, density, fonts) {
+        spannedProse(listOf(MdBlock.Para(inlines)), ctx, c, type, density, fonts)
+    }
+    if (text.isEmpty()) return
+    NativeTextView(text, style, selectable, modifier)
+}
+
+@Composable
+private fun NativeTextView(
+    text: Spanned,
+    style: TextStyle,
+    selectable: Boolean,
+    modifier: Modifier,
+) {
+    val c = RelayTheme.colors
     val weight = (style.fontWeight ?: FontWeight.Normal).weight
     val trace = LocalScrollTrace.current
     AndroidView(
@@ -70,9 +88,9 @@ internal fun NativeInlines(inlines: List<MdInline>, ctx: MdContext, style: TextS
             trace?.event("text_size", "textChars" to text.length, "widthPx" to it.width, "heightPx" to it.height)
         },
         // Reused selectable TextViews can retain another paragraph's measured height.
-        // Let each paragraph own its view so returning lazy rows measure the same text.
+        // Let each prose run own its view so returning lazy rows measure the same text.
         update = { view ->
-            view.applyStyle(StyleKey(style, weight, c), density)
+            view.applyStyle(StyleKey(style, weight, c))
             view.show(text, selectable)
         },
     )
@@ -84,7 +102,39 @@ internal fun NativeInlines(inlines: List<MdInline>, ctx: MdContext, style: TextS
  * first line out of sight and stayed that way: list items showed all but their first line.
  */
 private class AnswerText(context: Context) : TextView(context) {
+    private val codePaint = Paint(Paint.ANTI_ALIAS_FLAG)
+
     override fun scrollTo(x: Int, y: Int) = super.scrollTo(0, 0)
+
+    /** Behind the text and the selection. A BackgroundColorSpan would fill the whole line, its spacing too. */
+    override fun onDraw(canvas: Canvas) {
+        val shown = text as? Spanned
+        val laid = layout
+        if (shown != null && laid != null)
+            for (mark in shown.getSpans(0, shown.length, CodeBack::class.java)) drawCodeBack(canvas, laid, shown, mark)
+        super.onDraw(canvas)
+    }
+
+    private fun drawCodeBack(canvas: Canvas, laid: Layout, shown: Spanned, mark: CodeBack) {
+        val start = shown.getSpanStart(mark)
+        val end = shown.getSpanEnd(mark)
+        if (start >= end) return
+        codePaint.color = mark.color
+        val first = laid.getLineForOffset(start)
+        val last = laid.getLineForOffset(end - 1)
+        val dp = resources.displayMetrics.density
+        val size = mark.sizePx
+        for (line in first..last) {
+            val left = if (line == first) laid.getPrimaryHorizontal(start) else laid.getLineLeft(line)
+            val endsHere = line == last && laid.getLineForOffset(end) == line
+            val right = if (endsHere) laid.getPrimaryHorizontal(end) else laid.getLineRight(line)
+            val base = laid.getLineBaseline(line)
+            canvas.drawRoundRect(
+                left - 2 * dp, base - size * 1.02f, right + 2 * dp, base + size * 0.36f,
+                5 * dp, 5 * dp, codePaint,
+            )
+        }
+    }
 }
 
 /** What a view last showed, so a parent drawing again with the same doesn't reset it. */
@@ -100,15 +150,14 @@ private fun TextView.setUp(context: Context) {
     breakStrategy = Layout.BREAK_STRATEGY_HIGH_QUALITY
 }
 
-private fun TextView.applyStyle(key: StyleKey, density: Density) {
+private fun TextView.applyStyle(key: StyleKey) {
     val shown = tag as Shown
     if (shown.style == key) return
     shown.style = key
     val (style, weight, c) = key
     typeface = Fonts.weighted(Fonts.inter(context), weight)
     setTextSize(TypedValue.COMPLEX_UNIT_SP, style.fontSize.value)
-    if (style.lineHeight.isSp) lineHeight = with(density) { style.lineHeight.toPx() }.roundToInt()
-    setTextColor((if (style.color.isUnspecified) c.foreground else style.color).toArgb())
+    setTextColor((if (style.color.isUnspecified) c.ink else style.color).toArgb())
     highlightColor = c.accent.copy(alpha = 0.3f).toArgb()
     for (handle in listOfNotNull(textSelectHandle, textSelectHandleLeft, textSelectHandleRight)) handle.mutate().setTint(c.accent.toArgb())
     textSelectHandle?.let(::setTextSelectHandle)
@@ -137,12 +186,26 @@ private fun TextView.show(text: Spanned, selectable: Boolean) {
 private object Fonts {
     @Volatile private var inter: Typeface? = null
     @Volatile private var mono: Typeface? = null
+    @Volatile private var ribbon: Typeface? = null
 
     fun inter(context: Context): Typeface =
         inter ?: (ResourcesCompat.getFont(context, R.font.inter_variable) ?: Typeface.DEFAULT).also { inter = it }
 
     fun mono(context: Context): Typeface =
         mono ?: (ResourcesCompat.getFont(context, R.font.jetbrains_mono_regular) ?: Typeface.MONOSPACE).also { mono = it }
+
+    fun ribbon(context: Context): Typeface =
+        ribbon ?: (ResourcesCompat.getFont(context, R.font.relay_ribbon) ?: inter(context)).also { ribbon = it }
+
+    fun prose(context: Context): ProseFonts {
+        val base = inter(context)
+        return ProseFonts(
+            inter = base,
+            interSemiBold = weighted(base, 600),
+            mono = mono(context),
+            ribbon = ribbon(context),
+        )
+    }
 
     private val weights = ConcurrentHashMap<Pair<Typeface, Int>, Typeface>()
 
@@ -153,73 +216,6 @@ private object Fonts {
      */
     fun weighted(base: Typeface, weight: Int): Typeface = weights.getOrPut(base to weight) {
         Paint().apply { typeface = base; fontVariationSettings = "'wght' $weight" }.typeface
-    }
-}
-
-/** The same marks InlineText draws in Compose, as Android spans. */
-private fun spannedOf(inlines: List<MdInline>, ctx: MdContext, c: RelayColors, density: Density, mono: Typeface, inter: Typeface): Spanned {
-    val code = Code(mono, with(density) { 13.5.sp.toPx() })
-    val strong = Weight(Fonts.weighted(inter, 600))
-    return SpannableStringBuilder().apply { appendInlines(inlines, ctx, c, code, strong, inLink = false) }
-}
-
-private fun SpannableStringBuilder.appendInlines(inlines: List<MdInline>, ctx: MdContext, c: RelayColors, code: Code, strong: Weight, inLink: Boolean) {
-    for (inline in inlines) when (inline) {
-        is MdInline.Plain -> append(inline.text)
-        is MdInline.Strong -> span(strong.copy()) { appendInlines(inline.children, ctx, c, code, strong, inLink) }
-        is MdInline.Em -> span(StyleSpan(Typeface.ITALIC)) { appendInlines(inline.children, ctx, c, code, strong, inLink) }
-        is MdInline.Del -> span(StrikethroughSpan()) { appendInlines(inline.children, ctx, c, code, strong, inLink) }
-        is MdInline.Math -> {
-            val plain = texToPlain(inline.tex)
-            if (plain == null) span(code.copy(), ForegroundColorSpan(c.mutedForeground.toArgb())) { append(inline.tex) }
-            else span(TypefaceSpan(Typeface.SERIF), StyleSpan(Typeface.ITALIC)) { append(plain) }
-        }
-        is MdInline.Code -> {
-            val open = if (inLink) null else ctx.code(inline.code)
-            val marks = listOfNotNull<Any>(
-                code.copy(),
-                BackgroundColorSpan(c.code.toArgb()),
-                ForegroundColorSpan((if (open != null) c.accent else c.foreground).toArgb()),
-                open?.let { Click(it, null) },
-            )
-            span(*marks.toTypedArray()) { append(inline.code) }
-        }
-        is MdInline.Link -> link(inline.href, ctx, c, inLink) { appendInlines(inline.children, ctx, c, code, strong, inLink = true) }
-        is MdInline.Image ->
-            if (isWebUrl(inline.src)) link(inline.src, ctx, c, inLink) { append(inline.alt.ifEmpty { inline.src }) }
-            else append(inline.alt)
-    }
-}
-
-private inline fun SpannableStringBuilder.link(href: String, ctx: MdContext, c: RelayColors, inLink: Boolean, body: SpannableStringBuilder.() -> Unit) {
-    val open = if (inLink) null else ctx.link(href)
-    if (open == null) body() else span(Click(open, c.accent)) { body() }
-}
-
-private inline fun SpannableStringBuilder.span(vararg marks: Any, body: SpannableStringBuilder.() -> Unit) {
-    val start = length
-    body()
-    for (mark in marks) setSpan(mark, start, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
-}
-
-/** Inter at a weight made beforehand ([Fonts.weighted]); each use takes a copy, as a span marks one range. */
-private class Weight(private val face: Typeface) : MetricAffectingSpan() {
-    fun copy() = Weight(face)
-    override fun updateMeasureState(paint: TextPaint) = apply(paint)
-    override fun updateDrawState(paint: TextPaint) = apply(paint)
-    private fun apply(paint: TextPaint) {
-        paint.typeface = face
-    }
-}
-
-/** JetBrains Mono at InlineText's 13.5sp; each use takes a copy, as a span marks one range. */
-private class Code(private val mono: Typeface, private val sizePx: Float) : MetricAffectingSpan() {
-    fun copy() = Code(mono, sizePx)
-    override fun updateMeasureState(paint: TextPaint) = apply(paint)
-    override fun updateDrawState(paint: TextPaint) = apply(paint)
-    private fun apply(paint: TextPaint) {
-        paint.typeface = mono
-        paint.textSize = sizePx
     }
 }
 
@@ -253,15 +249,5 @@ private object SelectableLinks : ArrowKeyMovementMethod() {
         if (x < layout.getLineLeft(line) || x > layout.getLineRight(line)) return null
         val at = layout.getOffsetForHorizontal(line, x)
         return buffer.getSpans(at, at, ClickableSpan::class.java).firstOrNull()
-    }
-}
-
-/** A link or path: the accent colour without an underline, or the text's own colour for code. */
-private class Click(private val open: () -> Unit, private val color: Color?) : ClickableSpan() {
-    override fun onClick(widget: View) = open()
-
-    override fun updateDrawState(paint: TextPaint) {
-        if (color != null) paint.color = color.toArgb()
-        paint.isUnderlineText = false
     }
 }

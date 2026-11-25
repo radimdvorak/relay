@@ -41,20 +41,31 @@ class WatchService : Service() {
             Log.w(TAG, "Couldn't stay in the foreground", e)
             stopSelf()
         }
+        arriving = false
+        if (leavesOnArrival) stopSelf()
         return START_NOT_STICKY
     }
 
     companion object {
         private const val TAG = "WatchService"
 
+        // Both are the main thread's, as starts, stops and the service itself are.
+        /** Asked for and not in the foreground yet: stopped before it is, Android kills the app. */
+        private var arriving = false
+        private var leavesOnArrival = false
+
         /** Throws when Android refuses a start from the background. */
         fun start(context: Context, title: String, text: String) {
             context.startForegroundService(
                 Intent(context, WatchService::class.java).putExtra("title", title).putExtra("text", text),
             )
+            arriving = true
+            leavesOnArrival = false
         }
 
         fun stop(context: Context) {
+            leavesOnArrival = arriving
+            if (arriving) return
             context.stopService(Intent(context, WatchService::class.java))
         }
 

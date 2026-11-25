@@ -27,8 +27,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.layout.Box
@@ -65,11 +63,9 @@ import dev.relay.android.remote.model.ChatMessage
 import dev.relay.android.ui.Icon
 import dev.relay.android.ui.Text
 import dev.relay.android.ui.pressable
-import dev.relay.android.ui.theme.Radii
 import dev.relay.android.ui.theme.RelayTheme
 import io.github.lyxnx.compose.ui.tablericons.TablerIcons
 import io.github.lyxnx.compose.ui.tablericons.outline.Brain
-import io.github.lyxnx.compose.ui.tablericons.outline.ChevronRight
 import io.github.lyxnx.compose.ui.tablericons.outline.Clock
 import io.github.lyxnx.compose.ui.tablericons.outline.CornerDownRight
 import io.github.lyxnx.compose.ui.tablericons.outline.FilePencil
@@ -150,12 +146,11 @@ fun AgentRun(
     if (!live && turn.entries.isEmpty()) return
     val display = displayIn(root)
     val heading = turnHeading(message, expanded, turn)
-    val muted = RelayTheme.colors.mutedForeground
-    Column(modifier.padding(top = 2.dp, bottom = 4.dp)) {
+    Column(modifier.padding(bottom = 2.dp)) {
         Row(
-            Modifier.heightIn(min = 26.dp).pressable(onClick = { unfold { toggled = !expanded } }, scale = false),
+            Modifier.heightIn(min = TraceLine).pressable(onClick = { unfold { toggled = !expanded } }, scale = false),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(7.dp),
+            horizontalArrangement = Arrangement.spacedBy(TraceGap),
         ) {
             val icon = when (heading) {
                 TurnHeading.Working -> TablerIcons.Outline.Clock
@@ -163,12 +158,12 @@ fun AgentRun(
                 is TurnHeading.Done -> heading.last?.let(::iconOf) ?: TablerIcons.Outline.Brain
                 else -> null
             }
-            if (icon != null) Icon(icon, null, size = 14.dp, tint = muted) else ThinkingGlyph(message.provider)
+            if (icon != null) StepIcon(icon) else ThinkingGlyph(message.provider)
             Row(Modifier.weight(1f, fill = false)) {
                 when (heading) {
                     TurnHeading.Thinking -> ThinkingWord(message.id)
-                    TurnHeading.Working -> Text("Working for", color = muted)
-                    is TurnHeading.Done -> Text(heading.text, color = muted, maxLines = 1)
+                    TurnHeading.Working -> StepText("Working for")
+                    is TurnHeading.Done -> StepText(heading.text)
                     is TurnHeading.Call -> ShineText(display(liveLabel(heading.activity)))
                     TurnHeading.Writing -> ShineText("Writing")
                 }
@@ -179,17 +174,14 @@ fun AgentRun(
                     "${if (message.status == "cancelled") "Stopped after " else ""}${duration(message.ended - message.created)}"
                 else -> null
             }
-            if (time != null) Text(time, Modifier.alpha(0.7f), color = muted)
-            Icon(
-                TablerIcons.Outline.ChevronRight, null, size = 13.dp, tint = RelayTheme.colors.faint,
-                modifier = if (expanded) Modifier.rotate(90f) else Modifier,
-            )
+            if (time != null) StepText(time, color = RelayTheme.colors.inkFaint)
+            StepChevron(expanded)
         }
         val loadSteps = LocalTurnSteps.current
         if (expanded && message.stepsLeftOut != null && loadSteps != null) StepsComing(message.id, loadSteps)
         else if (expanded && (turn.entries.isNotEmpty() || turn.thinking)) {
             CompositionLocalProvider(LocalTrace provides TraceScope(turn.calls, display, chatId, message.id, onOpenImage)) {
-                Column(Modifier.padding(top = 6.dp)) {
+                Column(Modifier.padding(top = 4.dp)) {
                     val parts = groupTrace(turn.shown)
                     parts.forEachIndexed { index, part ->
                         key(part.id) {
@@ -212,16 +204,6 @@ fun AgentRun(
             }
         }
     }
-}
-
-@Composable
-internal fun Step(modifier: Modifier = Modifier, content: @Composable RowScope.() -> Unit) {
-    Row(
-        modifier.fillMaxWidth().heightIn(min = 26.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(7.dp),
-        content = content,
-    )
 }
 
 /** A fold that builds its body the first time it opens; [under] shows below the heading either way. */
@@ -266,16 +248,15 @@ internal fun ToolRow(a: AgentActivity) {
     val shines = a.status == "running" && !isQuestionCall(a)
     // A failed call looks like any other: commands fail as part of the work.
     val heading: @Composable RowScope.() -> Unit = {
-        Icon(iconOf(a), null, Modifier.alpha(0.75f), size = 14.dp, tint = RelayTheme.colors.mutedForeground)
-        Text(
+        StepIcon(iconOf(a))
+        StepText(
             label, Modifier.weight(1f).then(if (shines) Modifier.shine() else Modifier),
-            maxLines = 1, color = RelayTheme.colors.mutedForeground,
-            style = if (a.kind == "command") RelayTheme.type.monoSm else RelayTheme.type.sm,
+            style = if (a.kind == "command") traceCode() else traceText(),
         )
         Progress(a)
     }
     val preview = trace.chatId.isNotEmpty() && looksAtImage(a)
-    val under = @Composable { if (preview) Box(Modifier.padding(start = 21.dp)) { Preview(a, label) } }
+    val under = @Composable { if (preview) Box(Modifier.padding(start = TraceIndent)) { Preview(a, label) } }
     // Its threads list under the turn; the ids it returned say nothing to a reader.
     if ((a.detail == null || isStartThreads(a)) && calls.isEmpty()) {
         Column {
@@ -295,16 +276,16 @@ internal fun ToolRow(a: AgentActivity) {
 private fun AnsweredQuestions(questions: List<AskedQuestion>) {
     val c = RelayTheme.colors
     Fold({
-        Icon(TablerIcons.Outline.MessageCircleQuestion, null, Modifier.alpha(0.75f), size = 14.dp, tint = c.mutedForeground)
-        Text("Asked you ${plural(questions.size, "question")}", Modifier.weight(1f), maxLines = 1, color = c.mutedForeground)
+        StepIcon(TablerIcons.Outline.MessageCircleQuestion)
+        StepText("Asked you ${plural(questions.size, "question")}", Modifier.weight(1f))
     }) {
-        SelectionContainer(Modifier.padding(start = 21.dp, top = 2.dp, bottom = 8.dp)) {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        SelectionContainer(Modifier.padding(start = TraceIndent, top = 2.dp, bottom = 8.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 for (q in questions) Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text(q.question, color = c.mutedForeground)
+                    Text(q.question, style = traceText(), color = c.inkSoft)
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Icon(TablerIcons.Outline.CornerDownRight, null, Modifier.padding(top = 3.dp).alpha(0.6f), size = 12.dp, tint = c.foreground)
-                        Text(q.answer, Modifier.weight(1f))
+                        Icon(TablerIcons.Outline.CornerDownRight, null, Modifier.padding(top = 2.dp), size = 14.dp, tint = c.inkFaint)
+                        Text(q.answer, Modifier.weight(1f), style = traceText())
                     }
                 }
             }
@@ -317,10 +298,10 @@ private fun AnsweredQuestions(questions: List<AskedQuestion>) {
 internal fun Detail(a: AgentActivity, detail: String = fetchedDetail(a) ?: a.detail.orEmpty()) {
     val shown = if (a.kind == "command") remember(detail) { terminalText(detail) } else detail
     SelectionContainer(
-        Modifier.padding(start = 21.dp, top = 2.dp, bottom = 8.dp).fillMaxWidth().heightIn(max = 220.dp)
-            .background(RelayTheme.colors.muted, Radii.smShape).verticalScroll(rememberScrollState()).padding(9.dp),
+        Modifier.padding(start = TraceIndent, top = 2.dp, bottom = 8.dp).fillMaxWidth().heightIn(max = 220.dp)
+            .background(RelayTheme.colors.container, TraceBox).verticalScroll(rememberScrollState()).padding(12.dp),
     ) {
-        Text(shown, style = RelayTheme.type.monoSm, color = RelayTheme.colors.mutedForeground)
+        Text(shown, style = traceCode(), color = RelayTheme.colors.inkSoft)
     }
 }
 
@@ -347,7 +328,7 @@ internal fun fetchedDetail(a: AgentActivity): String? {
 
 @Composable
 private fun SubagentRows(calls: List<AgentActivity>) {
-    Column(Modifier.padding(start = 21.dp, bottom = 4.dp)) { calls.forEach { ToolRow(it) } }
+    Column(Modifier.padding(start = TraceIndent, bottom = 4.dp)) { calls.forEach { ToolRow(it) } }
 }
 
 /** A run of tool calls between two commentary lines, folded into "Ran 6 commands". */
@@ -359,17 +340,17 @@ internal fun ActivityGroup(activity: List<AgentActivity>) {
     // Closed, the pictures its calls looked at still show; open, each sits under its own row.
     val looked = if (trace.chatId.isNotEmpty()) activity.filter(::looksAtImage) else emptyList()
     Fold({
-        Icon(icon, null, Modifier.alpha(0.75f), size = 14.dp, tint = RelayTheme.colors.mutedForeground)
-        Text(summarizeActivity(activity), Modifier.weight(1f), maxLines = 1, color = RelayTheme.colors.mutedForeground)
+        StepIcon(icon)
+        StepText(summarizeActivity(activity), Modifier.weight(1f))
     }, under = { open ->
         if (!open && looked.isNotEmpty()) Row(
-            Modifier.padding(start = 21.dp).horizontalScroll(rememberScrollState()),
+            Modifier.padding(start = TraceIndent).horizontalScroll(rememberScrollState()),
             horizontalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             looked.forEach { a -> key(a.id) { Preview(a, display(a.label)) } }
         }
     }) {
-        Column(Modifier.padding(start = 21.dp, bottom = 4.dp)) { activity.forEach { ToolRow(it) } }
+        Column(Modifier.padding(start = TraceIndent, bottom = 4.dp)) { activity.forEach { ToolRow(it) } }
     }
 }
 
@@ -377,13 +358,13 @@ internal fun ActivityGroup(activity: List<AgentActivity>) {
 @Composable
 private fun Progress(a: AgentActivity) {
     if (a.status != "running" || a.progress == null) return
-    Text("· ${a.progress}", Modifier.alpha(0.6f), maxLines = 1, color = RelayTheme.colors.mutedForeground)
+    StepText("· ${a.progress}", color = RelayTheme.colors.inkFaint)
 }
 
 /** Under your newest message (a steer, or a send not picked up yet) while the agent is still at it. */
 @Composable
 fun AwaitingAnswer(provider: String, seed: String, modifier: Modifier = Modifier) {
-    Row(modifier.padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    Row(modifier.padding(start = ThreadInset, end = ThreadInset, bottom = 8.dp).heightIn(min = TraceLine), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(TraceGap)) {
         ThinkingGlyph(provider)
         ThinkingWord(seed)
     }

@@ -1,125 +1,83 @@
-@file:OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
-
 package dev.relay.android.features.composer
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.content.MediaType
-import androidx.compose.foundation.content.consume
-import androidx.compose.foundation.content.contentReceiver
-import androidx.compose.foundation.content.hasMediaType
-import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
-import dev.relay.android.ui.ListRow
-import dev.relay.android.ui.Sheet as SheetView
-import dev.relay.android.ui.Switch
-import io.github.lyxnx.compose.ui.tablericons.outline.ListCheck
-import io.github.lyxnx.compose.ui.tablericons.outline.ShieldCheck
-import io.github.lyxnx.compose.ui.tablericons.outline.Sparkles
-import kotlin.math.roundToInt
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.focus.onFocusChanged
-import dev.relay.android.features.diagnostics.LocalScrollTrace
-import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.TextFieldValue
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import dev.relay.android.features.composer.logic.ComposeDraft
+import dev.relay.android.features.composer.logic.CommandResult
 import dev.relay.android.features.composer.logic.CommandSettings
-import dev.relay.android.features.composer.logic.ModelCatalogs
+import dev.relay.android.features.composer.logic.ComposeDraft
+import dev.relay.android.features.composer.logic.DraftCommand
+import dev.relay.android.features.composer.logic.FilePhase
 import dev.relay.android.features.composer.logic.NewThreadModels
 import dev.relay.android.features.composer.logic.agentInfo
 import dev.relay.android.features.composer.logic.agentName
 import dev.relay.android.features.composer.logic.agentProviders
-import dev.relay.android.features.composer.logic.offeredAgents
 import dev.relay.android.features.composer.logic.appendQuote
 import dev.relay.android.features.composer.logic.composeAttempt
 import dev.relay.android.features.composer.logic.composerCommand
-import dev.relay.android.features.composer.logic.effortLabel
+import dev.relay.android.features.composer.logic.draftCommand
 import dev.relay.android.features.composer.logic.isComposerCommand
-import dev.relay.android.features.composer.logic.modeLabel
 import dev.relay.android.features.composer.logic.modelName
-import dev.relay.android.features.composer.logic.relayCommand
+import dev.relay.android.features.composer.logic.offersEffort
 import dev.relay.android.features.composer.logic.sameDraft
-import dev.relay.android.features.composer.logic.sendLaterPresets
-import dev.relay.android.features.composer.logic.sideRefusal
-import dev.relay.android.features.composer.logic.startsWithCommand
-import dev.relay.android.features.composer.logic.switchAgent
-import dev.relay.android.features.composer.logic.wakeLabel
+import dev.relay.android.features.composer.logic.shortEffortLabel
 import dev.relay.android.features.composer.logic.withComposerChange
-import dev.relay.android.features.composer.logic.withRememberedModel
-import dev.relay.android.features.dictation.Dictation
+import dev.relay.android.features.diagnostics.LocalScrollTrace
 import dev.relay.android.features.dictation.DictationButton
 import dev.relay.android.features.dictation.DictationInput
-import dev.relay.android.features.dictation.DictationState
 import dev.relay.android.features.dictation.canDictate
 import dev.relay.android.features.renders.composeInto
-import dev.relay.android.remote.Remote
 import dev.relay.android.remote.Bridge
+import dev.relay.android.remote.Remote
+import dev.relay.android.remote.client.LinkState
 import dev.relay.android.remote.drafts.Sends
 import dev.relay.android.remote.drafts.hasExtras
 import dev.relay.android.remote.model.ContextUsage
-import dev.relay.android.remote.client.LinkState
 import dev.relay.android.remote.model.ResumeSettings
 import dev.relay.android.remote.model.ThreadCost
-import dev.relay.android.ui.Icon
-import dev.relay.android.ui.ProviderIcon
 import dev.relay.android.ui.Text
 import dev.relay.android.ui.pressable
-import dev.relay.android.ui.ring
 import dev.relay.android.ui.theme.RelayTheme
-import io.github.lyxnx.compose.ui.tablericons.TablerIcons
-import io.github.lyxnx.compose.ui.tablericons.outline.ChevronDown
-import io.github.lyxnx.compose.ui.tablericons.outline.PhotoPlus
-import io.github.lyxnx.compose.ui.tablericons.outline.X
+import java.util.UUID
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
-import java.util.UUID
-import dev.relay.android.features.composer.logic.FilePhase
 
-// The desktop's composer on a phone (mobile/src/ui/Composer.tsx): the message,
-// then agent, model, mode and Plan under it.
-
-private enum class Sheet { Model, Mode, Attach, Later, Usage, Settings }
-
-private data class Pick(val model: String, val fast: Boolean, val effort: String, val contextWindow: String?)
+// The desktop's composer on a phone (mobile/src/ui/Composer.tsx): a pill that grows into a card
+// with the model and effort under the message, the rest behind its plus.
 
 private val wantsCommandsStart = Regex("^\\s*[/$]")
 private val wantsCommandsSkill = Regex("\\s\\$\\S*$")
 private val skillTail = Regex("(^|\\s)[$/][^\\s]*$")
-private val skillCommand = Regex("^/skill:[^\\s]+(?:\\s|$)")
-private val commandName = Regex("^/([^\\s]+)")
+
+/** Under the box, down to the keyboard or the screen's end. */
+internal val COMPOSER_BOTTOM = 10.dp
 
 @Composable
 internal fun ComposerCore(
@@ -146,15 +104,13 @@ internal fun ComposerCore(
     /** A new thread's models, per agent, for switching to one not picked here yet. */
     remembered: NewThreadModels = emptyMap(),
     autoFocus: Boolean = false,
+    /** Stays the pill even while it has focus, until what it waits for lets it grow. */
+    collapsed: Boolean = false,
+    /** On the message box itself, not the dock around it. */
+    boxModifier: Modifier = Modifier,
     /** Draws Send as the New thread button (pencil, its fill), with this modifier on it. */
     newThreadSend: Modifier? = null,
-    /**
-     * The model, permissions, plan and usage live up in the screen's header
-     * (through [handle]) instead of around the message box, where they took
-     * stray taps aimed at the keyboard and the send button. Without one, the
-     * box keeps only the model, whose sheet holds the rest, and the limits
-     * show as rings at the end of [above].
-     */
+    /** The screen shows the plan's limits (through [handle]), so they aren't repeated at the end of [above]. */
     settingsUp: Boolean = false,
     /** Over the message box, inside the dock. */
     above: @Composable ColumnScope.() -> Unit = {},
@@ -193,77 +149,23 @@ internal fun ComposerCore(
     var failedSend by unsent.failedSend
     var busy by remember { mutableStateOf(false) }
     var drawingOn by remember { mutableStateOf<Attachment?>(null) }
-    var sheet by remember { mutableStateOf<Sheet?>(null) }
+    var sheet by remember { mutableStateOf<ComposerSheetKind?>(null) }
     var dismissed by remember { mutableStateOf<String?>(null) }
     val provider = settings.provider
 
-    val dictation = remember(remote) { Dictation.of(remote, appContext) }
-    val dictationOwner = remember { Any() }
-    val dictationNow by dictation.state.collectAsState()
-    val dictating = dictationNow.owner === dictationOwner && dictationNow.phase != DictationState.Phase.Idle
-    val dictationError = if (dictationNow.owner === dictationOwner) dictationNow.error else null
+    val dictation = rememberComposerDictation(remote, draftKey)
     val input = remember { DictationInput({ value }, { value = it }, { typing }) }
-    // Leaving the thread, or its draft, takes unfinished words back out.
-    DisposableEffect(draftKey) {
-        onDispose {
-            val now = dictation.state.value
-            if (now.owner === dictationOwner && now.phase != DictationState.Phase.Idle) dictation.cancel()
-        }
-    }
-    /** Lets this composer's dictation finish; false when it can't yet (still starting). */
-    suspend fun finishDictation(): Boolean {
-        val now = dictation.state.value
-        if (now.owner !== dictationOwner || now.phase == DictationState.Phase.Idle) return true
-        val listening = now.phase == DictationState.Phase.Listening
-        dictation.stop()
-        if (!listening) return false
-        dictation.state.first { it.phase == DictationState.Phase.Idle }
-        return true
-    }
 
     FollowDraft(drafts, computer, draftKey, { value.text }, ::setText)
     val shared = computer?.let { pc -> draftKey?.let { drafts.shared(pc, it) } }
     // Screenshots the computer's composer has in this draft; they go with it from there.
     val computerShots = shared?.extras?.screenshots.orEmpty()
 
-    // Each agent keeps its own model while you switch between them, like the desktop's slots.
-    val picks = remember { mutableMapOf<String, Pick>() }
-    SideEffect {
-        picks[settings.provider] = settings.choice.let { Pick(it.model, it.fast, it.reasoningEffort, settings.contextWindow) }
-    }
-    fun switched(next: ResumeSettings, to: String): ResumeSettings {
-        if (to == next.provider) return next
-        val kept = picks[to]
-        val other = switchAgent(next, to)
-        return if (kept != null) other.copy(
-            choice = other.choice.copy(model = kept.model, fast = kept.fast, reasoningEffort = kept.effort),
-            contextWindow = kept.contextWindow ?: other.contextWindow,
-        ) else withRememberedModel(other, remembered)
-    }
+    val switched = rememberAgentSwitch(settings, remembered)
 
-    // Held for the connection, so the toolbar names the model at once.
-    var catalogs by remember(computer, connection) { mutableStateOf(ModelLists.known(computer, connection)) }
-    val saves = remember { ComposerSaves.of(appContext.cacheDir) }
-    LaunchedEffect(computer) {
-        val pc = computer ?: return@LaunchedEffect
-        if (ModelLists.readSaved(saves, pc)) catalogs = ModelLists.known(pc, connection)
-    }
-    suspend fun loadCatalogs(wanted: List<String>): ModelCatalogs {
-        val cl = client ?: return catalogs
-        val pc = computer ?: return catalogs
-        return ModelLists.load(cl, pc, connection, wanted, saves).also { catalogs = it }
-    }
-    LaunchedEffect(client, computer, provider, online, connection) { runCatching { loadCatalogs(listOf(provider)) } }
-    // The agents in Settings' order, without the ones switched off but this composer's own.
-    var ai by remember(computer) { mutableStateOf(AgentPrefs.known(computer)) }
-    suspend fun readAgentPrefs() {
-        ai = AgentPrefs.load(client ?: return, computer ?: return)
-    }
-    LaunchedEffect(client, computer, online, connection) { readAgentPrefs() }
-    // Settings → Agents may have changed since the composer asked.
-    val modelSheet = sheet == Sheet.Model
-    LaunchedEffect(modelSheet) { if (modelSheet) readAgentPrefs() }
-    val offered = offeredAgents(ai?.agentOrder.orEmpty(), ai?.agentsOff.orEmpty(), provider)
+    val picking = sheet == ComposerSheetKind.Model || sheet == ComposerSheetKind.Effort
+    val lists = rememberAgentLists(client, computer, connection, online, provider, picking, appContext)
+    val catalogs = lists.models
     val modelLabel = if (settings.choice.model.isNotEmpty()) modelName(provider, catalogs[provider], settings.choice.model) else "Default"
 
     val usage = rememberUsage(remote, provider)
@@ -275,12 +177,13 @@ internal fun ComposerCore(
         setText(next)
         error = null
     }
+    val dictate = rememberDictate(dictation, input, possible = canDictate(remote) && !disabled && !busy, instead = { focus.requestFocus() })
     SideEffect {
         handle?.apply {
             onQuote = { md ->
                 scope.launch {
                     // Keep the words already spoken; a dictation update mustn't overwrite the quote.
-                    if (!finishDictation()) return@launch
+                    if (!dictation.finish()) return@launch
                     val next = appendQuote(value.text, md)
                     value = TextFieldValue(next.text, TextRange(next.end))
                     runCatching { focus.requestFocus() }
@@ -307,16 +210,12 @@ internal fun ComposerCore(
             onCompose = { page, earlier -> setText(composeInto(value.text, page, earlier)) }
             onFocus = { runCatching { focus.requestFocus() } }
             onSettingsOn = { to -> switched(settings, to) }
-            onOpenSettings = { sheet = Sheet.Settings }
-            onOpenUsage = { sheet = Sheet.Usage }
+            onOpenSettings = { sheet = ComposerSheetKind.Settings }
+            onOpenUsage = { sheet = ComposerSheetKind.Usage }
+            onOpenAttach = { sheet = ComposerSheetKind.Add }
+            onDictate = dictate
             this.usage = ComposerUsage(provider, usage.usage)
-            line = ComposerLine(
-                modelLabel + (if (settings.choice.reasoningEffort.isNotEmpty()) " · ${effortLabel(settings.choice.reasoningEffort)}" else "") +
-                    (if (agentInfo(provider)?.fast == true && settings.choice.fast) " · Fast" else ""),
-                modeLabel(settings.runtimeMode),
-                settings.interactionMode == "plan",
-                context?.maxTokens?.takeIf { it > 0 }?.let { minOf(100, (context.usedTokens * 100.0 / it).roundToInt()) },
-            )
+            line = composerLine(settings, modelLabel, context)
         }
     }
     if (autoFocus) LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }
@@ -324,12 +223,16 @@ internal fun ComposerCore(
     /** The desktop's runCommand for a composer setting; with no value, its picker opens. */
     suspend fun setting(name: String, args: String): RunResult {
         if (args.isEmpty() && name != "plan" && name != "fast") {
-            sheet = if (name == "permissions") Sheet.Mode else Sheet.Model
+            sheet = when (name) {
+                "permissions" -> ComposerSheetKind.Mode
+                "effort" -> ComposerSheetKind.Effort
+                else -> ComposerSheetKind.Model
+            }
             return RunResult.Done
         }
         val known = when (name) {
-            "model" -> loadCatalogs(offered).filterKeys { it in offered }
-            "effort", "fast" -> loadCatalogs(listOf(provider))
+            "model" -> lists.load(lists.offered).filterKeys { it in lists.offered }
+            "effort", "fast" -> lists.load(listOf(provider))
             else -> emptyMap()
         }
         val result = composerCommand(
@@ -337,9 +240,9 @@ internal fun ComposerCore(
             CommandSettings(provider, agentProviders, settings.choice.model, settings.choice.fast, settings.interactionMode == "plan", known),
         )
         return when (result) {
-            is dev.relay.android.features.composer.logic.CommandResult.Error -> RunResult.Failed(result.message)
-            is dev.relay.android.features.composer.logic.CommandResult.Change -> {
-                onSettings(withComposerChange(settings, result.change, known, ::switched))
+            is CommandResult.Error -> RunResult.Failed(result.message)
+            is CommandResult.Change -> {
+                onSettings(withComposerChange(settings, result.change, known, switched))
                 RunResult.Done
             }
         }
@@ -348,7 +251,7 @@ internal fun ComposerCore(
         scope.launch {
             val result = when {
                 isComposerCommand(name) -> setting(name, args)
-                name == "context" -> RunResult.Done.also { sheet = Sheet.Usage }
+                name == "context" -> RunResult.Done.also { sheet = ComposerSheetKind.Usage }
                 onCommand != null -> try { onCommand(name, args) } catch (e: CancellationException) { throw e } catch (e: Exception) { RunResult.Failed(e.message ?: e.toString()) }
                 else -> RunResult.Failed("That works in a thread.")
             }
@@ -379,9 +282,8 @@ internal fun ComposerCore(
     /** `written` is the draft when it hasn't reached `text` yet. */
     fun send(delivery: String? = null, sendAt: Long? = null, written: String = text) {
         // Sending mid-dictation waits for the last words to land in the draft.
-        val now = dictation.state.value
-        if (now.owner === dictationOwner && now.phase != DictationState.Phase.Idle) {
-            scope.launch { if (finishDictation()) send(delivery, sendAt, input.dictated) }
+        if (dictation.activeNow) {
+            scope.launch { if (dictation.finish()) send(delivery, sendAt, input.dictated) }
             return
         }
         if ((written.isBlank() && images.isEmpty() && files.isEmpty() && computerShots.isEmpty()) || busy) return
@@ -406,30 +308,13 @@ internal fun ComposerCore(
         }
         val held = (overview?.bridge ?: 1) >= Bridge.DRAFTS && hasExtras(shared?.extras)
         val draft = written.trim()
-        if (startsWithCommand(draft)) {
-            val command = relayCommand(draft)
-            // The agent runs `/goal` itself; it goes out as a message.
-            if (command?.name == "goal" && provider != "codex" && provider != "claude") {
-                error = "Pick Codex or Claude Code to set a goal."
+        when (val command = draftCommand(draft, provider, commands.commands)) {
+            is DraftCommand.Run -> return run(command.name, command.args)
+            is DraftCommand.Refused -> {
+                error = command.why
                 return
             }
-            if (command != null && command.name != "btw" && command.name != "goal") return run(command.name, command.args)
-            if (command?.name == "btw" && command.args.isEmpty()) {
-                error = "Add a question after /btw."
-                return
-            }
-            val refusal = if (command?.name == "btw") sideRefusal(provider) else null
-            if (refusal != null) {
-                error = refusal
-                return
-            }
-            val name = commandName.find(draft)?.groupValues?.get(1)
-            val agentCommand = agentInfo(provider)?.commandsAlone == true && commands.commands.any { it.name == name }
-            val skill = agentInfo(provider)?.skills == true && skillCommand.containsMatchIn(draft)
-            if (command == null && !agentCommand && !skill) {
-                error = "Choose a command from the menu. Relay actions run on their own; add instructions after a skill or an agent's command."
-                return
-            }
+            DraftCommand.Message -> {}
         }
         val attempt = composeAttempt(
             ComposeDraft(target, draft, settings, images),
@@ -498,15 +383,40 @@ internal fun ComposerCore(
     val stop = running && empty && onStop != null
     val plan = settings.interactionMode == "plan"
 
+    val effort = settings.choice.reasoningEffort
+    val choices = ModelChoices(
+        provider, modelLabel,
+        effort = shortEffortLabel(effort).takeIf { effort.isNotEmpty() || offersEffort(provider, settings.choice.model, catalogs) },
+        fast = agentInfo(provider)?.fast == true && settings.choice.fast,
+        plan = plan,
+    )
+    val covered = sheet != null || drawingOn != null
+    val writing = rememberTyping(typing, held = covered)
+    KeepKeyboard(typing, held = covered)
+    val expanded = (writing && !collapsed) || !empty || dictation.active
+    SideEffect { handle?.expanded = expanded }
+    val windowInfo = LocalWindowInfo.current
+    val keyboard = LocalSoftwareKeyboardController.current
+
+    /** Starts a command or a skill from the sheet; the keyboard can only come once the sheet's window has gone. */
+    fun begin(next: String) {
+        edit(next)
+        scope.launch {
+            snapshotFlow { windowInfo.isWindowFocused && sheet == null }.first { it }
+            runCatching { focus.requestFocus() }
+            keyboard?.show()
+        }
+    }
+
     Column(
-        modifier.fillMaxWidth().background(c.background).padding(horizontal = 10.dp).padding(top = 8.dp, bottom = 10.dp).navigationBarsPadding(),
-        verticalArrangement = Arrangement.spacedBy(6.dp),
+        modifier.fillMaxWidth().background(c.surface).padding(horizontal = 15.dp).padding(top = 8.dp, bottom = COMPOSER_BOTTOM).navigationBarsPadding(),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        // Without a header to hold them, the plan's limits sit at the end of the line over the box, away from the thumb.
+        // Without a screen to hold them, the plan's limits sit at the end of the line over the box, away from the thumb.
         if (settingsUp) above()
         else Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) { above() }
-            UsageRings(provider, usage.usage, onClick = { sheet = Sheet.Usage })
+            UsageRings(provider, usage.usage, onClick = { sheet = ComposerSheetKind.Usage })
         }
         if (items != null) CommandMenu(items, commands.loading, commands.failed, ::pick)
         drawingOn?.let { image ->
@@ -519,22 +429,28 @@ internal fun ComposerCore(
         }
         val pc = computer
         if (pc != null && draftKey != null) DraftNotes(drafts, pc, draftKey, shared)
-        (error ?: dictationError)?.let { e ->
+        (error ?: dictation.error)?.let { e ->
             Text(
                 e + if (error != null && retryingScheduled) " Tap send to retry at the original time." else "",
-                Modifier.padding(horizontal = 6.dp).pressable(onClick = {
-                    if (error == null) return@pressable dictation.clearError()
+                Modifier.padding(horizontal = 16.dp).pressable(onClick = {
+                    if (error == null) return@pressable dictation.dictation.clearError()
                     error = null
                     dismissed = text
                 }, scale = false),
-                style = RelayTheme.type.xs, color = c.destructive,
+                style = RelayTheme.type.meta, color = c.danger,
             )
         }
-        Column(
-            Modifier.fillMaxWidth().background(c.card, RoundedCornerShape(18.dp)).ring(c.border, RoundedCornerShape(18.dp))
-                .padding(start = 6.dp, end = 6.dp, top = 4.dp, bottom = 6.dp),
-        ) {
-            if (images.isNotEmpty() || computerShots.isNotEmpty() || files.isNotEmpty()) {
+        val attached = images.isNotEmpty() || computerShots.isNotEmpty() || files.isNotEmpty()
+        val scrollTrace = LocalScrollTrace.current
+        ComposerBox(
+            expanded = expanded,
+            choices = choices,
+            onAdd = { sheet = ComposerSheetKind.Add },
+            onModel = { sheet = ComposerSheetKind.Model },
+            onEffort = { sheet = ComposerSheetKind.Effort },
+            onPlan = { sheet = ComposerSheetKind.Settings },
+            modifier = boxModifier,
+            attachments = if (!attached) null else ({
                 ImageStrip(
                     images, computerShots, onRemove = { i -> images = images.filterIndexed { j, _ -> j != i } },
                     onEdit = { i -> drawingOn = images.getOrNull(i) },
@@ -545,132 +461,59 @@ internal fun ComposerCore(
                     },
                     onRetryFile = { FileUploads.retry(it, remote) },
                 )
-            }
-            Box(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp)) {
-                if (text.isEmpty()) Text(placeholder ?: "Message ${agentName(provider)}", color = c.faint, style = RelayTheme.type.base)
-                val scrollTrace = LocalScrollTrace.current
-                BasicTextField(
-                    field,
-                    Modifier.fillMaxWidth().heightIn(min = 22.dp, max = 132.dp).focusRequester(focus)
-                        .onFocusChanged {
-                            if (typing != it.isFocused) scrollTrace?.event("composer_focus", "focused" to it.isFocused)
-                            typing = it.isFocused
-                        }
-                        // Images from the keyboard's clipboard or a long-press Paste; text goes on into the field.
-                        .contentReceiver { content ->
-                            if (!content.hasMediaType(MediaType.Image)) return@contentReceiver content
-                            val uris = mutableListOf<android.net.Uri>()
-                            val rest = content.consume { item -> item.uri?.also { uris += it } != null }
-                            pickers.receive(uris)
-                            rest
-                        }
-                        .semantics { contentDescription = "Message" },
-                    textStyle = RelayTheme.type.base.copy(color = c.foreground),
-                    cursorBrush = SolidColor(c.accent),
-                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
-                    inputTransformation = { error = null },
+            }),
+            field = {
+                ComposerField(
+                    field, placeholder ?: "Message ${agentName(provider)}", focus,
+                    onFocus = {
+                        if (typing != it) scrollTrace?.event("composer_focus", "focused" to it)
+                        typing = it
+                    },
+                    onEdit = { error = null },
+                    onImages = { pickers.receive(it) },
                 )
-            }
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                // Short of room, the model's label is cut short.
-                Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                Tool("Attach a photo", onClick = { sheet = Sheet.Attach }) {
-                    Icon(TablerIcons.Outline.PhotoPlus, null, size = 17.dp, tint = c.mutedForeground)
-                }
-                // Permissions and Plan are a tap further, in the sheet it opens with the model.
-                if (!settingsUp) Tool("Model, permissions and plan", Modifier.weight(1f, fill = false), onClick = { sheet = Sheet.Settings }) {
-                    ProviderIcon(provider, c.mutedForeground, size = 14.dp)
-                    Text(
-                        modelLabel +
-                            (if (settings.choice.reasoningEffort.isNotEmpty()) " · ${effortLabel(settings.choice.reasoningEffort)}" else "") +
-                            (if (agentInfo(provider)?.fast == true && settings.choice.fast) " · Fast" else "") +
-                            (if (plan) " · Plan" else ""),
-                        Modifier.weight(1f, fill = false),
-                        style = RelayTheme.type.xs, color = c.mutedForeground, maxLines = 1, overflow = TextOverflow.Ellipsis,
-                    )
-                    Icon(TablerIcons.Outline.ChevronDown, null, size = 12.dp, tint = c.faint)
-                }
-                }
-                if (dictating && dictationNow.phase == DictationState.Phase.Listening) Tool("Discard dictation", onClick = { dictation.cancel() }) {
-                    Icon(TablerIcons.Outline.X, null, size = 16.dp, tint = c.mutedForeground)
-                }
-                if (text.isEmpty() && !dictating) Tool("Commands", onClick = {
-                    edit("/")
-                    runCatching { focus.requestFocus() }
-                }) {
-                    Text("/", style = RelayTheme.type.mono, color = c.mutedForeground)
-                }
-                // The two sends stay side by side, as on the desktop.
-                if (canDictate(remote)) DictationButton(remote, dictationOwner, target = { input }, enabled = !disabled && !busy)
+            },
+            buttons = {
                 SendButtons(
-                    steering = steering, stop = stop, running = running, empty = empty, retryingScheduled = retryingScheduled,
-                    enabled = !disabled && !busy,
+                    SendState(
+                        empty = empty, running = running, stop = stop, steering = steering, retryingScheduled = retryingScheduled,
+                        enabled = !disabled && !busy, dictating = dictation.active, discardable = dictation.listening,
+                    ),
                     onSteer = { send("steer") },
                     onSend = { if (stop) onStop?.invoke() else send() },
-                    onLater = { sheet = Sheet.Later },
+                    onLater = { sheet = ComposerSheetKind.Later },
+                    onDiscardDictation = { dictation.dictation.cancel() },
+                    mic = if (!canDictate(remote)) null else ({ strong ->
+                        DictationButton(remote, dictation.owner, target = { input }, enabled = !disabled && !busy, strong = strong)
+                    }),
                     newThread = newThreadSend,
                 )
-            }
-        }
+            },
+        )
     }
 
-    when (sheet) {
-        Sheet.Model -> ModelSheet(
-            client, online, projectId, settings, catalogs, offered,
-            onChange = { next, to -> onSettings(if (to != null) switched(next, to) else next) },
-            onDismiss = { sheet = null },
-        )
-        Sheet.Mode -> PermissionsSheet(
-            settings, (overview?.bridge ?: 1) >= Bridge.READ_ONLY_MODE, onSettings, onDismiss = { sheet = null },
-        )
-        Sheet.Attach -> MenuSheet(
-            "Attach",
-            listOf(
-                MenuOption("Photo library") { pickers.library() },
-                MenuOption("Files") { pickers.files() },
-                MenuOption("Take a photo") { pickers.camera() },
-                MenuOption("Paste image", "The image you copied last") { pickers.paste() },
+    sheet?.let { open ->
+        ComposerSheetHost(
+            open,
+            onOpen = { sheet = it },
+            settings, onSettings, modelLabel = handle?.line?.model ?: modelLabel, lists, switched, client, online, projectId,
+            readOnly = (overview?.bridge ?: 1) >= Bridge.READ_ONLY_MODE,
+            attach = AttachActions(
+                library = { pickers.library() }, camera = { pickers.camera() }, files = { pickers.files() }, paste = { pickers.paste() },
             ),
-            onDismiss = { sheet = null },
-        )
-        Sheet.Later -> {
-            val now = System.currentTimeMillis()
-            MenuSheet(
-                "Send later",
-                sendLaterPresets(now).map { p -> MenuOption(p.label, wakeLabel(p.at, now)) { send(null, p.at) } },
-                onDismiss = { sheet = null },
-            )
-        }
-        Sheet.Usage -> UsageSheet(
-            provider, usage.usage, context, cost,
-            onDismiss = { sheet = null },
-            onRefresh = { usage.reload(true) },
+            commands = when {
+                text.isEmpty() -> AddCommands("Commands", "Relay's and the agent's, or type /") { begin("/") }
+                agentInfo(provider)?.skills == true -> AddCommands("Skills", "Add one to this message, or type $") { begin("${text.trimEnd()} $") }
+                else -> null
+            },
+            onLater = { send(null, it) },
+            usage = usage, context = context, cost = cost,
             onCompact = onCommand?.let { run ->
                 suspend {
                     val result = run("compact", "")
                     if (result is RunResult.Failed) error = result.message
                 }
             },
-            unavailable = usage.unavailable,
         )
-        Sheet.Settings -> SheetView({ sheet = null }, title = "Thread settings") {
-            Column {
-                ListRow(
-                    "Model", subtitle = handle?.line?.model ?: modelLabel, leadingIcon = TablerIcons.Outline.Sparkles, chevron = true,
-                    onClick = { sheet = Sheet.Model },
-                )
-                ListRow(
-                    "Permissions", subtitle = modeLabel(settings.runtimeMode), leadingIcon = TablerIcons.Outline.ShieldCheck, chevron = true,
-                    onClick = { sheet = Sheet.Mode },
-                )
-                ListRow(
-                    "Plan mode", subtitle = "Plans before it changes anything", leadingIcon = TablerIcons.Outline.ListCheck,
-                    trailing = { Switch(plan, { onSettings(settings.copy(interactionMode = if (it) "plan" else "default")) }) },
-                    onClick = { onSettings(settings.copy(interactionMode = if (plan) "default" else "plan")) },
-                )
-            }
-            UsageBar(provider, usage.usage, context, cost, onClick = { sheet = Sheet.Usage })
-        }
-        null -> {}
     }
 }

@@ -65,7 +65,7 @@ class ThreadViewportTest {
                 val keys = prefix.value + (0 until 30).map { "row-$it" } + listOf("image", "header", "tail", "end")
                 scroll = rememberThreadScroll()
                 ThreadViewport(scroll, keys, ContentSignature(keys.size, keys.last(), growth.intValue.toLong(), 0),
-                    Modifier.background(RelayTheme.colors.background).width(width.intValue.dp).height(viewport.intValue.dp).testTag("viewport"),
+                    Modifier.background(RelayTheme.colors.surface).width(width.intValue.dp).height(viewport.intValue.dp).testTag("viewport"),
                     dock = { Box(Modifier.fillMaxWidth().height(dock.intValue.dp)) }) {
                     items(prefix.value, key = { it }) { row(it, 50) }
                     items(30, key = { "row-$it" }) { i ->
@@ -149,16 +149,19 @@ class ThreadViewportTest {
         compose.runOnIdle { header.intValue = 0 }; frame()
         assertEquals("held while in view", held, positions.getValue("header").second)
         read(0); read(31, 0)
-        assertEquals("no gap after coming back", 0, positions.getValue("header").second)
+        // A row of no height isn't placed, so its last known position says nothing.
+        val gap = compose.runOnIdle { scroll.list.layoutInfo.visibleItemsInfo.find { it.key == "header" }?.size ?: 0 }
+        assertEquals("no gap after coming back", 0, gap)
     }
-    @Test fun imageLoadingAndFailureNeverChangeFrame() {
+    @Test fun imageFrameHugsItsPictureAndHoldsWhileLoadingOrFailed() {
         growth.intValue = 900
         setup(); read(30, 0)
         val initial = positions.getValue("image").second
-        compose.runOnIdle { image.value = LoadedImage(ImageBitmap(80, 20), false) }; frame()
-        assertEquals(initial, positions.getValue("image").second)
         compose.runOnIdle { image.value = LoadedImage(null, true) }; frame()
-        assertEquals(initial, positions.getValue("image").second)
+        assertEquals("a failure keeps the frame", initial, positions.getValue("image").second)
+        compose.runOnIdle { image.value = LoadedImage(ImageBitmap(80, 20), false) }; frame()
+        val fitted = with(compose.density) { (width.intValue / 4).dp.roundToPx() }
+        assertEquals("the column's width at the picture's shape", fitted, positions.getValue("image").second)
     }
     @Test fun nativeParagraphRevisitsHaveIdenticalHeights() {
         setup(); read(18); val initial = positions.filterKeys { it.startsWith("row-") }.mapValues { it.value.second }

@@ -1,32 +1,20 @@
 package dev.relay.android.features.thread
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.wrapContentWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Stable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.geometry.CornerRadius
-import androidx.compose.ui.graphics.PathEffect
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -43,8 +31,8 @@ import dev.relay.android.features.images.localImagePath
 import dev.relay.android.features.images.localVideoPath
 import dev.relay.android.features.images.messageImages
 import dev.relay.android.features.markdown.FileLinkTarget
-import dev.relay.android.features.markdown.MarkdownBlock
-import dev.relay.android.features.markdown.MarkdownBlockView
+import dev.relay.android.features.markdown.MarkdownRow
+import dev.relay.android.features.markdown.MarkdownRowView
 import dev.relay.android.features.markdown.Markdown
 import dev.relay.android.features.markdown.OpenLink
 import dev.relay.android.features.markdown.ShowImage
@@ -66,7 +54,6 @@ import androidx.compose.ui.semantics.semantics
 import dev.relay.android.ui.Icon
 import dev.relay.android.ui.Spinner
 import dev.relay.android.ui.Text
-import dev.relay.android.remote.files.shownFiles
 import dev.relay.android.ui.pressable
 import dev.relay.android.ui.theme.RelayTheme
 import io.github.lyxnx.compose.ui.tablericons.TablerIcons
@@ -137,7 +124,7 @@ internal fun MessageView(
     state: MessageViewState,
     section: MessageSection,
     onView: (MessageViewing) -> Unit,
-    block: MarkdownBlock? = null,
+    markdownRow: MarkdownRow? = null,
 ) {
     val remote = LocalThreadRemote.current
     val changes = m.changes
@@ -191,7 +178,7 @@ internal fun MessageView(
         Modifier.fillMaxWidth()
             // An answer's held text selects, so its menu is the ••• under it; yours opens on a hold.
             .then(on.onActions?.takeIf { user }?.let { act -> Modifier.pointerInput(m.id) { detectTapGestures(onLongPress = { act(m) }) } } ?: Modifier)
-            .padding(start = 16.dp, end = 16.dp,
+            .padding(start = ThreadInset, end = ThreadInset,
                 top = when (section) { MessageSection.Body -> 10.dp; MessageSection.Footer -> 8.dp; else -> 12.dp },
                 bottom = if (section == MessageSection.Whole || section == MessageSection.Footer) 12.dp else 0.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -206,17 +193,17 @@ internal fun MessageView(
                 (if (user) Modifier.align(Alignment.End) else Modifier)
                     .then(sender?.let { chat -> Modifier.pressable(onClick = { on.onOpenThread?.invoke(chat.id) }, scale = false) } ?: Modifier),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                horizontalArrangement = Arrangement.spacedBy(TraceGap),
             ) {
-                if (!user) ProviderIcon(m.provider, c.mutedForeground, size = 13.dp)
-                val name = RelayTheme.type.xs.copy(fontWeight = FontWeight.Medium)
+                if (!user) ProviderIcon(m.provider, c.inkSoft, size = 14.dp)
+                val name = RelayTheme.type.label
                 Text(
                     if (user) m.author ?: "You" else agentName(m.provider),
                     style = if (sender != null) name.copy(textDecoration = TextDecoration.Underline) else name,
-                    color = c.mutedForeground,
+                    color = c.inkSoft,
                 )
-                if (!user && m.author != null) Text("via ${m.author}", style = RelayTheme.type.xs, color = c.faint)
-                if (m.unprompted == true) Text("started on its own", style = RelayTheme.type.xs, color = c.faint)
+                if (!user && m.author != null) Text("via ${m.author}", style = RelayTheme.type.small, color = c.inkFaint)
+                if (m.unprompted == true) Text("started on its own", style = RelayTheme.type.small, color = c.inkFaint)
             }
             if (!user) AgentRun(
                 chatId, m, root,
@@ -249,21 +236,21 @@ internal fun MessageView(
                     Text(
                         if (m.pending == true && m.error == null) on.uploadPercent?.invoke(m.id)?.let { "Uploading $it%" } ?: "Sending…"
                         else Clock().clock(m.created),
-                        style = RelayTheme.type.xs, color = c.faint,
+                        style = RelayTheme.type.small, color = c.inkFaint,
                     )
                     // Not read by the agent yet, as on the desktop: held a moment, or waiting for its turn to look.
                     if (takeBack != null || m.unread == true) Spinner(
                         Modifier.semantics { contentDescription = if (takeBack != null) "Not sent yet" else "Not read yet" },
-                        size = 11.dp, color = c.mutedForeground, stroke = 1.5.dp,
+                        size = 11.dp, color = c.inkSoft, stroke = 1.5.dp,
                     )
                     if (takeBack != null) Icon(
                         TablerIcons.Outline.X, "Cancel and return to the composer",
                         Modifier.pressable(onClick = { takeBack(m.id) }),
-                        size = 14.dp, tint = c.mutedForeground,
+                        size = 14.dp, tint = c.inkSoft,
                     )
                 }
-            } else if (section == MessageSection.Body && block != null) {
-                MarkdownBlockView(block, openPath = openPath, image = showImage, selectable = m.status != "streaming")
+            } else if (section == MessageSection.Body && markdownRow != null) {
+                MarkdownRowView(markdownRow, openPath = openPath, image = showImage, selectable = m.status != "streaming")
             } else if (section == MessageSection.Whole && m.body.isNotBlank()) {
                 Markdown(
                     m.body, folder = root, openPath = openPath,
@@ -285,11 +272,11 @@ internal fun MessageView(
                     onRewind = on.onRewind?.let { rewind -> { paths, mode, force -> rewind(m, paths, mode, force) } },
                     failures = failures,
                 )
-                if (m.status == "cancelled") Text(stoppedNote(m), color = c.mutedForeground)
+                if (m.status == "cancelled") Text(stoppedNote(m), style = RelayTheme.type.meta, color = c.inkSoft)
                 // A lost login's error only says to sign in again, which the note says better from here.
                 if (m.signIn != null) SignInNote(m.signIn)
                 else if (m.error != null && m.status != "cancelled") AgentErrorNote(m.error)
-                if (!user && m.status != "streaming") MessageActions(
+                if (!user && m.status != "streaming") AnswerActions(
                     m,
                     onReply = on.onReply?.let { reply -> { reply(m) } },
                     onFork = on.onFork?.takeIf { m.status == "complete" && m.parentId == null && m.side != true }?.let { fork -> { fork(m) } },
@@ -298,43 +285,14 @@ internal fun MessageView(
                 if (!user && m.status != "streaming") SecondOpinionCards(chatId, m, root)
                 val openReplies = on.onReplies
                 if (replies > 0 && openReplies != null) Row(
-                    Modifier.pressable(onClick = { openReplies(m) }, scale = false),
+                    Modifier.heightIn(min = 36.dp).pressable(onClick = { openReplies(m) }, scale = false),
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    horizontalArrangement = Arrangement.spacedBy(TraceGap),
                 ) {
-                    Icon(TablerIcons.Outline.CornerUpLeft, null, size = 13.dp, tint = c.accent)
-                    Text("$replies ${if (replies == 1) "reply" else "replies"}", color = c.accent)
+                    Icon(TablerIcons.Outline.CornerUpLeft, null, size = TraceIcon, tint = c.inkSoft)
+                    Text("$replies ${if (replies == 1) "reply" else "replies"}", style = RelayTheme.type.meta.copy(fontWeight = FontWeight.Medium), color = c.inkSoft)
                 }
             }
         }
-    }
-}
-
-@Composable
-private fun UserBubble(text: String, side: Boolean, pending: Boolean) {
-    val c = RelayTheme.colors
-    val mono = RelayTheme.type.mono
-    val shape = RoundedCornerShape(18.dp)
-    // A /btw question: a dashed outline and nothing else, as on the desktop.
-    val frame = if (side) Modifier.drawBehind {
-        drawRoundRect(
-            c.mutedForeground,
-            cornerRadius = CornerRadius(18.dp.toPx()),
-            style = Stroke(1.dp.toPx(), pathEffect = PathEffect.dashPathEffect(floatArrayOf(4.dp.toPx(), 3.dp.toPx()))),
-        )
-    } else Modifier.background(c.muted, shape)
-    // A file the message attached reads as its name, set like code, not its path on the computer.
-    val shown = remember(text) {
-        val files = shownFiles(text)
-        buildAnnotatedString {
-            append(files.text)
-            for (name in files.names) addStyle(SpanStyle(fontFamily = mono.fontFamily, fontSize = mono.fontSize), name.first, name.last + 1)
-        }
-    }
-    SelectionContainer(
-        Modifier.fillMaxWidth().wrapContentWidth(Alignment.End).fillMaxWidth(0.85f).wrapContentWidth(Alignment.End)
-            .then(frame).alpha(if (pending) 0.6f else 1f).padding(horizontal = 14.dp, vertical = 10.dp),
-    ) {
-        androidx.compose.material3.Text(shown, style = RelayTheme.type.base.copy(lineHeight = 22.sp), color = c.foreground)
     }
 }

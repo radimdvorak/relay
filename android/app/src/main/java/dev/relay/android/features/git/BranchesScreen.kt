@@ -1,8 +1,11 @@
 package dev.relay.android.features.git
 
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -10,9 +13,12 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -28,23 +34,26 @@ import dev.relay.android.remote.model.BranchAction
 import dev.relay.android.remote.model.BranchList
 import dev.relay.android.remote.model.BranchRef
 import dev.relay.android.ui.Button
+import dev.relay.android.ui.ButtonSize
+import dev.relay.android.ui.ChromePage
+import dev.relay.android.ui.EmptyState
 import dev.relay.android.ui.Icon
-import dev.relay.android.ui.ListGroup
-import dev.relay.android.ui.ListRow
-import dev.relay.android.ui.Screen
-import dev.relay.android.ui.SectionHeader
+import dev.relay.android.ui.PageToolbar
+import dev.relay.android.ui.RowPatch
+import dev.relay.android.ui.RowSize
+import dev.relay.android.ui.SectionLabel
 import dev.relay.android.ui.Sheet
+import dev.relay.android.ui.Text
 import dev.relay.android.ui.TextField
+import dev.relay.android.ui.listPadding
 import dev.relay.android.ui.theme.RelayTheme
 import io.github.lyxnx.compose.ui.tablericons.TablerIcons
 import io.github.lyxnx.compose.ui.tablericons.outline.Check
 import io.github.lyxnx.compose.ui.tablericons.outline.GitBranch
+import io.github.lyxnx.compose.ui.tablericons.outline.Plus
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
-import dev.relay.android.ui.IconButton
-import dev.relay.android.ui.listPadding
-import io.github.lyxnx.compose.ui.tablericons.outline.Plus
 
 /** mobile/src/app/branches.tsx. [projectId] is what the bridge's branch calls take. */
 class BranchesModel(private val remote: Remote, private val projectId: String) : ViewModel() {
@@ -126,30 +135,19 @@ fun BranchesScreen(remote: Remote, projectId: String, thread: BranchThread? = nu
 
     // A new branch is made in the project folder, which a thread in its own worktree isn't in.
     val canCreate = thread?.inWorktree != true
-    Screen("Branches", onBack = nav.backAction, actions = {
-        if (list != null && canCreate) IconButton(TablerIcons.Outline.Plus, "New branch from here", { creating = true }, enabled = !busy)
-    }) {
-        val now = list
-        when {
-            now == null && error != null -> LoadFailed(error!!, model::load)
-            now == null -> Loading()
-            else -> LazyColumn(Modifier.fillMaxSize(), contentPadding = listPadding()) {
-                for ((title, rows) in listOf("Local" to now.branches.filter { !it.remote }, "Remote" to now.branches.filter { it.remote })) {
-                    if (rows.isEmpty()) continue
-                    item(key = title) {
-                        SectionHeader(title, count = rows.size)
-                        ListGroup {
-                            for (b in rows) BranchRow(b, threadBranch(thread, now), busy, pick(model, now, b, thread) { nav.pop() })
-                        }
-                    }
-                }
-            }
-        }
-    }
+    val now = list
+    BranchesPage(
+        now, error, busy,
+        threadBranch = now?.let { threadBranch(thread, it) },
+        onBack = nav.backAction,
+        onRetry = model::load,
+        pick = { b -> now?.let { pick(model, it, b, thread) { nav.pop() } } },
+        onCreate = { creating = true }.takeIf { canCreate },
+    )
     if (creating) {
         val focus = remember { FocusRequester() }
         LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }
-        Sheet({ creating = false }, title = "New branch from ${list?.current ?: "here"}") {
+        Sheet({ creating = false }, title = "New branch", description = "From ${list?.current ?: "here"}") {
             TextField(
                 name,
                 { name = it },
@@ -167,6 +165,7 @@ fun BranchesScreen(remote: Remote, projectId: String, thread: BranchThread? = nu
                     }
                 },
                 Modifier.fillMaxWidth(),
+                size = ButtonSize.Lg,
                 enabled = !busy && name.isNotBlank(),
             )
         }
@@ -201,16 +200,63 @@ private fun pick(model: BranchesModel, list: BranchList, b: BranchRef, thread: B
 }
 
 @Composable
-private fun BranchRow(b: BranchRef, threadBranch: String?, busy: Boolean, onPick: (() -> Unit)?) {
+internal fun BranchesPage(
+    list: BranchList?,
+    error: String?,
+    busy: Boolean,
+    /** The open thread's branch, when there is one. */
+    threadBranch: String?,
+    onBack: (() -> Unit)?,
+    onRetry: suspend () -> Unit,
+    /** What tapping a branch does; null when it's already where it would lead. */
+    pick: (BranchRef) -> (() -> Unit)?,
+    /** Null where a branch can't be made from here. */
+    onCreate: (() -> Unit)?,
+) {
+    val toolbar: (@Composable () -> Unit)? = if (list == null || onCreate == null) null else {
+        {
+            PageToolbar {
+                Button("New branch", onCreate, size = ButtonSize.Lg, leadingIcon = TablerIcons.Outline.Plus, enabled = !busy)
+            }
+        }
+    }
+    ChromePage("Branches", onBack = onBack, floating = toolbar) { bottom ->
+        when {
+            list == null && error != null -> LoadFailed(error, onRetry)
+            list == null -> Loading()
+            list.branches.isEmpty() -> EmptyState("No branches yet", Modifier.align(Alignment.Center), icon = TablerIcons.Outline.GitBranch)
+            else -> {
+                val (remote, local) = remember(list) { list.branches.partition { it.remote } }
+                LazyColumn(Modifier.fillMaxSize(), contentPadding = listPadding(bottom = bottom)) {
+                    for ((title, rows) in listOf("Local" to local, "Remote" to remote)) {
+                        if (rows.isEmpty()) continue
+                        item(key = title) { SectionLabel(title, count = "${rows.size}") }
+                        items(rows, key = { "$title:${it.ref}:${it.name}" }, contentType = { "branch" }) { b ->
+                            BranchRow(b, threadBranch, onPick = if (busy) null else pick(b))
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun BranchRow(b: BranchRef, threadBranch: String?, onPick: (() -> Unit)?) {
     val c = RelayTheme.colors
     val checked = if (threadBranch != null) b.name == threadBranch else b.current
-    ListRow(
-        b.name,
-        subtitle = branchRowNote(b, threadBranch),
-        leading = {
-            if (checked) Icon(TablerIcons.Outline.Check, null, tint = c.foreground, size = 16.dp)
-            else Icon(TablerIcons.Outline.GitBranch, null, tint = c.mutedForeground, size = 16.dp)
-        },
-        onClick = if (busy) null else onPick,
-    )
+    RowPatch(onPick, minHeight = RowSize.Sm.minHeight) {
+        Icon(TablerIcons.Outline.GitBranch, null, tint = if (checked) c.ink else c.inkSoft, size = 20.dp)
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
+            // Cut in the middle: branches of one kind start alike and differ at the end.
+            Text(
+                b.name,
+                style = RelayTheme.type.row.copy(fontWeight = if (checked) FontWeight.Medium else FontWeight.Normal),
+                maxLines = 1,
+                overflow = TextOverflow.MiddleEllipsis,
+            )
+            branchRowNote(b, threadBranch)?.let { Text(it, style = rowMeta, color = c.inkSoft, maxLines = 1) }
+        }
+        if (checked) Icon(TablerIcons.Outline.Check, "Checked out", tint = c.ink, size = 20.dp)
+    }
 }

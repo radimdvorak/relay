@@ -2,6 +2,7 @@ package dev.relay.android.features.project
 
 import dev.relay.android.remote.model.RemoteJson
 import dev.relay.android.remote.model.WorkingTree
+import dev.relay.android.features.git.operationInProgress
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
@@ -17,7 +18,7 @@ class ProjectScreenTest {
                "operation":"MERGE_HEAD","lines":{"additions":40,"deletions":2},"upstream":null,"outgoing":[]}""",
         )
         assertEquals("main", tree.branch)
-        assertEquals("3 changed · +40 −2 · 1 to push", changesLine(tree))
+        assertEquals("3 changed · 1 to push", changesLine(tree))
         assertEquals("Merge in progress", operationInProgress(tree.operation!!))
         assertEquals("Rebase in progress", operationInProgress("rebase-apply"))
     }

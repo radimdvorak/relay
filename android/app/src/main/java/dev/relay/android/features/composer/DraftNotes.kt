@@ -12,13 +12,15 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.relay.android.remote.drafts.DraftStore
 import dev.relay.android.remote.drafts.extrasSummary
 import dev.relay.android.remote.model.SharedDraft
+import dev.relay.android.ui.CircleButton
+import dev.relay.android.ui.CircleSize
+import dev.relay.android.ui.CircleTone
 import dev.relay.android.ui.Icon
 import dev.relay.android.ui.LocalToasts
 import dev.relay.android.ui.Text
@@ -62,22 +64,21 @@ fun DraftNotes(drafts: DraftStore, computer: String, draftKey: String, shared: S
             }
         }
     }
-    Column(Modifier.padding(start = 6.dp, end = 6.dp, bottom = 6.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        if (rest != null) Text("Your computer adds $rest when this goes.", style = RelayTheme.type.xs, color = c.mutedForeground)
+    Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        if (rest != null) Text("Your computer adds $rest when this goes.", style = RelayTheme.type.meta, color = c.inkSoft)
         if (other != null) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Icon(TablerIcons.Outline.GitCompare, null, size = 14.dp, tint = c.mutedForeground)
+            Icon(TablerIcons.Outline.GitCompare, null, size = 16.dp, tint = c.inkSoft)
             Text(
                 "Edited here and on $where at once", Modifier.weight(1f),
-                style = RelayTheme.type.xs, color = c.mutedForeground, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                style = RelayTheme.type.meta, color = c.inkSoft, maxLines = 1, overflow = TextOverflow.Ellipsis,
             )
             Text(
-                use, Modifier.pressable(onClick = { act(false) }, enabled = !busy, role = Role.Button),
-                style = RelayTheme.type.xs.copy(fontWeight = FontWeight.SemiBold), color = c.accent,
+                use, Modifier.pressable(onClick = { act(false) }, enabled = !busy).padding(vertical = 8.dp),
+                style = RelayTheme.type.meta.copy(fontWeight = FontWeight.Medium), color = c.ink,
             )
-            Icon(
-                TablerIcons.Outline.X, "Keep this version",
-                Modifier.pressable(onClick = { act(true) }, enabled = !busy, role = Role.Button),
-                size = 14.dp, tint = c.mutedForeground,
+            CircleButton(
+                TablerIcons.Outline.X, "Keep this version", { act(true) },
+                size = CircleSize.Small, tone = CircleTone.Clear, enabled = !busy,
             )
         }
     }

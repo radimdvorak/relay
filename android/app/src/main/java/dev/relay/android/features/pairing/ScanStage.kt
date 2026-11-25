@@ -41,7 +41,7 @@ fun ScanStage(scan: PairingScan, cameraFailed: (String) -> Unit, modifier: Modif
 private fun ripplePalette(): RipplePalette {
     val c = RelayTheme.colors
     val dark = c.isDark
-    return remember(dark, c.background) {
+    return remember(dark, c.surface) {
         val accent = rgb(if (dark) 0xAAA8E5 else 0x6565A9)
         RipplePalette(
             base = rgb(if (dark) 0x94949F else 0x676972),
@@ -50,7 +50,7 @@ private fun ripplePalette(): RipplePalette {
             overCamera = if (dark) accent else FloatArray(3) { accent[it] + (1 - accent[it]) * 0.45f },
             baseAlpha = if (dark) 0.28f else 0.34f,
             light = !dark,
-            background = c.background.let { floatArrayOf(it.red, it.green, it.blue) },
+            background = c.surface.let { floatArrayOf(it.red, it.green, it.blue) },
         )
     }
 }

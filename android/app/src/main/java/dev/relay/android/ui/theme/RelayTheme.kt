@@ -1,11 +1,9 @@
 package dev.relay.android.ui.theme
 
 import androidx.compose.foundation.isSystemInDarkTheme
-import androidx.compose.material3.ColorScheme
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Typography
-import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.lightColorScheme
+import androidx.compose.material3.LocalContentColor
+import androidx.compose.material3.MaterialExpressiveTheme
+import androidx.compose.material3.Shapes
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.ReadOnlyComposable
@@ -15,9 +13,9 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 
 /**
- * computer: the desktop's palette and mode (Hexta neutral until it's known).
- * phone: Hexta neutral, following the phone's light or dark.
- * light / dark: Hexta neutral in that mode.
+ * computer: the desktop's palette and mode (Relay paper until it's known).
+ * phone: Relay paper, following the phone's light or dark.
+ * light / dark: Relay paper in that mode.
  */
 enum class ThemeMode { Computer, Phone, Light, Dark }
 
@@ -36,7 +34,7 @@ data class DesktopAppearance(
     val dark: Map<String, String>,
 )
 
-val LocalRelayColors = staticCompositionLocalOf { HextaDark }
+val LocalRelayColors = staticCompositionLocalOf { RelayPaperDark }
 val LocalRelayType = staticCompositionLocalOf { DefaultType }
 val LocalHairline = staticCompositionLocalOf { Dp.Hairline }
 
@@ -48,7 +46,8 @@ object RelayTheme {
     /** One physical pixel. */
     val hairline: Dp
         @Composable @ReadOnlyComposable get() = LocalHairline.current
-    val radii get() = Radii
+    val shapes get() = RelayShapes
+    val motion get() = RelayMotion
     val space get() = Space
 }
 
@@ -66,7 +65,7 @@ fun resolveColors(mode: ThemeMode, desktop: DesktopAppearance?, systemDark: Bool
     }
     if (mode == ThemeMode.Computer && desktop != null)
         return colorsFromDesktop(if (dark) desktop.dark else desktop.light)
-    return if (dark) HextaDark else HextaLight
+    return if (dark) RelayPaperDark else RelayPaperLight
 }
 
 /** One palette already picked for its kind (the map carries `kind`); computer mode wears it. */
@@ -93,7 +92,11 @@ fun RelayTheme(
     RelayTheme(colors, content)
 }
 
-/** Wears exactly these colours: the gallery's side-by-side themes, previews. */
+/**
+ * Wears exactly these colours: the app, the gallery's side-by-side themes, shots. Material
+ * underneath (stock components, ripples, selection handles) gets the same roles through
+ * [materialScheme], with the standard motion scheme so nothing recurring overshoots.
+ */
 @Composable
 fun RelayTheme(colors: RelayColors, content: @Composable () -> Unit) {
     val density = LocalDensity.current.density
@@ -103,51 +106,13 @@ fun RelayTheme(colors: RelayColors, content: @Composable () -> Unit) {
         LocalRelayType provides DefaultType,
         LocalHairline provides hairline(density),
     ) {
-        MaterialTheme(colorScheme = material, typography = materialTypography) {
-            CompositionLocalProvider(androidx.compose.material3.LocalContentColor provides colors.foreground, content = content)
+        MaterialExpressiveTheme(
+            colorScheme = material,
+            motionScheme = RelayMotion.standard,
+            shapes = Shapes(),
+            typography = materialTypography,
+        ) {
+            CompositionLocalProvider(LocalContentColor provides colors.ink, content = content)
         }
     }
-}
-
-/** Material underneath (ripples, selection handles, the odd M3 piece) in the same colours. */
-private fun materialScheme(c: RelayColors): ColorScheme {
-    val base = if (c.isDark) darkColorScheme() else lightColorScheme()
-    return base.copy(
-        primary = c.primary,
-        onPrimary = c.onPrimary,
-        secondary = c.muted,
-        onSecondary = c.foreground,
-        background = c.background,
-        onBackground = c.foreground,
-        surface = c.background,
-        onSurface = c.foreground,
-        surfaceVariant = c.muted,
-        onSurfaceVariant = c.mutedForeground,
-        surfaceContainerLow = c.card,
-        surfaceContainer = c.card,
-        surfaceContainerHigh = c.popover,
-        outline = c.input,
-        outlineVariant = c.border,
-        error = c.destructive,
-        onError = c.onDestructive,
-        scrim = androidx.compose.ui.graphics.Color.Black,
-    )
-}
-
-private val materialTypography = Typography().let { t ->
-    val inter = { s: androidx.compose.ui.text.TextStyle -> s.copy(fontFamily = Inter) }
-    t.copy(
-        bodyLarge = DefaultType.base,
-        bodyMedium = DefaultType.sm,
-        bodySmall = DefaultType.xs,
-        labelLarge = DefaultType.label,
-        labelMedium = DefaultType.caption,
-        labelSmall = DefaultType.caption,
-        titleLarge = DefaultType.xl,
-        titleMedium = DefaultType.lg,
-        titleSmall = DefaultType.label,
-        headlineSmall = inter(t.headlineSmall),
-        headlineMedium = inter(t.headlineMedium),
-        headlineLarge = inter(t.headlineLarge),
-    )
 }

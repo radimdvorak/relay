@@ -15,25 +15,25 @@ class ContrastTest {
 
     @Test
     fun `the middle leaves the colours alone`() {
-        assertSame(HextaDark, HextaDark.withContrast(DEFAULT_CONTRAST))
+        assertSame(RelayPaperDark, RelayPaperDark.withContrast(DEFAULT_CONTRAST))
     }
 
     @Test
     fun `more contrast makes secondary text easier to read in both kinds`() {
-        for (base in listOf(HextaDark, HextaLight)) {
+        for (base in listOf(RelayPaperDark, RelayPaperLight)) {
             val high = base.withContrast(100)
             val low = base.withContrast(0)
-            assertTrue(ratio(high.mutedForeground, high.background) > ratio(base.mutedForeground, base.background))
-            assertTrue(ratio(high.faint, high.background) > ratio(base.faint, base.background))
-            assertTrue(ratio(low.faint, low.background) < ratio(base.faint, base.background))
-            assertEquals(base.foreground, high.foreground)
-            assertEquals(base.background, high.background)
+            assertTrue(ratio(high.inkSoft, high.surface) > ratio(base.inkSoft, base.surface))
+            assertTrue(ratio(high.inkFaint, high.surface) > ratio(base.inkFaint, base.surface))
+            assertTrue(ratio(low.inkFaint, low.surface) < ratio(base.inkFaint, base.surface))
+            assertEquals(base.ink, high.ink)
+            assertEquals(base.surface, high.surface)
         }
     }
 
     @Test
     fun `a see-through hairline shows twice as much at full contrast`() {
-        val high = HextaDark.withContrast(100)
-        assertEquals(HextaDark.border.alpha * 2, high.border.alpha, 0.01f)
+        val high = RelayPaperDark.withContrast(100)
+        assertEquals(RelayPaperDark.line.alpha * 2, high.line.alpha, 0.01f)
     }
 }

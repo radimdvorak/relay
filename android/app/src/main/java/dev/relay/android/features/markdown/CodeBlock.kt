@@ -15,6 +15,7 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -38,16 +39,16 @@ import androidx.compose.ui.unit.sp
 import dev.relay.android.ui.ButtonSize
 import dev.relay.android.ui.Haptic
 import dev.relay.android.ui.IconButton
-import dev.relay.android.ui.LocalToasts
 import dev.relay.android.ui.Text
 import dev.relay.android.ui.pressable
-import dev.relay.android.ui.ring
-import dev.relay.android.ui.theme.Radii
 import dev.relay.android.ui.theme.RelayColors
 import dev.relay.android.ui.theme.RelayTheme
 import io.github.lyxnx.compose.ui.tablericons.TablerIcons
 import io.github.lyxnx.compose.ui.tablericons.outline.Copy
 import kotlinx.coroutines.launch
+import androidx.compose.ui.text.font.FontWeight
+import io.github.lyxnx.compose.ui.tablericons.outline.Check
+import kotlinx.coroutines.delay
 
 /** The first lines only; a phone isn't where to read a generated bundle. */
 const val MAX_CODE_LINES = 5000
@@ -56,6 +57,9 @@ const val MAX_CODE_LINES = 5000
 internal const val FOLDED_CODE_LINES = 15
 
 /** Blocks shorter than this read better without line numbers. */
+/** How long the copy button says it did. */
+private const val COPIED_MS = 1_500L
+
 private const val NUMBERED_FROM = 5
 
 /** prism-react-renderer's One Dark and One Light, by token kind. */
@@ -69,7 +73,7 @@ private fun colorOf(kind: TokenKind, c: RelayColors): Color {
         TokenKind.Type -> 0xFFE5C07B
         TokenKind.Property, TokenKind.Tag -> 0xFFE06C75
         TokenKind.Operator -> 0xFF56B6C2
-        TokenKind.Plain, TokenKind.Punctuation -> return c.foreground
+        TokenKind.Plain, TokenKind.Punctuation -> return c.ink
     } else when (kind) {
         TokenKind.Comment -> 0xFFA0A1A7
         TokenKind.Keyword -> 0xFFA626A4
@@ -79,7 +83,7 @@ private fun colorOf(kind: TokenKind, c: RelayColors): Color {
         TokenKind.Type -> 0xFFC18401
         TokenKind.Property, TokenKind.Tag -> 0xFFE45649
         TokenKind.Operator -> 0xFF0184BC
-        TokenKind.Plain, TokenKind.Punctuation -> return c.foreground
+        TokenKind.Plain, TokenKind.Punctuation -> return c.ink
     }
     return Color(hex)
 }
@@ -88,7 +92,7 @@ internal fun styledLine(line: List<CodeToken>, c: RelayColors): AnnotatedString 
     if (line.isEmpty()) append(" ")
     for (token in line) {
         val color = colorOf(token.kind, c)
-        if (color == c.foreground) append(token.text) else withStyle(SpanStyle(color = color)) { append(token.text) }
+        if (color == c.ink) append(token.text) else withStyle(SpanStyle(color = color)) { append(token.text) }
     }
 }
 
@@ -106,43 +110,47 @@ internal fun CodeBlock(language: String, code: String, modifier: Modifier = Modi
     val numbered = text.size >= NUMBERED_FROM
     val gutter = (text.size.toString().length * 8 + 12).dp
     val clipboard = LocalClipboard.current
-    val toasts = LocalToasts.current
     val scope = rememberCoroutineScope()
+    var copied by remember(code) { mutableStateOf(false) }
+    LaunchedEffect(copied) {
+        if (!copied) return@LaunchedEffect
+        delay(COPIED_MS)
+        copied = false
+    }
 
     Column(
         modifier
             .fillMaxWidth()
-            .clip(Radii.smShape)
-            .background(c.code)
-            .ring(c.border, Radii.smShape),
+            .clip(RelayTheme.shapes.card)
+            .background(c.container),
     ) {
         Row(
-            Modifier.fillMaxWidth().padding(start = 12.dp, end = 4.dp, top = 2.dp),
+            Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp, top = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
                 language.ifEmpty { "text" },
                 Modifier.weight(1f),
-                style = RelayTheme.type.monoSm,
-                color = c.faint,
+                style = RelayTheme.type.label,
+                color = c.inkFaint,
                 maxLines = 1,
             )
             IconButton(
-                TablerIcons.Outline.Copy,
-                "Copy code",
+                if (copied) TablerIcons.Outline.Check else TablerIcons.Outline.Copy,
+                if (copied) "Copied" else "Copy code",
                 onClick = {
                     scope.launch {
                         clipboard.setClipEntry(ClipEntry(ClipData.newPlainText("code", code)))
-                        toasts.show("Copied")
+                        copied = true
                     }
                 },
-                size = ButtonSize.Xs,
-                tint = c.mutedForeground,
+                size = ButtonSize.Sm,
+                tint = c.inkSoft,
                 haptic = Haptic.Selection,
             )
         }
         val lines = @Composable {
-            Box(Modifier.horizontalScroll(rememberScrollState()).padding(start = if (numbered) 0.dp else 12.dp, end = 12.dp, bottom = 10.dp)) {
+            Box(Modifier.horizontalScroll(rememberScrollState()).padding(start = if (numbered) 4.dp else 16.dp, end = 16.dp, bottom = 14.dp)) {
                 Column {
                     shown.forEachIndexed { i, line -> CodeLine(i, line, if (numbered) gutter else null, c) }
                 }
@@ -154,10 +162,10 @@ internal fun CodeBlock(language: String, code: String, modifier: Modifier = Modi
                 Modifier
                     .fillMaxWidth()
                     .pressable({ open = true }, scale = false)
-                    .padding(vertical = 8.dp),
+                    .padding(bottom = 14.dp, top = 2.dp),
                 contentAlignment = Alignment.Center,
             ) {
-                Text("Show all ${text.size} lines", style = RelayTheme.type.label, color = c.mutedForeground)
+                Text("Show all ${text.size} lines", style = RelayTheme.type.meta.copy(fontWeight = FontWeight.Medium), color = c.inkSoft)
             }
         }
     }
@@ -172,8 +180,8 @@ private fun CodeLine(index: Int, line: AnnotatedString, gutter: androidx.compose
                 Text(
                     "${index + 1}",
                     Modifier.width(gutter).padding(end = 8.dp, top = 2.dp),
-                    style = RelayTheme.type.monoSm.copy(fontSize = 11.sp, lineHeight = 16.sp),
-                    color = c.faint,
+                    style = RelayTheme.type.codeSmall.copy(fontSize = 11.sp, lineHeight = 16.sp),
+                    color = c.inkFaint,
                     textAlign = TextAlign.End,
                     maxLines = 1,
                 )
@@ -181,7 +189,7 @@ private fun CodeLine(index: Int, line: AnnotatedString, gutter: androidx.compose
         }
         androidx.compose.material3.Text(
             line,
-            style = RelayTheme.type.mono.copy(fontSize = 12.sp, lineHeight = 18.sp, color = c.foreground),
+            style = RelayTheme.type.code.copy(color = c.ink),
             softWrap = false,
             overflow = TextOverflow.Clip,
         )
@@ -213,8 +221,8 @@ private fun WrappedLine(index: Int, line: AnnotatedString, gutter: androidx.comp
             Text(
                 "${index + 1}",
                 Modifier.width(gutter).padding(end = 8.dp, top = 2.dp),
-                style = RelayTheme.type.monoSm.copy(fontSize = 11.sp, lineHeight = 16.sp),
-                color = c.faint,
+                style = RelayTheme.type.codeSmall.copy(fontSize = 11.sp, lineHeight = 16.sp),
+                color = c.inkFaint,
                 textAlign = TextAlign.End,
                 maxLines = 1,
             )
@@ -222,7 +230,7 @@ private fun WrappedLine(index: Int, line: AnnotatedString, gutter: androidx.comp
         androidx.compose.material3.Text(
             line,
             Modifier.weight(1f),
-            style = RelayTheme.type.mono.copy(fontSize = 12.sp, lineHeight = 18.sp, color = c.foreground),
+            style = RelayTheme.type.code.copy(fontSize = 12.sp, lineHeight = 18.sp, color = c.ink),
         )
     }
 }

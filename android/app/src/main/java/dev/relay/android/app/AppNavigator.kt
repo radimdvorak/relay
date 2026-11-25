@@ -12,9 +12,14 @@ class AppNavigator(
 ) : Navigator {
     override val stack: List<Route> get() = backStack.filterIsInstance<Route>()
 
-    override val canGoBack: Boolean get() = backStack.size > (if (isWide()) 2 else 1)
+    override val canGoBack: Boolean get() = backStack.size > 1
+
+    /** Whether the last change swapped one destination for another instead of going deeper, so it fades. */
+    var swapped = false
+        private set
 
     override fun push(route: Route) {
+        swapped = false
         if (backStack.lastOrNull() != route) backStack.add(route)
     }
 
@@ -25,6 +30,7 @@ class AppNavigator(
     }
 
     override fun replace(route: Route) {
+        swapped = false
         if (backStack.size <= 1) backStack.add(route) else backStack[backStack.lastIndex] = route
     }
 
@@ -33,9 +39,11 @@ class AppNavigator(
         if (!isWide()) return push(route)
         home()
         backStack.add(route)
+        swapped = true
     }
 
     override fun home() {
+        swapped = true
         while (backStack.size > 1) backStack.removeAt(backStack.lastIndex)
         if (backStack.firstOrNull() != Route.Home) {
             backStack.clear()

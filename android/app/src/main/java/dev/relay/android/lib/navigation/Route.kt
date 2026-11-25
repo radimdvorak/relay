@@ -21,6 +21,9 @@ sealed interface Route : NavKey {
         val draftKey: String? = null,
     ) : Route
 
+    /** Full-screen search; with [pulls] it looks through pull requests first. */
+    @Serializable data class Search(val pulls: Boolean = false) : Route
+
     @Serializable data object Settings : Route
     @Serializable data object Gallery : Route
     @Serializable data object Licences : Route
@@ -57,6 +60,9 @@ sealed interface Route : NavKey {
 
 /** Shared-bounds key of Home's New thread button and the New thread Send it becomes. */
 const val NEW_THREAD_MORPH = "new-thread"
+
+/** Shared-bounds key of Home's search button and the search screen's field, which it grows into. */
+const val SEARCH_MORPH = "search"
 
 /** Entry metadata of a screen that rises in under the button that opened it, not slides in. */
 const val MORPHS_IN = "relay.morphsIn"

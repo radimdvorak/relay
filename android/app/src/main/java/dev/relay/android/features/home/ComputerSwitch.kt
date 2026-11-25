@@ -15,9 +15,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import dev.relay.android.lib.navigation.LocalNavigator
 import dev.relay.android.lib.navigation.Route
 import dev.relay.android.remote.PairedComputer
@@ -25,6 +25,7 @@ import dev.relay.android.remote.Remote
 import dev.relay.android.remote.client.LinkState
 import dev.relay.android.remote.client.RemoteStatus
 import dev.relay.android.remote.credentials.ComputerSeen
+import dev.relay.android.ui.CircleButton
 import dev.relay.android.ui.ConfirmDialog
 import dev.relay.android.ui.Icon
 import dev.relay.android.ui.ListRow
@@ -79,34 +80,33 @@ internal class ComputerLines(
         else "${lastReached(c)}. Pairing again needs a new code from Relay there."
 }
 
-/** A tab's [title] with the computer's name under it; tapping either opens the computers sheet. */
+/** The computer's name with a chevron; tapping it opens the computers sheet. */
 @Composable
-fun ComputerSwitch(
-    title: String,
+fun ComputerName(
     remote: Remote,
     seen: ComputerSeen,
-    modifier: Modifier = Modifier,
+    style: TextStyle,
     extraRows: @Composable (close: () -> Unit) -> Unit = {},
+    modifier: Modifier = Modifier,
+    color: Color = RelayTheme.colors.ink,
 ) {
-    val c = RelayTheme.colors
-    val name = computerName(remote)
     var open by remember { mutableStateOf(false) }
     // Outlives the sheet, so a switch picked as it closes isn't cancelled with it.
     val scope = rememberCoroutineScope()
-    Column(modifier.semantics { contentDescription = "$title, $name. Switch computer" }.pressable(onClick = { open = true }, scale = false)) {
-        Text(title, style = tabTitleStyle(), maxLines = 1)
-        Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                name,
-                Modifier.weight(1f, fill = false),
-                style = RelayTheme.type.base.copy(fontSize = 15.sp, fontWeight = FontWeight.Medium),
-                color = c.mutedForeground,
-                maxLines = 1,
-            )
-            Icon(TablerIcons.Outline.ChevronDown, null, tint = c.mutedForeground, size = 14.dp)
-        }
-    }
+    ComputerNameLine(computerName(remote), style, { open = true }, modifier, color)
     if (open) ComputerSheet(remote, seen, scope, extraRows) { open = false }
+}
+
+@Composable
+internal fun ComputerNameLine(name: String, style: TextStyle, onClick: () -> Unit, modifier: Modifier = Modifier, color: Color = RelayTheme.colors.ink) {
+    Row(
+        modifier.semantics { contentDescription = "$name. Switch computer" }.pressable(onClick, scale = false),
+        horizontalArrangement = Arrangement.spacedBy(5.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(name, Modifier.weight(1f, fill = false), style = style, color = color, maxLines = 1)
+        Icon(TablerIcons.Outline.ChevronDown, null, tint = RelayTheme.colors.inkFaint, size = 16.dp)
+    }
 }
 
 /**
@@ -131,7 +131,15 @@ private fun ComputerSheet(
     val lines = ComputerLines(computers, active, status, overview?.version, reached, rememberNow(30_000))
     var forgetting by remember { mutableStateOf<PairedComputer?>(null) }
 
-    Sheet(onDismiss, title = "Computers") {
+    val pairAnother = {
+        onDismiss()
+        navigator.push(Route.Pair())
+    }
+    Sheet(
+        onDismiss,
+        title = "Computers",
+        action = { CircleButton(TablerIcons.Outline.Plus, "Pair another computer", pairAnother) },
+    ) {
         Column {
             for (pc in computers) {
                 val here = pc.id == active
@@ -139,15 +147,15 @@ private fun ComputerSheet(
                     pc.name,
                     subtitle = lines.hint(pc),
                     size = RowSize.Sm,
-                    leading = { Icon(TablerIcons.Outline.DeviceDesktop, null, tint = if (here) c.accent else c.mutedForeground, size = 17.dp) },
+                    leading = { Icon(TablerIcons.Outline.DeviceDesktop, null, tint = if (here) c.accent else c.inkSoft, size = 20.dp) },
                     trailing = {
-                        if (here) Icon(TablerIcons.Outline.Check, "Current", tint = c.accent, size = 16.dp)
+                        if (here) Icon(TablerIcons.Outline.Check, "Current", tint = c.accent, size = 18.dp)
                         else Text(
                             "Forget",
                             Modifier.semantics { contentDescription = "Forget ${pc.name}" }
                                 .pressable(onClick = { forgetting = pc }).padding(8.dp),
-                            style = RelayTheme.type.sm,
-                            color = c.mutedForeground,
+                            style = RelayTheme.type.meta,
+                            color = c.inkSoft,
                         )
                     },
                     onClick = {
@@ -161,16 +169,6 @@ private fun ComputerSheet(
                 )
             }
             extraRows(onDismiss)
-            ListRow(
-                "Pair another computer",
-                subtitle = "Scan the code in Relay's Settings → Phone there.",
-                size = RowSize.Sm,
-                leading = { Icon(TablerIcons.Outline.Plus, null, tint = c.foreground, size = 17.dp) },
-                onClick = {
-                    onDismiss()
-                    navigator.push(Route.Pair())
-                },
-            )
         }
     }
     forgetting?.let { pc ->

@@ -2,178 +2,129 @@ package dev.relay.android.ui.theme
 
 import androidx.compose.runtime.Immutable
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.lerp
 
 /**
- * HextaUI's tokens (shadcn neutral with hairline rings and status colours),
- * plus the few Relay needs on top: waiting, diff and the desktop's accent.
+ * The roles Relay's screens paint with (docs/expressive/design-brief.md, "Colour"). The default
+ * palettes are [RelayPaperLight] and [RelayPaperDark]; in Computer mode [colorsFromDesktop] fills
+ * the same roles from the desktop's palette.
  */
 @Immutable
 data class RelayColors(
     val isDark: Boolean,
-    val background: Color,
-    val foreground: Color,
-    val card: Color,
-    val popover: Color,
-    val primary: Color,
-    val onPrimary: Color,
-    /** Hexta's secondary = muted = accent: hover and quiet fills. */
-    val muted: Color,
-    val mutedForeground: Color,
-    /** Quieter than muted text: timestamps, placeholders. */
-    val faint: Color,
-    /** Hairline ring around cards, popovers and lists. */
-    val border: Color,
-    val input: Color,
-    val ring: Color,
+    /** The header band, what a content sheet sits on. */
+    val chrome: Color,
+    /** The content sheet: thread, lists, screens. */
+    val surface: Color,
+    /** Floats over the surface: composer pill, bottom sheets, toasts. */
+    val raised: Color,
+    /** Circle buttons, the search field, the active tab pill, chips. */
+    val tool: Color,
+    /** The current row in lists. */
     val selected: Color,
-    val sidebar: Color,
-    val destructive: Color,
-    val onDestructive: Color,
-    val success: Color,
-    val info: Color,
-    val warning: Color,
-    /** The desktop's colour for threads waiting on you. */
-    val waiting: Color,
-    /** Links, focus, the odd brand touch; greyscale in Hexta neutral. */
-    val accent: Color,
-    val accentSoft: Color,
-    val onAccent: Color,
-    /** The desktop's Send colour; its default theme's lavender until a desktop sends its own. */
+    val ink: Color,
+    /** Secondary text: subtitles, descriptions, inactive labels. */
+    val inkSoft: Color,
+    /** Tertiary text: times, placeholders, section labels. */
+    val inkFaint: Color,
+    /** The dark circle button, the effort slider, tooltips. */
+    val strong: Color,
+    val onStrong: Color,
+    /** The user's message. */
+    val bubble: Color,
+    val onBubble: Color,
+    /** The send button once there's something to send. */
     val send: Color,
     val onSend: Color,
-    val diffAddition: Color,
-    val diffDeletion: Color,
-    val additionText: Color,
-    val deletionText: Color,
+    /** Links, focus, the Relay mark: small brand touches only. */
+    val accent: Color,
+    val onAccent: Color,
+    /** The rare hairline: inputs, the toast's rim. */
+    val line: Color,
+    /** Behind code blocks and inline code. */
     val code: Color,
+    val success: Color,
+    val danger: Color,
+    val onDanger: Color,
+    val warning: Color,
+    val info: Color,
+    /** The desktop's colour for threads waiting on you. */
+    val waiting: Color,
+    /** Diff text. */
+    val added: Color,
+    val removed: Color,
+    /** Diff line backgrounds. */
+    val addedBg: Color,
+    val removedBg: Color,
 ) {
-    /** Hexta's hover: foreground mixed in at ~5%. */
-    val hover: Color get() = foreground.copy(alpha = 0.05f).compositeOver(background)
-    /** Behind a toolbar control: a shade off whatever it sits on, lighter in dark, darker in light. */
-    val tool: Color get() = foreground.copy(alpha = 0.07f)
+    /** A quiet container on the surface: settings groups, toasts. Follows tool, so contrast moves it too. */
+    val container: Color get() = lerp(surface, tool, 0.6f)
 }
 
 private val waitingColor = Color(0xFFD99A2B)
 
-val HextaLight = RelayColors(
+/** "Relay paper", light: the Claude app's greys around Relay's coral. */
+val RelayPaperLight = RelayColors(
     isDark = false,
-    background = Color(0xFFFFFFFF),
-    foreground = Color(0xFF0A0A0A),
-    card = Color(0xFFFFFFFF),
-    popover = Color(0xFFFFFFFF),
-    primary = Color(0xFF171717),
-    onPrimary = Color(0xFFFAFAFA),
-    muted = Color(0xFFF5F5F5),
-    mutedForeground = Color(0xFF6D6D6D),
-    faint = Color(0xFFA1A1A1),
-    border = Color(0x1A0A0A0A),
-    input = Color(0xFFE5E5E5),
-    ring = Color(0xFFA1A1A1),
-    selected = Color(0xFFF0F0F0),
-    sidebar = Color(0xFFFAFAFA),
-    destructive = Color(0xFFDC2626),
-    onDestructive = Color(0xFFFAFAFA),
+    chrome = Color(0xFFECECEC),
+    surface = Color(0xFFFDFDFD),
+    raised = Color(0xFFFCFCFC),
+    tool = Color(0xFFECECEC),
+    selected = Color(0xFFE4E4E4),
+    ink = Color(0xFF1A1A1A),
+    inkSoft = Color(0xFF6B6B6B),
+    inkFaint = Color(0xFF9A9A9A),
+    strong = Color(0xFF171717),
+    onStrong = Color(0xFFFAFAFA),
+    bubble = Color(0xFFE4EFF6),
+    onBubble = Color(0xFF1A1A1A),
+    send = Color(0xFF171717),
+    onSend = Color(0xFFFAFAFA),
+    accent = Color(0xFFC86858),
+    onAccent = Color(0xFFFFFFFF),
+    line = Color(0xFFE2E2E2),
+    code = Color(0xFFF4F4F4),
     success = Color(0xFF008235),
-    info = Color(0xFF1F64EB),
+    danger = Color(0xFFDC2626),
+    onDanger = Color(0xFFFAFAFA),
     warning = Color(0xFFBB4D00),
+    info = Color(0xFF1F64EB),
     waiting = waitingColor,
-    accent = Color(0xFF171717),
-    accentSoft = Color(0xFFF5F5F5),
-    onAccent = Color(0xFFFAFAFA),
-    send = Color(0xFFAAA8E5),
-    onSend = Color(0xFF1B1B22),
-    diffAddition = Color(0xFFDCF5E3),
-    diffDeletion = Color(0xFFFBE0E0),
-    additionText = Color(0xFF008235),
-    deletionText = Color(0xFFC0101C),
-    code = Color(0xFFF7F7F7),
+    added = Color(0xFF53A664),
+    removed = Color(0xFFC8285A),
+    addedBg = Color(0xFFDCF5E3),
+    removedBg = Color(0xFFFBE0E6),
 )
 
-val HextaDark = RelayColors(
+/** "Relay paper", dark: the same steps from near-black, strong turned light. */
+val RelayPaperDark = RelayColors(
     isDark = true,
-    background = Color(0xFF0A0A0A),
-    foreground = Color(0xFFFAFAFA),
-    card = Color(0xFF171717),
-    popover = Color(0xFF171717),
-    primary = Color(0xFFE5E5E5),
-    onPrimary = Color(0xFF171717),
-    muted = Color(0xFF262626),
-    mutedForeground = Color(0xFFA1A1A1),
-    faint = Color(0xFF6B6B6B),
-    border = Color(0x1AFFFFFF),
-    input = Color(0x26FFFFFF),
-    ring = Color(0xFF737373),
-    selected = Color(0xFF232323),
-    sidebar = Color(0xFF171717),
-    destructive = Color(0xFFFF6467),
-    onDestructive = Color(0xFF171717),
+    chrome = Color(0xFF161616),
+    surface = Color(0xFF0D0D0D),
+    raised = Color(0xFF1C1C1C),
+    tool = Color(0xFF262626),
+    selected = Color(0xFF2C2C2C),
+    ink = Color(0xFFF2F2F2),
+    inkSoft = Color(0xFFA3A3A3),
+    inkFaint = Color(0xFF6E6E6E),
+    strong = Color(0xFFFAFAFA),
+    onStrong = Color(0xFF171717),
+    bubble = Color(0xFF1A2A35),
+    onBubble = Color(0xFFF2F2F2),
+    send = Color(0xFFFAFAFA),
+    onSend = Color(0xFF171717),
+    accent = Color(0xFFE08A78),
+    onAccent = Color(0xFF1A0F0C),
+    line = Color(0x1AFFFFFF),
+    code = Color(0xFF161616),
     success = Color(0xFF05DF72),
-    info = Color(0xFF50A2FF),
+    danger = Color(0xFFFF6467),
+    onDanger = Color(0xFF171717),
     warning = Color(0xFFFFB900),
+    info = Color(0xFF50A2FF),
     waiting = waitingColor,
-    accent = Color(0xFFE5E5E5),
-    accentSoft = Color(0xFF262626),
-    onAccent = Color(0xFF171717),
-    send = Color(0xFFAAA8E5),
-    onSend = Color(0xFF1B1B22),
-    diffAddition = Color(0xFF12321F),
-    diffDeletion = Color(0xFF3A1719),
-    additionText = Color(0xFF4ADE80),
-    deletionText = Color(0xFFFF8A8C),
-    code = Color(0xFF111111),
+    added = Color(0xFF6CC47D),
+    removed = Color(0xFFF0668D),
+    addedBg = Color(0xFF12321F),
+    removedBg = Color(0xFF3A1722),
 )
-
-/** Parses `#rgb`, `#rrggbb` or `#rrggbbaa`; null for anything else (the desktop sends CSS-resolved hex). */
-fun parseHex(value: String?): Color? {
-    val hex = value?.trim()?.removePrefix("#") ?: return null
-    val full = when (hex.length) {
-        3 -> hex.map { "$it$it" }.joinToString("")
-        6, 8 -> hex
-        else -> return null
-    }
-    val n = full.toLongOrNull(16) ?: return null
-    return if (full.length == 6) Color(0xFF000000 or n)
-    else Color(((n and 0xFF) shl 24) or (n shr 8))
-}
-
-/**
- * The desktop's PhonePalette (shared/remote-models.ts: kind, sidebar, surface,
- * toolbar, inbox, text, muted, border, hover, selected, accent, accentSoft,
- * onAccent, send, onSend, diffAddition, diffDeletion) laid onto Hexta's tokens. Keys it
- * doesn't send keep Hexta's value for that kind.
- */
-fun colorsFromDesktop(palette: Map<String, String>): RelayColors {
-    val dark = palette["kind"] != "light"
-    val base = if (dark) HextaDark else HextaLight
-    fun pick(key: String) = parseHex(palette[key])
-    val surface = pick("surface") ?: base.background
-    val text = pick("text") ?: base.foreground
-    val muted = pick("muted") ?: base.mutedForeground
-    val raised = pick("inbox") ?: base.card
-    val border = pick("border")
-    return base.copy(
-        background = surface,
-        foreground = text,
-        card = raised,
-        popover = raised,
-        primary = text,
-        onPrimary = surface,
-        muted = pick("hover") ?: base.muted,
-        mutedForeground = muted,
-        faint = lerp(surface, muted, 0.62f),
-        border = border ?: base.border,
-        input = border ?: base.input,
-        selected = pick("selected") ?: base.selected,
-        sidebar = pick("sidebar") ?: base.sidebar,
-        accent = pick("accent") ?: base.accent,
-        accentSoft = pick("accentSoft") ?: base.accentSoft,
-        onAccent = pick("onAccent") ?: base.onAccent,
-        send = pick("send") ?: pick("accent") ?: base.send,
-        onSend = pick("onSend") ?: pick("onAccent") ?: base.onSend,
-        diffAddition = pick("diffAddition") ?: base.diffAddition,
-        diffDeletion = pick("diffDeletion") ?: base.diffDeletion,
-        code = lerp(if (dark) Color.Black else text, surface, 0.9f),
-    )
-}

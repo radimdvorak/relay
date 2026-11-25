@@ -1,21 +1,28 @@
 package dev.relay.android.features.git
 
-import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.LoadingIndicator
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import dev.relay.android.lib.navigation.Route
 import dev.relay.android.remote.Remote
 import dev.relay.android.remote.client.LinkState
 import dev.relay.android.remote.client.NotConnected
@@ -23,19 +30,23 @@ import dev.relay.android.remote.client.RemoteClient
 import dev.relay.android.remote.client.Unanswered
 import dev.relay.android.remote.model.RemoteDiffSource
 import dev.relay.android.remote.model.RemoteJson
-import dev.relay.android.lib.navigation.Route
 import dev.relay.android.ui.Button
 import dev.relay.android.ui.ButtonVariant
 import dev.relay.android.ui.ConfirmDialog
 import dev.relay.android.ui.Dialog
-import dev.relay.android.ui.Spinner
+import dev.relay.android.ui.EmptyState
+import dev.relay.android.ui.RowTextInset
 import dev.relay.android.ui.Text
 import dev.relay.android.ui.rememberInFront
+import dev.relay.android.ui.theme.Motion
 import dev.relay.android.ui.theme.RelayTheme
-import kotlinx.coroutines.launch
-import kotlinx.serialization.encodeToString
+import io.github.lyxnx.compose.ui.tablericons.TablerIcons
+import io.github.lyxnx.compose.ui.tablericons.outline.PlugConnectedX
 import java.text.DateFormat
 import java.util.Date
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.serialization.encodeToString
 
 /** The live client, or [NotConnected] when there's none to call. */
 suspend fun <T> Remote.call(block: suspend RemoteClient.() -> T): T {
@@ -110,22 +121,34 @@ fun AskHost(asks: Asks) {
     }
 }
 
-/** A spinner in the middle of the screen. */
+/** Material's morphing shape in the middle of the screen, once a wait is long enough to notice. */
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun Loading(modifier: Modifier = Modifier) {
-    Box(modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Spinner(color = RelayTheme.colors.mutedForeground)
+    val shown = remember { Animatable(0f) }
+    LaunchedEffect(Unit) {
+        delay(LOADING_AFTER_MS)
+        shown.animateTo(1f, tween(Motion.BASE))
+    }
+    val inFront by rememberInFront()
+    val color = RelayTheme.colors.accent
+    Box(modifier.fillMaxSize().graphicsLayer { alpha = shown.value }, contentAlignment = Alignment.Center) {
+        // Without progress it draws a frame every refresh, so it rests while the app isn't in front.
+        if (inFront) LoadingIndicator(color = color)
+        else LoadingIndicator(progress = { 0f }, color = color)
     }
 }
+
+/** A quick answer shows no loading at all. */
+private const val LOADING_AFTER_MS = 150L
 
 /** A load that failed: the reason and "Try again". */
 @Composable
 fun LoadFailed(error: String, onRetry: suspend () -> Unit, modifier: Modifier = Modifier) {
     val scope = rememberCoroutineScope()
     var trying by remember { mutableStateOf(false) }
-    Box(modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.Center) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text(error, color = RelayTheme.colors.mutedForeground, textAlign = TextAlign.Center)
+    Box(modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        EmptyState("That didn't load", description = error, icon = TablerIcons.Outline.PlugConnectedX) {
             Button(
                 if (trying) "Trying…" else "Try again",
                 {
@@ -138,21 +161,34 @@ fun LoadFailed(error: String, onRetry: suspend () -> Unit, modifier: Modifier = 
                         }
                     }
                 },
-                variant = ButtonVariant.Outline,
+                variant = ButtonVariant.Secondary,
                 enabled = !trying,
             )
         }
     }
 }
 
-/** A muted line in the middle of a list. */
+/** A soft line in the middle of a list. */
 @Composable
 fun EmptyNote(text: String, modifier: Modifier = Modifier) {
     Text(
         text,
         modifier.padding(horizontal = 16.dp, vertical = 24.dp),
-        color = RelayTheme.colors.mutedForeground,
+        style = RelayTheme.type.meta,
+        color = RelayTheme.colors.inkSoft,
         textAlign = TextAlign.Center,
+    )
+}
+
+/** A soft line among a list's rows, lined up with their text. */
+@Composable
+internal fun ListNote(text: String, modifier: Modifier = Modifier, color: Color = RelayTheme.colors.inkSoft, maxLines: Int = Int.MAX_VALUE) {
+    Text(
+        text,
+        modifier.fillMaxWidth().padding(horizontal = RowTextInset, vertical = 6.dp),
+        style = RelayTheme.type.meta,
+        color = color,
+        maxLines = maxLines,
     )
 }
 

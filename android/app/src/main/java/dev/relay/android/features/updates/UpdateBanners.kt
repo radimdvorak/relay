@@ -154,7 +154,7 @@ fun ComputerUpdateRow(updates: Updates, remote: Remote, onPicked: () -> Unit) {
         "Update ${computerName(remote)}",
         subtitle = "${action.hint} It restarts into the new version; its agents keep going.",
         size = RowSize.Sm,
-        leading = { Icon(TablerIcons.Outline.Refresh, null, tint = RelayTheme.colors.foreground, size = 17.dp) },
+        leading = { Icon(TablerIcons.Outline.Refresh, null, tint = RelayTheme.colors.ink, size = 17.dp) },
         onClick = {
             onPicked()
             action.start()

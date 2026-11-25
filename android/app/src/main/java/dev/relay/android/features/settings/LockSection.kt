@@ -12,9 +12,9 @@ import dev.relay.android.features.applock.Biometrics
 import dev.relay.android.features.applock.LockAfter
 import dev.relay.android.features.applock.PinFlow
 import dev.relay.android.features.applock.PinFlowKind
+import dev.relay.android.ui.Group
 import dev.relay.android.ui.ListGroup
 import dev.relay.android.ui.ListRow
-import dev.relay.android.ui.SectionHeader
 import dev.relay.android.ui.Sheet
 import dev.relay.android.ui.Switch
 
@@ -27,34 +27,28 @@ fun LockSection(lock: AppLock) {
     var picking by remember { mutableStateOf(false) }
     val biometrics = remember { Biometrics.available(context) }
 
-    SectionHeader("App lock")
-    ListGroup {
-        val toggle = { flow = if (settings.on) PinFlowKind.TurnOff else PinFlowKind.TurnOn }
-        ListRow(
-            "Lock Relay",
-            subtitle = "Ask for a PIN when Relay opens. One lock for every computer paired here.",
-            subtitleLines = 3,
-            trailing = { Switch(settings.on, { toggle() }) },
-            onClick = toggle,
-        )
+    val toggle = { flow = if (settings.on) PinFlowKind.TurnOff else PinFlowKind.TurnOn }
+    Group(label = "App lock") {
+        item {
+            ListRow(
+                "Lock Relay",
+                subtitle = "Ask for a PIN when Relay opens. One lock for every computer paired here.",
+                subtitleLines = 3,
+                trailing = { Switch(settings.on, { toggle() }) },
+                onClick = toggle,
+            )
+        }
         if (settings.on) {
-            if (biometrics) ListRow(
-                Biometrics.label(context),
-                subtitle = "Unlock without typing the PIN.",
-                trailing = { Switch(settings.biometrics, lock::useBiometrics) },
-                onClick = { lock.useBiometrics(!settings.biometrics) },
-            )
-            ListRow(
-                "Lock when away",
-                subtitle = settings.after.label,
-                chevron = true,
-                onClick = { picking = true },
-            )
-            ListRow(
-                "Change PIN",
-                chevron = true,
-                onClick = { flow = PinFlowKind.Change },
-            )
+            if (biometrics) item {
+                ListRow(
+                    Biometrics.label(context),
+                    subtitle = "Unlock without typing the PIN.",
+                    trailing = { Switch(settings.biometrics, lock::useBiometrics) },
+                    onClick = { lock.useBiometrics(!settings.biometrics) },
+                )
+            }
+            item { ListRow("Lock when away", subtitle = settings.after.label, chevron = true, onClick = { picking = true }) }
+            item { ListRow("Change PIN", chevron = true, onClick = { flow = PinFlowKind.Change }) }
         }
     }
 

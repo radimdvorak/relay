@@ -29,7 +29,6 @@ import dev.relay.android.remote.Remote
 import dev.relay.android.ui.Spinner
 import dev.relay.android.ui.Text
 import dev.relay.android.ui.pressable
-import dev.relay.android.ui.ring
 import dev.relay.android.ui.theme.RelayTheme
 
 private val THUMB = 88.dp
@@ -59,21 +58,20 @@ fun MessageImages(
 @Composable
 private fun Thumb(remote: Remote, image: LightboxImage, onClick: () -> Unit) {
     val c = RelayTheme.colors
-    val shape = RoundedCornerShape(10.dp)
+    val shape = RelayTheme.shapes.field
     // Covers a square, so its shorter side is what has to fill it.
     val loaded = rememberImage(remote, image.source, pixels(THUMB * 2))
     Box(
         Modifier
             .size(THUMB)
             .clip(shape)
-            .background(c.muted)
-            .ring(c.border, shape)
+            .background(c.tool)
             .pressable(onClick, role = Role.Image),
         contentAlignment = Alignment.Center,
     ) {
         val picture = rememberPicture(loaded)
         if (picture != null) Image(picture, image.name, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
-        else if (!loaded.failed) Spinner(color = c.mutedForeground)
+        else if (!loaded.failed) Spinner(color = c.inkSoft)
     }
 }
 
@@ -92,7 +90,7 @@ fun ReadPreview(
     modifier: Modifier = Modifier,
 ) {
     val c = RelayTheme.colors
-    val shape = RoundedCornerShape(8.dp)
+    val shape = RelayTheme.shapes.row
     val loaded = if (done) rememberImage(remote, source, pixels(TRACE_HEIGHT * TRACE_MAX_RATIO)) else null
     val bitmap = loaded?.bitmap
     val ratio = bitmap?.let { it.width.toFloat() / it.height } ?: (4f / 3)
@@ -102,8 +100,7 @@ fun ReadPreview(
             .height(TRACE_HEIGHT)
             .width(TRACE_HEIGHT * ratio.coerceIn(TRACE_MIN_RATIO, TRACE_MAX_RATIO))
             .clip(shape)
-            .background(c.muted)
-            .ring(c.border, shape)
+            .background(c.tool)
             .then(if (done && onOpen != null) Modifier.pressable(onOpen, role = Role.Image, scale = false) else Modifier),
     ) {
         loaded?.let { rememberPicture(it) }?.let { Image(it, name, Modifier.fillMaxSize(), contentScale = ContentScale.Crop) }
@@ -114,7 +111,7 @@ fun ReadPreview(
 @Composable
 fun ReadSwatch(remote: Remote, source: ImageSource, modifier: Modifier = Modifier) {
     val loaded = rememberImage(remote, source, pixels(TRACE_HEIGHT * TRACE_MAX_RATIO))
-    Box(modifier.size(14.dp).clip(RoundedCornerShape(3.dp)).background(RelayTheme.colors.muted)) {
+    Box(modifier.size(14.dp).clip(RoundedCornerShape(3.dp)).background(RelayTheme.colors.tool)) {
         rememberPicture(loaded)?.let { Image(it, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop) }
     }
 }
@@ -139,19 +136,19 @@ fun AnswerImage(
 @Composable
 internal fun AnswerImageFrame(loaded: LoadedImage, label: String, onOpen: () -> Unit, modifier: Modifier = Modifier) {
     val picture = rememberPicture(loaded)
-    val shape = RoundedCornerShape(10.dp)
+    val shape = RelayTheme.shapes.field
     BoxWithConstraints(modifier.fillMaxWidth()) {
         // The frame hugs the picture once it's in; a tall screenshot narrows instead of running screens long.
         val size = loaded.bitmap?.takeIf { picture != null }?.let { fittedSize(it.width, it.height, maxWidth) }
         Box(
             (if (size != null) Modifier.size(size.first, size.second) else Modifier.fillMaxWidth().height(minOf(maxWidth, ANSWER_HEIGHT.dp)))
-                .clip(shape).background(RelayTheme.colors.muted).ring(RelayTheme.colors.border, shape)
+                .clip(shape).background(RelayTheme.colors.tool)
                 .then(if (picture != null) Modifier.pressable(onOpen, role = Role.Image, scale = false) else Modifier),
             contentAlignment = Alignment.Center,
         ) {
             if (picture != null) Image(picture, label, Modifier.fillMaxSize(), contentScale = ContentScale.Fit)
-            else if (loaded.failed) Text("Image unavailable", color = RelayTheme.colors.mutedForeground)
-            else Spinner(color = RelayTheme.colors.mutedForeground)
+            else if (loaded.failed) Text("Image unavailable", style = RelayTheme.type.meta, color = RelayTheme.colors.inkSoft)
+            else Spinner(color = RelayTheme.colors.inkSoft)
         }
     }
 }

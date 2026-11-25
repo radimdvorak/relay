@@ -21,21 +21,21 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.compositeOver
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import dev.relay.android.remote.model.RemoteChatSummary
 import dev.relay.android.ui.Icon
 import dev.relay.android.ui.ProviderIcon
+import dev.relay.android.ui.RowTextInset
 import dev.relay.android.ui.Spinner
 import dev.relay.android.ui.Text
 import dev.relay.android.ui.pressable
 import dev.relay.android.ui.rememberInFront
-import dev.relay.android.ui.theme.RelayColors
 import dev.relay.android.ui.theme.RelayTheme
 import io.github.lyxnx.compose.ui.tablericons.TablerIcons
 import io.github.lyxnx.compose.ui.tablericons.outline.DeviceLaptop
@@ -48,9 +48,9 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 import kotlin.math.roundToLong
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.unit.sp
+
+import androidx.compose.material3.Text as MaterialText
 
 /** "just now", "4m ago", "yesterday", then a date (mobile/src/ui/ThreadRow.tsx's ago). */
 fun ago(at: Long, now: Long, zone: ZoneId = ZoneId.systemDefault(), locale: Locale = Locale.getDefault()): String {
@@ -83,12 +83,6 @@ fun rememberNow(everyMs: Long): Long {
     return now
 }
 
-/** Expo's `mix(a, b, amount)`: `a` at `amount` over `b`. */
-fun mix(a: Color, b: Color, amount: Float): Color = a.copy(alpha = amount).compositeOver(b)
-
-/** How a row with a draft is tinted: it waits on you, the way the desktop's cards do. */
-fun draftTint(c: RelayColors): Color = mix(c.waiting, c.background, 0.1f)
-
 /** A draft's text where a row shows its branch, marked with where it was started. */
 @Composable
 fun DraftLine(draft: ListedDraft, modifier: Modifier = Modifier) {
@@ -104,8 +98,8 @@ fun DraftLine(draft: ListedDraft, modifier: Modifier = Modifier) {
         DraftFrom.Phone -> "Draft started on another phone"
     }
     Row(modifier, horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically) {
-        Icon(icon, started, tint = c.waiting, size = 11.dp)
-        Text(draftText(draft), style = RelayTheme.type.xs, color = mix(c.foreground, c.waiting, 0.8f), maxLines = 1)
+        Icon(icon, started, tint = c.waiting, size = 13.dp)
+        Text(draftText(draft), style = RelayTheme.type.listMeta, color = c.inkSoft, maxLines = 1)
     }
 }
 
@@ -135,42 +129,37 @@ fun ThreadRow(
         else -> ago(chat.updated, now)
     }
     val meta = buildAnnotatedString {
-        withStyle(SpanStyle(color = if (chat.waiting == true) c.accent else c.mutedForeground)) { append(state) }
+        withStyle(SpanStyle(color = if (chat.waiting == true) c.waiting else c.inkSoft)) { append(state) }
         if (project != null) append(" · $project")
         if (draft != null) append(" · ")
         else if (goal != null) append(" · ${goal.objective}")
         else if (chat.branch != null) append(" · ${chat.branch}")
     }
-    val press = remember { MutableInteractionSource() }
-    val pressed by press.collectIsPressedAsState()
-    val fill = when {
-        pressed -> c.hover
-        selected -> c.selected
-        draft != null -> draftTint(c)
-        else -> Color.Transparent
-    }
+    val interaction = remember { MutableInteractionSource() }
+    val pressed by interaction.collectIsPressedAsState()
     Row(
-        modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(fill)
-            .pressable(onClick = onClick, onLongClick = onLongClick, scale = false, interaction = press)
-            .heightIn(min = 56.dp).padding(horizontal = 12.dp, vertical = 9.dp),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        modifier.fillMaxWidth().clip(RelayTheme.shapes.row).background(if (pressed || selected) c.selected else Color.Transparent)
+            .semantics { this.selected = selected }
+            .pressable(onClick = onClick, onLongClick = onLongClick, scale = false, interaction = interaction)
+            .heightIn(min = 60.dp).padding(horizontal = RowTextInset, vertical = 10.dp),
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(Modifier.width(16.dp), contentAlignment = Alignment.Center) {
+        Box(Modifier.width(20.dp), contentAlignment = Alignment.Center) {
             when {
-                blocked -> Icon(TablerIcons.Outline.HelpCircle, "Waiting for you", tint = c.accent, size = 16.dp)
-                working -> Spinner(size = 13.dp, color = c.mutedForeground)
-                chat.provider != null -> ProviderIcon(chat.provider, c.mutedForeground, size = 14.dp)
+                blocked -> Icon(TablerIcons.Outline.HelpCircle, "Waiting for you", tint = c.waiting, size = 20.dp)
+                working -> Spinner(size = 16.dp, color = c.inkSoft)
+                chat.provider != null -> ProviderIcon(chat.provider, c.inkSoft, size = 18.dp)
             }
         }
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(chat.title, style = RelayTheme.type.base.copy(fontSize = 14.sp, fontWeight = FontWeight.Medium), color = c.foreground, maxLines = 1)
+            Text(chat.title, style = RelayTheme.type.listTitle, maxLines = 1)
             Row(verticalAlignment = Alignment.CenterVertically) {
-                androidx.compose.material3.Text(
+                MaterialText(
                     meta,
                     Modifier.then(if (draft != null) Modifier.widthIn(max = 220.dp) else Modifier),
-                    style = RelayTheme.type.xs,
-                    color = c.mutedForeground,
+                    style = RelayTheme.type.listMeta,
+                    color = c.inkSoft,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )

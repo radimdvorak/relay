@@ -10,16 +10,16 @@ import android.util.TypedValue
 import android.view.View
 import android.view.inputmethod.EditorInfo
 import android.widget.EditText
-import androidx.compose.foundation.border
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
-import dev.relay.android.ui.theme.Radii
 import dev.relay.android.ui.theme.RelayTheme
 
 /**
@@ -39,12 +39,13 @@ fun SecretInput(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
     onDone: () -> Unit = {},
+    fill: Color = RelayTheme.colors.container,
 ) {
     val c = RelayTheme.colors
-    val text = c.foreground.toArgb()
-    val hint = c.faint.toArgb()
-    val size = RelayTheme.type.base.fontSize.value
-    Box(modifier.fillMaxWidth().border(1.dp, c.border, Radii.mdShape).padding(horizontal = 12.dp, vertical = 4.dp)) {
+    val text = c.ink.toArgb()
+    val hint = c.inkFaint.toArgb()
+    val size = RelayTheme.type.row.fontSize.value
+    Box(modifier.fillMaxWidth().background(fill, RelayTheme.shapes.field).padding(horizontal = 14.dp, vertical = 6.dp)) {
         AndroidView(
             factory = { context ->
                 SecretEditText(context).apply {

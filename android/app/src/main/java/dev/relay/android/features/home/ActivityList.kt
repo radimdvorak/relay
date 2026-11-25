@@ -1,26 +1,28 @@
 package dev.relay.android.features.home
 
 import android.content.ClipData
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -29,31 +31,27 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.ClipEntry
 import androidx.compose.ui.platform.LocalClipboard
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import dev.relay.android.remote.Bridge
 import dev.relay.android.remote.model.RemoteChatSummary
 import dev.relay.android.remote.model.RemoteProject
 import dev.relay.android.ui.Icon
-import dev.relay.android.ui.ListRow
 import dev.relay.android.ui.LocalToasts
-import dev.relay.android.ui.Sheet
+import dev.relay.android.ui.RowTextInset
+import dev.relay.android.ui.SectionLabel
 import dev.relay.android.ui.Text
+import dev.relay.android.ui.listPadding
 import dev.relay.android.ui.pressable
 import dev.relay.android.ui.theme.RelayTheme
 import io.github.lyxnx.compose.ui.tablericons.TablerIcons
-import io.github.lyxnx.compose.ui.tablericons.outline.Check
 import io.github.lyxnx.compose.ui.tablericons.outline.ChevronRight
 import io.github.lyxnx.compose.ui.tablericons.outline.Sunrise
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.JsonObject
-import dev.relay.android.ui.SectionHeader
 
 private const val SHELF_PAGE = 30
 
@@ -64,8 +62,8 @@ internal fun shelfCount(size: Int) = if (size > SHELF_PAGE) "$SHELF_PAGE+" else 
 typealias Triage = suspend (RemoteChatSummary, TriageAction) -> JsonObject?
 
 /**
- * The desktop sidebar's Activity view: one card per open thread, the ones that need nothing
- * from you faded back, and Snoozed and Settled folded away below.
+ * The Threads tab: open threads in calm rows by what they need from you, the unsent drafts of new
+ * threads above them, and Snoozed and Settled folded away below. With nothing open, the greeting.
  */
 @Composable
 fun ActivityList(
@@ -83,11 +81,10 @@ fun ActivityList(
     /** A new thread's draft, to carry on writing. */
     onOpenDraft: (ListedDraft, projectId: String) -> Unit,
     onTriage: Triage,
-    /** Room under the list, e.g. for the New thread button. */
+    /** Room under the list for what floats over it. */
     bottom: Dp,
     modifier: Modifier = Modifier,
 ) {
-    val c = RelayTheme.colors
     val toasts = LocalToasts.current
     val scope = rememberCoroutineScope()
     // Ages and "Sends at" labels move with the clock.
@@ -127,10 +124,10 @@ fun ActivityList(
     }
 
     @Composable
-    fun card(chat: RemoteChatSummary, radius: Dp, family: CardFamily? = null, compact: Boolean = false) {
+    fun row(chat: RemoteChatSummary, family: RowFamily? = null, compact: Boolean = false) {
         val (settle, snooze) = swipes(chat)
-        SwipeTriage(settle, snooze, blocked = acting != null, radius = radius) {
-            ActivityCard(
+        SwipeTriage(settle, snooze, blocked = acting != null) {
+            ActivityRow(
                 chat, chat.projectId, name(chat), threadDraft(drafts, chat.id), unread(chat), chat.id == selected, now,
                 onClick = { onOpen(chat) }, onLongClick = { acting = chat }, family = family, compact = compact,
             )
@@ -139,11 +136,8 @@ fun ActivityList(
 
     @Composable
     fun startedUnder(started: List<RemoteChatSummary>) {
-        Column(
-            Modifier.padding(start = 22.dp, bottom = 4.dp).fillMaxWidth()
-                .drawLeftRule(c.border).padding(start = 6.dp),
-        ) {
-            for (s in started) androidx.compose.runtime.key(s.id) { card(s, 10.dp, compact = true) }
+        Column(Modifier.padding(start = StartedIndent, bottom = 4.dp).fillMaxWidth()) {
+            for (s in started) key(s.id) { row(s, compact = true) }
         }
     }
 
@@ -151,15 +145,7 @@ fun ActivityList(
         if (items.isEmpty()) return
         val shown = shelves.getValue(kind)
         item("shelf-$kind") {
-            // A group label like the ones above, that folds its rows away.
-            SectionHeader(
-                label,
-                Modifier.padding(top = 8.dp).clip(RoundedCornerShape(9.dp))
-                    .pressable(onClick = { shelves[kind] = if (shown > 0) 0 else SHELF_PAGE }, scale = false),
-                countText = shelfCount(items.size),
-            ) {
-                Icon(TablerIcons.Outline.ChevronRight, if (shown > 0) "Fold $label" else "Show $label", Modifier.rotate(if (shown > 0) 90f else 0f), tint = c.faint, size = 13.dp)
-            }
+            ShelfLabel(label, items.size, open = shown > 0, Modifier.animateItem()) { shelves[kind] = if (shown > 0) 0 else SHELF_PAGE }
         }
         items(items.take(shown), key = { "$kind-${it.id}" }) { chat ->
             val snoozed = kind == "snoozed"
@@ -171,14 +157,16 @@ fun ActivityList(
                 actionLabel = if (snoozed) "Wake now" else "Move back to activity",
                 onClick = { onOpen(chat) },
                 onAction = { triage(chat, if (snoozed) TriageAction.Wake else TriageAction.Unsettle) },
+                modifier = Modifier.animateItem(),
             )
         }
         if (items.size > shown && shown > 0) item("more-$kind") {
             Text(
                 "Show ${minOf(SHELF_PAGE, items.size - shown)} more",
-                Modifier.fillMaxWidth().clip(RoundedCornerShape(9.dp)).pressable(onClick = { shelves[kind] = shown + SHELF_PAGE }, scale = false)
-                    .heightIn(min = 44.dp).padding(start = 12.dp, top = 13.dp),
-                color = c.mutedForeground,
+                Modifier.fillMaxWidth().clip(RelayTheme.shapes.row).pressable(onClick = { shelves[kind] = shown + SHELF_PAGE }, scale = false)
+                    .heightIn(min = 48.dp).padding(start = RowTextInset, top = 14.dp),
+                style = RelayTheme.type.meta,
+                color = RelayTheme.colors.inkSoft,
             )
         }
     }
@@ -187,42 +175,44 @@ fun ActivityList(
     fun family(chat: RemoteChatSummary) {
         val started = families.started[chat.id].orEmpty()
         if (chat.id in families.headers) {
-            Column {
-                ShelfRow(
-                    chat, name(chat), "Settled", chat.id == selected, UnsettleIcon, "Move back to activity",
-                    onClick = { onOpen(chat) }, onAction = { triage(chat, TriageAction.Unsettle) },
-                )
-                startedUnder(started)
-            }
-            return
+            ShelfRow(
+                chat, name(chat), "Settled", chat.id == selected, UnsettleIcon, "Move back to activity",
+                onClick = { onOpen(chat) }, onAction = { triage(chat, TriageAction.Unsettle) },
+            )
+            return startedUnder(started)
         }
         // A family's fold as the user left it; until then open while any of it needs a look.
         val open = started.isNotEmpty() && (folds[chat.id] ?: !familySettled(started, unread))
-        Column {
-            card(chat, 12.dp, family = if (started.isNotEmpty()) CardFamily(started, open) { onFold(chat.id, !open) } else null)
-            if (open) startedUnder(started)
-        }
+        row(chat, family = if (started.isNotEmpty()) RowFamily(started, open) { onFold(chat.id, !open) } else null)
+        AnimatedVisibility(
+            open,
+            enter = expandVertically(MaterialTheme.motionScheme.defaultSpatialSpec()) + fadeIn(MaterialTheme.motionScheme.defaultEffectsSpec()),
+            exit = shrinkVertically(MaterialTheme.motionScheme.defaultSpatialSpec()) + fadeOut(MaterialTheme.motionScheme.defaultEffectsSpec()),
+        ) { startedUnder(started) }
     }
 
-    LazyColumn(modifier, contentPadding = PaddingValues(start = 8.dp, end = 8.dp, top = 4.dp, bottom = bottom)) {
+    val settledShelf = sections.settled.filter { it.id !in families.headers }
+    LazyColumn(modifier, contentPadding = listPadding(bottom = bottom, top = 8.dp)) {
         items(fresh, key = { it.key }) { draft ->
             val projectId = newDraftProject(draft.key)!!
-            val project = byId.getValue(projectId)
-            NewDraftCard(draft, project) { onOpenDraft(draft, projectId) }
+            NewDraftRow(draft, byId.getValue(projectId), Modifier.animateItem()) { onOpenDraft(draft, projectId) }
         }
         for ((label, group) in groupByState(families.top, families.started)) {
             if (group.isEmpty()) continue
-            item("section-$label") { SectionHeader(label, count = group.size) }
-            items(group, key = { it.id }) { chat -> family(chat) }
+            item("section-$label") { SectionLabel(label, Modifier.animateItem(), count = "${group.size}") }
+            items(group, key = { it.id }) { chat -> Column(Modifier.animateItem()) { family(chat) } }
         }
-        if (sections.active.isEmpty() && fresh.isEmpty()) item("empty") { InboxZero(filtered) }
+        if (sections.active.isEmpty() && fresh.isEmpty()) item("empty") {
+            val shelfCount = listOf(sections.snoozed, settledShelf).count { it.isNotEmpty() }
+            ActivityEmpty(filtered, Modifier.fillParentMaxHeight(1f - 0.08f * shelfCount))
+        }
         shelf("snoozed", "Snoozed", sections.snoozed)
-        shelf("settled", "Settled", sections.settled.filter { it.id !in families.headers })
+        shelf("settled", "Settled", settledShelf)
     }
 
     val clipboard = LocalClipboard.current
     acting?.let { chat ->
-        HoldMenu(
+        ThreadMenu(
             chat, now, bridge,
             onTriage = { triage(chat, it) },
             onCopy = { branch -> scope.launch { clipboard.setClipEntry(ClipEntry(ClipData.newPlainText("Branch", branch))) } },
@@ -253,74 +243,39 @@ internal fun groupByState(
     return listOf("Needs you" to needs, "Running" to running, "Recent" to rest)
 }
 
+/** A shelf's label, which folds its rows away. */
 @Composable
-private fun NewDraftCard(draft: ListedDraft, project: RemoteProject, onClick: () -> Unit) {
-    val c = RelayTheme.colors
-    val press = remember { MutableInteractionSource() }
-    val pressed by press.collectIsPressedAsState()
-    Column(
-        Modifier.fillMaxWidth().padding(bottom = 2.dp).clip(RoundedCornerShape(12.dp)).background(if (pressed) c.hover else draftTint(c))
-            .pressable(onClick = onClick, scale = false, interaction = press).padding(horizontal = 12.dp, vertical = 10.dp),
-        verticalArrangement = Arrangement.spacedBy(4.dp),
+private fun ShelfLabel(label: String, size: Int, open: Boolean, modifier: Modifier, onClick: () -> Unit) {
+    val turn by animateFloatAsState(if (open) 90f else 0f, MaterialTheme.motionScheme.fastSpatialSpec(), label = "shelf-turn")
+    SectionLabel(
+        label,
+        modifier.clip(RelayTheme.shapes.row).pressable(onClick = onClick, scale = false).heightIn(min = 48.dp),
+        count = shelfCount(size),
     ) {
-        Row(Modifier.heightIn(min = 22.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-            ProjectCardBadge(project.id, project.name)
-            Text(project.name, Modifier.weight(1f), color = c.mutedForeground, maxLines = 1)
-        }
-        Text("New thread", style = RelayTheme.type.base.copy(fontWeight = FontWeight.Medium), color = c.mutedForeground, maxLines = 1)
-        Row(Modifier.heightIn(min = 16.dp), verticalAlignment = Alignment.CenterVertically) { DraftLine(draft, Modifier.weight(1f)) }
-    }
-}
-
-@Composable
-private fun InboxZero(filtered: Boolean) {
-    val c = RelayTheme.colors
-    Column(Modifier.fillMaxWidth().padding(top = 26.dp, start = 18.dp, end = 18.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Box(Modifier.padding(bottom = 4.dp).size(36.dp).background(c.accentSoft, CircleShape), contentAlignment = Alignment.Center) {
-            Icon(TablerIcons.Outline.Check, null, tint = c.accent, size = 18.dp)
-        }
-        Text(if (filtered) "Nothing open here" else "Inbox zero", style = RelayTheme.type.base.copy(fontWeight = FontWeight.SemiBold))
-        Text(
-            if (filtered) "No open thread matches the filter." else "Threads come back here when an agent replies or needs you.",
-            color = c.mutedForeground,
-            textAlign = TextAlign.Center,
+        Icon(
+            TablerIcons.Outline.ChevronRight, if (open) "Fold $label" else "Show $label",
+            Modifier.graphicsLayer { rotationZ = turn }, tint = RelayTheme.colors.inkFaint, size = 14.dp,
         )
     }
 }
 
-/** A running thread settles once its answer ends, as the desktop's sidebar does; one asking doesn't. */
-private fun settleAction(chat: RemoteChatSummary): Pair<String, TriageAction>? = when {
-    chat.waiting == true -> null
-    chat.running == true -> "Settle when done" to TriageAction.SettleWhenDone
-    else -> "Settle" to TriageAction.Settle
-}
-
-/** A held card's menu: settle, snooze until, mark unread, copy its branch. */
+/** A new thread that isn't sent yet: its project, and what's written so far. */
 @Composable
-private fun HoldMenu(chat: RemoteChatSummary, now: Long, bridge: Int, onTriage: (TriageAction) -> Unit, onCopy: (String) -> Unit, onDismiss: () -> Unit) {
-    fun pick(run: () -> Unit) {
-        onDismiss()
-        run()
-    }
-    Sheet(onDismiss, title = chat.title) {
-        Column {
-            settleAction(chat)?.let { (label, action) ->
-                ListRow(label, subtitle = "Hide it until something new happens", leadingIcon = TablerIcons.Outline.Check, onClick = { pick { onTriage(action) } })
-            }
-            for (p in snoozePresets(now))
-                ListRow("Snooze · ${p.label}", subtitle = wakeLabel(p.until, now), onClick = { pick { onTriage(TriageAction.Snooze(p.until)) } })
-            if (bridge >= Bridge.MARKED_UNREAD)
-                ListRow("Mark as unread", onClick = { pick { onTriage(TriageAction.Unread) } })
-            chat.branch?.let { branch ->
-                ListRow("Copy branch name", subtitle = branch, onClick = {
-                    pick { onCopy(branch) }
-                })
-            }
+private fun NewDraftRow(draft: ListedDraft, project: RemoteProject, modifier: Modifier, onClick: () -> Unit) {
+    val c = RelayTheme.colors
+    val interaction = remember { MutableInteractionSource() }
+    val pressed by interaction.collectIsPressedAsState()
+    Row(
+        modifier.fillMaxWidth().clip(RelayTheme.shapes.row).background(if (pressed) c.selected else Color.Transparent)
+            .pressable(onClick = onClick, scale = false, interaction = interaction)
+            .heightIn(min = 64.dp).padding(horizontal = RowTextInset, vertical = 10.dp),
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        ProjectCardBadge(project.id, project.name, size = 28.dp)
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text("New thread in ${project.name}", style = RelayTheme.type.listTitle, maxLines = 1)
+            DraftLine(draft, Modifier.heightIn(min = 20.dp))
         }
     }
 }
-
-/** The hairline down the left of a family's started threads. */
-private fun Modifier.drawLeftRule(color: androidx.compose.ui.graphics.Color) = this.then(
-    Modifier.drawBehind { drawLine(color, androidx.compose.ui.geometry.Offset(0f, 0f), androidx.compose.ui.geometry.Offset(0f, size.height), 1f) },
-)

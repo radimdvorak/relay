@@ -34,19 +34,18 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import dev.relay.android.ui.theme.Motion
-import dev.relay.android.ui.theme.Radii
 import dev.relay.android.ui.theme.RelayTheme
 import kotlinx.coroutines.delay
 import androidx.compose.material3.Icon as MaterialIcon
 import androidx.compose.material3.Text as MaterialText
 
-/** Text in the theme's type and colour; 13sp body by default. */
+/** Text in the theme's type and colour; the 15sp body by default. */
 @Composable
 fun Text(
     text: String,
     modifier: Modifier = Modifier,
-    style: TextStyle = RelayTheme.type.sm,
-    color: Color = RelayTheme.colors.foreground,
+    style: TextStyle = RelayTheme.type.body,
+    color: Color = RelayTheme.colors.ink,
     maxLines: Int = Int.MAX_VALUE,
     overflow: TextOverflow = TextOverflow.Ellipsis,
     textAlign: TextAlign? = null,
@@ -62,7 +61,7 @@ fun Text(
     )
 }
 
-/** A Tabler icon at Hexta's 16dp, tinted with the current content colour. */
+/** A Tabler icon, 16dp unless sized, tinted with the current content colour. */
 @Composable
 fun Icon(
     icon: ImageVector,
@@ -80,11 +79,11 @@ fun ContentColor(color: Color, content: @Composable () -> Unit) {
     CompositionLocalProvider(LocalContentColor provides color, content = content)
 }
 
-/** A one-pixel rule. */
+/** A one-pixel rule. Rare: whitespace and tonal fills separate things now. */
 @Composable
 fun Divider(
     modifier: Modifier = Modifier,
-    color: Color = RelayTheme.colors.border,
+    color: Color = RelayTheme.colors.line,
     vertical: Boolean = false,
 ) {
     val w = RelayTheme.hairline
@@ -119,10 +118,10 @@ fun Spinner(
 fun ProgressBar(
     progress: Float?,
     modifier: Modifier = Modifier,
-    color: Color = RelayTheme.colors.foreground,
+    color: Color = RelayTheme.colors.ink,
     height: Dp = 3.dp,
 ) {
-    val track = RelayTheme.colors.muted
+    val track = RelayTheme.colors.tool
     val shape = RoundedCornerShape(height)
     if (progress != null) {
         val shown by animateFloatAsState(progress.coerceIn(0f, 1f), tween(Motion.SLIDE, easing = Motion.EaseOutQuint), label = "progress")
@@ -140,17 +139,17 @@ fun ProgressBar(
     )
 }
 
-/** A placeholder block: muted fill with a band sweeping across every 1.6s while in front. */
+/** A placeholder block: tool fill with a band sweeping across every 1.6s while in front. */
 @Composable
 fun Skeleton(
     modifier: Modifier = Modifier,
-    shape: Shape = Radii.mdShape,
+    shape: Shape = RelayTheme.shapes.row,
 ) {
     val c = RelayTheme.colors
-    val band = c.foreground.copy(alpha = if (c.isDark) 0.10f else 0.08f)
+    val band = c.ink.copy(alpha = if (c.isDark) 0.10f else 0.06f)
     val p = loop(1600, LinearEasing, 0f, 1f, still = -1f)
     Box(
-        modifier.clip(shape).background(c.muted).drawWithContent {
+        modifier.clip(shape).background(c.tool).drawWithContent {
             val at = p()
             if (at < 0f) return@drawWithContent
             val w = size.width
