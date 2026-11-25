@@ -2860,12 +2860,19 @@ it.each(["handed-off", "remote-owned"] as const)(
       { startedBy: { chatId: there, agent: "codex" } },
     );
     await mini.chats.send(started.id, input("@codex Check the tests"));
+    // Opened from the computer's list too, as a peek, racing the lead's news.
+    await sender.threads.open(computerId, started.id);
     await finished(mini.chats, started.id, 2);
 
+    // Opened as a peek first, it stays in the project it was opened in.
+    const everyThread = () => {
+      const projectIds = (laptop.store.get().chats ?? []).map(
+        (c) => c.projectId,
+      );
+      return [...new Set(projectIds)].flatMap((id) => laptop.chats.list(id));
+    };
     const underLead = () =>
-      laptop.chats
-        .list(here.projectId)
-        .filter((c) => c.startedBy?.chatId === here.chatId);
+      everyThread().filter((c) => c.startedBy?.chatId === here.chatId);
     await vi.waitFor(() => expect(underLead()).toHaveLength(1));
     const [mirror] = underLead();
     expect(mirror!.sentTo).toMatchObject({
@@ -2875,6 +2882,8 @@ it.each(["handed-off", "remote-owned"] as const)(
       home: true,
     });
     expect(mirror!.sentTo?.peek).toBeUndefined();
+    // By its id there, which the lead's start_threads call names it by.
+    expect(mirror!.id).toBe(started.id);
     expect(mirror!.startedBy).toEqual({ chatId: here.chatId, agent: "codex" });
     const ids = async (chats: ProjectChats, id: string) =>
       (await chats.get(id)).messages.map((m) => m.id);
@@ -2884,7 +2893,7 @@ it.each(["handed-off", "remote-owned"] as const)(
       ),
     );
     // Activity lists it under its lead, as one started here.
-    const families = startedFamilies(laptop.chats.list(here.projectId));
+    const families = startedFamilies(everyThread());
     expect(families.started.get(here.chatId)?.map((c) => c.id)).toEqual([
       mirror!.id,
     ]);

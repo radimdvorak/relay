@@ -43,12 +43,9 @@ interface StartedUnder {
   thread: StartedThere;
 }
 
-const startedByOf = (thread: StartedThere, lead: ChatSummary): StartedBy => ({
+const startedByOf = ({ lead, thread }: StartedUnder): StartedBy => ({
   chatId: lead.id,
   agent: thread.agent,
-  ...(thread.secondOpinionOn
-    ? { secondOpinionOn: thread.secondOpinionOn }
-    : {}),
 });
 
 export class ComputerThreads {
@@ -132,14 +129,24 @@ export class ComputerThreads {
     if (!lead || lead.sentTo?.peek) return;
     const here = this.followedFrom(computerId);
     for (const thread of started) {
-      if (here.has(thread.id)) continue;
-      await this.open(computerId, thread.id, { lead, thread }).catch((e) =>
+      const followed = here.get(thread.id);
+      if (followed && listed(this.store, followed.chatId)?.startedBy) continue;
+      await this.followUnder(computerId, { lead, thread }).catch((e) =>
         console.warn(
           "A thread started on another computer wasn't followed:",
           e,
         ),
       );
     }
+  }
+
+  /**
+   * Follows one, or places the one already followed under its lead: it may
+   * have been opened from the computer's list first, as a peek.
+   */
+  private async followUnder(computerId: string, under: StartedUnder) {
+    const mirror = await this.open(computerId, under.thread.id, under);
+    await this.chats.liveHandoff.placeUnder(mirror.chatId, startedByOf(under));
   }
 
   private async follow(
@@ -171,7 +178,7 @@ export class ComputerThreads {
         home: true,
         ...(peek ? { peek: true as const } : {}),
       },
-      under && startedByOf(under.thread, under.lead),
+      under && startedByOf(under),
     );
     await this.following.follow(computerId, chat.id);
     return { projectId, chatId: chat.id, ...(peek ? { peek } : {}) };
@@ -179,18 +186,16 @@ export class ComputerThreads {
 
   /**
    * The project here a thread on the computer goes in: its lead's, when the
-   * thread was started in the lead's project there, or else its project
-   * there, added here as one that lives there.
+   * thread works in the lead's project there, or else its project there,
+   * added here as one that lives there.
    */
   private async projectFor(
     computerId: string,
-    { projects, threads }: ComputerThreadList,
+    { projects }: ComputerThreadList,
     thread: ComputerThread,
     under: StartedUnder | undefined,
   ) {
-    const leadThere = threads.find((t) => t.id === under?.lead.sentTo?.id);
-    if (under && leadThere?.projectId === thread.projectId)
-      return under.lead.projectId;
+    if (under?.thread.inLeadsProject) return under.lead.projectId;
     const there = projects.find((p) => p.id === thread.projectId);
     const { name } = this.computers.get(computerId);
     if (!there) throw new Error(`That thread isn't on ${name} anymore.`);

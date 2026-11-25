@@ -17,7 +17,7 @@ import type {
 } from "../../shared/projects";
 import { promptTitle } from "../../shared/prompt-title";
 import { handoffTriage, type HandoffTriage } from "../../shared/handoff-triage";
-import { sentSettingsOf } from "../../shared/projects";
+import { sentSettingsOf, workingFor } from "../../shared/projects";
 import type { ChatCore } from "./core";
 import { chatSummary } from "./chat-summaries";
 import { awaitsReturn } from "./handoff";
@@ -114,6 +114,8 @@ export class LiveHandoff {
    * A thread that lives on another computer, followed from here: kept as a
    * mirror of what's written there, which comes once it's followed. One a
    * lead's agent started there sits under that lead here too (`startedBy`).
+   * It goes by its id there when that's free here, as one started there from
+   * here does, so what names it there (the lead's calls) names it here.
    */
   async followThere(
     projectId: string,
@@ -121,8 +123,11 @@ export class LiveHandoff {
     sentTo: ChatSentTo,
     startedBy?: StartedBy,
   ) {
+    const idTaken = (this.core.store.get().chats ?? []).some(
+      (c) => c.id === thread.id,
+    );
     const chat: ProjectChat = {
-      id: randomUUID(),
+      id: idTaken ? randomUUID() : thread.id,
       projectId,
       scope: thread.scope,
       title: thread.title,
@@ -226,27 +231,40 @@ export class LiveHandoff {
   /**
    * The threads the lead's agent started here that the computer following
    * the lead can follow too: this computer's own, not handed on, archived or
-   * a deep review's.
+   * a deep review's. A second opinion is left out: sending it to the lead
+   * is an action of this computer's.
    */
   private startedHere(lead: ProjectChat): StartedThere[] {
-    const carried = lead.carriedIds ?? {};
     return (this.core.store.get().chats ?? []).flatMap((c) => {
-      if (c.startedBy?.chatId !== lead.id) return [];
+      if (!c.startedBy || !workingFor(c, lead.id)) return [];
       const ownHere = !c.cameFrom && !c.sentTo;
-      const listed = !c.archivedAt && !c.reviewer && c.scope.kind !== "review";
+      const listed = !c.archivedAt && c.scope.kind !== "review";
       if (!ownHere || !listed) return [];
-      // The answer it checks, by the id the following computer knows it by.
-      const opinionOn = c.startedBy.secondOpinionOn;
       return [
         {
           id: c.id,
           agent: c.startedBy.agent,
-          ...(opinionOn
-            ? { secondOpinionOn: carried[opinionOn] ?? opinionOn }
+          ...(c.projectId === lead.projectId
+            ? { inLeadsProject: true as const }
             : {}),
         },
       ];
     });
+  }
+
+  /**
+   * A thread followed from here before it was known to be one a lead's agent
+   * started there, opened from the other computer's list: listed under that
+   * lead from now on, not only looked at.
+   */
+  async placeUnder(id: string, startedBy: StartedBy) {
+    const chat = await this.core.storage.load(id);
+    if (chat.startedBy || !chat.sentTo) return;
+    const { peek: _, ...sentTo } = chat.sentTo;
+    chat.startedBy = startedBy;
+    chat.sentTo = sentTo;
+    await this.core.storage.save(chat);
+    this.core.storage.chatChanged(id);
   }
 
   /** The thread is live on `handoffId`, away and following it. */

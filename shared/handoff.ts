@@ -159,8 +159,8 @@ export interface StartedThere {
   id: string;
   /** The agent that started it. */
   agent: AgentProvider;
-  /** The lead's answer it gives a second opinion on, by that message's id here. */
-  secondOpinionOn?: string;
+  /** It works in the lead's project there, so it goes in the lead's here too. */
+  inLeadsProject?: true;
 }
 
 /** The thread runs on the computer it was handed to and is followed live from here. */
