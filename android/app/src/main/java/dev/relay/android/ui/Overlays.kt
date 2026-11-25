@@ -52,16 +52,18 @@ fun Sheet(
     title: String? = null,
     description: String? = null,
     halfFirst: Boolean = false,
+    /** Opposite the ✕: one more circle. */
+    action: (@Composable () -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     if (rememberIsWide()) {
         CenteredCard(onDismiss, modifier.widthIn(max = 480.dp)) {
-            RelaySheetFrame(title, onDismiss, handle = false) { SheetBody(description, content) }
+            RelaySheetFrame(title, onDismiss, handle = false, action = action) { SheetBody(description, content) }
         }
         return
     }
     InsetModalSheet(onDismiss, halfFirst) {
-        RelaySheetFrame(title, onDismiss, modifier) { SheetBody(description, content) }
+        RelaySheetFrame(title, onDismiss, modifier, action = action) { SheetBody(description, content) }
     }
 }
 

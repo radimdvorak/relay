@@ -25,6 +25,7 @@ import dev.relay.android.remote.Remote
 import dev.relay.android.remote.client.LinkState
 import dev.relay.android.remote.client.RemoteStatus
 import dev.relay.android.remote.credentials.ComputerSeen
+import dev.relay.android.ui.CircleButton
 import dev.relay.android.ui.ConfirmDialog
 import dev.relay.android.ui.Icon
 import dev.relay.android.ui.ListRow
@@ -130,7 +131,15 @@ private fun ComputerSheet(
     val lines = ComputerLines(computers, active, status, overview?.version, reached, rememberNow(30_000))
     var forgetting by remember { mutableStateOf<PairedComputer?>(null) }
 
-    Sheet(onDismiss, title = "Computers") {
+    val pairAnother = {
+        onDismiss()
+        navigator.push(Route.Pair())
+    }
+    Sheet(
+        onDismiss,
+        title = "Computers",
+        action = { CircleButton(TablerIcons.Outline.Plus, "Pair another computer", pairAnother) },
+    ) {
         Column {
             for (pc in computers) {
                 val here = pc.id == active
@@ -160,16 +169,6 @@ private fun ComputerSheet(
                 )
             }
             extraRows(onDismiss)
-            ListRow(
-                "Pair another computer",
-                subtitle = "Scan the code in Relay's Settings → Phone there.",
-                size = RowSize.Sm,
-                leading = { Icon(TablerIcons.Outline.Plus, null, tint = c.ink, size = 20.dp) },
-                onClick = {
-                    onDismiss()
-                    navigator.push(Route.Pair())
-                },
-            )
         }
     }
     forgetting?.let { pc ->
