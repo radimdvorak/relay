@@ -10,6 +10,7 @@ const statuses: Record<string, string> = {
   done: "completed",
   in_progress: "in_progress",
   pending: "pending",
+  failed: "failed",
 };
 
 /**

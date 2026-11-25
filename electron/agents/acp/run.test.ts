@@ -304,6 +304,7 @@ it("shows Antigravity's update_steps as the plan, once accepted and without skip
     { title: "Write a.txt", status: "done" },
     { title: "Write b.txt", status: "in_progress" },
     { title: "Write c.txt", status: "skipped" },
+    { title: "Write d.txt", status: "failed" },
   ];
   const { acp, root } = await agent({
     turn: [
@@ -320,7 +321,8 @@ it("shows Antigravity's update_steps as the plan, once accepted and without skip
     expect.objectContaining({
       label: "Updated the plan",
       status: "running",
-      detail: "- [x] Write a.txt\n- [ ] Write b.txt (working on it)",
+      detail:
+        "- [x] Write a.txt\n- [ ] Write b.txt (working on it)\n- [ ] Write d.txt (failed)",
     }),
   ]);
   // The refused list is a failed call, and leaves the plan alone.
@@ -855,6 +857,63 @@ it("asks the user when the mode does, and answers with the option they picked", 
   expect(reply?.result).toEqual({
     outcome: { outcome: "selected", optionId: "always" },
   });
+});
+
+it("shows Antigravity's CommandLine in approval details", async () => {
+  const { acp, root } = await agent({
+    turn: [
+      {
+        ask: {
+          toolCall: {
+            toolCallId: "cmd_1",
+            name: "run_command",
+            kind: "execute",
+            title: "Run command",
+            rawInput: { CommandLine: "npm test", WaitMsBeforeAsync: 5000 },
+          },
+          options: allowOrReject,
+        },
+      },
+      say("ok"),
+    ],
+  });
+  const onRequest = vi.fn(async () => ({
+    kind: "approval" as const,
+    decision: "accept" as const,
+  }));
+  await runAcp(
+    acp,
+    options(root, { runtimeMode: "approval-required", onRequest }),
+  );
+  expect(onRequest).toHaveBeenCalledWith(
+    expect.objectContaining({ title: "Run command", detail: "npm test" }),
+    expect.anything(),
+  );
+});
+
+it("fails an Antigravity turn on a mid-turn Google error even after tool calls ran", async () => {
+  const { acp, root } = await agent(
+    {
+      turn: [
+        {
+          update: {
+            sessionUpdate: "tool_call",
+            toolCallId: "read_1",
+            kind: "read",
+            title: "Read a.ts",
+            status: "completed",
+          },
+        },
+        say("⚠ RESOURCE_EXHAUSTED (code 429): Quota exceeded"),
+      ],
+    },
+    { failure: (await import("../antigravity")).antigravityFailure },
+  );
+  const onText = vi.fn();
+  await expect(runAcp(acp, options(root, { onText }))).rejects.toThrow(
+    "Antigravity: RESOURCE_EXHAUSTED (code 429): Quota exceeded",
+  );
+  expect(onText).toHaveBeenLastCalledWith("");
 });
 
 it("offers no Always when the agent has several, rather than picking the broadest", async () => {

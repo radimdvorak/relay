@@ -77,6 +77,8 @@ export interface AcpProfile {
   account?(): Promise<AcpAccount | undefined>;
   /** Takes MCP servers over HTTP without saying so when it starts. */
   takesHttpMcp?: boolean;
+  /** Reads attached audio files with `read_file` when ACP doesn't accept audio blocks. */
+  readsAudioFiles?: boolean;
   /** Takes another prompt into the turn it's on, so Relay can steer it. */
   steersByPrompt?: boolean;
   /** The prompt that compacts its session, when it has one. */
@@ -105,7 +107,7 @@ export interface AcpProfile {
   /** What to tell someone it can't find. */
   install: string;
   /** An answer that is really the agent reporting a failure. */
-  failure?(answer: string): string | undefined;
+  failure?(answer: string, hadCalls: boolean): string | undefined;
 }
 
 /**
@@ -136,8 +138,9 @@ const amp: AcpProfile = {
   ],
   install:
     "Install Amp in Settings → AI & agents → Agents, or from ampcode.com.",
-  // The bridge reports a failed turn as the answer's text.
-  failure: (answer) => /^Error: (.+)/s.exec(answer.trim())?.[1],
+  // The bridge reports a failed turn as the answer's text, before any tool runs.
+  failure: (answer, hadCalls) =>
+    hadCalls ? undefined : /^Error: (.+)/s.exec(answer.trim())?.[1],
 };
 
 async function antigravityLine(home: string) {
@@ -169,6 +172,7 @@ const antigravity: AcpProfile = {
   authMethod: async () => (await antigravityAuthMethod()) ?? "oauth-personal",
   account: () => readAntigravityAccount(),
   takesHttpMcp: true,
+  readsAudioFiles: true,
   steersByPrompt: true,
   compact: "/compact",
   plan: "/plan",

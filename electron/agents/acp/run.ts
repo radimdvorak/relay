@@ -241,7 +241,7 @@ async function runAcpTurn(
     await observer?.settle();
     finish(options, profile, result, turn, name);
     const answer = turn.answer();
-    const failed = calls.size === 0 ? profile.failure?.(answer) : undefined;
+    const failed = profile.failure?.(answer, calls.size > 0);
     if (failed) {
       options.onText("");
       throw new Error(`${name}: ${failed}`);

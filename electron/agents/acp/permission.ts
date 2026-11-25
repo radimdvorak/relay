@@ -1,9 +1,10 @@
 // Answering an ACP agent's ask to run a tool, from Relay's mode or the user.
+import { resolve } from "node:path";
 import type { AgentDecision } from "../../../shared/agent-modes";
 import { mcpCall } from "../activity";
 import { answerAntigravityQuestion, antigravityMcp } from "../antigravity";
 import type { AgentOptions } from "../types";
-import { editKinds, lookKinds } from "./activity";
+import { editKinds, lookKinds, rawField } from "./activity";
 import {
   cancelledPermission,
   permissionRequestSchema,
@@ -37,15 +38,40 @@ function canOffer(request: AcpPermissionRequest, decision: AgentDecision) {
 
 /** What the user sees of a permission request: the command, or the files it changes. */
 function requestDetail(request: AcpPermissionRequest) {
-  const raw = request.toolCall.rawInput as Record<string, unknown> | undefined;
-  const command = typeof raw?.command === "string" ? raw.command : undefined;
+  const command = rawField(
+    request.toolCall.rawInput,
+    "command",
+    "cmd",
+    "CommandLine",
+  );
   const paths = [
     ...(request.toolCall.content ?? []).flatMap((c) =>
       c.type === "diff" && c.path ? [c.path] : [],
     ),
     ...(request.toolCall.locations ?? []).map((l) => l.path),
   ];
-  return command ?? ([...new Set(paths)].join("\n") || undefined);
+  return command || [...new Set(paths)].join("\n") || undefined;
+}
+
+/** Whether the agent is only asking to read audio files the user attached to this turn. */
+function readsAttachedAudio(
+  options: AgentOptions,
+  request: AcpPermissionRequest,
+) {
+  if (!options.audio?.length || request.toolCall.kind !== "read") return false;
+  const attached = new Set(options.audio.map((clip) => resolve(clip.path)));
+  const inputPath = rawField(
+    request.toolCall.rawInput,
+    "Path",
+    "path",
+    "file_path",
+    "filePath",
+  );
+  const paths = [
+    ...(request.toolCall.locations ?? []).map((l) => l.path),
+    ...(inputPath ? [inputPath] : []),
+  ];
+  return paths.length > 0 && paths.every((path) => attached.has(resolve(path)));
 }
 
 /** What the approval is called: the MCP tool it's for, or the agent's own title. */
@@ -79,6 +105,8 @@ export async function permission(
     (isAntigravity && options.job.kind === "compact")
   )
     return answer(reject());
+  if (isAntigravity && readsAttachedAudio(options, request))
+    return answer(allow());
   if (options.readOnly && !lookKinds.has(kind)) return answer(reject());
   if (options.runtimeMode === "full-access") return answer(allow());
   if (options.runtimeMode === "auto-accept-edits" && editKinds.has(kind))

@@ -45,16 +45,38 @@ export async function promptBlocks(
     { type: "text", text: planning ? `${agent.profile.plan} ${body}` : body },
   ];
   blocks.push(...(await imageBlocks(options.images, agent, name)));
-  if (options.audio?.length) {
-    if (!agent.caps?.audio) throw new Error(`${name} can't listen to audio.`);
-    for (const clip of options.audio)
-      blocks.push({
+  blocks.push(...(await audioBlocks(options.audio, agent, name, profile)));
+  return blocks;
+}
+
+/** Audio clips as ACP audio blocks, or a `read_file` note where the agent reads audio from disk. */
+async function audioBlocks(
+  audio: AgentOptions["audio"],
+  agent: AcpAgent,
+  name: string,
+  profile: AcpProfile,
+): Promise<object[]> {
+  if (!audio?.length) return [];
+  if (agent.caps?.audio)
+    return Promise.all(
+      audio.map(async (clip) => ({
         type: "audio",
         mimeType: clip.mimeType,
         data: (await readFile(clip.path)).toString("base64"),
-      });
-  }
-  return blocks;
+      })),
+    );
+  if (!profile.readsAudioFiles)
+    throw new Error(`${name} can't listen to audio.`);
+  const files = audio
+    .map((clip) => `- ${clip.path} (${clip.mimeType})`)
+    .join("\n");
+  return [
+    {
+      type: "text",
+      text: `The user attached audio to this message. Call read_file on each path below to listen before answering:\n${files}`,
+      annotations: { audience: ["assistant"] },
+    },
+  ];
 }
 
 /** Pictures as content blocks, for a turn's prompt or a steer. */
