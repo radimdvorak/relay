@@ -55,7 +55,13 @@ public func threadChecklist(_ messages: [ChatMessage]) -> [ChecklistStep]? {
     return nil
 }
 
+/// The agent is still writing the main conversation's answer, not compacting or running something beside it.
+private func answerStreaming(_ messages: [ChatMessage]) -> Bool {
+    guard let last = ownConversation(messages).last else { return false }
+    return last.role == "assistant" && last.status == "streaming" && last.compaction != true
+}
+
 /// What the dock shows: a phone hasn't the room to keep a finished one there once the answer is in.
 public func dockedChecklist(_ messages: [ChatMessage], running: Bool) -> [ChecklistStep]? {
-    threadChecklist(messages).flatMap { running || !checklistIsOver($0) ? $0 : nil }
+    threadChecklist(messages).flatMap { !checklistIsOver($0) || (running && answerStreaming(messages)) ? $0 : nil }
 }

@@ -97,11 +97,14 @@ private final class Thread {
     #expect(threadChecklist([t.asked(), t.answer(open), t.asked(steered: true, missed: true), t.answer()]) == nil)
 }
 
-@Test func docksAFinishedChecklistOnlyWhileTheAnswerRuns() {
+@Test func docksAFinishedChecklistOnlyWhileItsAnswerIsWritten() {
     let t = Thread()
-    let thread = [t.asked(), t.answer(steps("done", "done"))]
-    #expect(dockedChecklist(thread, running: true) == steps("done", "done"))
-    #expect(dockedChecklist(thread, running: false) == nil)
+    let writing = [t.asked(), t.answer(steps("done", "done"), status: "streaming")]
+    #expect(dockedChecklist(writing, running: true) == steps("done", "done"))
+    let answered = [t.asked(), t.answer(steps("done", "done"))]
+    #expect(dockedChecklist(answered, running: false) == nil)
+    // Something else running, like a compaction, doesn't bring it back.
+    #expect(dockedChecklist(answered + [t.answer(status: "streaming", compaction: true)], running: true) == nil)
     #expect(dockedChecklist([t.asked(), t.answer(steps("now"))], running: false) == steps("now"))
 }
 

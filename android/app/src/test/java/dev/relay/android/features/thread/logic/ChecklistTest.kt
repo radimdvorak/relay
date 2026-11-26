@@ -74,10 +74,13 @@ class ChecklistTest {
         assertNull(threadChecklist(listOf(asked(), answer(open), asked(steered = true, missed = true), answer())))
     }
 
-    @Test fun docksAFinishedOneOnlyWhileTheAnswerRuns() {
-        val thread = listOf(asked(), answer(steps("done", "done")))
-        assertEquals(steps("done", "done"), dockedChecklist(thread, running = true))
-        assertNull(dockedChecklist(thread, running = false))
+    @Test fun docksAFinishedOneOnlyWhileItsAnswerIsWritten() {
+        val writing = listOf(asked(), answer(steps("done", "done"), status = "streaming"))
+        assertEquals(steps("done", "done"), dockedChecklist(writing, running = true))
+        val answered = listOf(asked(), answer(steps("done", "done")))
+        assertNull(dockedChecklist(answered, running = false))
+        // Something else running, like a compaction, doesn't bring it back.
+        assertNull(dockedChecklist(answered + answer(status = "streaming", compaction = true), running = true))
         assertEquals(steps("now"), dockedChecklist(listOf(asked(), answer(steps("now"))), running = false))
     }
 
