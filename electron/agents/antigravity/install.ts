@@ -109,7 +109,9 @@ export async function latestAntigravity(
   const target = cliTarget(platform, arch, usesMusl());
   if (!target)
     throw new Error(`Antigravity has no build for ${platform} ${arch}.`);
-  const response = await fetch(`${manifestBase}/${target}.json`);
+  const response = await fetch(`${manifestBase}/${target}.json`, {
+    signal: AbortSignal.timeout(15_000),
+  });
   if (!response.ok)
     throw new Error(
       `Couldn't ask Google for Antigravity (${response.status}).`,
