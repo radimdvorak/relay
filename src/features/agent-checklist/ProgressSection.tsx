@@ -4,11 +4,15 @@ import { currentStep, checklistProgress, type ChecklistStep } from "../../../sha
 import { useStoredFlag } from "../../lib/useStoredFlag";
 import { Checklist } from "./Checklist";
 
-/** Scrolls a long checklist to the step the agent is on, as it gets there. */
-function useCurrentInView(at: number) {
+/**
+ * Scrolls a long checklist to the step the agent is on, as it gets there.
+ * Once every step is over there is none, and the list stays where it is.
+ */
+function useCurrentInView(at: number | undefined) {
   const list = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const view = list.current;
+    if (at === undefined) return;
     const step = view?.querySelectorAll("li")[at];
     if (!view || !step) return;
     const top = step.offsetTop - view.offsetTop;
@@ -22,7 +26,7 @@ function useCurrentInView(at: number) {
 
 function ScrolledSteps({ steps }: { steps: ChecklistStep[] }) {
   const current = currentStep(steps);
-  const list = useCurrentInView(current ? steps.indexOf(current) : 0);
+  const list = useCurrentInView(current && steps.indexOf(current));
   return (
     <div className="progress-section-steps" ref={list}>
       <Checklist steps={steps} />

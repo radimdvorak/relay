@@ -238,6 +238,7 @@ export function RunningTasks({
   handoff,
   changes,
   checklist,
+  threadId,
   onOpenChanges,
   onOpenChat,
 }: {
@@ -255,6 +256,8 @@ export function RunningTasks({
   changes?: CardChanges;
   /** The steps of the checklist the open thread's agent is on. */
   checklist?: ChecklistStep[];
+  /** The open thread; its checklist scrolls to its own step when it opens. */
+  threadId?: string;
   onOpenChanges: () => void;
   onOpenChat: (chat: ChatSummary) => void;
 }) {
@@ -286,7 +289,7 @@ export function RunningTasks({
           {changes && (
             <ChangesSection changes={changes} onOpen={onOpenChanges} />
           )}
-          {checklist && <ProgressSection steps={checklist} />}
+          {checklist && <ProgressSection key={threadId} steps={checklist} />}
           {!!tasks.list.length && (
             <RunningSection
               project={project}

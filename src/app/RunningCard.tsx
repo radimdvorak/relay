@@ -106,6 +106,7 @@ export function RunningCard({
       }
       changes={changes}
       checklist={checklist}
+      threadId={chat.id}
       onOpenChanges={() => opens.openCode("changes")}
       onOpenChat={(c) => navigate(project, c)}
     />
