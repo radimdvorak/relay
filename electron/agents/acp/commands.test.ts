@@ -1,3 +1,4 @@
+import { homedir } from "node:os";
 import { expect, it } from "vitest";
 import { hearCommands, heardCommands, heardInFolder } from "./commands";
 
@@ -43,6 +44,7 @@ it("keeps one folder's list apart from another's", () => {
       },
       { cwd },
     );
+  list("at-home", homedir());
   list("skill-of-a", "/a");
   list("skill-of-b", "/b");
   expect(heardInFolder(fixture, "/a")?.map((c) => c.name)).toEqual([
@@ -51,6 +53,10 @@ it("keeps one folder's list apart from another's", () => {
   expect(heardInFolder(fixture, "/c")).toBeUndefined();
   for (let i = 0; i < 60; i++) list("helper", `/tmp/helper-${i}`);
   expect(heardInFolder(fixture, "/a")).toBeUndefined();
+  // The home folder's list is what a folder never opened offers, so it stays.
+  expect(heardInFolder(fixture, homedir())?.map((c) => c.name)).toEqual([
+    "at-home",
+  ]);
 });
 
 it("keeps one account's list apart from another's in the same folder", () => {

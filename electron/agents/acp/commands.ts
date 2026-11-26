@@ -1,3 +1,4 @@
+import { homedir } from "node:os";
 import type { ProviderCommand } from "../../../shared/commands";
 import type { AcpProfile } from "./profiles";
 import { parseUpdate } from "./protocol";
@@ -20,11 +21,17 @@ const listerKey = ({ provider, accountKey }: Lister) =>
 const folderKey = (lister: Lister, cwd: string) =>
   `${listerKey(lister)}\0${cwd}`;
 
+/**
+ * Keeps what an agent listed in a folder. The home folder's list stays: it's
+ * what a folder the agent hasn't opened yet offers.
+ */
 function keepForFolder(key: string, commands: ProviderCommand[]) {
   heardByFolder.delete(key);
   heardByFolder.set(key, commands);
-  const [oldest] = heardByFolder.keys();
-  if (heardByFolder.size > FOLDERS_KEPT) heardByFolder.delete(oldest!);
+  if (heardByFolder.size <= FOLDERS_KEPT) return;
+  const atHome = `\0${homedir()}`;
+  const oldest = [...heardByFolder.keys()].find((k) => !k.endsWith(atHome));
+  if (oldest) heardByFolder.delete(oldest);
 }
 
 /**

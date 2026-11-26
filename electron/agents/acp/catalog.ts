@@ -43,7 +43,11 @@ async function probe(profile: AcpProfile, cwd: string) {
       `${profile.name} didn't open a session in time.`,
     );
     const session = agent.session!;
-    if (!heardCommands(profile))
+    // One that lists a folder's own skills is waited for in this folder too.
+    const heard = profile.offer
+      ? heardInFolder(profile, cwd)
+      : heardCommands(profile);
+    if (!heard)
       await new Promise((resolve) => setTimeout(resolve, commandsWait));
     // Some agents send models in a config_option_update after the session
     // opens; give them a moment to arrive.
