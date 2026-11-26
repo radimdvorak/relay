@@ -219,6 +219,25 @@ async function readEndpoint(
   return [...mapGeminiModelQuota(models), ...windows];
 }
 
+/** Every endpoint's windows, the fullest of each kept, and whether one refused the token. */
+async function readWindows(request: Request, bearer: string) {
+  const responses = await Promise.allSettled(
+    endpoints.map((endpoint) => readEndpoint(request, endpoint, bearer)),
+  );
+  const windows = new Map<string, UsageWindow>();
+  for (const result of responses)
+    if (result.status === "fulfilled")
+      for (const window of result.value) {
+        const previous = windows.get(window.id!);
+        if (!previous || window.usedPercent > previous.usedPercent)
+          windows.set(window.id!, window);
+      }
+  const refused = responses.some(
+    (r) => r.status === "rejected" && r.reason instanceof QuotaAuthError,
+  );
+  return { windows, refused };
+}
+
 const unavailable = (message: string): ProviderUsage => ({
   provider: "antigravity",
   windows: [],
@@ -248,6 +267,12 @@ export function createAntigravityUsageReader(
     if (renewed && hasRunOut(renewed, now())) throw new QuotaExpiredError();
     return renewed;
   };
+  /** After Google refused a token: the one the CLI saved since, or else a renewal, whatever its clock says. */
+  const afterRefusal = async (refused: QuotaCredential) => {
+    const saved = await readCurrent();
+    if (!saved || saved.accessToken !== refused.accessToken) return saved;
+    return renewal(saved);
+  };
   return async (): Promise<ProviderUsage> => {
     try {
       let credential = await readCurrent();
@@ -255,26 +280,12 @@ export function createAntigravityUsageReader(
         return unavailable("Sign in with Google to see Antigravity limits.");
       // A quota read is safe to retry once after a documented bearer-token refusal.
       for (let attempt = 0; attempt < 2; attempt++) {
-        const bearer = credential.accessToken;
-        const responses = await Promise.allSettled(
-          endpoints.map((endpoint) =>
-            readEndpoint(request, endpoint, bearer),
-          ),
+        const { windows, refused } = await readWindows(
+          request,
+          credential.accessToken,
         );
-        const windows = new Map<string, UsageWindow>();
-        for (const result of responses)
-          if (result.status === "fulfilled")
-            for (const window of result.value) {
-              const previous = windows.get(window.id!);
-              if (!previous || window.usedPercent > previous.usedPercent)
-                windows.set(window.id!, window);
-            }
-        const refused = responses.some(
-          (r) => r.status === "rejected" && r.reason instanceof QuotaAuthError,
-        );
-        // The CLI may have renewed its token since; read it again once.
         if (refused && attempt === 0) {
-          credential = await readCurrent();
+          credential = await afterRefusal(credential);
           if (!credential)
             return unavailable(
               "Sign in with Google to see Antigravity limits.",

@@ -10,8 +10,11 @@ const minute = 60_000;
 function scenario() {
   vi.spyOn(console, "warn").mockImplementation(() => {});
   const state = { now: 0, works: false, who: "a" };
-  const saved = (expiresAt: number): QuotaCredential => ({
-    accessToken: "token",
+  const saved = (
+    expiresAt: number,
+    accessToken = "token",
+  ): QuotaCredential => ({
+    accessToken,
     fingerprint: state.who,
     renewable: true,
     expiresAt,
@@ -19,7 +22,8 @@ function scenario() {
   let current = saved(-1);
   const renew = vi.fn(async () => {
     if (!state.works) throw new Error("offline");
-    current = saved(state.now + 60 * minute);
+    // Google hands out a new access token with each renewal.
+    current = saved(state.now + 60 * minute, `token at ${state.now}`);
   });
   const renewal = createSignInRenewal(
     renew,
@@ -53,6 +57,20 @@ it("holds off longer after each failure, and starts over once one worked", async
   state.now += minute;
   await renewal(expired());
   expect(renew).toHaveBeenCalledTimes(2);
+});
+
+it("counts the same token coming back as a failure, however long it says it lasts", async () => {
+  const { state, renew, expired } = scenario();
+  const refused = { ...expired(), expiresAt: Infinity };
+  const renewal = createSignInRenewal(
+    renew,
+    async () => refused,
+    () => state.now,
+  );
+  state.works = true;
+  await renewal(refused);
+  await renewal(refused);
+  expect(renew).toHaveBeenCalledOnce();
 });
 
 it("tries at once for someone who signed in since", async () => {

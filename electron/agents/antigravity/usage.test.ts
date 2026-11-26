@@ -169,11 +169,31 @@ it("bounds auth retries and picks up a removed or replaced login on the next ope
   const service = createAntigravityUsageReader(read, cannotRenew, fetcher);
   expect((await service()).message).toMatch(/sign in.*again/i);
   expect(fetcher).toHaveBeenCalledTimes(4);
-  expect(read).toHaveBeenCalledTimes(2);
+  // Once before the read, once after the refusal, once after asking the CLI to renew.
+  expect(read).toHaveBeenCalledTimes(3);
   saved = undefined;
   expect((await service()).windows).toEqual([]);
   saved = credential("replacement");
   expect((await service()).windows).toHaveLength(4);
+});
+
+it("has the CLI renew a token Google refused before its time ran out", async () => {
+  let saved = credential("revoked", Infinity);
+  const renew = vi.fn(async () => {
+    saved = credential("renewed");
+  });
+  const fetcher = vi.fn<typeof fetch>(async (_url, init) =>
+    (init!.headers as Record<string, string>).Authorization === "Bearer revoked"
+      ? json({}, 401)
+      : json(summary),
+  );
+  const service = createAntigravityUsageReader(
+    async () => saved,
+    renew,
+    fetcher,
+  );
+  expect((await service()).windows).toHaveLength(4);
+  expect(renew).toHaveBeenCalledOnce();
 });
 
 it("has the CLI renew a token that ran out, and reads with the new one", async () => {

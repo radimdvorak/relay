@@ -10,8 +10,8 @@ export const hasRunOut = (credential: QuotaCredential, now: number) =>
   credential.expiresAt <= now + minute;
 
 /**
- * Has the CLI renew a saved sign-in whose access token ran out, and reads it
- * again. Failures hold off further tries, each longer than the last, until
+ * Has the CLI renew a saved sign-in whose access token ran out or was
+ * refused, and reads it again. Failures hold off further tries, each longer than the last, until
  * one works or someone signs in as someone else.
  */
 export function createSignInRenewal(
@@ -27,7 +27,9 @@ export function createSignInRenewal(
       console.warn("Could not renew the Antigravity sign-in:", error.message),
     );
     const renewed = await read();
-    if (renewed && !hasRunOut(renewed, now())) {
+    // The same token again was refused or ran out; only a new one is a renewal.
+    const isNew = renewed && renewed.accessToken !== expired.accessToken;
+    if (renewed && isNew && !hasRunOut(renewed, now())) {
       failed = { fingerprint: "", times: 0, retryAt: 0 };
       return renewed;
     }
