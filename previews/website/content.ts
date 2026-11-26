@@ -70,7 +70,7 @@ export const features: { title: string; text: string; detail: string }[] = [
   },
   {
     title: "Limits",
-    text: "Meters show how much of your plan is left for Claude, Codex, Cursor, Muse and Antigravity: one for the session, one for the week or the month.",
+    text: "Meters show how much of your plan is left for Claude, Codex, Cursor and Muse: one for the session, one for the week or the month.",
     detail: "session · week · month",
   },
   {
