@@ -65,10 +65,13 @@ function output(call: Partial<AcpToolCall>): {
     item.type === "content" && item.content?.text ? [item.content.text] : [],
   );
   const raw = texts.length ? texts.join("\n") : call.rawOutput;
+  // What went to stderr is often what says why it failed.
   const printed = () =>
     typeof raw === "string"
       ? raw
-      : rawField(raw, "output", "stdout", "error", "message");
+      : [rawField(raw, "output", "stdout"), rawField(raw, "stderr", "error", "message")]
+          .filter(Boolean)
+          .join("\n");
   const exitCode = antigravityExitCode(call.rawOutput);
   if (exitCode !== undefined) return { text: printed(), exitCode };
   if (typeof raw !== "string") return { text: printed() };

@@ -128,4 +128,15 @@ it("shows what a command printed beside its exit code, whatever the field", () =
     rawOutput: { exit_code: 1, stdout: "1 failed", stderr: "" },
   });
   expect(activity).toMatchObject({ status: "failed", detail: "1 failed" });
+  const stderr = acpActivity({
+    toolCallId: "d",
+    kind: "execute",
+    status: "completed",
+    rawInput: { command: "git push" },
+    rawOutput: { exit_code: 128, stdout: "", stderr: "fatal: no remote" },
+  });
+  expect(stderr).toMatchObject({
+    status: "failed",
+    detail: "fatal: no remote",
+  });
 });
