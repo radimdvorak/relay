@@ -93,7 +93,8 @@ test("Antigravity asks fixed questions in full access, compacts, plans, and offe
     saveGoogleLogin: true,
     resume: true,
     sessions: ["s1", "s2"],
-    captureEnvKeys: ["GEMINI_HOME"],
+    captureEnvKeys: ["GEMINI_HOME", "AGY_CLI_FORCE_FILE_TOKEN_STORAGE"],
+    captureArgv: true,
     configOptions: [
       {
         id: "model",
@@ -374,6 +375,15 @@ test("Antigravity asks fixed questions in full access, compacts, plans, and offe
       .filter(Boolean)
       .map((line) => JSON.parse(line));
     expect(sent.some((m) => m.result?.outcome?.optionId === "prod")).toBe(true);
+    // The CLI keeps each account apart by the folder it's told, and its sign-in in a file there.
+    const argv: string[] = sent.filter((m) => m.argv).at(-1)!.argv;
+    expect(argv[argv.indexOf("--gemini-dir") + 1]).toBe(
+      join(data, "agent-accounts", "antigravity", work.id),
+    );
+    expect(
+      sent.filter((m) => m.environment).at(-1)!.environment
+        .AGY_CLI_FORCE_FILE_TOKEN_STORAGE,
+    ).toBe("1");
   } catch (error) {
     const page = await app.firstWindow();
     await screenshot(page, {

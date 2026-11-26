@@ -21,6 +21,7 @@
 //     carrying the session's total, as OpenCode 2 reports it
 //   spent: what resumed sessions had cost before, by id
 //   skills: OpenCode 2's catalog returned by `opencode api GET /api/skill?...`
+//   captureEnvKeys, captureArgv: log those environment variables, or the command line, as it starts
 //   RELAY_ACP_SCENARIO_FILE can supply a scenario too large for an environment variable.
 const fs = require("node:fs");
 const scenario = JSON.parse(
@@ -32,6 +33,7 @@ const log = (v) =>
   process.env.RELAY_ACP_LOG &&
   fs.appendFileSync(process.env.RELAY_ACP_LOG, JSON.stringify(v) + "\n");
 if (scenario.captureEnvKeys) log({ environment: Object.fromEntries(scenario.captureEnvKeys.map((key) => [key, process.env[key] ?? null])) });
+if (scenario.captureArgv) log({ argv: process.argv.slice(2) });
 const send = (v) =>
   process.stdout.write(JSON.stringify({ jsonrpc: "2.0", ...v }) + "\n");
 
