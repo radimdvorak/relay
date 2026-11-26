@@ -89,6 +89,22 @@ it("shows a turn's changes as one row, and a subagent's as its own calls", () =>
   expect(last.checklist).toBeUndefined();
 });
 
+it("shows a change that didn't go through as its own call, and leaves the checklist alone", () => {
+  const onActivity = vi.fn<(a: AgentActivity) => void>();
+  const rows = new ToolRows({ onActivity } as unknown as ClaudeRunOptions);
+  const result = (id: string, returned: unknown, is_error = false) =>
+    rows.results([{ type: "tool_result", tool_use_id: id, content: is_error ? "Denied" : "", is_error }], null, returned);
+  rows.call({ id: "a", name: "TaskUpdate", input: { taskId: "9", status: "completed" } }, null);
+  result("a", { success: false, error: "Task not found" });
+  const todos = [{ content: "Build", status: "completed" }];
+  rows.call({ id: "b", name: "TodoWrite", input: { todos } }, null);
+  result("b", undefined, true);
+  expect(onActivity.mock.calls.map(([a]) => [a.id, a.status, a.checklist, a.detail])).toEqual([
+    ["a", "failed", undefined, undefined],
+    ["b", "failed", undefined, "Denied"],
+  ]);
+});
+
 it("reads the older to-do list whole", () => {
   const todos = [
     { content: "Build", status: "completed", activeForm: "Building" },

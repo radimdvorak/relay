@@ -62,7 +62,10 @@ export class ToolRows {
   private peerSends = new Map<string, { to: string; message: string }>();
 
   /** Calls changing the checklist, waiting on their results. */
-  private taskCalls = new Map<string, { name: string; input: unknown }>();
+  private taskCalls = new Map<
+    string,
+    { id: string; name: string; input: unknown }
+  >();
   /** The turn's one checklist row, named after the first call that changed it. */
   private checklistRow?: string;
 
@@ -157,11 +160,6 @@ export class ToolRows {
     parent = this.parentOf(parent);
     for (const result of content)
       if (result.type === "tool_result") {
-        if (this.taskCalls.has(result.tool_use_id)) {
-          this.showChecklist(result.tool_use_id, returned);
-          continue;
-        }
-        const call = this.calls.get(result.tool_use_id);
         const output =
           typeof result.content === "string"
             ? result.content
@@ -170,6 +168,14 @@ export class ToolRows {
                   .flatMap((part) => (part.type === "text" ? [part.text] : []))
                   .join("\n")
               : "";
+        if (this.taskCalls.has(result.tool_use_id)) {
+          this.showChecklist(result.tool_use_id, returned, {
+            failed: !!result.is_error,
+            output,
+          });
+          continue;
+        }
+        const call = this.calls.get(result.tool_use_id);
         const finished: AgentActivity = {
           ...(call ?? claudeActivity(result.tool_use_id, "Tool", {})),
           progress: undefined,
@@ -185,13 +191,22 @@ export class ToolRows {
       }
   }
 
-  /** One row for the turn's checklist, as it stands after each change. */
-  private showChecklist(id: string, returned: unknown) {
+  /**
+   * One row for the turn's checklist, as it stands after each change. A call
+   * that failed, or changed nothing, shows as a row of its own instead.
+   */
+  private showChecklist(
+    id: string,
+    returned: unknown,
+    result: { failed: boolean; output: string },
+  ) {
     const call = this.taskCalls.get(id)!;
     this.taskCalls.delete(id);
     if (!isTaskTool(call.name)) return;
-    const checklist = this.tasks.after(call.name, call.input, returned);
-    if (!checklist) return;
+    const checklist = result.failed
+      ? undefined
+      : this.tasks.after(call.name, call.input, returned);
+    if (!checklist) return this.showUnchanged(call, returned, result);
     this.checklistRow ??= `checklist:${id}`.slice(0, 180);
     this.options.onActivity?.({
       id: this.checklistRow,
@@ -200,6 +215,21 @@ export class ToolRows {
       status: "complete",
       detail: checklistDetail(checklist),
       checklist,
+    });
+  }
+
+  /** A change to the checklist that didn't go through, as the call it was. */
+  private showUnchanged(
+    call: { id: string; name: string; input: unknown },
+    returned: unknown,
+    { failed, output }: { failed: boolean; output: string },
+  ) {
+    const refused =
+      (returned as { success?: unknown } | null)?.success === false;
+    this.options.onActivity?.({
+      ...claudeActivity(call.id, call.name, call.input),
+      status: failed || refused ? "failed" : "complete",
+      ...(output ? { detail: output.slice(-8000) } : {}),
     });
   }
 
