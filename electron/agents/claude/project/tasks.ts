@@ -53,17 +53,27 @@ const byId = (a: SavedTask, b: SavedTask) => Number(a.id) - Number(b.id);
  */
 export function savedTasks(home: string, sessionId: string): SavedTask[] {
   const dir = join(home, "tasks", sessionId);
+  let names: string[];
   try {
-    return readdirSync(dir)
-      .filter((name) => /^\d+\.json$/.test(name))
-      .flatMap((name) => {
-        const text = readFileSync(join(dir, name), "utf8");
-        const task = savedSchema.safeParse(JSON.parse(text));
-        return task.success ? [task.data] : [];
-      })
-      .sort(byId);
+    names = readdirSync(dir);
   } catch {
     return [];
+  }
+  return names
+    .filter((name) => /^\d+\.json$/.test(name))
+    .flatMap((name) => {
+      const task = savedTask(join(dir, name));
+      return task ? [task] : [];
+    })
+    .sort(byId);
+}
+
+/** One saved task; none when Claude Code is halfway through writing it, or just removed it. */
+function savedTask(path: string) {
+  try {
+    return savedSchema.safeParse(JSON.parse(readFileSync(path, "utf8"))).data;
+  } catch {
+    return undefined;
   }
 }
 

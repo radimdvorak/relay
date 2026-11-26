@@ -64,6 +64,8 @@ it("picks a resumed session's checklist up from what Claude Code saved", async (
   await save("10", "Ship", "pending");
   await save("2", "Build", "completed");
   await writeFile(join(dir, ".lock"), "");
+  // Claude Code halfway through writing one leaves the rest readable.
+  await writeFile(join(dir, "11.json"), '{"id":"11","sub');
   const tasks = new ClaudeTasks(() => savedTasks(home, "session"));
   expect(move(tasks, "10", "in_progress")).toEqual([
     { text: "Build", state: "done" },
