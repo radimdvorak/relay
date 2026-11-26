@@ -2,17 +2,19 @@ import type { BrowserWindow } from "electron";
 import type { NewsItem } from "../../shared/thread-news";
 import { pickSound, SoundCues } from "../../shared/sound-cues";
 import { customFileId } from "../../shared/sounds";
+import { pickTap } from "../../shared/trackpad";
 import type { Store } from "../app/store";
 import { hiddenPage, loadPage } from "../app/page";
+import { trackpad } from "../trackpad";
 import { CustomSounds } from ".";
 
 /** How long the hidden player lingers after a sound, for the next one to come quickly. */
 const lingerMs = 30_000;
 
 /**
- * Thread sounds while Relay sits in the menubar with its window closed: the
- * window's own player is gone with it, so a hidden one opens for the sound
- * and closes again once things are quiet. Threads' own windows play nothing,
+ * Thread sounds, and the trackpad's taps, while Relay sits in the menubar
+ * with its window closed: the window's own player is gone with it, so a
+ * hidden one opens for the sound and closes again once things are quiet. Threads' own windows play nothing,
  * so they count as closed here. Headless Relay has no menubar and plays
  * nothing.
  */
@@ -46,12 +48,16 @@ export class MenubarSounds {
 
   private async play(cues: Parameters<typeof pickSound>[0]) {
     const state = this.store.get();
-    const pick = pickSound(
-      cues,
-      state.sounds ?? {},
-      (id) => state.projects?.find((p) => p.id === id)?.settings?.sounds,
-    );
-    if (!pick) return false;
+    const projectSounds = (id: string) =>
+      state.projects?.find((p) => p.id === id)?.settings?.sounds;
+    const tap = pickTap(cues, state.trackpad ?? {}, projectSounds);
+    if (tap) trackpad.tap(tap.tap, tap.strength);
+    const sound = pickSound(cues, state.sounds ?? {}, projectSounds);
+    const sounded = !!sound && (await this.sound(sound));
+    return !!tap || sounded;
+  }
+
+  private async sound(pick: NonNullable<ReturnType<typeof pickSound>>) {
     const fileId = customFileId(pick.sound);
     const bytes = fileId ? await this.custom.bytes(fileId) : undefined;
     const { win, loaded } = this.open();

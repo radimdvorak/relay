@@ -94,31 +94,26 @@ test("thread sounds: off until picked, quiet per project, and files of your own"
     const played = () =>
       page.evaluate(() => (window as unknown as { played: number }).played);
 
-    /** A thread of the project that runs, then finishes, as the main process pushes lists. */
+    let seq = 0;
+
+    /** The news the main process sends when a thread of the project finishes. */
     const finishTurn = async () => {
-      const chat = {
-        id: randomUUID(),
-        projectId: project.id,
-        title: "Fix the cart total",
-        scope: { kind: "project" },
-        created: Date.now(),
-        updated: Date.now(),
-        provider: "claude",
-      };
-      const push = (patch: object) =>
-        app.evaluate(
-          ({ BrowserWindow }, payload) =>
-            BrowserWindow.getAllWindows()[0]!.webContents.send(
-              "relay:project-chats",
-              payload,
-            ),
-          {
-            projectId: project.id,
-            chats: [{ ...chat, ...patch }],
-          },
-        );
-      await push({ running: true });
-      await push({ running: false, updated: Date.now() + 1 });
+      await app.evaluate(
+        ({ BrowserWindow }, item) =>
+          BrowserWindow.getAllWindows()[0]!.webContents.send(
+            "relay:thread-news",
+            item,
+          ),
+        {
+          chatId: randomUUID(),
+          projectId: project.id,
+          kind: "finished",
+          title: "Fix the cart total",
+          body: "",
+          seq: ++seq,
+          at: Date.now(),
+        },
+      );
       // Past the gathering and the rest between two sounds.
       await page.waitForTimeout(1800);
     };

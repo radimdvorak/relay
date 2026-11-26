@@ -40,6 +40,7 @@ import { pluginHandlers } from "./plugins";
 import { settingsHandlers } from "./settings";
 import { settingsFileHandlers } from "./settings-file";
 import { soundHandlers } from "./sounds";
+import { trackpadHandlers } from "./trackpad";
 import { memeHandlers } from "./memes";
 import { terminalHandlers } from "./terminals";
 import { threadWindowHandlers } from "./thread-windows";
@@ -95,6 +96,7 @@ export function createDispatch(
     readAloudHandlers(ctx),
     renderHandlers(ctx),
     soundHandlers(ctx),
+    trackpadHandlers(ctx),
     memeHandlers(ctx),
     pluginHandlers(ctx),
     desktopHandlers(ctx),

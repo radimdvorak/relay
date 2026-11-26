@@ -487,3 +487,13 @@ export function memeSetupPrompt(state: Pick<MemesState, "folder" | "list" | "mem
     "Finish by saying how many you got, then list any you couldn't get, if there are some.",
   ].join("\n");
 }
+
+export interface MemesApi {
+  /** `/meme`: the list, and which memes have their picture yet. */
+  memes(): Promise<MemesState>;
+  /** Makes memes.json, or adds built-ins new since, for an agent to download. */
+  prepareMemes(): Promise<MemesState>;
+  openMemesFolder(): Promise<void>;
+  /** Opens memes.json in the app that edits JSON, making it first if need be. */
+  openMemesList(): Promise<void>;
+}

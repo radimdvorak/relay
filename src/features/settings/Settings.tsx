@@ -27,7 +27,7 @@ import { phoneEntries } from "./sections/phone";
 import { computerEntries } from "./sections/computers";
 import { useDictationEntries } from "./sections/dictation";
 import { useReadAloudEntries } from "./sections/read-aloud";
-import { soundEntries } from "./sections/sounds";
+import { useSoundEntries } from "./sections/sounds";
 import { useShortcutEntries } from "./sections/shortcuts";
 import { useAboutEntries } from "./sections/about";
 import { reportEntries } from "./sections/report";
@@ -104,7 +104,7 @@ export function Settings({
     ...computerEntries({ onOpenChat, onClose }),
     ...dictation,
     ...readAloud,
-    ...soundEntries(),
+    ...useSoundEntries(),
     ...shortcuts,
     ...reportEntries(),
     ...about,

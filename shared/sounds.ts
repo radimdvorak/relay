@@ -135,3 +135,20 @@ export interface PlaySoundEvent {
   volume: number;
   bytes?: Uint8Array;
 }
+
+export interface SoundsApi {
+  /** Sounds for threads that finish, need you or fail; nothing plays until one is picked. */
+  soundSettings(): Promise<SoundSettings>;
+  saveSoundSettings(settings: SoundSettings): Promise<SoundSettings>;
+  customSounds(): Promise<CustomSound[]>;
+  /** Keeps an audio file the user picked, by its name without the extension. */
+  addCustomSound(
+    name: string,
+    ext: CustomSoundExtension,
+    bytes: Uint8Array,
+  ): Promise<CustomSound>;
+  customSoundBytes(id: string): Promise<Uint8Array>;
+  removeCustomSound(id: string): Promise<void>;
+  /** Only the menubar's hidden sound player hears these. */
+  onPlaySound(callback: (event: PlaySoundEvent) => void): () => void;
+}
