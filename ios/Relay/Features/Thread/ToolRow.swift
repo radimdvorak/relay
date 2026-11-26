@@ -20,7 +20,7 @@ struct ToolRow: View {
     private var question: Bool { isQuestionCall(activity) }
     private var detail: String? { full ?? activity.detail }
     private var opens: Bool {
-        !calls.isEmpty || !(detail ?? "").isEmpty || activity.checklist != nil || !(askedQuestions(activity) ?? []).isEmpty
+        !calls.isEmpty || !(detail ?? "").isEmpty || !(activity.checklist ?? []).isEmpty || !(askedQuestions(activity) ?? []).isEmpty
     }
 
     var body: some View {
@@ -69,7 +69,7 @@ struct ToolRow: View {
                             }
                             .font(.footnote)
                         }
-                    } else if let steps = activity.checklist {
+                    } else if let steps = activity.checklist, !steps.isEmpty {
                         ChecklistSteps(steps: steps).font(.footnote)
                     } else if let detail, !detail.isEmpty {
                         ToolOutput(text: activity.kind == "command" ? terminalText(detail) : detail)

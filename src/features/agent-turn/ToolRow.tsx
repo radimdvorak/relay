@@ -183,7 +183,8 @@ const questionWords = (a: AgentActivity) =>
 
 /** What the call gave back: its checklist's steps, or what it printed. */
 function CallDetail({ activity: a }: { activity: AgentActivity }) {
-  if (a.checklist) return <Checklist steps={a.checklist} />;
+  // An emptied checklist lists nothing; what the row printed says more.
+  if (a.checklist?.length) return <Checklist steps={a.checklist} />;
   return a.detail ? <pre>{a.detail}</pre> : null;
 }
 

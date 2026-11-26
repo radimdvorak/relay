@@ -262,7 +262,8 @@ internal fun ToolRow(a: AgentActivity) {
     }
     val preview = trace.chatId.isNotEmpty() && looksAtImage(a)
     val under = @Composable { if (preview) Box(Modifier.padding(start = TraceIndent)) { Preview(a, label) } }
-    val steps = a.checklist
+    // An emptied checklist has nothing to list; its row says what it says without one.
+    val steps = a.checklist?.takeIf { it.isNotEmpty() }
     // Its threads list under the turn; the ids it returned say nothing to a reader.
     val saysMore = steps != null || (a.detail != null && !isStartThreads(a))
     if (!saysMore && calls.isEmpty()) {
