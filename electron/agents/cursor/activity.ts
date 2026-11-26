@@ -42,16 +42,21 @@ const stepStates: Record<string, ChecklistStep["state"]> = {
   completed: "done",
 };
 
-/** The checklist a finished call left: its to-do list, less what Cursor called off. */
+/**
+ * The checklist a finished call left: its to-do list, less what Cursor called
+ * off. Empty once nothing is left, which clears the one shown before.
+ */
 function cursorSteps(call: CursorCall) {
   const todos = call.result?.todos;
   if (!Array.isArray(todos)) return undefined;
-  return keptSteps(
-    todos.flatMap((todo): ChecklistStep[] =>
-      typeof todo?.content === "string" && todo.status !== "cancelled"
-        ? [{ text: todo.content, state: stepStates[todo.status] ?? "next" }]
-        : [],
-    ),
+  return (
+    keptSteps(
+      todos.flatMap((todo): ChecklistStep[] =>
+        typeof todo?.content === "string" && todo.status !== "cancelled"
+          ? [{ text: todo.content, state: stepStates[todo.status] ?? "next" }]
+          : [],
+      ),
+    ) ?? []
   );
 }
 

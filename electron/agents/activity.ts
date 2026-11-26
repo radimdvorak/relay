@@ -185,7 +185,7 @@ export const checklistDetail = (steps: ChecklistStep[]) =>
 /**
  * A Codex `turn/plan/updated` as Claude's TodoWrite reads: one "Updated the
  * plan" row, its steps in `detail`. `key` tells updates apart; undefined when
- * the plan holds no steps.
+ * there's no plan to read, and an empty checklist when it holds no steps.
  */
 export function codexPlanActivity(
   key: string,
@@ -199,8 +199,7 @@ export function codexPlanActivity(
         ? [{ text: s.step, state: codexStepStates[s.status] ?? "next" }]
         : [],
     ),
-  );
-  if (!steps) return;
+  ) ?? [];
   return {
     id: key.slice(0, 180),
     kind: "tool",
@@ -220,6 +219,8 @@ export class CodexPlanRows {
   update(scope: string, params: unknown) {
     const row = codexPlanActivity(`plan:${scope}:${this.count + 1}`, params);
     if (!row || this.last.get(scope) === row.detail) return;
+    // An empty plan clears one shown before; with none, there's nothing to say.
+    if (!row.checklist?.length && !this.last.has(scope)) return;
     this.count++;
     this.last.set(scope, row.detail!);
     return row;

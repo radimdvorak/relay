@@ -249,3 +249,11 @@ it("shows a plan update once, not again when Codex repeats it", () => {
     })?.id,
   ).toBe("plan:thread:2");
 });
+
+it("clears a shown plan when Codex empties it, and says nothing for an empty one alone", () => {
+  const plans = new CodexPlanRows();
+  expect(plans.update("thread", { plan: [] })).toBeUndefined();
+  plans.update("thread", { plan: [{ step: "Fix it", status: "inProgress" }] });
+  expect(plans.update("thread", { plan: [] })?.checklist).toEqual([]);
+  expect(plans.update("thread", { plan: [] })).toBeUndefined();
+});
