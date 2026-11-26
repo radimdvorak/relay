@@ -58,10 +58,20 @@ const TRACE_LIMIT = 100;
  */
 const TRACE_TRIM = 10;
 
+/** The row holding the agent's latest checklist, which is where the thread reads its progress. */
+function checklistRowOf(trace: AgentTrace[]) {
+  return trace
+    .filter(
+      (e) => e.kind === "activity" && !e.activity.parentId && e.activity.checklist,
+    )
+    .at(-1)?.id;
+}
+
 /**
  * Makes room in a full trace for a call or note of the agent's own: a
  * subagent's call goes first, else the oldest finished entries, counted on
- * the message so the turn's summary still adds them up. Running calls stay.
+ * the message so the turn's summary still adds them up. Running calls stay,
+ * and so does the latest checklist.
  */
 function makeRoom(message: ChatMessage, trace: AgentTrace[]) {
   if (trace.length < TRACE_LIMIT) return true;
@@ -72,9 +82,11 @@ function makeRoom(message: ChatMessage, trace: AgentTrace[]) {
     trace.splice(nested, 1);
     return true;
   }
+  const checklistRow = checklistRowOf(trace);
   const gone = new Set<string>();
   for (const e of trace) {
     if (gone.size >= TRACE_TRIM) break;
+    if (e.id === checklistRow) continue;
     if (e.kind === "commentary") gone.add(e.id);
     else if (e.activity.status !== "running") {
       gone.add(e.id);
