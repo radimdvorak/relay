@@ -11,15 +11,20 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.items
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import dev.relay.android.features.thread.logic.dockedChecklist
+import dev.relay.android.features.thread.logic.threadChecklist
 import dev.relay.android.remote.Bridge
 import dev.relay.android.remote.client.LinkState
+import dev.relay.android.remote.model.ChecklistStep
 import dev.relay.android.remote.model.RemoteChat
 import dev.relay.android.remote.model.RemoteChatSummary
 import dev.relay.android.remote.model.RemoteQueued
@@ -99,5 +104,13 @@ internal fun Strips(
     summary?.limitResume?.takeIf { !running }?.let { LimitStrip(it, actions::setLimitResume) }
     t?.stopped?.items?.takeIf { it.isNotEmpty() }?.let { StoppedStrip(it, actions::resolveStopped) }
     val messages = t?.messages.orEmpty()
-    remember(messages, running) { dockedChecklist(messages, running) }?.let { ProgressStrip(it) }
+    // The steps as they stood when the sheet opened; the sheet outlives the strip.
+    var listedSteps by remember { mutableStateOf<List<ChecklistStep>?>(null) }
+    remember(messages, running) { dockedChecklist(messages, running) }?.let { steps ->
+        ProgressStrip(steps) { listedSteps = steps }
+    }
+    listedSteps?.let { held ->
+        val steps = remember(messages) { threadChecklist(messages) } ?: held
+        ProgressSheet(steps) { listedSteps = null }
+    }
 }

@@ -12,10 +12,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalDensity
@@ -38,16 +34,20 @@ import io.github.lyxnx.compose.ui.tablericons.outline.X
 
 /** The step the agent is on, over the composer; a tap lists them all. One line, whatever the step says. */
 @Composable
-fun ProgressStrip(steps: List<ChecklistStep>) {
+fun ProgressStrip(steps: List<ChecklistStep>, onOpen: () -> Unit) {
     val c = RelayTheme.colors
-    var listing by remember { mutableStateOf(false) }
-    StripBox(onPress = { listing = true }) {
+    StripBox(onPress = onOpen) {
         Icon(TablerIcons.Outline.ListCheck, null, size = TraceIcon, tint = c.inkSoft)
         Text(currentStep(steps)?.text ?: "Progress", Modifier.weight(1f), style = RelayTheme.type.meta, maxLines = 1)
         Text(checklistProgress(steps), style = RelayTheme.type.meta, color = c.inkSoft, maxLines = 1)
         Icon(TablerIcons.Outline.ChevronUp, "Lists the steps", tint = c.inkFaint)
     }
-    if (listing) Sheet(onDismiss = { listing = false }, title = "Progress · ${checklistProgress(steps)}") {
+}
+
+/** Every step, in a sheet that stays open after the strip has gone with the turn. */
+@Composable
+fun ProgressSheet(steps: List<ChecklistStep>, onDismiss: () -> Unit) {
+    Sheet(onDismiss = onDismiss, title = "Progress · ${checklistProgress(steps)}") {
         ProgressSteps(steps)
     }
 }

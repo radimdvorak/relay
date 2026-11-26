@@ -118,7 +118,7 @@ class ThreadPartsShots : ShotTest() {
         Column(Modifier.padding(horizontal = 18.dp).padding(bottom = 24.dp)) {
             ChecklistSteps(ThreadSamples.checklist)
         }
-        ProgressStrip(ThreadSamples.checklist)
+        ProgressStrip(ThreadSamples.checklist) {}
         Box(Modifier.weight(1f).padding(8.dp), contentAlignment = Alignment.BottomCenter) {
             RelaySheetFrame("Progress · 3 of 5", {}) {
                 Column(Modifier.padding(start = 20.dp, end = 20.dp, bottom = 20.dp)) { ProgressSteps(ThreadSamples.checklist) }

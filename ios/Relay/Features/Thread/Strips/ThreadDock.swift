@@ -14,6 +14,8 @@ struct ThreadDock: View {
     @State private var agents: Subagents
     @State private var listing = false
     @State private var listedStarted: [RemoteChatSummary] = []
+    /// The steps as they stood when the Progress sheet opened; the sheet outlives the strip.
+    @State private var listedSteps: [ChecklistStep]?
 
     init(chatId: String, thread: RemoteChat?, summary: RemoteChatSummary?, running: Bool) {
         self.chatId = chatId
@@ -39,7 +41,7 @@ struct ThreadDock: View {
             if let goal = summary?.goal { GoalStrip(goal: goal, running: running) }
             if let limit { LimitStrip(chatId: chatId, plan: limit) }
             if !stopped.isEmpty { StoppedStrip(chatId: chatId, items: stopped) }
-            if let checklist { ProgressStrip(steps: checklist) }
+            if let checklist { ProgressStrip(steps: checklist) { listedSteps = checklist } }
             SubagentStrip(agents: agents, batch: batch, started: started, root: thread?.root) {
                 listedStarted = started
                 listing = true
@@ -54,10 +56,19 @@ struct ThreadDock: View {
         .subagentPoll(enabled: true, again: running || out > 0 || agents.anyOut, nudge: "\(running):\(out)") {
             await agents.refresh(connection)
         }
+        .sheet(isPresented: listingSteps) {
+            // Kept current while there's a list, and as it was once the turn put it away.
+            let steps = threadChecklist(thread?.messages ?? []) ?? listedSteps ?? []
+            ProgressSheet(steps: steps).presentationDetents([.medium, .large])
+        }
         .sheet(isPresented: $listing) {
             // The started threads too when the strip told of them as it opened, kept current.
             SubagentsSheet(agents: agents, opened: batch, started: listedStarted.isEmpty ? [] : family, root: thread?.root)
                 .presentationDetents([.medium, .large])
         }
+    }
+
+    private var listingSteps: Binding<Bool> {
+        Binding(get: { listedSteps != nil }, set: { if !$0 { listedSteps = nil } })
     }
 }

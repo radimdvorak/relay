@@ -4,11 +4,11 @@ import SwiftUI
 /// The step the agent is on, over the composer; a tap lists them all. One line, whatever the step says.
 struct ProgressStrip: View {
     let steps: [ChecklistStep]
+    let open: () -> Void
     @Environment(\.colors) private var colors
-    @State private var listing = false
 
     var body: some View {
-        Button { listing = true } label: {
+        Button(action: open) {
             HStack(spacing: 10) {
                 Image(systemName: "checklist").font(.footnote).foregroundStyle(colors.muted).frame(width: 18)
                 Text(currentStep(steps)?.text ?? "Progress").foregroundStyle(colors.foreground)
@@ -27,13 +27,10 @@ struct ProgressStrip: View {
         .padding(.horizontal, 20)
         .padding(.bottom, 6)
         .accessibilityHint("Lists the steps")
-        .sheet(isPresented: $listing) {
-            ProgressSheet(steps: steps).presentationDetents([.medium, .large])
-        }
     }
 }
 
-private struct ProgressSheet: View {
+struct ProgressSheet: View {
     let steps: [ChecklistStep]
     @Environment(\.dismiss) private var dismiss
 
