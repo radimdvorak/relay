@@ -9,7 +9,10 @@ export interface ChecklistStep {
 
 const limits = { steps: 100, text: 300 };
 
-/** An agent's steps as a row keeps them; undefined when there are none. */
+/**
+ * The steps worth keeping on a row: trimmed, blank ones dropped, at most 100
+ * of 300 characters each. Undefined when none are left.
+ */
 export function keptSteps(steps: ChecklistStep[]): ChecklistStep[] | undefined {
   const named = steps
     .map((step) => ({ ...step, text: step.text.trim().slice(0, limits.text) }))
