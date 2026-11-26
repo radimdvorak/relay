@@ -62,6 +62,21 @@ const usesMusl = () =>
     process.report?.getReport() as { header?: { glibcVersionRuntime?: string } }
   )?.header?.glibcVersionRuntime;
 
+/**
+ * The URL fetch would really ask for, if it's a CLI download in Google's
+ * bucket. Read as fetch reads it: `..` and `%2e%2e` would otherwise climb
+ * out into any other bucket on the same host.
+ */
+function googlesDownload(url: string, platform: NodeJS.Platform) {
+  const parsed = URL.parse(url);
+  if (!parsed || parsed.search || parsed.hash) return undefined;
+  const download = platform === "win32" ? ".exe" : ".tar.gz";
+  const inBucket = parsed.href.startsWith(downloadHost);
+  return inBucket && parsed.pathname.endsWith(download)
+    ? parsed.href
+    : undefined;
+}
+
 /** The release a manifest names, refused unless it's Google's own download. */
 export function releaseFrom(
   manifest: unknown,
@@ -71,14 +86,14 @@ export function releaseFrom(
   if (!found.success)
     throw new Error("Google's Antigravity manifest isn't readable.");
   const { version, url, sha512 } = found.data;
-  const download = platform === "win32" ? ".exe" : ".tar.gz";
-  if (!url.startsWith(downloadHost) || !url.endsWith(download))
+  const archive = googlesDownload(url, platform);
+  if (!archive)
     throw new Error(`Refusing to download Antigravity from ${url}.`);
   return {
     kind: "binary",
     id: "Antigravity",
     version,
-    archive: url,
+    archive,
     cmd: programName(platform),
     sha512: sha512.toLowerCase(),
     args: [],

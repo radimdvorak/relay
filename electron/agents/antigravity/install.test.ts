@@ -52,6 +52,16 @@ describe("Antigravity's CLI releases", () => {
     expect(() => releaseFrom(manifest("1.5.16"), "win32")).toThrow(
       /Refusing to download/,
     );
+    // fetch resolves dot segments, which would leave Google's bucket.
+    for (const climb of ["../..", "%2e%2e/%2e%2e"]) {
+      const out = {
+        ...manifest("1.5.16"),
+        url: `${bucket}/${climb}/other-bucket/cli.tar.gz`,
+      };
+      expect(() => releaseFrom(out)).toThrow(/Refusing to download/);
+    }
+    const queried = { ...manifest("1.5.16"), url: `${bucket}/cli?x=.tar.gz` };
+    expect(() => releaseFrom(queried)).toThrow(/Refusing to download/);
   });
 });
 
