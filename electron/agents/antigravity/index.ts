@@ -19,6 +19,6 @@ export { antigravityFailure } from "./failure";
 export { antigravityOffer } from "./listed-skills";
 export { TextSpeed } from "./text-speed";
 export { antigravityMcp } from "./mcp";
-export { antigravitySteps } from "./steps";
+export { antigravitySteps, updatesSteps } from "./steps";
 export { antigravityHelper } from "./helper";
 export { readAntigravityUsage } from "./usage";

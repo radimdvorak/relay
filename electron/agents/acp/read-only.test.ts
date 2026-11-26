@@ -135,10 +135,12 @@ it("lets a read-only turn look, but not change, reach out or call an MCP server"
       asks({ kind: "fetch" }),
       asks({ kind: "other" }),
       asks({ kind: "read", name: "mcp_db_query" }),
+      // Antigravity's own task list changes nothing, and turning it down would end the turn.
+      asks({ kind: "other", name: "update_steps" }),
       says("ok"),
     ],
   });
-  expect(answers).toEqual(["yes", "yes", "no", "no", "no", "no"]);
+  expect(answers).toEqual(["yes", "yes", "no", "no", "no", "no", "yes"]);
 });
 
 it("never takes an Always, which would outlive the read-only turn", async () => {

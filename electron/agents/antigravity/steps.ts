@@ -13,12 +13,16 @@ const statuses: Record<string, string> = {
   failed: "failed",
 };
 
+/** Antigravity keeping its own task list, which changes nothing outside it. */
+export const updatesSteps = (call: Pick<AcpToolCall, "name">) =>
+  call.name === "update_steps";
+
 /**
  * The task list an `update_steps` call carries, as an ACP plan's entries:
  * Antigravity keeps its list with a tool call instead of a plan update.
  */
 export function antigravitySteps(call: Partial<AcpToolCall>) {
-  if (call.name !== "update_steps") return undefined;
+  if (!updatesSteps(call)) return undefined;
   const steps = stepsSchema.safeParse(call.rawInput).data?.steps ?? [];
   return steps
     .filter((step) => step.status !== "skipped")

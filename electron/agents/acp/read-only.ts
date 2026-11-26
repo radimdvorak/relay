@@ -1,7 +1,7 @@
 // What a read-only turn may do on an ACP agent, and how it goes on once Relay
 // has turned a call down: some agents end the whole turn over one refusal.
 import { readsOnly } from "../../agent-host/read-only-bash";
-import { antigravityMcp } from "../antigravity";
+import { antigravityMcp, updatesSteps } from "../antigravity";
 import type { AgentOptions } from "../types";
 import { lookKinds, rawField } from "./activity";
 import type { AcpPermissionRequest, AcpPromptResult } from "./protocol";
@@ -24,6 +24,8 @@ export function readOnlyAllows(
   const kind = request.toolCall.kind ?? "other";
   // Whatever kind an MCP tool calls itself, only its server knows what it does.
   if (isAntigravity && antigravityMcp(request.toolCall)) return false;
+  // Its own task list; turning it down ends Antigravity's whole turn.
+  if (isAntigravity && updatesSteps(request.toolCall)) return true;
   if (kind === "execute") return onlyReadsInShell(request);
   // A fetch can carry what was read off this computer.
   if (kind === "fetch") return options.runtimeMode === "full-access";
