@@ -10,7 +10,10 @@ import { takes, type ApiContext, type Handlers } from "./context";
 export function accountHandlers(ctx: ApiContext) {
   const { agentAccounts: accounts, agentUpdates, projectChats } = ctx;
   // Signing in to Antigravity downloads its CLI when it isn't here yet.
-  accounts.onSignedIn(() => void agentUpdates.check(true).catch(() => {}));
+  accounts.onSignedIn((provider) => {
+    if (provider === "antigravity")
+      void agentUpdates.check(true).catch(() => {});
+  });
   return {
     agentAccounts: () => accounts.state(),
     addAgentAccount: takes(

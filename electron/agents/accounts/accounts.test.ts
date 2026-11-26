@@ -125,5 +125,7 @@ it("tells of a sign-in once it has saved an account, and not of one that saved n
 
   signedIn.add("antigravity:default");
   await accounts.signInAgain("antigravity", "default");
-  await vi.waitFor(() => expect(signIns).toHaveBeenCalledOnce());
+  await vi.waitFor(() =>
+    expect(signIns).toHaveBeenCalledExactlyOnceWith("antigravity"),
+  );
 });
