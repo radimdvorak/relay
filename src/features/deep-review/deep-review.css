@@ -242,6 +242,8 @@
 }
 .deep-review-pass-groups {
   display: grid;
+  /* Without it a long path list stretches the pass and its reviewers past the column. */
+  grid-template-columns: minmax(0, 1fr);
   gap: 2px;
 }
 .deep-review-pass-head {
