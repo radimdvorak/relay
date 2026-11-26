@@ -76,7 +76,8 @@ internal fun ChecklistSteps(steps: List<ChecklistStep>, modifier: Modifier = Mod
 @Composable
 private fun FirstLine(style: TextStyle, mark: @Composable () -> Unit) {
     val line = with(LocalDensity.current) { style.lineHeight.toDp() }
-    Box(Modifier.padding(top = (line - TraceIcon) / 2)) { mark() }
+    // At a small font size the line is shorter than the mark, and padding can't be negative.
+    Box(Modifier.padding(top = ((line - TraceIcon) / 2).coerceAtLeast(0.dp))) { mark() }
 }
 
 /** Ticked, half-filled while the agent is on it, crossed when it failed, or an empty ring. */
