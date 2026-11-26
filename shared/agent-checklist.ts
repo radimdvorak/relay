@@ -54,6 +54,12 @@ const isFinishedAnswer = (m: ChatMessage) =>
   !m.worktreeCommand;
 
 /**
+ * A steer the agent read mid-answer. The answer above it ended only because
+ * the turn carried on below the steer, so it isn't the end of a turn.
+ */
+const steeredIn = (m: ChatMessage) => !!m.steered && !m.missed;
+
+/**
  * The thread's own conversation: no `/btw` question, and no reply, even one
  * whose parent a phone doesn't hold.
  */
@@ -67,6 +73,7 @@ const ownConversation = (messages: ChatMessage[]) =>
  */
 export function threadChecklist(messages: ChatMessage[]): ChecklistStep[] | undefined {
   let askedSince = false;
+  let steeredBelow = false;
   for (const message of ownConversation(messages).reverse()) {
     const checklist = checklistOf(message);
     if (checklist) {
@@ -74,8 +81,10 @@ export function threadChecklist(messages: ChatMessage[]): ChecklistStep[] | unde
       const putAway = askedSince && checklistIsOver(checklist);
       return emptied || putAway ? undefined : checklist;
     }
-    if (isFinishedAnswer(message)) return undefined;
-    if (message.role === "user") askedSince = true;
+    const turnEnded = isFinishedAnswer(message) && !steeredBelow;
+    if (turnEnded) return undefined;
+    steeredBelow = steeredIn(message);
+    if (message.role === "user" && !steeredBelow) askedSince = true;
   }
   return undefined;
 }

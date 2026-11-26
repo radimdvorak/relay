@@ -66,6 +66,14 @@ class ChecklistTest {
         assertEquals(steps("now"), threadChecklist(open + answer(parentId = "not-held")))
     }
 
+    @Test fun carriesOneAcrossTheAnswersSteersSplitATurnInto() {
+        val open = steps("done", "now")
+        val turn = listOf(asked(), answer(open), asked(steered = true), answer(), asked(steered = true), answer(status = "streaming"))
+        assertEquals(open, threadChecklist(turn))
+        // A steer the turn ended before reading goes out as the next turn's request.
+        assertNull(threadChecklist(listOf(asked(), answer(open), asked(steered = true, missed = true), answer())))
+    }
+
     @Test fun docksAFinishedOneOnlyWhileTheAnswerRuns() {
         val thread = listOf(asked(), answer(steps("done", "done")))
         assertEquals(steps("done", "done"), dockedChecklist(thread, running = true))

@@ -29,6 +29,9 @@ private fun isFinishedAnswer(m: ChatMessage) =
     m.role == "assistant" && m.status == "complete" && m.compaction != true &&
         m.handoff == null && m.reload == null && m.worktreeCommand == null
 
+/** A steer the agent read mid-answer: the answer above it ended only because the turn carried on below. */
+private fun steeredIn(m: ChatMessage) = m.steered == true && m.missed != true
+
 /** The thread's own conversation: no `/btw` question, and no reply, even one whose parent isn't held. */
 private fun ownConversation(messages: List<ChatMessage>) =
     messages.sortedWith(threadOrder).filter { it.parentId == null && it.side != true }
@@ -39,14 +42,16 @@ private fun ownConversation(messages: List<ChatMessage>) =
  */
 fun threadChecklist(messages: List<ChatMessage>): List<ChecklistStep>? {
     var askedSince = false
+    var steeredBelow = false
     for (message in ownConversation(messages).asReversed()) {
         val steps = checklistOf(message)
         if (steps != null) {
             val putAway = askedSince && checklistIsOver(steps)
             return steps.takeIf { it.isNotEmpty() && !putAway }
         }
-        if (isFinishedAnswer(message)) return null
-        if (message.role == "user") askedSince = true
+        if (isFinishedAnswer(message) && !steeredBelow) return null
+        steeredBelow = steeredIn(message)
+        if (message.role == "user" && !steeredBelow) askedSince = true
     }
     return null
 }

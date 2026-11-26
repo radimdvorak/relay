@@ -63,6 +63,17 @@ describe("threadChecklist", () => {
     expect(threadChecklist([...open, orphan])).toEqual(steps("now"));
   });
 
+  it("carries a checklist across the answers steers split a turn into", () => {
+    const open = steps("done", "now");
+    const turn = [asked(), answer(open), asked({ steered: true }), answer(), asked({ steered: true }), answer(undefined, { status: "streaming" })];
+    expect(threadChecklist(turn)).toEqual(open);
+    const finished = [asked(), answer(steps("done")), asked({ steered: true }), answer(undefined, { status: "streaming" })];
+    expect(threadChecklist(finished)).toEqual(steps("done"));
+    // A steer the turn ended before reading goes out as the next turn's request.
+    const missed = [asked(), answer(open), asked({ steered: true, missed: true }), answer()];
+    expect(threadChecklist(missed)).toBeUndefined();
+  });
+
   it("reads messages in the thread's order, however they come", () => {
     const first = answer(steps("now"));
     const second = answer(steps("done"));

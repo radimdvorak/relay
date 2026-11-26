@@ -30,6 +30,9 @@ private func isFinishedAnswer(_ m: ChatMessage) -> Bool {
         && m.handoff == nil && m.reload == nil && m.worktreeCommand == nil
 }
 
+/// A steer the agent read mid-answer: the answer above it ended only because the turn carried on below.
+private func steeredIn(_ m: ChatMessage) -> Bool { m.steered == true && m.missed != true }
+
 /// The thread's own conversation: no `/btw` question, and no reply, even one whose parent isn't held.
 private func ownConversation(_ messages: [ChatMessage]) -> [ChatMessage] {
     messages.sorted(by: threadOrder).filter { $0.parentId == nil && $0.side != true }
@@ -39,13 +42,15 @@ private func ownConversation(_ messages: [ChatMessage]) -> [ChatMessage] {
 /// unfinished one carries over, until an answer ends without having touched it.
 public func threadChecklist(_ messages: [ChatMessage]) -> [ChecklistStep]? {
     var askedSince = false
+    var steeredBelow = false
     for message in ownConversation(messages).reversed() {
         if let steps = checklistOf(message) {
             let putAway = askedSince && checklistIsOver(steps)
             return steps.isEmpty || putAway ? nil : steps
         }
-        if isFinishedAnswer(message) { return nil }
-        if message.role == "user" { askedSince = true }
+        if isFinishedAnswer(message) && !steeredBelow { return nil }
+        steeredBelow = steeredIn(message)
+        if message.role == "user" && !steeredBelow { askedSince = true }
     }
     return nil
 }

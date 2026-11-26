@@ -88,6 +88,15 @@ private final class Thread {
     #expect(threadChecklist(open + [t.answer(parentId: "not-held")]) == steps("now"))
 }
 
+@Test func carriesAChecklistAcrossTheAnswersSteersSplitATurnInto() {
+    let t = Thread()
+    let open = steps("done", "now")
+    let turn = [t.asked(), t.answer(open), t.asked(steered: true), t.answer(), t.asked(steered: true), t.answer(status: "streaming")]
+    #expect(threadChecklist(turn) == open)
+    // A steer the turn ended before reading goes out as the next turn's request.
+    #expect(threadChecklist([t.asked(), t.answer(open), t.asked(steered: true, missed: true), t.answer()]) == nil)
+}
+
 @Test func docksAFinishedChecklistOnlyWhileTheAnswerRuns() {
     let t = Thread()
     let thread = [t.asked(), t.answer(steps("done", "done"))]
