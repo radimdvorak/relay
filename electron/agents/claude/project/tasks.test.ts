@@ -49,6 +49,10 @@ it("starts over in a turn after the checklist is done, and adds to one that isn'
   // Done within the turn, a task stays with the ones made after it.
   move(tasks, "3", "completed");
   expect(make(tasks, "4", "Announce")).toHaveLength(2);
+  // So does one the turn finished before making the next.
+  tasks.beginTurn();
+  move(tasks, "4", "completed");
+  expect(make(tasks, "5", "Celebrate")).toHaveLength(3);
 });
 
 it("picks a resumed session's checklist up from what Claude Code saved", async () => {

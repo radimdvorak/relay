@@ -75,7 +75,7 @@ export class ClaudeTasks {
   /** `saved` is what Claude Code has on disk for the session. */
   constructor(private saved: () => SavedTask[] = () => []) {}
 
-  /** A task made in a new turn starts a new checklist, if the last one is over. */
+  /** A task made in a new turn starts a new checklist, if the last one was over before the turn touched it. */
   beginTurn() {
     this.startsTurn = true;
   }
@@ -120,6 +120,8 @@ export class ClaudeTasks {
     const { taskId, subject, status } = asked.data;
     const step = this.steps.get(taskId);
     if (!step) return false;
+    // The turn has taken the checklist up, so a task it makes next joins it.
+    this.startsTurn = false;
     if (status === "deleted") return this.steps.delete(taskId);
     this.steps.set(taskId, {
       text: subject ?? step.text,
