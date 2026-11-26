@@ -36,11 +36,13 @@ npx vitest run tests/unit/replay-fixtures.test.ts electron/project-chats/turn-li
   service on a port of its own, beside yours, and stops it after. It runs
   OpenCode Zen's free DeepSeek model, which refuses Relay's title jobs ("only
   from within OpenCode"); the replays keep that 503 as it came.
-- Antigravity is the server Relay downloaded on this computer (from
+- Antigravity is the CLI Relay downloaded on this computer (from
   `Relay Experimental`'s data folder, or `RELAY_RECORD_APP`'s), with
   `GEMINI_HOME` pointed at a folder holding only links to its sign-in. It
-  starts every process with no arguments, so a replay tells its turns,
-  helpers and model probe apart by the folder each ran in.
+  starts every process with the same arguments, so a replay tells its turns,
+  helpers and model probe apart by the folder each ran in. Its model list is the
+  account's own, so the recorded models were given made-up names by hand; do
+  that again for a new recording.
 - Cursor has no transcripts: its SDK talks HTTP from a worker, with no stdio
   to record. Neither has Amp, until `amp-acp` is installed where they're
   recorded.

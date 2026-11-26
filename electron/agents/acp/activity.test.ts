@@ -88,3 +88,55 @@ describe("Codex-style tools behind an ACP adapter", () => {
     });
   });
 });
+
+describe("a command Antigravity ran", () => {
+  const ran = (command: string, exitCode: number, printed: string) => ({
+    toolCallId: "call_1",
+    name: "run_command",
+    kind: "execute",
+    status: "completed",
+    title: command,
+    rawInput: { CommandLine: command, WaitMsBeforeAsync: 5000 },
+    rawOutput: { output: printed, exit_code: exitCode },
+    content: [
+      { type: "content" as const, content: { type: "text", text: printed } },
+    ],
+  });
+
+  it("failed when it exited with an error, though its call completed", () => {
+    expect(acpActivity(ran("npm test", 1, "1 failed"))).toMatchObject({
+      status: "failed",
+      label: "npm test",
+      detail: "1 failed",
+    });
+    expect(acpActivity(ran("npm test", 0, "ok")).status).toBe("complete");
+  });
+
+  it("is done when a search found nothing", () => {
+    expect(acpActivity(ran("grep nothing a.txt", 1, "")).status).toBe(
+      "complete",
+    );
+  });
+});
+
+it("shows what a command printed beside its exit code, whatever the field", () => {
+  const activity = acpActivity({
+    toolCallId: "c",
+    kind: "execute",
+    status: "completed",
+    rawInput: { command: "npm test" },
+    rawOutput: { exit_code: 1, stdout: "1 failed", stderr: "" },
+  });
+  expect(activity).toMatchObject({ status: "failed", detail: "1 failed" });
+  const stderr = acpActivity({
+    toolCallId: "d",
+    kind: "execute",
+    status: "completed",
+    rawInput: { command: "git push" },
+    rawOutput: { exit_code: 128, stdout: "", stderr: "fatal: no remote" },
+  });
+  expect(stderr).toMatchObject({
+    status: "failed",
+    detail: "fatal: no remote",
+  });
+});

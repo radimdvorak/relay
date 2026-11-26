@@ -14,11 +14,26 @@ const parsed = (text: string): Record<string, unknown> | undefined => {
   }
 };
 
+/** Where Relay's request `id` was answered. */
+const answeredAt = (entries: Entry[], id: number) =>
+  entries.find((entry) => {
+    if (entry.kind !== "line") return false;
+    const said = parsed(entry.text);
+    return said?.id === id && !("method" in said);
+  })?.seq;
+
 /**
  * The lines said since `split`: notifications, replies, and the agent's own
- * requests the last Relay never answered.
+ * requests the last Relay never answered. With `after`, what came up to the
+ * answer to that request of Relay's is left out, as shown already.
  */
-export function replayLines(entries: Entry[], split: number): string[] {
+export function replayLines(
+  entries: Entry[],
+  split: number,
+  after?: number,
+): string[] {
+  const shownTo = after === undefined ? undefined : answeredAt(entries, after);
+  const from = shownTo === undefined ? split : Math.max(split, shownTo + 1);
   const answered = new Set<unknown>();
   for (const entry of entries) {
     if (entry.kind !== "input") continue;
@@ -26,7 +41,7 @@ export function replayLines(entries: Entry[], split: number): string[] {
     if (sent && !("method" in sent) && "id" in sent) answered.add(sent.id);
   }
   return entries.flatMap((entry) => {
-    if (entry.kind !== "line" || entry.seq < split) return [];
+    if (entry.kind !== "line" || entry.seq < from) return [];
     const said = parsed(entry.text);
     if (said && "method" in said && "id" in said && answered.has(said.id)) return [];
     return [entry.text];

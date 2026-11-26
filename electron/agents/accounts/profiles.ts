@@ -137,11 +137,8 @@ export function accountEnv(
     env.CLAUDE_CONFIG_DIR = dir;
     // Claude Code names the Keychain item after this folder.
     env.CLAUDE_SECURESTORAGE_CONFIG_DIR = dir;
-  } else if (provider === "antigravity") {
-    env.GEMINI_HOME = dir;
-    // Google names one global Keychain item; separate profiles must use files.
-    env.AGY_ACP_FORCE_FILE_STORAGE = "1";
-  } else env.CODEX_HOME = dir;
+  } else if (provider === "antigravity") env.GEMINI_HOME = dir;
+  else env.CODEX_HOME = dir;
   return env;
 }
 

@@ -5,7 +5,7 @@ import { memoOnce } from "../../util/memo";
 import { signedOutMessage } from "../../../shared/agent-error";
 import { signedOutError } from "../errors";
 import { withTimeout } from "../../util/timeout";
-import { heardCommands } from "./commands";
+import { heardCommands, heardInFolder } from "./commands";
 import { skillCommands } from "../skill-presentation";
 import type { AcpProfile } from "./profiles";
 import { acquireAcpAgent, openSession, type AcpSettings } from "./sessions";
@@ -43,7 +43,11 @@ async function probe(profile: AcpProfile, cwd: string) {
       `${profile.name} didn't open a session in time.`,
     );
     const session = agent.session!;
-    if (!heardCommands(profile.provider))
+    // One that lists a folder's own skills is waited for in this folder too.
+    const heard = profile.offer
+      ? heardInFolder(profile, cwd)
+      : heardCommands(profile);
+    if (!heard)
       await new Promise((resolve) => setTimeout(resolve, commandsWait));
     // Some agents send models in a config_option_update after the session
     // opens; give them a moment to arrive.
@@ -72,6 +76,32 @@ async function probe(profile: AcpProfile, cwd: string) {
   }
 }
 
+/**
+ * The commands the agent listed. One that lists its skills too lists a
+ * project's, so only this folder's list counts, or the home folder's.
+ */
+const listed = (profile: AcpProfile, root: string) =>
+  profile.offer
+    ? (heardInFolder(profile, root) ?? heardInFolder(profile, homedir()))
+    : heardCommands(profile);
+
+async function offered(
+  profile: AcpProfile,
+  root: string,
+  commands: ProviderCommand[],
+) {
+  const skills = (await profile.skills?.(root)) ?? [];
+  if (!profile.offer) return [...commands, ...skillCommands(skills)];
+  if (heardInFolder(profile, root))
+    return profile.offer({ commands, forThisFolder: true }, skills);
+  const atHome = (await profile.skills?.(homedir())) ?? [];
+  const onlyAtHome = new Set(
+    atHome.filter((s) => s.scope === "project").map((s) => s.name),
+  );
+  const everywhere = commands.filter((c) => !onlyAtHome.has(c.name));
+  return profile.offer({ commands: everywhere, forThisFolder: false }, skills);
+}
+
 /** The catalog calls of the runtime for `profile`, each answer kept ten minutes. */
 export function acpCatalog(profile: AcpProfile) {
   const fresh = memoOnce(() => probe(profile, homedir()), 10 * 60_000);
@@ -86,20 +116,12 @@ export function acpCatalog(profile: AcpProfile) {
       };
     },
     commands: async (root: string): Promise<ProviderCommand[]> => {
-      const [heard, skills] = await Promise.all([
-        heardCommands(profile.provider) ??
-          fresh()
-            .catch(() => undefined)
-            .then(() => heardCommands(profile.provider) ?? []),
-        profile.skills?.(root) ?? [],
-      ]);
-      return [...heard, ...skillCommands(skills)];
+      if (!listed(profile, root)) await fresh().catch(() => undefined);
+      return offered(profile, root, listed(profile, root) ?? []);
     },
     knownCommands: async (root: string) => {
-      const heard = heardCommands(profile.provider);
-      if (!heard) return undefined;
-      const skills = (await profile.skills?.(root)) ?? [];
-      return [...heard, ...skillCommands(skills)];
+      const commands = listed(profile, root);
+      return commands && offered(profile, root, commands);
     },
     forget: fresh.forget,
   };

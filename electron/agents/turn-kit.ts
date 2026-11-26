@@ -105,6 +105,7 @@ export async function guardSteer<T>(
 export class TurnText {
   private parts: { id: string; text: string; commentary: boolean }[] = [];
   private count = 0;
+  private breaks = false;
 
   constructor(
     private readonly onText: (text: string) => void,
@@ -116,7 +117,9 @@ export class TurnText {
   add(delta: string) {
     if (!delta) return;
     const last = this.parts.at(-1);
-    if (last && !last.commentary) last.text += delta;
+    const continuesLast = last && !last.commentary && !this.breaks;
+    this.breaks = false;
+    if (continuesLast) last.text += delta;
     else
       this.parts.push({
         id: `${this.prefix}-${this.count++}`,
@@ -124,6 +127,11 @@ export class TurnText {
         commentary: false,
       });
     this.publish();
+  }
+
+  /** Something came between that isn't work of its own: what follows starts a new paragraph. */
+  toNewParagraph() {
+    this.breaks = true;
   }
 
   /** A tool call starts: the text so far was commentary. */

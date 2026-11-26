@@ -92,7 +92,12 @@ data class AgentActivity(
     val actions: List<CallAction>? = null,
     /** The call wrote code, left out here; `activityWritten` has it. From Bridge.TRACE_TREE. */
     val wroteCode: Boolean? = null,
+    /** The agent's own steps as they stood after this call (shared/agent-checklist.ts); older desktops leave it out. */
+    val checklist: List<ChecklistStep>? = null,
 )
+
+/** A step the agent set itself: "next" | "now" | "done" | "failed". */
+@Serializable data class ChecklistStep(val text: String, val state: String)
 
 @Serializable data class McpCall(val server: String, val tool: String)
 @Serializable data class AskedQuestion(val question: String, val answer: String)

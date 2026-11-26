@@ -8,7 +8,39 @@ import {
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { antigravityHome } from "./account";
+import { DatabaseSync } from "node:sqlite";
+import { pathToFileURL } from "node:url";
+import { antigravityHome, appDataDir } from "./account";
+
+/**
+ * Whether the session saved at `base` ran in `cwd`. The CLI records its
+ * workspace inside the session's database; the older server wrote it beside
+ * it, in a `.meta` file.
+ */
+async function sessionRanIn(base: string, cwd: string) {
+  const metadata = await readFile(`${base}.meta`, "utf8")
+    .then((text) => JSON.parse(text) as { cwd?: string })
+    .catch(() => undefined);
+  if (metadata) return metadata.cwd === cwd;
+  let db: DatabaseSync | undefined;
+  try {
+    db = new DatabaseSync(`${base}.db`, { readOnly: true });
+    const rows = db
+      .prepare("SELECT data FROM trajectory_metadata_blob")
+      .all() as { data: Uint8Array }[];
+    const uri = Buffer.from(pathToFileURL(cwd).href);
+    return rows.some((row) => {
+      const data = Buffer.from(row.data);
+      const at = data.indexOf(uri);
+      // A folder inside cwd would match too; only cwd itself counts.
+      return at >= 0 && data[at + uri.length] !== "/".charCodeAt(0);
+    });
+  } catch {
+    return false;
+  } finally {
+    db?.close();
+  }
+}
 
 /**
  * Helpers have no project cwd or Relay tools. Global hooks/MCP can start before
@@ -35,7 +67,8 @@ export async function antigravityHelper(home = antigravityHome()) {
         throw error;
       },
     );
-    if (text === undefined) continue;
+    // The CLI leaves an empty mcp_config.json in every profile it runs in.
+    if (text === undefined || !text.trim()) continue;
     let empty = false;
     try {
       const config = JSON.parse(text);
@@ -67,13 +100,10 @@ export async function antigravityHelper(home = antigravityHome()) {
         sessionId &&
         /^[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}$/i.test(sessionId)
       ) {
-        const native = join(home, "antigravity-acp");
+        const native = join(home, appDataDir);
         const base = join(native, "conversations", sessionId);
-        const metadata = await readFile(`${base}.meta`, "utf8")
-          .then((text) => JSON.parse(text) as { cwd?: string })
-          .catch(() => undefined);
         // The temporary cwd proves this is the helper's history, never a thread's.
-        if (metadata?.cwd === cwd) {
+        if (await sessionRanIn(base, cwd)) {
           try {
             for (const suffix of [
               ".db",

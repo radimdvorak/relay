@@ -89,8 +89,9 @@ suspend fun stopping(failures: FailureState, stop: suspend () -> Unit) {
     }
 }
 
+/** A strip over the composer that opens a sheet. */
 @Composable
-private fun StripBox(onPress: () -> Unit, content: @Composable androidx.compose.foundation.layout.RowScope.() -> Unit) {
+internal fun StripBox(onPress: () -> Unit, content: @Composable androidx.compose.foundation.layout.RowScope.() -> Unit) {
     Row(
         Modifier.padding(start = DockInset, end = DockInset, bottom = 8.dp).fillMaxWidth().height(44.dp)
             .dockStrip().pressable(onClick = onPress, scale = false).padding(horizontal = 16.dp),

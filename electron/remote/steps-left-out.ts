@@ -11,6 +11,10 @@ import type { ChatSteps } from "../../shared/remote";
 import { looksAtImage, readTurn, turnHeading } from "../../shared/agent-trace";
 import { isStartThreads } from "../../shared/started-threads";
 
+/** The turn's own checklist as it last stood, which phones show over the composer. */
+const lastChecklist = (calls: AgentActivity[]) =>
+  calls.filter((call) => call.checklist && !call.parentId).at(-1);
+
 /** A call phones show outside the fold: a picture it looked at, or threads it started. */
 const shownOutsideFold = (call: AgentActivity) =>
   looksAtImage(call) || isStartThreads(call);
@@ -25,11 +29,14 @@ export function withStepsLeftOut(message: ChatMessage): ChatMessage {
   const last = turn.activity.at(-1);
   // No calls: its commentary is all the fold holds.
   if (!last) return message;
+  const checklist = lastChecklist(turn.activity);
   // A subagent's calls too: phones look for pictures and started threads in the whole trace.
   const trace = turn.entries.filter(
     (entry) =>
       entry.kind === "activity" &&
-      (entry.activity === last || shownOutsideFold(entry.activity)),
+      (entry.activity === last ||
+        entry.activity === checklist ||
+        shownOutsideFold(entry.activity)),
   );
   const stepsLeftOut = turn.entries.length - trace.length;
   if (!stepsLeftOut) return message;

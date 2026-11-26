@@ -7,12 +7,15 @@ import {
   answeredFindings,
   reportedFindings,
 } from "../../../../shared/deep-review";
+import { SYSTEM_ACCOUNT } from "../../../../shared/agent-accounts";
+import { accountHome } from "../../accounts";
 import { ClaudeFailureWatch } from "../claude-failure";
 import type { ClaudeRunOptions } from "./config";
 import { answerLimitError } from "../../turn-kit";
 import { ContextMeter } from "./context";
 import type { SDKMessage } from "./sdk";
 import { askMeasured, watchOf, type ClaudeSession } from "./session";
+import { ClaudeTasks, savedTasks } from "./tasks";
 import { advisorCallId, ToolRows } from "./tool-rows";
 import { forkStart } from "../forks";
 import { TurnWatcher } from "../../watch/watcher";
@@ -28,6 +31,12 @@ type Verdict =
   | "follow-up"
   // Cut short: Claude is still working, so the session must close.
   | { answer: string; cutShort?: true };
+
+/** The checklist Claude Code saved for the session this one resumed. */
+const resumedTasks = ({ options, account, threadId }: ClaudeSession) => {
+  const id = threadId ?? options.session?.id;
+  return id ? savedTasks(accountHome("claude", account ?? SYSTEM_ACCOUNT), id) : [];
+};
 
 /** Reads one turn's frames into its answer, as they come. */
 export class ClaudeTurnReader {
@@ -63,7 +72,8 @@ export class ClaudeTurnReader {
     private options: ClaudeRunOptions,
     private session: ClaudeSession,
   ) {
-    this.rows = new ToolRows(options);
+    session.tasks ??= new ClaudeTasks(() => resumedTasks(session));
+    this.rows = new ToolRows(options, session.tasks);
     this.meter = new ContextMeter(options, session);
     this.goal = session.goal ??= new ClaudeGoalWatch(options.goal);
     this.goal.listen(options.onGoal);
@@ -127,7 +137,11 @@ export class ClaudeTurnReader {
     if (this.goal.see(message) === "checked") this.goalUnmet();
     if (message.type === "assistant") this.said(message);
     if (message.type === "user" && Array.isArray(message.message.content))
-      this.rows.results(message.message.content, message.parent_tool_use_id);
+      this.rows.results(
+        message.message.content,
+        message.parent_tool_use_id,
+        message.tool_use_result,
+      );
     if (message.type === "system" && message.subtype === "task_progress")
       this.rows.progress(message);
     const fork = forkStart(message);

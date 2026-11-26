@@ -13,6 +13,7 @@ import {
   FilePen,
   FileText,
   Globe,
+  ListChecks,
   MessageCircleQuestion,
   Search,
   Terminal,
@@ -30,6 +31,7 @@ import {
   askedQuestions,
   isQuestionCall,
 } from "../../../shared/asked-questions";
+import { Checklist } from "../agent-checklist/Checklist";
 import { AnsweredQuestions } from "./AnsweredQuestions";
 import { StartedThreadMarks } from "./StartedThreads";
 
@@ -43,8 +45,10 @@ export const icons = {
   tool: Wrench,
 } satisfies Record<AgentActivity["kind"], unknown>;
 
-export const iconOf = (a: AgentActivity) =>
-  isQuestionCall(a) ? MessageCircleQuestion : icons[a.kind];
+export function iconOf(a: AgentActivity) {
+  if (isQuestionCall(a)) return MessageCircleQuestion;
+  return a.checklist ? ListChecks : icons[a.kind];
+}
 
 /** Each agent call's own tool calls, by the agent call's id, and how to show their paths. */
 export const Subagents = createContext({
@@ -177,6 +181,13 @@ function ToolIcon({
 const questionWords = (a: AgentActivity) =>
   a.status === "running" ? liveLabel(a) : doneLabel(a);
 
+/** What the call gave back: its checklist's steps, or what it printed. */
+function CallDetail({ activity: a }: { activity: AgentActivity }) {
+  // An emptied checklist lists nothing; what the row printed says more.
+  if (a.checklist?.length) return <Checklist steps={a.checklist} />;
+  return a.detail ? <pre>{a.detail}</pre> : null;
+}
+
 export function ToolRow({
   activity: a,
   label,
@@ -241,7 +252,7 @@ export function ToolRow({
       summary={<summary className="agent-step-heading">{heading}</summary>}
     >
       {calls.length > 0 && <SubagentRows calls={calls} onChanges={onChanges} />}
-      {a.detail && <pre>{a.detail}</pre>}
+      <CallDetail activity={a} />
       {a.kind === "file" && (
         <button onClick={onChanges}>Open working changes</button>
       )}

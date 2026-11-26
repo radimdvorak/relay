@@ -1,4 +1,5 @@
 import type { AgentActivity } from "../../../shared/projects";
+import { keptSteps, type ChecklistStep } from "../../../shared/agent-checklist";
 import { foundNothing } from "../../../shared/call-actions";
 import { patchPaths } from "../activity";
 import { acpWritten } from "../written-code";
@@ -23,14 +24,20 @@ const kinds: Record<string, AgentActivity["kind"]> = {
  * Shell tools an adapter left as kind "other". Amp on a GPT model calls the
  * Codex tools, and amp-acp only knows Claude's names.
  */
-const shellTools = new Set(["shell_command", "shell", "exec_command", "local_shell", "bash"]);
+const shellTools = new Set([
+  "shell_command",
+  "shell",
+  "exec_command",
+  "local_shell",
+  "bash",
+]);
 
 const statuses: Record<string, AgentActivity["status"]> = {
   completed: "complete",
   failed: "failed",
 };
 
-const field = (raw: unknown, ...keys: string[]) => {
+export const rawField = (raw: unknown, ...keys: string[]) => {
   if (typeof raw !== "object" || raw === null) return "";
   for (const key of keys) {
     const value = (raw as Record<string, unknown>)[key];
@@ -39,19 +46,41 @@ const field = (raw: unknown, ...keys: string[]) => {
   return "";
 };
 
+/** Antigravity calls a command that failed completed; its raw output says how it ended. */
+function antigravityExitCode(rawOutput: unknown) {
+  const code = (rawOutput as { exit_code?: unknown } | null | undefined)
+    ?.exit_code;
+  return typeof code === "number" ? code : undefined;
+}
+
 /**
  * What a call printed, out of its content blocks, or its raw output where it
  * has none. Some adapters pass a shell result on as its JSON, {output, exitCode}.
  */
-function output(call: Partial<AcpToolCall>): { text: string; exitCode?: number } {
+function output(call: Partial<AcpToolCall>): {
+  text: string;
+  exitCode?: number;
+} {
   const texts = (call.content ?? []).flatMap((item) =>
     item.type === "content" && item.content?.text ? [item.content.text] : [],
   );
   const raw = texts.length ? texts.join("\n") : call.rawOutput;
-  if (typeof raw !== "string") return { text: field(raw, "output", "stdout", "error", "message") };
+  // What went to stderr is often what says why it failed.
+  const printed = () =>
+    typeof raw === "string"
+      ? raw
+      : [rawField(raw, "output", "stdout"), rawField(raw, "stderr", "error", "message")]
+          .filter(Boolean)
+          .join("\n");
+  const exitCode = antigravityExitCode(call.rawOutput);
+  if (exitCode !== undefined) return { text: printed(), exitCode };
+  if (typeof raw !== "string") return { text: printed() };
   if (!raw.trimStart().startsWith("{")) return { text: raw };
   try {
-    const result = JSON.parse(raw) as { output?: unknown; exitCode?: unknown } | null;
+    const result = JSON.parse(raw) as {
+      output?: unknown;
+      exitCode?: unknown;
+    } | null;
     const { output: text, exitCode } = result ?? {};
     if (typeof text === "string")
       return { text, ...(typeof exitCode === "number" ? { exitCode } : {}) };
@@ -59,7 +88,8 @@ function output(call: Partial<AcpToolCall>): { text: string; exitCode?: number }
   return { text: raw };
 }
 
-const patchOf = (call: Partial<AcpToolCall>) => field(call.rawInput, "patchText", "patch", "input");
+const patchOf = (call: Partial<AcpToolCall>) =>
+  rawField(call.rawInput, "patchText", "patch", "input");
 
 /** Every file a call writes, from its diffs and, for edit kinds, its locations. */
 export function acpEdits(call: Partial<AcpToolCall>): string[] {
@@ -76,17 +106,26 @@ export function acpEdits(call: Partial<AcpToolCall>): string[] {
  * A call as the trace shows it. ACP sends a call's fields once and then only
  * what changed, so `call` is everything heard about it so far.
  */
-export function acpActivity(call: Partial<AcpToolCall> & { toolCallId: string }): AgentActivity {
-  const command = field(call.rawInput, "command", "cmd");
-  const tool = /^([\w.-]+)(?::|$)/.exec(call.title ?? "")?.[1]?.toLowerCase() ?? "";
+export function acpActivity(
+  call: Partial<AcpToolCall> & { toolCallId: string },
+): AgentActivity {
+  const command = rawField(call.rawInput, "command", "cmd", "CommandLine");
+  const tool =
+    /^([\w.-]+)(?::|$)/.exec(call.title ?? "")?.[1]?.toLowerCase() ?? "";
   const patched = patchPaths(patchOf(call));
   const kind =
     kinds[call.kind ?? ""] ??
-    (patched.length ? "file" : command && shellTools.has(tool) ? "command" : "tool");
+    (patched.length
+      ? "file"
+      : command && shellTools.has(tool)
+        ? "command"
+        : "tool");
   const path =
     call.locations?.[0]?.path ??
-    (field(call.rawInput, "path", "file_path", "filePath") ||
-      (patched.length > 1 ? `${patched[0]} +${patched.length - 1} more` : patched[0]));
+    (rawField(call.rawInput, "path", "file_path", "filePath") ||
+      (patched.length > 1
+        ? `${patched[0]} +${patched.length - 1} more`
+        : patched[0]));
   const label =
     (kind === "command" && command) ||
     (kind === "file" && path) ||
@@ -99,7 +138,8 @@ export function acpActivity(call: Partial<AcpToolCall> & { toolCallId: string })
   const status = statuses[call.status ?? ""] ?? "running";
   const exitCode = printed.exitCode ?? 0;
   const searchedEmpty = foundNothing(command, exitCode);
-  const failedByExit = status === "complete" && exitCode !== 0 && !searchedEmpty;
+  const failedByExit =
+    status === "complete" && exitCode !== 0 && !searchedEmpty;
   const written = acpWritten(call.content ?? []);
   return {
     id: call.toolCallId.slice(0, 180),
@@ -111,11 +151,33 @@ export function acpActivity(call: Partial<AcpToolCall> & { toolCallId: string })
   };
 }
 
+export type PlanEntry = { content: string; status?: string | null };
+
+const planSuffix: Record<string, string> = {
+  in_progress: " (working on it)",
+  failed: " (failed)",
+};
+
 /** The agent's plan as a checklist. */
-export const planText = (entries: { content: string; status?: string | null }[]) =>
+export const planText = (entries: PlanEntry[]) =>
   entries
     .map(
       (entry) =>
-        `- [${entry.status === "completed" ? "x" : " "}] ${entry.content}${entry.status === "in_progress" ? " (working on it)" : ""}`,
+        `- [${entry.status === "completed" ? "x" : " "}] ${entry.content}${planSuffix[entry.status ?? ""] ?? ""}`,
     )
     .join("\n");
+
+const stepStates: Record<string, ChecklistStep["state"]> = {
+  in_progress: "now",
+  completed: "done",
+  failed: "failed",
+};
+
+/** The agent's checklist as the steps its row keeps. */
+export const checklistSteps = (entries: { content: string; status?: string | null }[]) =>
+  keptSteps(
+    entries.map((entry) => ({
+      text: entry.content,
+      state: stepStates[entry.status ?? ""] ?? "next",
+    })),
+  );

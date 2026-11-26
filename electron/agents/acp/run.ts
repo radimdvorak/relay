@@ -1,104 +1,19 @@
-import { readFile } from "node:fs/promises";
 import { agentName } from "../../../shared/agents";
 import { signedOutError } from "../errors";
 import { cancelGrace, TurnText } from "../turn-kit";
 import type { AgentOptions } from "../types";
+import type { Settled } from "../line-connection";
+import { AgentRequests } from "./agent-requests";
 import { AcpRequestError } from "./connection";
-import { answerElicitation } from "./elicitation";
 import type { AcpProfile } from "./profiles";
-import { permission } from "./permission";
-import {
-  promptResultSchema,
-  AUTH_REQUIRED,
-  type AcpPromptResult,
-} from "./protocol";
-import {
-  acquireTurnAgent,
-  openSession,
-  type AcpAgent,
-  type McpServer,
-} from "./sessions";
+import { AUTH_REQUIRED, type AcpPromptResult } from "./protocol";
+import { imageBlocks, mcpServers, promptBlocks } from "./prompt";
+import { acquireTurnAgent, openSession, type AcpAgent } from "./sessions";
 import { applySettings } from "./settings";
-import { antigravityHelper, compactAntigravity } from "../antigravity";
+import { gaveUpOnRefusals } from "./read-only";
+import { PromptSteering, type KeptRun } from "./steering";
+import { antigravityHelper, type TextSpeed } from "../antigravity";
 import { AcpTurnEvents } from "./turn-events";
-
-/** The turn's prompt as ACP content blocks. */
-async function promptBlocks(
-  options: AgentOptions,
-  agent: AcpAgent,
-  name: string,
-  profile: AcpProfile,
-) {
-  const { job } = options;
-  const helper = job.kind === "helper" ? job : undefined;
-  const note =
-    helper || job.kind === "compact"
-      ? undefined
-      : await options.context?.().catch(() => undefined);
-  const text = job.kind === "compact" ? profile.compact! : options.prompt;
-  const body = [
-    helper &&
-      "This is a text-only helper request. Do not use tools, ask questions, or invoke slash commands.",
-    helper?.instructions,
-    note,
-    text,
-  ]
-    .filter(Boolean)
-    .join("\n\n");
-  const planning =
-    job.kind === "prompt" &&
-    options.interactionMode === "plan" &&
-    agent.profile.plan;
-  const skills =
-    job.kind === "prompt"
-      ? ((await agent.profile.skillContext?.(options)) ?? [])
-      : [];
-  const blocks: object[] = [
-    ...skills.map((text) => ({
-      type: "text",
-      text,
-      annotations: { audience: ["assistant"] },
-    })),
-    { type: "text", text: planning ? `${agent.profile.plan} ${body}` : body },
-  ];
-  if (options.images?.length) {
-    if (!agent.caps?.image) throw new Error(`${name} can't read images.`);
-    for (const image of options.images)
-      blocks.push({
-        type: "image",
-        mimeType: image.mimeType,
-        data: (await readFile(image.path)).toString("base64"),
-      });
-  }
-  if (options.audio?.length) {
-    if (!agent.caps?.audio) throw new Error(`${name} can't listen to audio.`);
-    for (const clip of options.audio)
-      blocks.push({
-        type: "audio",
-        mimeType: clip.mimeType,
-        data: (await readFile(clip.path)).toString("base64"),
-      });
-  }
-  return blocks;
-}
-
-/** Relay's own tools, where the agent takes MCP servers over HTTP. */
-const mcpServers = (options: AgentOptions, agent: AcpAgent): McpServer[] =>
-  options.relayTools && agent.caps?.http
-    ? [
-        {
-          type: "http",
-          name: "relay",
-          url: options.relayTools.url,
-          headers: [
-            {
-              name: "Authorization",
-              value: `Bearer ${options.relayTools.token}`,
-            },
-          ],
-        },
-      ]
-    : [];
 
 export type AcpRunObserver = {
   /** Drains native events before the ACP turn settles, including steer acknowledgements. */
@@ -122,8 +37,6 @@ export async function runAcp(
   options: AgentOptions,
   observe?: Observe,
 ): Promise<string> {
-  if (profile.provider === "antigravity" && options.job.kind === "compact")
-    return compactAntigravity(profile, options, runAcpTurn);
   if (profile.provider !== "antigravity" || options.job.kind !== "helper")
     return runAcpTurn(profile, options, observe);
   options.signal.throwIfAborted();
@@ -155,6 +68,53 @@ export async function runAcp(
     await helper.close(sessionId);
   }
 }
+
+/** Opens the thread's session, or a new one, in the turn's modes and model; returns its id. */
+async function openTurnSession(
+  profile: AcpProfile,
+  options: AgentOptions,
+  agent: AcpAgent,
+  name: string,
+) {
+  const { job } = options;
+  const opened = await openSession(agent, {
+    id: job.kind === "helper" ? undefined : options.session?.id,
+    cwd: options.cwd,
+    mcpServers: mcpServers(options, agent),
+  });
+  if (opened.id !== options.session?.id) await options.session?.onId(opened.id);
+  if (opened.lost)
+    options.onCommentary?.(
+      `${profile.provider}-lost`,
+      `${name} couldn't open the earlier conversation, so this turn starts a new one.`,
+    );
+  await applySettings(
+    agent.connection,
+    agent.session!,
+    profile.wishes({
+      runtime: options.runtimeMode,
+      interaction: options.interactionMode,
+      readOnly: options.readOnly || job.kind === "helper",
+    }),
+    options.choice,
+  );
+  return opened.id;
+}
+
+/** How a turn's prompts reach its session, and the next Relay. */
+const promptRequests = (agent: AcpAgent, sessionId: () => string) => ({
+  reserve: () => agent.connection.reserve(),
+  send: (request: number, prompt: object[], heard: (s: Settled) => void) =>
+    agent.connection.request(
+      "session/prompt",
+      { sessionId: sessionId(), prompt },
+      request,
+      heard,
+    ),
+  wait: (request: number, heard: (s: Settled) => void) =>
+    agent.connection.wait(request, "session/prompt", heard),
+  keep: (run: KeptRun) => agent.keep(run),
+});
 
 async function runAcpTurn(
   profile: AcpProfile,
@@ -206,7 +166,7 @@ async function runAcpTurn(
     },
     () => turnAbort.signal.aborted,
   );
-  const { turn, calls, batches, hear } = events;
+  const { turn, calls, subagents, speed, hear } = events;
   const steered = (id: string) => {
     turn.below();
     options.onSteered?.(id);
@@ -218,40 +178,35 @@ async function runAcpTurn(
   };
   turnAbort.signal.addEventListener("abort", cancel, { once: true });
 
-  connection.onRequest = async (method, params) => {
-    if (method === "session/request_permission")
-      return permission(
-        options,
-        name,
-        params,
-        turnAbort.signal,
-        profile.provider === "antigravity",
-      );
-    if (method === "elicitation/create")
-      return answerElicitation(
-        options,
-        name,
-        params,
-        turnAbort.signal,
-        events.asking,
-      );
-    throw new AcpRequestError(
-      -32601,
-      `Relay doesn't offer ${method}.`,
-      null,
-      method,
-    );
-  };
+  const requests = new AgentRequests(
+    profile,
+    name,
+    options,
+    events.asking,
+    turnAbort.signal,
+  );
+  const { refusals } = requests;
+  connection.onRequest = requests.answer;
+  const steering = new PromptSteering({
+    ...promptRequests(agent, () => sessionId!),
+    images: (images) => imageBlocks(images, agent, name),
+    over: () => turnAbort.signal.aborted,
+    waiting: () => requests.waiting,
+    steered,
+    unread: (id, error) => options.onSteerUnread?.(id, error),
+    carryOn: (ended) =>
+      refusals.endedBy(ended, turn.answer())
+        ? refusals.carryOn(events.completedCalls)
+        : undefined,
+  });
 
   let observer: AcpRunObserver | undefined;
   let grace: ReturnType<typeof cancelGrace> | undefined;
   try {
     connection.mark("start");
-    let reply: Promise<unknown>;
     if (adopted) {
       connection.listen(sessionId!, hear);
-      reply = connection.wait(adopted.id, "session/prompt");
-      void reply.catch(() => {});
+      steering.pickUp(adopted);
       try {
         observer = await observe?.(agent, steered);
       } finally {
@@ -261,63 +216,30 @@ async function runAcpTurn(
         connection.resume();
       }
     } else {
-      const opened = await openSession(agent, {
-        id: job.kind === "helper" ? undefined : options.session?.id,
-        cwd: options.cwd,
-        mcpServers: mcpServers(options, agent),
-      });
-      sessionId = opened.id;
-      if (opened.id !== options.session?.id)
-        await options.session?.onId(opened.id);
-      if (opened.lost)
-        options.onCommentary?.(
-          `${profile.provider}-lost`,
-          `${name} couldn't open the earlier conversation, so this turn starts a new one.`,
-        );
-      await applySettings(
-        connection,
-        agent.session!,
-        profile.wishes({
-          runtime: options.runtimeMode,
-          interaction: options.interactionMode,
-          readOnly: options.readOnly || job.kind === "helper",
-        }),
-        options.choice,
-      );
+      sessionId = await openTurnSession(profile, options, agent, name);
       const prompt = await promptBlocks(options, agent, name, profile);
       signal.throwIfAborted();
-      connection.listen(opened.id, hear);
+      connection.listen(sessionId, hear);
       observer = await observe?.(agent, steered);
       signal.throwIfAborted();
-      const id = connection.reserve();
-      agent.keep({
-        id,
-        ...(profile.provider === "antigravity" && job.kind === "compact"
-          ? { compaction: true }
-          : {}),
-      });
-      reply = connection.request(
-        "session/prompt",
-        { sessionId: opened.id, prompt },
-        id,
-      );
+      steering.start(prompt);
     }
-    void reply.catch(() => {});
     // The agent reports the cancel; if it doesn't, stop waiting anyway.
     grace = cancelGrace(turnAbort.signal);
     if (signal.aborted) stop();
-    const result: AcpPromptResult = promptResultSchema.parse(
-      await Promise.race([
-        reply,
-        grace.cancelled,
-        overflowed,
-        ...(observer?.failure ? [observer.failure] : []),
-      ]),
+    if (profile.steersByPrompt && (job.kind === "prompt" || adopted))
+      options.onControl?.({ steer: steering.steer });
+    const result = await steering.result(
+      [grace.cancelled, overflowed, observer?.failure],
+      (earlier) => reportUsage(options, profile, earlier, speed),
     );
     await observer?.settle();
-    finish(options, profile, result, turn, name);
+    reportUsage(options, profile, result, speed);
+    if (!signal.aborted && refusals.endedBy(result, turn.answer()))
+      throw gaveUpOnRefusals(name);
+    finish(result, turn, name);
     const answer = turn.answer();
-    const failed = calls.size === 0 ? profile.failure?.(answer) : undefined;
+    const failed = profile.failure?.(answer, calls.size > 0);
     if (failed) {
       options.onText("");
       throw new Error(`${name}: ${failed}`);
@@ -330,19 +252,10 @@ async function runAcpTurn(
       cancel();
       await observer.settle().catch(() => {});
     }
-    if (error instanceof AcpRequestError && error.code === AUTH_REQUIRED) {
-      // Its process owns cached credentials. A new login must get a fresh process.
-      agent.close();
-      throw signedOutError(
-        profile.provider,
-        profile.provider === "opencode"
-          ? "OpenCode's model provider needs you to sign in again. Reconnect the provider, then resume the answer."
-          : undefined,
-      );
-    }
+    if (isSignedOut(error)) throw dropSignedOut(agent, profile);
     throw error;
   } finally {
-    batches?.settle(signal.aborted || turnAbort.signal.aborted);
+    subagents?.settle(signal.aborted || turnAbort.signal.aborted);
     grace?.clear();
     signal.removeEventListener("abort", stop);
     // Answers whatever the agent still asks of a turn that's over, without cancelling it.
@@ -356,25 +269,62 @@ async function runAcpTurn(
   }
 }
 
-/** Reads how the turn ended: a reason to fail it, and what it used. */
-function finish(
+const isSignedOut = (error: unknown) =>
+  error instanceof AcpRequestError && error.code === AUTH_REQUIRED;
+
+/** Closes an agent whose login was refused, and says so: its process keeps the old credentials. */
+function dropSignedOut(agent: AcpAgent, profile: AcpProfile) {
+  agent.close();
+  return signedOutError(
+    profile.provider,
+    profile.provider === "opencode"
+      ? "OpenCode's model provider needs you to sign in again. Reconnect the provider, then resume the answer."
+      : undefined,
+  );
+}
+
+type AcpUsage = NonNullable<AcpPromptResult["usage"]>;
+
+/**
+ * ACP leaves open whether `outputTokens` counts thinking. Antigravity 1.5's
+ * does, so adding `thoughtTokens` counted it twice; the total says which,
+ * whether or not `inputTokens` counts what came from the cache.
+ */
+export function outputTokens(usage: AcpUsage) {
+  const output = usage.outputTokens ?? 0;
+  const thoughts = usage.thoughtTokens ?? 0;
+  const input = usage.inputTokens ?? 0;
+  const cached = (usage.cachedReadTokens ?? 0) + (usage.cachedWriteTokens ?? 0);
+  const countsThoughts = [input + output, input + cached + output].includes(
+    usage.totalTokens ?? NaN,
+  );
+  return countsThoughts ? output : output + thoughts;
+}
+
+/** What one of the turn's prompts used; a steered turn has several. */
+function reportUsage(
   options: AgentOptions,
   profile: AcpProfile,
-  result: AcpPromptResult,
-  turn: TurnText,
-  name: string,
+  { usage }: AcpPromptResult,
+  speed?: TextSpeed,
 ) {
-  const usage = result.usage;
-  if (usage)
-    options.onUsage?.({
-      model: options.choice.model || profile.provider,
-      tokens: {
-        input: usage.inputTokens ?? 0,
-        cacheWrite: usage.cachedWriteTokens ?? 0,
-        cacheRead: usage.cachedReadTokens ?? 0,
-        output: (usage.outputTokens ?? 0) + (usage.thoughtTokens ?? 0),
-      },
-    });
+  if (!usage) return;
+  const output = outputTokens(usage);
+  const streamed = speed?.finish(output - (usage.thoughtTokens ?? 0));
+  options.onUsage?.({
+    model: options.choice.model || profile.provider,
+    tokens: {
+      input: usage.inputTokens ?? 0,
+      cacheWrite: usage.cachedWriteTokens ?? 0,
+      cacheRead: usage.cachedReadTokens ?? 0,
+      output,
+    },
+    ...(streamed && { streamed }),
+  });
+}
+
+/** Fails the turn when how it ended says so. */
+function finish(result: AcpPromptResult, turn: TurnText, name: string) {
   switch (result.stopReason) {
     case "cancelled":
       throw new Error("Cancelled by you.");

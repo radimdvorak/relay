@@ -91,7 +91,6 @@ test("the model picker signs in an ACP agent whose models didn't list because it
       RELAY_DEV_URL: "",
       RELAY_TEST_DATA: data,
       GEMINI_HOME: home,
-      AGY_ACP_FORCE_FILE_STORAGE: "1",
       RELAY_ACP_SCENARIO: JSON.stringify(scenario),
     },
   });

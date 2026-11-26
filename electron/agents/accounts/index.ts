@@ -91,6 +91,7 @@ export class AgentAccounts {
     (SignIn & { provider: AccountProvider; id: string; label: string }) | null =
     null;
   private signInError: string | null = null;
+  private signedIn: (provider: AccountProvider) => void = () => {};
 
   constructor(
     private store: Store,
@@ -178,6 +179,11 @@ export class AgentAccounts {
     return this.runSignIn(provider, id, account.label, false);
   }
 
+  /** Calls `listener` whenever a sign-in has finished and saved an account. */
+  onSignedIn(listener: (provider: AccountProvider) => void) {
+    this.signedIn = listener;
+  }
+
   cancelSignIn() {
     this.signIn?.cancel();
   }
@@ -208,6 +214,12 @@ export class AgentAccounts {
             saved.accounts.push({ provider, id, label });
             s.agentAccounts = saved;
           });
+        // The account is saved; nothing the listener does can undo that.
+        try {
+          this.signedIn(provider);
+        } catch (error) {
+          console.warn(`[sign-in] ${provider} ${id}: after sign-in:`, error);
+        }
       })
       .catch(async (e: Error) => {
         console.warn(`[sign-in] ${provider} ${id}: ${e.message}`);

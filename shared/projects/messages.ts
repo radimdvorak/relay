@@ -264,6 +264,8 @@ export interface AgentActivity {
   mcp?: { server: string; tool: string };
   /** The picture the call made, by absolute path; the turn shows it as an image it read. */
   image?: string;
+  /** The steps the agent's checklist held after this call (shared/agent-checklist). */
+  checklist?: import("../agent-checklist").ChecklistStep[];
   /** The code a call wrote, per file, for its row to show opened (shared/call-actions). */
   written?: WrittenCode[];
   /** Phones only: the call wrote code, left out here; `activityWritten` has it. */

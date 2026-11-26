@@ -1,0 +1,68 @@
+/* An agent's checklist: its steps, and the thread card's section that holds them. */
+.checklist {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.checklist li {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  padding: 3.5px 0;
+  color: var(--muted);
+  font-size: 12.5px;
+  line-height: 17px;
+}
+.checklist li > span {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.checklist li > svg {
+  flex: none;
+  margin-top: 1.5px;
+}
+.checklist circle {
+  fill: none;
+  stroke: var(--muted);
+  stroke-width: 1.25;
+  opacity: 0.6;
+}
+.checklist li[data-state="now"] {
+  color: var(--text);
+}
+.checklist li[data-state="now"] circle {
+  stroke: var(--accent);
+  opacity: 1;
+}
+.checklist circle.core,
+.checklist li[data-state="now"] circle.core {
+  fill: var(--accent);
+  stroke: none;
+}
+.checklist li[data-state="failed"] > svg {
+  color: var(--danger);
+}
+
+.progress-section > .running-tasks-label {
+  width: 100%;
+}
+.progress-section-count {
+  margin-left: auto;
+}
+/* A long checklist scrolls here, so what runs below keeps its place in the card. */
+.progress-section-steps {
+  max-height: 280px;
+  min-height: 0;
+  padding: 2px 8px 4px;
+  overflow-y: auto;
+}
+
+/* Under its row in a turn's trace, past the row's icon and gap. */
+.agent-step > .checklist {
+  margin: 0 0 6px 21px;
+}
+.agent-step > .checklist li {
+  padding: 2.5px 0;
+  font-size: 12px;
+}

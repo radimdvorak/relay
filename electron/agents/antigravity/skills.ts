@@ -1,5 +1,6 @@
 // Antigravity's skills for a folder, found on disk as T3 Code finds them (its
-// AntigravitySkills): the ACP server lists no skills of its own.
+// AntigravitySkills). The CLI lists its skills only once a session opens in
+// the folder; see listed-skills.
 
 import { readdir, readFile, stat } from "node:fs/promises";
 import { homedir } from "node:os";

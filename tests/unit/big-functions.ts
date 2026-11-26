@@ -4,11 +4,10 @@
 // job per file, class and function" in AGENTS.md.
 export const bigFunctions: Record<string, number> = {
   "electron/agent-host/host.ts › receive": 95,
-  "electron/agents/acp/run.ts › runAcpTurn": 212,
+  "electron/agents/acp/run.ts › runAcpTurn": 152,
   "electron/agents/activity.ts › codexActivity": 89,
   "electron/agents/agent-updates.ts › runUpdate": 122,
   "electron/agents/antigravity/helper.ts › antigravityHelper": 84,
-  "electron/agents/antigravity/usage.ts › createAntigravityUsageReader": 116,
   "electron/agents/claude/claude.ts › runClaude": 158,
   "electron/agents/claude/project/requests.ts › sessionCallbacks": 105,
   "electron/agents/claude/project/turn.ts › runClaudeProject": 157,

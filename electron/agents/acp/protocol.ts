@@ -151,6 +151,7 @@ export const promptResultSchema = z
           cachedReadTokens: lenient(z.number()),
           cachedWriteTokens: lenient(z.number()),
           thoughtTokens: lenient(z.number()),
+          totalTokens: lenient(z.number()),
         })
         .loose(),
     ),
@@ -178,6 +179,8 @@ const toolContentSchema = z.array(
 
 const toolCallFields = {
   toolCallId: z.string(),
+  /** The tool's own name, from agents that give it (Antigravity). */
+  name: text,
   title: text,
   kind: text,
   status: text,
@@ -269,6 +272,7 @@ export const permissionRequestSchema = z
     toolCall: z
       .object({
         toolCallId: lenient(z.string()),
+        name: text,
         title: text,
         kind: text,
         content: lenient(toolContentSchema),

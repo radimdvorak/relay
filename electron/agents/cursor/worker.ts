@@ -210,6 +210,9 @@ function slim(call: any) {
                   ).slice(-8000),
                 }
               : {}),
+            ...(result.value && call.type === "updateTodos"
+              ? { todos: result.value.todos }
+              : {}),
             ...(result.status === "error"
               ? { error: String(result.error?.message ?? result.error ?? "") }
               : {}),

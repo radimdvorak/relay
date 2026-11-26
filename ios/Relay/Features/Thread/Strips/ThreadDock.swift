@@ -2,7 +2,7 @@ import RelayRemote
 import SwiftUI
 
 /// What docks over a thread's composer, as on the desktop and Android: the
-/// goal, a usage limit and work that stopped; the subagents and started
+/// goal, a usage limit and work that stopped; the agent's progress; the subagents and started
 /// threads at work; background work waiting; a settled thread's note. Last of
 /// them, one that asks for something comes first.
 struct ThreadDock: View {
@@ -14,6 +14,8 @@ struct ThreadDock: View {
     @State private var agents: Subagents
     @State private var listing = false
     @State private var listedStarted: [RemoteChatSummary] = []
+    /// The steps as they stood when the Progress sheet opened; the sheet outlives the strip.
+    @State private var listedSteps: [ChecklistStep]?
 
     init(chatId: String, thread: RemoteChat?, summary: RemoteChatSummary?, running: Bool) {
         self.chatId = chatId
@@ -33,11 +35,13 @@ struct ThreadDock: View {
         let waiting = outsideBatch(pending, batch)
         let stopped = thread?.stopped?.items ?? []
         let limit = running ? nil : summary?.limitResume
+        let checklist = dockedChecklist(thread?.messages ?? [], running: running)
         let pressing = (!waiting.isEmpty && !running) || limit != nil || !stopped.isEmpty
         VStack(spacing: 0) {
             if let goal = summary?.goal { GoalStrip(goal: goal, running: running) }
             if let limit { LimitStrip(chatId: chatId, plan: limit) }
             if !stopped.isEmpty { StoppedStrip(chatId: chatId, items: stopped) }
+            if let checklist { ProgressStrip(steps: checklist) { listedSteps = checklist } }
             SubagentStrip(agents: agents, batch: batch, started: started, root: thread?.root) {
                 listedStarted = started
                 listing = true
@@ -47,15 +51,24 @@ struct ThreadDock: View {
                 SettledStrip(chatId: chatId, whenDone: summary.settleWhenDone != nil)
             }
         }
-        .animation(.snappy(duration: 0.2), value: [summary?.goal != nil, limit != nil, !stopped.isEmpty, !waiting.isEmpty])
+        .animation(.snappy(duration: 0.2), value: [summary?.goal != nil, limit != nil, !stopped.isEmpty, checklist != nil, !waiting.isEmpty])
         // Look again as a turn starts and ends, even when it finishes between reads.
         .subagentPoll(enabled: true, again: running || out > 0 || agents.anyOut, nudge: "\(running):\(out)") {
             await agents.refresh(connection)
+        }
+        .sheet(isPresented: listingSteps) {
+            // Kept current while there's a list, and as it was once the turn put it away.
+            let steps = threadChecklist(thread?.messages ?? []) ?? listedSteps ?? []
+            ProgressSheet(steps: steps).presentationDetents([.medium, .large])
         }
         .sheet(isPresented: $listing) {
             // The started threads too when the strip told of them as it opened, kept current.
             SubagentsSheet(agents: agents, opened: batch, started: listedStarted.isEmpty ? [] : family, root: thread?.root)
                 .presentationDetents([.medium, .large])
         }
+    }
+
+    private var listingSteps: Binding<Bool> {
+        Binding(get: { listedSteps != nil }, set: { if !$0 { listedSteps = nil } })
     }
 }

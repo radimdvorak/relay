@@ -121,7 +121,7 @@ function AccountRow({
             ) : null}
           </span>
           <span className="accounts-who" title={folder}>
-            {who || folder}
+            {who || ["Signed in", folder].filter(Boolean).join(" · ")}
           </span>
         </span>
         <AccountBars usage={usage} />

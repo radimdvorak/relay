@@ -50,6 +50,7 @@ import type {
 } from "./checks";
 import type { TriageState } from "./triage";
 import type { PhoneRemoteApi } from "./remote";
+import type { AgentAccountsApi } from "./agent-accounts-api";
 import type { ComputersApi } from "./computers-api";
 
 interface User {
@@ -318,7 +319,8 @@ export interface Api
     ProjectSearchApi,
     PhoneRemoteApi,
     PullReadinessApi,
-    ComputersApi {
+    ComputersApi,
+    AgentAccountsApi {
   inspectSymbol(
     ref: PullRef,
     head: string,
@@ -488,38 +490,6 @@ export interface Api
   saveRenderHtml(
     target: import("./html-render").RenderTarget,
   ): Promise<string | null>;
-  /** Claude Code and Codex accounts; see shared/agent-accounts. */
-  agentAccounts(): Promise<import("./agent-accounts").AgentAccountsState>;
-  /** Opens the CLI's browser sign-in for a new account; it's listed once that finishes. */
-  addAgentAccount(
-    provider: import("./agent-accounts").AccountProvider,
-    label: string,
-  ): Promise<void>;
-  signInAgentAccount(
-    provider: import("./agent-accounts").AccountProvider,
-    id: string,
-  ): Promise<void>;
-  cancelAgentAccountSignIn(): Promise<void>;
-  renameAgentAccount(
-    provider: import("./agent-accounts").AccountProvider,
-    id: string,
-    label: string,
-  ): Promise<void>;
-  removeAgentAccount(
-    provider: import("./agent-accounts").AccountProvider,
-    id: string,
-  ): Promise<void>;
-  /** The account new threads start on. */
-  useAgentAccount(
-    provider: import("./agent-accounts").AccountProvider,
-    id: string,
-  ): Promise<void>;
-  /** Runs the thread's `provider` on another account from its next turn. */
-  setThreadAccount(
-    chatId: string,
-    provider: import("./agent-accounts").AccountProvider,
-    id: string,
-  ): Promise<import("./projects").ChatSummary>;
   /**
    * An agent's models; Codex's and Claude's carry their own extra fields.
    * With `computerId`, as that paired computer's copy lists them.

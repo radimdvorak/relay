@@ -10,6 +10,7 @@ import {
   projectComputer,
   usePairedComputers,
 } from "../features/handoff/usePairedComputers";
+import { useThreadChecklist } from "../features/agent-checklist/useThreadChecklist";
 import type { CardComputer } from "../features/terminal/ComputerSection";
 import type { CardChanges } from "../features/terminal/ChangesSection";
 import { RunningTasks } from "../features/terminal/RunningTasks";
@@ -80,6 +81,7 @@ export function RunningCard({
   const { chat, chats, navigate } = nav;
   const changes = useCardChanges(tools, project);
   const computer = useCardComputer(chat, project, setError);
+  const checklist = useThreadChecklist(chat?.id);
   const handoff = chat && !project.plain && !project.scratch ? chat : undefined;
   // A new thread has nothing of its own for the card to show yet.
   if (!chat) return null;
@@ -103,6 +105,8 @@ export function RunningCard({
         ))
       }
       changes={changes}
+      checklist={checklist}
+      threadId={chat.id}
       onOpenChanges={() => opens.openCode("changes")}
       onOpenChat={(c) => navigate(project, c)}
     />

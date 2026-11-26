@@ -189,6 +189,9 @@ export function sessionConfig(
     ...mcpSetup(options, fewerTools),
     extraArgs: chromeArgs,
     env: withWorktreeEnv(env, {
+      // Claude Code leaves its task tools out for newer models; the thread's
+      // card shows the checklist it keeps with them.
+      CLAUDE_CODE_ENABLE_TODO_TOOLS: env.CLAUDE_CODE_ENABLE_TODO_TOOLS ?? "1",
       ...options.env,
       ...(options.contextWindow === "200k"
         ? { CLAUDE_CODE_DISABLE_1M_CONTEXT: "1" }

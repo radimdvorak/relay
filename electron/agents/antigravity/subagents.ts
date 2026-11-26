@@ -1,29 +1,32 @@
+import { z } from "zod";
 import type { AcpToolCall } from "../acp/protocol";
 import { acpActivity } from "../acp/activity";
 import { SubagentBooks, type SubagentBook } from "../subagent-book";
 
-export const antigravityBatches = new SubagentBooks();
+export const antigravitySubagents = new SubagentBooks();
 
-/** ACP exposes start_subagent batches, not individual children or a way to stop one. */
-export class AntigravityBatches {
+const startSchema = z.object({
+  Role: z.string().optional().catch(undefined),
+  Prompt: z.string().optional().catch(undefined),
+});
+
+/** Google's own tool; an MCP server's is named `mcp_<server>_<tool>`. */
+export const startsSubagent = (call: Partial<AcpToolCall>) =>
+  call.name === "invoke_subagent";
+
+/** ACP says a subagent was started, not what it does after or how to stop it. */
+export class AntigravitySubagents {
   private ids = new Set<string>();
   constructor(private book: SubagentBook) {}
 
   update(call: Partial<AcpToolCall> & { toolCallId: string }) {
-    const meta = call._meta as { is_mcp_tool_call?: unknown } | undefined;
     if (!this.ids.has(call.toolCallId)) {
-      if (
-        (call.kind && call.kind !== "other") ||
-        !["Running start_subagent", "Run start_subagent?"].includes(
-          call.title ?? "",
-        ) ||
-        meta?.is_mcp_tool_call === true
-      )
-        return;
+      if (!startsSubagent(call)) return;
       this.ids.add(call.toolCallId);
+      const start = startSchema.safeParse(call.rawInput).data;
       this.book.start(call.toolCallId, {
-        description: "Antigravity subagent batch",
-        type: "batch",
+        description: start?.Role || "Antigravity subagent",
+        brief: start?.Prompt,
         canStop: false,
       });
     }
@@ -38,7 +41,7 @@ export class AntigravityBatches {
         call.toolCallId,
         "idle",
         output ??
-          "Batch submitted. Antigravity does not report individual child status.",
+          "Started. Antigravity doesn't report what it does after that.",
       );
   }
 
@@ -50,7 +53,7 @@ export class AntigravityBatches {
           stopped ? "stopped" : "idle",
           stopped
             ? undefined
-            : "Antigravity stopped reporting this batch; individual child status is unavailable.",
+            : "Antigravity stopped reporting on this subagent.",
         );
   }
 }

@@ -2,8 +2,16 @@ import { randomUUID } from "node:crypto";
 import type { AskedQuestion } from "../../../shared/asked-questions";
 import type { AgentOptions } from "../types";
 import { answerLimitError, TurnText } from "../turn-kit";
-import { AntigravityBatches, antigravityBatches } from "../antigravity";
-import { acpActivity, acpEdits, planText } from "./activity";
+import { mcpCall } from "../activity";
+import {
+  AntigravitySubagents,
+  antigravityMcp,
+  antigravitySteps,
+  antigravitySubagents,
+  updatesSteps,
+  TextSpeed,
+} from "../antigravity";
+import { acpActivity, acpEdits, checklistSteps, planText, type PlanEntry } from "./activity";
 import type { AcpProfile } from "./profiles";
 import { parseUpdate, type AcpToolCall } from "./protocol";
 import type { AcpAgent } from "./sessions";
@@ -16,7 +24,11 @@ export class AcpTurnEvents {
     string,
     Partial<AcpToolCall> & { toolCallId: string }
   >();
-  readonly batches: AntigravityBatches | undefined;
+  readonly subagents: AntigravitySubagents | undefined;
+  /** A turn picked up again hears what it missed all at once, so it can't be timed. */
+  readonly speed: TextSpeed | undefined;
+  /** Whether this turn has shown the agent's checklist. */
+  private checklistShown = false;
   /** Calls that asked the user through a form, with the answers once they're in. */
   private asked = new Map<string, AskedQuestion[] | undefined>();
 
@@ -34,10 +46,20 @@ export class AcpTurnEvents {
       options.onCommentary,
       profile.provider,
     );
-    this.batches =
-      profile.provider === "antigravity" && key
-        ? new AntigravityBatches(antigravityBatches.open(key))
+    this.speed =
+      profile.provider === "antigravity" && options.job.kind !== "adopt"
+        ? new TextSpeed()
         : undefined;
+    this.subagents =
+      profile.provider === "antigravity" && key
+        ? new AntigravitySubagents(antigravitySubagents.open(key))
+        : undefined;
+  }
+
+  /** How many calls went through. */
+  get completedCalls() {
+    return [...this.calls.values()].filter((c) => c.status === "completed")
+      .length;
   }
 
   /**
@@ -72,7 +94,11 @@ export class AcpTurnEvents {
   };
 
   private show(call: Partial<AcpToolCall> & { toolCallId: string }) {
-    const activity = acpActivity(call);
+    const mcp = this.profile.provider === "antigravity" && antigravityMcp(call);
+    const activity = {
+      ...acpActivity(call),
+      ...(mcp && mcpCall(mcp.server, mcp.tool)),
+    };
     if (!this.asked.has(call.toolCallId))
       return this.options.onActivity?.(activity);
     const answers = this.asked.get(call.toolCallId);
@@ -83,21 +109,57 @@ export class AcpTurnEvents {
     });
   }
 
+  /** The agent's checklist, as one row kept up to date; an empty one clears it. */
+  private showChecklist(entries: PlanEntry[]) {
+    const detail = planText(entries);
+    const over = answerLimitError(detail.length);
+    if (over) return this.halt(over);
+    this.checklistShown = true;
+    this.options.onActivity?.({
+      id: `${this.profile.provider}-plan`,
+      kind: "tool",
+      // Written down, the update is done, whatever steps are left.
+      status: "complete",
+      label: "Updated progress",
+      detail,
+      checklist: checklistSteps(entries) ?? [],
+    });
+    return detail;
+  }
+
+  /** Antigravity's finished `update_steps` call: its list, or the call itself where the list can't be read. */
+  private showSteps(call: Partial<AcpToolCall> & { toolCallId: string }) {
+    const steps = antigravitySteps(call);
+    if (steps) this.showChecklist(steps);
+    else this.show(call);
+  }
+
+  /** While Antigravity compacts, it reports the size from before; the next turn says the new one. */
+  private sizeIsOld() {
+    return (
+      this.options.job.kind === "compact" &&
+      this.profile.provider === "antigravity"
+    );
+  }
+
   hear = (raw: unknown) => {
     const update = parseUpdate(raw);
     if (!update) return;
     switch (update.sessionUpdate) {
       case "agent_message_chunk": {
         if (update.content.type !== "text") return;
+        this.speed?.text(update.content.text ?? "");
         this.turn.add(update.content.text ?? "");
         const over = answerLimitError(this.turn.size);
         if (over && !this.stopped()) this.halt(over);
         return;
       }
       case "agent_thought_chunk":
+        this.speed?.pause();
         return;
       case "tool_call":
       case "tool_call_update": {
+        this.speed?.pause();
         if (
           this.profile.provider === "antigravity" &&
           update.toolCallId.startsWith("interaction_")
@@ -124,34 +186,31 @@ export class AcpTurnEvents {
           ),
         } as Partial<AcpToolCall> & { toolCallId: string };
         this.calls.set(update.toolCallId, call);
-        this.batches?.update(call);
+        this.speed?.call(call);
+        const listsSteps =
+          this.profile.provider === "antigravity" && updatesSteps(call);
+        if (listsSteps && call.status !== "failed") {
+          if (!known) this.turn.toNewParagraph();
+          // Refused lists fail, so one only counts once its call completed.
+          if (call.status === "completed") this.showSteps(call);
+          return;
+        }
+        this.subagents?.update(call);
         if (!known) this.turn.toCommentary();
         this.show(call);
         const edits = acpEdits(call);
         if (edits.length) this.options.onEdit?.(edits);
         return;
       }
-      case "plan":
-        if (update.entries.length) {
-          const detail = planText(update.entries);
-          const over = answerLimitError(detail.length);
-          if (over) {
-            this.halt(over);
-            return;
-          }
-          this.options.onActivity?.({
-            id: `${this.profile.provider}-plan`,
-            kind: "tool",
-            status: update.entries.some((e) => e.status === "in_progress")
-              ? "running"
-              : "complete",
-            label: "Updated the plan",
-            detail,
-          });
-          if (this.options.interactionMode === "plan")
-            this.options.onPlan?.(detail);
-        }
+      case "plan": {
+        // Some agents send an empty plan as a matter of course; it clears only a list this turn showed.
+        if (!update.entries.length && !this.checklistShown) return;
+        // The steps the agent keeps, which in Plan mode are the plan it proposes.
+        const detail = this.showChecklist(update.entries);
+        if (detail && this.options.interactionMode === "plan")
+          this.options.onPlan?.(detail);
         return;
+      }
       case "current_mode_update": {
         const modes = this.agent.session?.settings.modes;
         if (modes) modes.currentModeId = update.currentModeId;
@@ -165,10 +224,11 @@ export class AcpTurnEvents {
         if (update.title) this.options.onTitle?.(update.title);
         return;
       case "usage_update":
-        this.options.onContext?.({
-          usedTokens: update.used,
-          ...(update.size ? { maxTokens: update.size } : {}),
-        });
+        if (!this.sizeIsOld())
+          this.options.onContext?.({
+            usedTokens: update.used,
+            ...(update.size ? { maxTokens: update.size } : {}),
+          });
         // The session's cost so far, which OpenCode only reports once a
         // turn ends; a turn counts what it added since the last report.
         if (

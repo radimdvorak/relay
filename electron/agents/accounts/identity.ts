@@ -75,7 +75,6 @@ export async function readIdentity(
     return (
       (await readAntigravityAccount(
         system ? usualHome(provider) : profileDir(provider, id),
-        !system || !!process.env.AGY_ACP_FORCE_FILE_STORAGE,
       )) ?? { signedIn: false }
     );
   if (provider === "claude") {

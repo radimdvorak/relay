@@ -45,6 +45,37 @@ export async function signInAcp(profile: AcpProfile, signal?: AbortSignal) {
   }
 }
 
+/**
+ * Says there's no browser here, so a sign-in Google no longer takes fails
+ * instead of opening its page unasked.
+ */
+const noBrowser = {
+  SSH_CONNECTION: "127.0.0.1 0 127.0.0.1 0",
+  DISPLAY: "",
+  WAYLAND_DISPLAY: "",
+};
+
+/**
+ * Has Antigravity renew a saved Google sign-in, in a process of its own that
+ * opens no session, so it uses no model quota.
+ */
+export async function renewAcpSignIn(profile: AcpProfile) {
+  const agent = await acquireAcpAgent(profile, undefined, homedir(), {
+    env: noBrowser,
+  });
+  try {
+    await withTimeout(
+      agent.connection.request("authenticate", {
+        methodId: "oauth-personal",
+      }),
+      30_000,
+      `${profile.name} didn't renew its sign-in in time.`,
+    );
+  } finally {
+    agent.close();
+  }
+}
+
 /** Signs the agent out through ACP's `logout`, for agents that answer it. */
 export async function signOutAcp(profile: AcpProfile) {
   const agent = await acquireAcpAgent(profile, undefined, homedir());

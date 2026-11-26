@@ -234,9 +234,13 @@ it("shows a plan update once, not again when Codex repeats it", () => {
   expect(first).toEqual({
     id: "plan:thread:1",
     kind: "tool",
-    label: "Updated the plan",
+    label: "Updated progress",
     status: "complete",
     detail: "✓ Read the code\n→ Fix it",
+    checklist: [
+      { text: "Read the code", state: "done" },
+      { text: "Fix it", state: "now" },
+    ],
   });
   expect(plans.update("thread", plan)).toBeUndefined();
   expect(
@@ -244,4 +248,12 @@ it("shows a plan update once, not again when Codex repeats it", () => {
       plan: [{ step: "Read the code", status: "completed" }],
     })?.id,
   ).toBe("plan:thread:2");
+});
+
+it("clears a shown plan when Codex empties it, and says nothing for an empty one alone", () => {
+  const plans = new CodexPlanRows();
+  expect(plans.update("thread", { plan: [] })).toBeUndefined();
+  plans.update("thread", { plan: [{ step: "Fix it", status: "inProgress" }] });
+  expect(plans.update("thread", { plan: [] })?.checklist).toEqual([]);
+  expect(plans.update("thread", { plan: [] })).toBeUndefined();
 });

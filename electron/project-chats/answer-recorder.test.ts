@@ -77,6 +77,29 @@ it("lets a long turn's oldest finished calls go, so the live row shows what runs
   vi.useRealTimers();
 });
 
+it("keeps the agent's checklist through a long turn, where the thread reads its progress", () => {
+  vi.useFakeTimers();
+  const message = streamingAnswer("claude");
+  const chat = { id: "c", messages: [message] } as unknown as ProjectChat;
+  const answer = new AnswerRecorder(
+    chat,
+    message,
+    () => {},
+    () => {},
+  );
+  const checklist = [{ text: "Build", state: "now" as const }];
+  answer.activity({ ...call("plan"), status: "complete", checklist });
+  for (let i = 0; i < 150; i++)
+    answer.activity({ ...call(`ls-${i}`), status: "complete" });
+  expect(message.trace!.length).toBeLessThanOrEqual(100);
+  expect(message.trace![0]).toMatchObject({
+    id: "plan",
+    activity: { checklist },
+  });
+  answer.end();
+  vi.useRealTimers();
+});
+
 it("marks the calls a Stop cut short as stopped, not failed", () => {
   vi.useFakeTimers();
   const message = streamingAnswer("codex");

@@ -652,7 +652,7 @@ it("answers with the plan when Codex plans, showing each new step list once", as
   );
   expect(await answer).toBe("1. Read the code");
   expect(plans).toEqual(["1. Read", "1. Read the code"]);
-  expect(rows.filter((r) => r.label === "Updated the plan")).toHaveLength(1);
+  expect(rows.filter((r) => r.label === "Updated progress")).toHaveLength(1);
 });
 
 it("interrupts the running turn when stopped, even if Codex refuses the interrupt", async () => {

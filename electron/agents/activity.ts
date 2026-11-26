@@ -1,3 +1,4 @@
+import { keptSteps, type ChecklistStep } from "../../shared/agent-checklist";
 import type { AgentActivity } from "../../shared/projects";
 import { isImagePath } from "../../shared/answer-images";
 import { relayToolLabel } from "../relay-mcp";
@@ -162,16 +163,29 @@ function toolOutput(item: Record<string, unknown>) {
     .join("\n");
 }
 
-const planMarks: Record<string, string> = {
-  completed: "✓",
-  inProgress: "→",
-  pending: "○",
+const checklistMarks: Record<ChecklistStep["state"], string> = {
+  done: "✓",
+  now: "→",
+  next: "○",
+  failed: "✗",
 };
+
+const codexStepStates: Record<string, ChecklistStep["state"]> = {
+  completed: "done",
+  inProgress: "now",
+};
+
+/** The checklist as the text a row opens to. */
+export const checklistDetail = (steps: ChecklistStep[]) =>
+  steps
+    .map((step) => `${checklistMarks[step.state]} ${step.text}`)
+    .join("\n")
+    .slice(0, 8000);
 
 /**
  * A Codex `turn/plan/updated` as Claude's TodoWrite reads: one "Updated the
  * plan" row, its steps in `detail`. `key` tells updates apart; undefined when
- * the plan holds no steps.
+ * there's no plan to read, and an empty checklist when it holds no steps.
  */
 export function codexPlanActivity(
   key: string,
@@ -179,18 +193,20 @@ export function codexPlanActivity(
 ): AgentActivity | undefined {
   const plan = (value as { plan?: unknown } | null)?.plan;
   if (!Array.isArray(plan)) return;
-  const steps = plan.flatMap((s) =>
-    s && typeof s.step === "string" && s.step.trim()
-      ? [`${planMarks[s.status] ?? "○"} ${s.step.trim()}`]
-      : [],
-  );
-  if (!steps.length) return;
+  const steps = keptSteps(
+    plan.flatMap((s): ChecklistStep[] =>
+      typeof s?.step === "string"
+        ? [{ text: s.step, state: codexStepStates[s.status] ?? "next" }]
+        : [],
+    ),
+  ) ?? [];
   return {
     id: key.slice(0, 180),
     kind: "tool",
-    label: "Updated the plan",
+    label: "Updated progress",
     status: "complete",
-    detail: steps.join("\n").slice(0, 8000),
+    detail: checklistDetail(steps),
+    checklist: steps,
   };
 }
 
@@ -203,6 +219,8 @@ export class CodexPlanRows {
   update(scope: string, params: unknown) {
     const row = codexPlanActivity(`plan:${scope}:${this.count + 1}`, params);
     if (!row || this.last.get(scope) === row.detail) return;
+    // An empty plan clears one shown before; with none, there's nothing to say.
+    if (!row.checklist?.length && !this.last.has(scope)) return;
     this.count++;
     this.last.set(scope, row.detail!);
     return row;
@@ -288,7 +306,12 @@ export function claudeActivity(
     case "Agent":
       return call("agent", text("description"));
     case "TodoWrite":
-      return call("tool", "Updated the plan");
+    case "TaskCreate":
+    case "TaskUpdate":
+      return call("tool", "Updated progress");
+    case "TaskList":
+    case "TaskGet":
+      return call("tool", "Checked progress");
     // Claude's advisor runs server-side; its advice comes back encrypted.
     case "advisor":
       return call("tool", "Asked the advisor");

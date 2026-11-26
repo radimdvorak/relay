@@ -4,10 +4,10 @@ import { join } from "node:path";
 import { afterEach, expect, it, vi } from "vitest";
 import type { AgentOptions } from "../types";
 import type { AcpProfile } from "./profiles";
-import { runAcp } from "./run";
+import { outputTokens, runAcp } from "./run";
 import { disposeAcp, acquireAcpAgent } from "./sessions";
 import { readOnlyGitEnv } from "../read-only-git";
-import { antigravityBatches } from "../antigravity";
+import { antigravitySubagents } from "../antigravity";
 import { signInAcp } from "./sign-in";
 
 const fixture = join(__dirname, "../../../tests/fixtures/acp-agent.cjs");
@@ -52,22 +52,6 @@ afterEach(() => {
   for (const profile of profiles.splice(0)) disposeAcp(profile);
   vi.unstubAllEnvs();
 });
-
-it.each(["antigravity", "amp", "opencode"] as const)(
-  "uses the Antigravity model compatibility identity only for Antigravity (%s)",
-  async (provider) => {
-    const { acp, root, sent } = await agent({}, { provider });
-    await acquireAcpAgent(acp, undefined, root);
-    expect(
-      (await sent()).find((message) => message.method === "initialize")?.params
-        .clientInfo,
-    ).toEqual({
-      name: provider === "antigravity" ? "zed" : "relay",
-      title: "Relay",
-      version: "0.1.0",
-    });
-  },
-);
 
 it("shows native fixed choices in full access, preserving duplicate labels and recording readable answers", async () => {
   const id = "interaction_choose";
@@ -199,6 +183,69 @@ it("dispatches native compact and plan commands first, keeping context inside th
   expect(onPlan).toHaveBeenLastCalledWith("Done.");
 });
 
+it("compacts Antigravity's conversation in place, and leaves out the size from before that it reports", async () => {
+  const { acp, root, sent } = await agent(
+    {
+      turn: [say("Done.")],
+      turnByPrefix: {
+        "/compact": [
+          {
+            update: {
+              sessionUpdate: "usage_update",
+              used: 76_982,
+              size: 1_048_576,
+            },
+          },
+        ],
+      },
+    },
+    { provider: "antigravity", compact: "/compact" },
+  );
+  const onContext = vi.fn();
+  const onId = vi.fn(async () => {});
+  const session = { key: root, onId };
+  await runAcp(acp, options(root, { session }));
+  await runAcp(
+    acp,
+    options(root, {
+      job: { kind: "compact" },
+      session: { ...session, id: "s1" },
+      onContext,
+    }),
+  );
+  expect(onContext).not.toHaveBeenCalled();
+  expect(onId).toHaveBeenCalledExactlyOnceWith("s1");
+  expect(
+    (await sent())
+      .filter((m) => m.method === "session/prompt")
+      .map((m) => [m.params.sessionId, m.params.prompt[0].text]),
+  ).toEqual([
+    ["s1", expect.anything()],
+    ["s1", "/compact"],
+  ]);
+});
+
+it("refuses tools while Antigravity compacts", async () => {
+  const { acp, root } = await agent(
+    {
+      turn: [
+        {
+          update: {
+            sessionUpdate: "tool_call",
+            toolCallId: "bad",
+            title: "Edit a file",
+            kind: "edit",
+          },
+        },
+      ],
+    },
+    { provider: "antigravity", compact: "/compact" },
+  );
+  await expect(
+    runAcp(acp, options(root, { job: { kind: "compact" } })),
+  ).rejects.toThrow("text-only");
+});
+
 it("updates the live planning checklist, and leaves execution checklists out of proposed plans", async () => {
   const { acp, root } = await agent(
     {
@@ -232,56 +279,216 @@ it("updates the live planning checklist, and leaves execution checklists out of 
     "The proposed plan.",
   ]);
   expect(onActivity.mock.calls.map(([a]) => a.status)).toEqual([
-    "running",
     "complete",
+    "complete",
+  ]);
+  expect(onActivity.mock.calls.map(([a]) => a.checklist)).toEqual([
+    [{ text: "Read the API", state: "now" }],
+    [{ text: "Read the API", state: "done" }],
   ]);
   onPlan.mockClear();
   await runAcp(acp, options(root, { onPlan }));
   expect(onPlan).not.toHaveBeenCalled();
 });
 
-it("tracks native subagent batches without claiming the children succeeded or allowing individual cancellation", async () => {
+it("shows Antigravity's update_steps as the plan, once accepted and without skipped steps", async () => {
+  const steps = (toolCallId: string, status: string, steps: unknown) => ({
+    update: {
+      sessionUpdate:
+        status === "in_progress" ? "tool_call" : "tool_call_update",
+      toolCallId,
+      name: "update_steps",
+      title: "Run update_steps",
+      kind: "other",
+      status,
+      rawInput: { steps },
+    },
+  });
+  const list = [
+    { title: "Write a.txt", status: "done" },
+    { title: "Write b.txt", status: "in_progress" },
+    { title: "Write c.txt", status: "skipped" },
+    { title: "Write d.txt", status: "failed" },
+  ];
   const { acp, root } = await agent({
     turn: [
+      steps("one", "in_progress", list),
+      steps("one", "completed", list),
+      steps("two", "in_progress", []),
+      steps("two", "failed", []),
+      say("Done."),
+    ],
+  });
+  const rows: { id: string; detail?: string; status: string }[] = [];
+  await runAcp(acp, options(root, { onActivity: (a) => rows.push(a) }));
+  expect(rows.filter((row) => row.id === "antigravity-plan")).toEqual([
+    expect.objectContaining({
+      label: "Updated progress",
+      status: "complete",
+      detail:
+        "- [x] Write a.txt\n- [ ] Write b.txt (working on it)\n- [ ] Write d.txt (failed)",
+      checklist: [
+        { text: "Write a.txt", state: "done" },
+        { text: "Write b.txt", state: "now" },
+        { text: "Write d.txt", state: "failed" },
+      ],
+    }),
+  ]);
+  // The refused list is a failed call, and leaves the plan alone.
+  expect(rows.filter((row) => row.id !== "antigravity-plan")).toEqual([
+    expect.objectContaining({ id: "two", status: "failed" }),
+  ]);
+});
+
+it("keeps Antigravity's steps out of Plan mode's plan, clears them when none are left, and shows a list it can't read as a call", async () => {
+  const steps = (toolCallId: string, rawInput: unknown) => ({
+    update: {
+      sessionUpdate: "tool_call",
+      toolCallId,
+      name: "update_steps",
+      title: "Run update_steps",
+      kind: "other",
+      status: "completed",
+      rawInput,
+    },
+  });
+  const { acp, root } = await agent({
+    turn: [
+      steps("one", { steps: [{ title: "Look", status: "in_progress" }] }),
+      steps("two", { steps: [{ title: "Look", status: "skipped" }] }),
+      steps("three", { list: "not the shape" }),
+      say("Done."),
+    ],
+  });
+  const onPlan = vi.fn();
+  const rows: { id: string; checklist?: unknown }[] = [];
+  await runAcp(
+    acp,
+    options(root, {
+      interactionMode: "plan",
+      onPlan,
+      onActivity: (a) => rows.push(a),
+    }),
+  );
+  expect(onPlan.mock.calls.map(([text]) => text)).toEqual(["Done."]);
+  expect(rows.map((row) => [row.id, row.checklist])).toEqual([
+    ["antigravity-plan", [{ text: "Look", state: "now" }]],
+    ["antigravity-plan", []],
+    ["three", undefined],
+  ]);
+});
+
+it("names the MCP tool Antigravity calls, in the trace and when it asks, going by the call's name alone", async () => {
+  const call = (toolCallId: string, name: string, rawInput: object) => ({
+    toolCallId,
+    name,
+    title: `Run ${name}`,
+    kind: "other",
+    status: "in_progress",
+    rawInput,
+  });
+  const direct = call("direct", "mcp_docs_search_pages", { query: "x" });
+  const { acp, root } = await agent({
+    turn: [
+      { update: { sessionUpdate: "tool_call", ...direct } },
+      {
+        ask: {
+          toolCall: direct,
+          options: [{ optionId: "a", name: "Allow", kind: "allow_once" }],
+        },
+      },
       {
         update: {
           sessionUpdate: "tool_call",
-          toolCallId: "batch",
-          title: "Running start_subagent",
-          kind: "other",
-          status: "in_progress",
+          ...call("proxied", "call_mcp_tool", {
+            ServerName: "docs",
+            ToolName: "search_pages",
+            Arguments: {},
+          }),
         },
       },
+      {
+        update: {
+          sessionUpdate: "tool_call",
+          ...call("own", "deploy", { ServerName: "web", ToolName: "x" }),
+        },
+      },
+      say("Done."),
+    ],
+  });
+  const rows = new Map<string, { label: string; mcp?: object }>();
+  const titles: string[] = [];
+  await runAcp(
+    acp,
+    options(root, {
+      runtimeMode: "approval-required",
+      onActivity: (a) => rows.set(a.id, a),
+      onRequest: async (request) => {
+        if (request.kind === "approval") titles.push(request.title);
+        return { kind: "approval", decision: "accept" };
+      },
+    }),
+  );
+  const mcp = { server: "docs", tool: "search_pages" };
+  expect(rows.get("direct")).toMatchObject({
+    label: "docs: search_pages",
+    mcp,
+  });
+  expect(rows.get("proxied")).toMatchObject({
+    label: "docs: search_pages",
+    mcp,
+  });
+  expect(rows.get("own")).toMatchObject({ label: "Run deploy" });
+  expect(rows.get("own")?.mcp).toBeUndefined();
+  expect(titles).toEqual(["docs: search_pages"]);
+});
+
+it("tracks the subagents Antigravity starts, without claiming they succeeded or can be stopped", async () => {
+  const start = (toolCallId: string, name: string) => ({
+    update: {
+      sessionUpdate: "tool_call",
+      toolCallId,
+      name,
+      title: `Run ${name}`,
+      kind: "other",
+      status: "in_progress",
+      rawInput: {
+        Prompt: "Reply with the word RED.",
+        Role: "Red Reporter",
+        TypeName: "self",
+      },
+    },
+  });
+  const { acp, root } = await agent({
+    turn: [
+      start("red", "invoke_subagent"),
       {
         update: {
           sessionUpdate: "tool_call_update",
-          toolCallId: "batch",
+          toolCallId: "red",
+          name: "invoke_subagent",
           status: "completed",
-          rawOutput: "Started two agents.",
         },
       },
-      {
-        update: {
-          sessionUpdate: "tool_call",
-          toolCallId: "mcp",
-          title: "Running start_subagent",
-          kind: "other",
-          _meta: { is_mcp_tool_call: true },
-        },
-      },
+      start("mcp", "mcp_relay_invoke_subagent"),
     ],
   });
   await runAcp(
     acp,
-    options(root, { session: { key: "batches", onId: async () => {} } }),
+    options(root, { session: { key: "subagents", onId: async () => {} } }),
   );
-  const source = antigravityBatches.get("batches")!;
+  const source = antigravitySubagents.get("subagents")!;
   expect(source.list()).toEqual([
-    expect.objectContaining({ id: "batch", status: "idle", canStop: false }),
+    expect.objectContaining({
+      id: "red",
+      description: "Red Reporter",
+      status: "idle",
+      canStop: false,
+    }),
   ]);
-  expect(source.detail("batch")?.report).toBe("Started two agents.");
-  await expect(source.stop("batch")).rejects.toThrow();
-  antigravityBatches.drop("batches");
+  expect(source.detail("red")?.brief).toBe("Reply with the word RED.");
+  await expect(source.stop("red")).rejects.toThrow();
+  antigravitySubagents.drop("subagents");
 });
 
 it("keeps text-only helper jobs out of the project and refuses attempted tools", async () => {
@@ -600,7 +807,14 @@ it("splits text before a tool call into commentary and reports edits, cost and s
       },
       say("Done."),
     ],
-    usage: { inputTokens: 10, outputTokens: 2, thoughtTokens: 3 },
+    // Antigravity 1.5's own report: outputTokens already holds the 19 thinking.
+    usage: {
+      inputTokens: 2181,
+      cachedReadTokens: 12119,
+      outputTokens: 23,
+      thoughtTokens: 19,
+      totalTokens: 14323,
+    },
   });
   const commentary: [string, string | null][] = [];
   const activities: unknown[] = [];
@@ -625,14 +839,58 @@ it("splits text before a tool call into commentary and reports edits, cost and s
   // A new session starts at $0, so its first report is all this turn's.
   expect(costs).toEqual([0.5, 0.25]);
   expect(onUsage.mock.calls[0][0].tokens).toMatchObject({
-    input: 10,
-    output: 5,
+    input: 2181,
+    cacheRead: 12119,
+    output: 23,
   });
   const methods = (await sent()).map((m) => m.method);
   expect(methods).toContain("session/set_config_option");
   expect(methods).not.toContain("session/cancel");
   const prompt = (await sent()).find((m) => m.method === "session/prompt");
   expect(prompt?.params.prompt).toEqual([{ type: "text", text: "Hi" }]);
+});
+
+it.each([true, false])(
+  "gives an agent that doesn't advertise HTTP MCP Relay's tools only when its profile takes them (%s)",
+  async (takesHttpMcp) => {
+    const { acp, root, sent } = await agent(
+      { hidesHttpMcp: true, turn: [say("Done.")] },
+      { takesHttpMcp },
+    );
+    const relayTools = { url: "http://127.0.0.1:1/mcp", token: "t" };
+    await runAcp(acp, options(root, { relayTools }));
+    const opened = (await sent()).find((m) => m.method === "session/new");
+    expect(opened?.params.mcpServers).toHaveLength(takesHttpMcp ? 1 : 0);
+  },
+);
+
+it("starts a new paragraph after Antigravity updated its steps", async () => {
+  const steps = {
+    sessionUpdate: "tool_call",
+    toolCallId: "steps",
+    title: "update_steps",
+    name: "update_steps",
+    status: "completed",
+    rawInput: { steps: [{ title: "Look", status: "done" }] },
+  };
+  const { acp, root } = await agent({
+    turn: [say("I'll plan this."), { update: steps }, say("Done")],
+  });
+  const answer = await runAcp(acp, options(root));
+  expect(answer).toBe("I'll plan this.\n\nDone");
+});
+
+it("adds thinking to the output only when the agent's total leaves it out", () => {
+  const usage = { inputTokens: 10, outputTokens: 2, thoughtTokens: 3 };
+  expect(outputTokens({ ...usage, totalTokens: 15 })).toBe(5);
+  expect(outputTokens({ ...usage, totalTokens: 12 })).toBe(2);
+  expect(outputTokens(usage)).toBe(5);
+  // Some count what came from the cache as input, some beside it.
+  const cached = { ...usage, cachedReadTokens: 4 };
+  for (const totalTokens of [15, 19])
+    expect(outputTokens({ ...cached, totalTokens })).toBe(5);
+  for (const totalTokens of [12, 16])
+    expect(outputTokens({ ...cached, totalTokens })).toBe(2);
 });
 
 it("asks the user when the mode does, and answers with the option they picked", async () => {
@@ -668,6 +926,63 @@ it("asks the user when the mode does, and answers with the option they picked", 
   expect(reply?.result).toEqual({
     outcome: { outcome: "selected", optionId: "always" },
   });
+});
+
+it("shows Antigravity's CommandLine in approval details", async () => {
+  const { acp, root } = await agent({
+    turn: [
+      {
+        ask: {
+          toolCall: {
+            toolCallId: "cmd_1",
+            name: "run_command",
+            kind: "execute",
+            title: "Run command",
+            rawInput: { CommandLine: "npm test", WaitMsBeforeAsync: 5000 },
+          },
+          options: allowOrReject,
+        },
+      },
+      say("ok"),
+    ],
+  });
+  const onRequest = vi.fn(async () => ({
+    kind: "approval" as const,
+    decision: "accept" as const,
+  }));
+  await runAcp(
+    acp,
+    options(root, { runtimeMode: "approval-required", onRequest }),
+  );
+  expect(onRequest).toHaveBeenCalledWith(
+    expect.objectContaining({ title: "Run command", detail: "npm test" }),
+    expect.anything(),
+  );
+});
+
+it("fails an Antigravity turn on a mid-turn Google error even after tool calls ran", async () => {
+  const { acp, root } = await agent(
+    {
+      turn: [
+        {
+          update: {
+            sessionUpdate: "tool_call",
+            toolCallId: "read_1",
+            kind: "read",
+            title: "Read a.ts",
+            status: "completed",
+          },
+        },
+        say("⚠ RESOURCE_EXHAUSTED (code 429): Quota exceeded"),
+      ],
+    },
+    { failure: (await import("../antigravity")).antigravityFailure },
+  );
+  const onText = vi.fn();
+  await expect(runAcp(acp, options(root, { onText }))).rejects.toThrow(
+    "Antigravity: RESOURCE_EXHAUSTED (code 429): Quota exceeded",
+  );
+  expect(onText).toHaveBeenLastCalledWith("");
 });
 
 it("offers no Always when the agent has several, rather than picking the broadest", async () => {

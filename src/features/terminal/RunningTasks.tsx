@@ -10,7 +10,9 @@ import { flushSync } from "react-dom";
 import { useStoredFlag } from "../../lib/useStoredFlag";
 import { useQuery } from "@tanstack/react-query";
 import type { ChatSummary, Project } from "../../../shared/projects";
+import type { ChecklistStep } from "../../../shared/agent-checklist";
 import { api } from "../../lib/api";
+import { ProgressSection } from "../agent-checklist/ProgressSection";
 import { useWindowFocused } from "../../lib/window-focus";
 import { ChangesSection, type CardChanges } from "./ChangesSection";
 import { ComputerSection, type CardComputer } from "./ComputerSection";
@@ -142,6 +144,25 @@ function morph(
   }, settle);
 }
 
+/** Whether the card is folded into its stripe, and how it opens and folds. */
+function useCardFold(card: HTMLElement | null) {
+  const [folded, setFolded] = useStoredFlag("relay-tasks-collapsed");
+  const roomy = useRoomBeside(card);
+  // Without room it stays folded, and opens only until it's closed or the
+  // room comes back; the choice saved for a roomy pane stays as it was.
+  const [peeking, setPeeking] = useState(false);
+  if (roomy && peeking) setPeeking(false);
+  const collapsed = roomy ? folded : !peeking;
+  // Open beside the thread, not over it: the thread makes room.
+  const docked = roomy && !collapsed;
+  usePaneMarks(card, docked);
+  const toggle = () =>
+    morph(card, collapsed ? "open" : "close", () =>
+      roomy ? setFolded(!folded) : setPeeking(!peeking),
+    );
+  return { collapsed, docked, toggle };
+}
+
 /** The project's running tasks, polled; only an open card in front asks what each costs. */
 function useProjectTasks(project: Project, collapsed: boolean) {
   // Each look reads the system's whole process list: on Windows, through WMI,
@@ -216,6 +237,8 @@ export function RunningTasks({
   chats,
   handoff,
   changes,
+  checklist,
+  threadId,
   onOpenChanges,
   onOpenChat,
 }: {
@@ -231,25 +254,16 @@ export function RunningTasks({
   handoff?: (className: string) => ReactNode;
   /** None where the thread has no changes of its own to show, as in a PR thread. */
   changes?: CardChanges;
+  /** The steps of the checklist the open thread's agent is on. */
+  checklist?: ChecklistStep[];
+  /** The open thread; its checklist scrolls to its own step when it opens. */
+  threadId?: string;
   onOpenChanges: () => void;
   onOpenChat: (chat: ChatSummary) => void;
 }) {
-  const [folded, setFolded] = useStoredFlag("relay-tasks-collapsed");
   const [card, setCard] = useState<HTMLElement | null>(null);
-  const roomy = useRoomBeside(card);
-  // Without room it stays folded, and opens only until it's closed or the
-  // room comes back; the choice saved for a roomy pane stays as it was.
-  const [peeking, setPeeking] = useState(false);
-  if (roomy && peeking) setPeeking(false);
-  const collapsed = roomy ? folded : !peeking;
+  const { collapsed, docked, toggle } = useCardFold(card);
   const tasks = useProjectTasks(project, collapsed);
-  // Open beside the thread, not over it: the thread makes room.
-  const docked = roomy && !collapsed;
-  usePaneMarks(card, docked);
-  const toggle = () =>
-    morph(card, collapsed ? "open" : "close", () =>
-      roomy ? setFolded(!folded) : setPeeking(!peeking),
-    );
   return (
     <aside
       ref={setCard}
@@ -260,6 +274,7 @@ export function RunningTasks({
         <RunningStripe
           computer={computer}
           inWorktree={inWorktree}
+          checklist={checklist}
           running={tasks.list.length}
           onOpen={toggle}
         />
@@ -274,6 +289,7 @@ export function RunningTasks({
           {changes && (
             <ChangesSection changes={changes} onOpen={onOpenChanges} />
           )}
+          {checklist && <ProgressSection key={threadId} steps={checklist} />}
           {!!tasks.list.length && (
             <RunningSection
               project={project}

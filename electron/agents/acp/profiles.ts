@@ -1,5 +1,6 @@
 import type { InteractionMode, RuntimeMode } from "../../../shared/agent-modes";
 import type { AgentModel, RegistryProvider } from "../../../shared/agents";
+import type { ProviderCommand } from "../../../shared/commands";
 import { findExecutable } from "../../platform/executables";
 import { readOnlyEnv } from "./amp-review";
 import {
@@ -8,7 +9,9 @@ import {
   antigravityAuthMethod,
   readAntigravityAccount,
   antigravityHome,
-  compactPrompt,
+  antigravityCommand,
+  antigravityFailure,
+  antigravityOffer,
 } from "../antigravity";
 import { discoverAntigravitySkills } from "../antigravity";
 import { openCodeCommand } from "../opencode/command";
@@ -72,6 +75,12 @@ export interface AcpProfile {
    * out only when it surely is; undefined when Relay can't tell.
    */
   account?(): Promise<AcpAccount | undefined>;
+  /** Takes MCP servers over HTTP without saying so when it starts. */
+  takesHttpMcp?: boolean;
+  /** Reads attached audio files with `read_file` when ACP doesn't accept audio blocks. */
+  readsAudioFiles?: boolean;
+  /** Takes another prompt into the turn it's on, so Relay can steer it. */
+  steersByPrompt?: boolean;
   /** The prompt that compacts its session, when it has one. */
   compact?: string;
   /** Native command that enters its planning workflow. */
@@ -82,6 +91,11 @@ export interface AcpProfile {
   home?: string;
   /** A complete process environment, with inherited credentials removed for an account. */
   environment?: Record<string, string>;
+  /** How Relay offers the commands it listed, for an agent that lists its skills among them. */
+  offer?(
+    listed: { commands: ProviderCommand[]; forThisFolder: boolean },
+    skills: AgentSkill[],
+  ): ProviderCommand[];
   /** Skills it doesn't list over ACP, read from its folders for `cwd`. */
   skills?(cwd: string): Promise<AgentSkill[]>;
   /** Selected skills that the agent doesn't expand from ACP prompt text. */
@@ -93,7 +107,7 @@ export interface AcpProfile {
   /** What to tell someone it can't find. */
   install: string;
   /** An answer that is really the agent reporting a failure. */
-  failure?(answer: string): string | undefined;
+  failure?(answer: string, hadCalls: boolean): string | undefined;
 }
 
 /**
@@ -124,43 +138,47 @@ const amp: AcpProfile = {
   ],
   install:
     "Install Amp in Settings → AI & agents → Agents, or from ampcode.com.",
-  // The bridge reports a failed turn as the answer's text.
-  failure: (answer) => /^Error: (.+)/s.exec(answer.trim())?.[1],
+  // The bridge reports a failed turn as the answer's text, before any tool runs.
+  failure: (answer, hadCalls) =>
+    hadCalls ? undefined : /^Error: (.+)/s.exec(answer.trim())?.[1],
 };
 
-/** Google's Antigravity ACP server, which Relay downloads; see antigravity-install. */
+async function antigravityLine(home: string) {
+  const found = await currentAntigravity();
+  if (!found)
+    throw new Error(
+      "Antigravity isn't downloaded yet. Set it up in Settings → Agents.",
+    );
+  return antigravityCommand(found, home);
+}
+
+/** Google's Antigravity CLI, which Relay downloads; see antigravity/install. */
 const antigravity: AcpProfile = {
   provider: "antigravity",
   name: "Antigravity",
   setUp: async () => {
     await ensureAntigravity();
   },
-  command: async () => {
-    const found = await currentAntigravity();
-    if (!found)
-      throw new Error(
-        "Antigravity isn't downloaded yet. Set it up in Settings → Agents.",
-      );
-    return { command: found.command, args: found.args };
-  },
-  // Planning uses /plan, not a permission mode. Read-only work still denies writes.
+  command: () => antigravityLine(antigravityHome()),
+  // Planning uses /plan, not a permission mode. Full access is Relay approving
+  // every ask: the CLI has no mode that skips them.
   wishes: ({ runtime, interaction, readOnly }) => {
-    if (readOnly || interaction === "plan")
-      return [{ option: "mode", value: "default" }];
-    switch (runtime) {
-      case "auto-accept-edits":
-        return [{ option: "mode", value: "auto_edit" }];
-      case "full-access":
-        return [{ option: "mode", value: "yolo" }];
-      default:
-        return [{ option: "mode", value: "default" }];
-    }
+    const editsAccepted =
+      runtime === "auto-accept-edits" && !readOnly && interaction !== "plan";
+    return [
+      { option: "mode", value: editsAccepted ? "accept-edits" : "default" },
+    ];
   },
   authMethod: async () => (await antigravityAuthMethod()) ?? "oauth-personal",
-  account: readAntigravityAccount,
-  compact: compactPrompt,
+  account: () => readAntigravityAccount(),
+  takesHttpMcp: true,
+  readsAudioFiles: true,
+  steersByPrompt: true,
+  compact: "/compact",
   plan: "/plan",
   skills: (cwd) => discoverAntigravitySkills(cwd),
+  offer: antigravityOffer,
+  failure: antigravityFailure,
   install:
     "Set Antigravity up in Settings → Agents: Relay downloads it from Google.",
 };
@@ -207,10 +225,10 @@ export function antigravityProfile(
     accountKey,
     home,
     environment: env,
+    command: () => antigravityLine(home),
     authMethod: async () =>
       (await antigravityAuthMethod(home)) ?? "oauth-personal",
-    account: () =>
-      readAntigravityAccount(home, !!env.AGY_ACP_FORCE_FILE_STORAGE),
+    account: () => readAntigravityAccount(home),
     skills: (cwd) => discoverAntigravitySkills(cwd, home),
   };
 }

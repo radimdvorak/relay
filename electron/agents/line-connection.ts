@@ -9,6 +9,7 @@ type Waiter = {
   method: string;
   resolve: (value: unknown) => void;
   reject: (error: Error) => void;
+  heard?: (settled: Settled) => void;
 };
 
 /** How much of what the process printed to stderr is kept, for explaining a failure. */
@@ -69,6 +70,7 @@ export abstract class LineConnection {
     const waiter = this.waiting.get(id);
     if (!waiter) return void this.orphans.set(id, settled);
     this.waiting.delete(id);
+    waiter.heard?.(settled);
     if (settled.error) waiter.reject(settled.error);
     else waiter.resolve(settled.result);
   }
@@ -83,7 +85,10 @@ export abstract class LineConnection {
     this.closed = true;
     this.reason = reason;
     const error = this.endError(reason);
-    for (const waiter of this.waiting.values()) waiter.reject(error);
+    for (const waiter of this.waiting.values()) {
+      waiter.heard?.({ error });
+      waiter.reject(error);
+    }
     this.waiting.clear();
     this.onClose?.(reason);
   }
@@ -107,18 +112,30 @@ export abstract class LineConnection {
     return this.nextId++;
   }
 
-  /** The reply to request `id`, which may already be in. */
-  wait(id: RpcId, method = ""): Promise<unknown> {
+  /**
+   * The reply to request `id`, which may already be in. `heard` gets it before
+   * the process's next line is read; whoever awaits the promise may come later.
+   */
+  wait(
+    id: RpcId,
+    method = "",
+    heard?: (settled: Settled) => void,
+  ): Promise<unknown> {
     const early = this.orphans.get(id);
     if (early) {
       this.orphans.delete(id);
+      heard?.(early);
       return early.error
         ? Promise.reject(early.error)
         : Promise.resolve(early.result);
     }
-    if (this.closed) return Promise.reject(this.stopped());
+    if (this.closed) {
+      const error = this.stopped();
+      heard?.({ error });
+      return Promise.reject(error);
+    }
     return new Promise((resolve, reject) =>
-      this.waiting.set(id, { method, resolve, reject }),
+      this.waiting.set(id, { method, resolve, reject, heard }),
     );
   }
 

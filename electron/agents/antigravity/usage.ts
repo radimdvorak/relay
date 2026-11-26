@@ -1,6 +1,3 @@
-import { createHash } from "node:crypto";
-import { readFile, stat } from "node:fs/promises";
-import { join } from "node:path";
 import { z } from "zod";
 import { SYSTEM_ACCOUNT } from "../../../shared/agent-accounts";
 import {
@@ -9,20 +6,26 @@ import {
   type ProviderUsage,
   type UsageWindow,
 } from "../../../shared/provider-usage";
-import { runExecutable } from "../../platform/executables";
 import { profileDir, usualHome } from "../accounts/profiles";
-import { antigravityAuthMethod } from "./account";
+import {
+  antigravityAuthMethod,
+  loginFingerprint,
+  readSavedLogin,
+  usesGoogleSignIn,
+} from "./account";
+import { createSignInRenewal, hasRunOut } from "./renewal";
 
-const tokenSchema = z.object({
-  client_id: z.string().min(1),
-  client_secret: z.string().min(1),
-  refresh_token: z.string().min(1),
-  project_id: z.string().optional(),
-});
-
-type Token = z.infer<typeof tokenSchema>;
-export type QuotaCredential = { token: Token; fingerprint: string };
-type Access = { fingerprint: string; token: string; until: number };
+/**
+ * The CLI's current access token. It saves no OAuth client, so Relay can't
+ * refresh it; only the CLI can.
+ */
+export type QuotaCredential = {
+  fingerprint: string;
+  accessToken: string;
+  expiresAt: number;
+  /** The CLI holds what it takes to renew it without anyone signing in. */
+  renewable: boolean;
+};
 
 const endpoints = [
   "https://daily-cloudcode-pa.googleapis.com",
@@ -150,45 +153,33 @@ export function mapGeminiModelQuota(raw: unknown): UsageWindow[] {
   ];
 }
 
+/** When a token runs out; never as far as anyone knows for one saved without a time, or Go's zero time. */
+function expiryOf(expiry = "") {
+  const at = Date.parse(expiry);
+  return at > 0 ? at : Infinity;
+}
+
 /** Read afresh on every operation, so an external sign-in is picked up without restarting. */
 export async function readQuotaCredential(
   home: string,
-  fileStorage: boolean,
 ): Promise<QuotaCredential | undefined> {
+  if (!(await usesGoogleSignIn(home))) return undefined;
   const method = await antigravityAuthMethod(home);
-  if (method !== "oauth-personal" && method !== "oauth-business") return;
-  const path = join(home, "antigravity-acp", "acp_token.json");
-  const info = await stat(path).catch(() => undefined);
-  let text: string | undefined;
-  if (info?.isFile() && info.size < 64_000) text = await readFile(path, "utf8");
-  else if (!info && !fileStorage && process.platform === "darwin") {
-    text = (
-      await runExecutable(
-        "/usr/bin/security",
-        [
-          "find-generic-password",
-          "-s",
-          "gemini",
-          "-a",
-          "antigravity-acp",
-          "-w",
-        ],
-        12_000,
-      ).catch(() => undefined)
-    )?.stdout;
-  }
-  if (!text || text.length > 64_000) return;
-  const token = tokenSchema.safeParse(JSON.parse(text)).data;
-  if (!token) return;
-  return {
-    token,
-    fingerprint: createHash("sha256")
-      .update(JSON.stringify(token))
-      .digest("hex"),
-  };
+  const login = await readSavedLogin(home);
+  return (
+    login && {
+      accessToken: login.access_token,
+      expiresAt: expiryOf(login.expiry),
+      fingerprint: loginFingerprint(login),
+      renewable: !!login.refresh_token && method !== "oauth-business",
+    }
+  );
 }
 
 class QuotaAuthError extends Error {}
+
+/** The CLI's saved token ran out, and it couldn't renew it just now. */
+class QuotaExpiredError extends Error {}
 
 type Request = (url: string, init: RequestInit) => Promise<Response>;
 
@@ -196,7 +187,6 @@ async function readEndpoint(
   request: Request,
   endpoint: string,
   bearer: string,
-  project: string | undefined,
 ): Promise<UsageWindow[]> {
   const init = {
     method: "POST",
@@ -206,7 +196,7 @@ async function readEndpoint(
       // Google gates the Gemini Models group (including weekly) on a current hub version.
       "User-Agent": ANTIGRAVITY_USER_AGENT,
     },
-    body: JSON.stringify(project ? { project } : {}),
+    body: "{}",
   };
   const response = await request(
     `${endpoint}/v1internal:retrieveUserQuotaSummary`,
@@ -229,97 +219,73 @@ async function readEndpoint(
   return [...mapGeminiModelQuota(models), ...windows];
 }
 
+/** Every endpoint's windows, the fullest of each kept, and whether one refused the token. */
+async function readWindows(request: Request, bearer: string) {
+  const responses = await Promise.allSettled(
+    endpoints.map((endpoint) => readEndpoint(request, endpoint, bearer)),
+  );
+  const windows = new Map<string, UsageWindow>();
+  for (const result of responses)
+    if (result.status === "fulfilled")
+      for (const window of result.value) {
+        const previous = windows.get(window.id!);
+        if (!previous || window.usedPercent > previous.usedPercent)
+          windows.set(window.id!, window);
+      }
+  const refused = responses.some(
+    (r) => r.status === "rejected" && r.reason instanceof QuotaAuthError,
+  );
+  return { windows, refused };
+}
+
 const unavailable = (message: string): ProviderUsage => ({
   provider: "antigravity",
   windows: [],
   message,
 });
 
-/** Owns only derived access tokens. Saved Google logins and API keys are never removed. */
+/** Reads limits with the CLI's own access token; never changes or removes a saved login. */
 export function createAntigravityUsageReader(
   read: () => Promise<QuotaCredential | undefined>,
+  /** Has the CLI renew the saved sign-in. */
+  renew: () => Promise<void>,
   fetcher: typeof fetch = fetch,
   now = Date.now,
 ) {
-  let cached: Access | undefined;
-  let generation = 0;
   const request = (url: string, init: RequestInit) =>
     fetcher(url, {
       ...init,
       redirect: "manual",
       signal: AbortSignal.timeout(12_000),
     });
-  const access = async (credential: QuotaCredential, started: number) => {
-    if (
-      cached?.fingerprint === credential.fingerprint &&
-      cached.until > now() + 60_000
-    )
-      return cached;
-    const response = await request("https://oauth2.googleapis.com/token", {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({
-        client_id: credential.token.client_id,
-        client_secret: credential.token.client_secret,
-        refresh_token: credential.token.refresh_token,
-        grant_type: "refresh_token",
-      }).toString(),
-    });
-    if (!response.ok) {
-      const error = (await response.json().catch(() => null)) as {
-        error?: string;
-      } | null;
-      if (response.status === 400 && error?.error === "invalid_grant")
-        throw new QuotaAuthError();
-      throw new Error("Google token refresh failed.");
-    }
-    const token = z
-      .object({
-        access_token: z.string().min(1),
-        expires_in: z.number().positive(),
-      })
-      .parse(await response.json());
-    const result = {
-      fingerprint: credential.fingerprint,
-      token: token.access_token,
-      until: now() + token.expires_in * 1000,
-    };
-    if (generation === started) cached = result;
-    return result;
+  const renewal = createSignInRenewal(renew, read, now);
+  /** The saved sign-in, renewed if its token ran out. */
+  const readCurrent = async () => {
+    const saved = await read();
+    if (!saved || !hasRunOut(saved, now())) return saved;
+    const renewed = await renewal(saved);
+    if (renewed && hasRunOut(renewed, now())) throw new QuotaExpiredError();
+    return renewed;
+  };
+  /** After Google refused a token: the one the CLI saved since, or else a renewal, whatever its clock says. */
+  const afterRefusal = async (refused: QuotaCredential) => {
+    const saved = await readCurrent();
+    if (!saved || saved.accessToken !== refused.accessToken) return saved;
+    return renewal(saved);
   };
   return async (): Promise<ProviderUsage> => {
-    const started = ++generation;
     try {
-      let credential = await read();
-      if (!credential) {
-        if (generation === started) cached = undefined;
+      let credential = await readCurrent();
+      if (!credential)
         return unavailable("Sign in with Google to see Antigravity limits.");
-      }
       // A quota read is safe to retry once after a documented bearer-token refusal.
       for (let attempt = 0; attempt < 2; attempt++) {
-        const auth = await access(credential, started);
-        const project = credential.token.project_id;
-        const responses = await Promise.allSettled(
-          endpoints.map((endpoint) =>
-            readEndpoint(request, endpoint, auth.token, project),
-          ),
+        const { windows, refused } = await readWindows(
+          request,
+          credential.accessToken,
         );
-        const windows = new Map<string, UsageWindow>();
-        for (const result of responses)
-          if (result.status === "fulfilled")
-            for (const window of result.value) {
-              const previous = windows.get(window.id!);
-              if (!previous || window.usedPercent > previous.usedPercent)
-                windows.set(window.id!, window);
-            }
-        const refused = responses.some(
-          (r) => r.status === "rejected" && r.reason instanceof QuotaAuthError,
-        );
-        // An old response must not clear a token cached by a newer operation.
-        if (refused && cached === auth && generation === started)
-          cached = undefined;
         if (refused && attempt === 0) {
-          credential = await read();
+          credential = await afterRefusal(credential);
           if (!credential)
             return unavailable(
               "Sign in with Google to see Antigravity limits.",
@@ -339,12 +305,10 @@ export function createAntigravityUsageReader(
         );
       }
     } catch (error) {
-      if (error instanceof QuotaAuthError) {
-        if (generation === started) cached = undefined;
+      if (error instanceof QuotaExpiredError)
         return unavailable(
-          "Sign in with Google again to read Antigravity limits.",
+          "Antigravity's sign-in needs renewing. Send it a message, then refresh.",
         );
-      }
       return unavailable(
         "Couldn't read Antigravity limits. Refresh to try again.",
       );
@@ -358,20 +322,21 @@ const readers = new Map<
   ReturnType<typeof createAntigravityUsageReader>
 >();
 
-export function readAntigravityUsage(account = SYSTEM_ACCOUNT) {
+export function readAntigravityUsage(
+  account: string,
+  renew: (account: string) => Promise<void>,
+) {
   const home =
     account === SYSTEM_ACCOUNT
       ? usualHome("antigravity")
       : profileDir("antigravity", account);
-  const fileStorage =
-    account !== SYSTEM_ACCOUNT || !!process.env.AGY_ACP_FORCE_FILE_STORAGE;
-  const key = `${home}:${fileStorage}`;
-  let reader = readers.get(key);
+  let reader = readers.get(home);
   if (!reader)
     readers.set(
-      key,
-      (reader = createAntigravityUsageReader(() =>
-        readQuotaCredential(home, fileStorage),
+      home,
+      (reader = createAntigravityUsageReader(
+        () => readQuotaCredential(home),
+        () => renew(account),
       )),
     );
   return reader();

@@ -198,6 +198,20 @@ describe("a Cursor turn", () => {
     expect(seen.plans).toContain("1. Do it");
   });
 
+  it("keeps the whole to-do list after a call that changed part of it", async () => {
+    const { seen, options } = turn("[[todos]]");
+    await runCursor(options);
+    expect(seen.activity.at(-1)).toMatchObject({
+      label: "Updated progress",
+      status: "complete",
+      detail: "✓ Read the logs\n→ Fix it",
+      checklist: [
+        { text: "Read the logs", state: "done" },
+        { text: "Fix it", state: "now" },
+      ],
+    });
+  });
+
   it("sends effort and explicit Standard even when Grok defaults to Fast", async () => {
     const { options } = turn("say hello", {
       choice: { model: "grok-4.7", fast: false, reasoningEffort: "high" },

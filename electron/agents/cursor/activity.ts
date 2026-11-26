@@ -1,5 +1,6 @@
+import { keptSteps, type ChecklistStep } from "../../../shared/agent-checklist";
 import type { AgentActivity } from "../../../shared/projects";
-import { mcpCall } from "../activity";
+import { mcpCall, checklistDetail } from "../activity";
 
 /** Where the SDK serves custom tools from: Relay's tools (relay-tools.ts) and a reviewer's read-only git (git-tool.ts). */
 const CUSTOM_TOOLS_SERVER = "custom-user-tools";
@@ -13,6 +14,8 @@ export interface CursorCall {
     exitCode?: number;
     output?: string;
     error?: string;
+    /** The whole to-do list, once a call has changed it. */
+    todos?: unknown;
   };
 }
 
@@ -32,6 +35,29 @@ export function cursorPlan(call: CursorCall): string | undefined {
   return call.type === "createPlan"
     ? text(call, "plan") || undefined
     : undefined;
+}
+
+const stepStates: Record<string, ChecklistStep["state"]> = {
+  inProgress: "now",
+  completed: "done",
+};
+
+/**
+ * The checklist a finished call left: its to-do list, less what Cursor called
+ * off. Empty once nothing is left, which clears the one shown before.
+ */
+function cursorSteps(call: CursorCall) {
+  const todos = call.result?.todos;
+  if (!Array.isArray(todos)) return undefined;
+  return (
+    keptSteps(
+      todos.flatMap((todo): ChecklistStep[] =>
+        typeof todo?.content === "string" && todo.status !== "cancelled"
+          ? [{ text: todo.content, state: stepStates[todo.status] ?? "next" }]
+          : [],
+      ),
+    ) ?? []
+  );
 }
 
 /** Name a tool call by what it touched, not by the tool or its raw arguments. */
@@ -99,8 +125,11 @@ export function cursorActivity(
         ...mcpCall(server === CUSTOM_TOOLS_SERVER ? "relay" : server, tool),
       };
     }
-    case "updateTodos":
-      return make("tool", "Updated the plan");
+    case "updateTodos": {
+      const checklist = cursorSteps(call);
+      const row = make("tool", "Updated progress", checklist && checklistDetail(checklist));
+      return { ...row, ...(checklist ? { checklist } : {}) };
+    }
     case "readLints":
       return make("tool", "Checked lints");
     // Shown as the plan, not as a call.

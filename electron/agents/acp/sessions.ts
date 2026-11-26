@@ -19,6 +19,7 @@ import {
   signsInItself,
   type AcpSessionState,
 } from "./protocol";
+import { keptRunSchema, type KeptRun } from "./steering";
 
 /** What Relay reads off an agent's `initialize`. */
 const capsSchema = z.object({
@@ -59,24 +60,20 @@ const metaSchema = z
         cost: z.number().optional(),
       })
       .optional(),
-    run: z
-      .object({ id: z.number(), compaction: z.boolean().optional() })
-      .optional(),
+    run: keptRunSchema.optional(),
   })
   .loose();
 
 const startTimeout = 60_000;
 
 /** One agent process and the one session it runs. */
-export class AcpAgent extends HostedAgent<
-  AcpConnection,
-  { id: number; compaction?: boolean }
-> {
+export class AcpAgent extends HostedAgent<AcpConnection, KeptRun> {
   caps?: AcpCaps;
   /** Started for a Read only thread: with the profile's `readOnlyEnv`, without Relay's tools. */
   readOnly = false;
   /** Where its sessions reach Relay's tools, "" for nowhere; unknown for one a Relay before this kept. */
   relayUrl?: string;
+
   /**
    * `base`: the settings it opened with, which Default goes back to. `cost`:
    * what the session had cost at the agent's last report, which the next one
@@ -96,8 +93,8 @@ export class AcpAgent extends HostedAgent<
     super(connection);
   }
 
-  /** What the next Relay reads about this process; `run`, the prompt it's in. */
-  keep(run?: { id: number; compaction?: boolean }) {
+  /** What the next Relay reads about this process; `run`, the turn it's in. */
+  keep(run?: KeptRun) {
     this.connection.keep({
       provider: hostedName(this.profile),
       accountKey: this.profile.accountKey,
@@ -155,7 +152,7 @@ async function launch(
     cwd,
   );
   const connection = new AcpConnection(child, profile.name);
-  connection.onUpdate = (update) => hearCommands(profile.provider, update);
+  connection.onUpdate = (update) => hearCommands(profile, update, { cwd });
   return connection;
 }
 
@@ -182,12 +179,8 @@ async function initialize(agent: AcpAgent) {
         // Without it OpenCode cancels its question tool before anyone sees it.
         elicitation: { form: {} },
       },
-      // Antigravity 1.4.1 hardcodes third-party model support by client name.
-      // Its "zed" identity exposes the account's Claude/GPT models; "relay"
-      // filters them out and rejects selecting them. Remove when Google lets
-      // Relay opt in without a compatibility identity.
       clientInfo: {
-        name: profile.provider === "antigravity" ? "zed" : "relay",
+        name: "relay",
         title: "Relay",
         version: "0.1.0",
       },
@@ -213,7 +206,7 @@ async function initialize(agent: AcpAgent) {
   agent.caps = {
     image: !!caps?.promptCapabilities?.image,
     audio: !!caps?.promptCapabilities?.audio,
-    http: !!caps?.mcpCapabilities?.http,
+    http: !!caps?.mcpCapabilities?.http || !!profile.takesHttpMcp,
     load: !!caps?.loadSession,
     resume: caps?.sessionCapabilities?.resume != null,
     auth: (init.authMethods ?? []).filter(signsInItself).map((m) => m.id),
@@ -331,7 +324,7 @@ export async function openSession(
     // Now that the session exists, wire the agent into the update handler
     // so config_option_update events refresh its settings (and models).
     connection.onUpdate = (update) =>
-      hearCommands(agent.profile.provider, update, agent);
+      hearCommands(agent.profile, update, { agent, cwd });
     agent.keep();
   };
   if (id && (agent.caps?.resume || agent.caps?.load)) {
@@ -414,15 +407,15 @@ export function reattachAcp(
   return sessionsOf(profile).reattach(owns, (found) => {
     const meta = savedMeta(found, metaSchema);
     if (!meta?.caps || meta.provider !== hostedName(profile)) return;
-    // A two-prompt compaction cannot be adopted as one answer. Its saved chat
-    // still names the original session until the replacement is fully ready.
+    // An earlier Relay's compaction can't be adopted as one answer. Its saved
+    // chat still names the original session.
     if (profile.provider === "antigravity" && meta.run?.compaction) return;
     const { info } = found;
     const child = new HostedChild(found.attachProcess(), (entries) => {
       connection.continueAfter(
         Math.max(meta.run?.id ?? 0, highestRequestId(entries)),
       );
-      return replayLines(entries, info.split);
+      return replayLines(entries, info.split, meta.run?.takenUp?.after);
     });
     const connection = new AcpConnection(child, profile.name);
     const agent = new AcpAgent(
@@ -446,7 +439,7 @@ export function reattachAcp(
         cost: meta.session.cost,
       };
     connection.onUpdate = (update) =>
-      hearCommands(profile.provider, update, agent);
+      hearCommands(agent.profile, update, { agent });
     agent.inflight = meta.run;
     if (!info.open) child.release();
     return agent;

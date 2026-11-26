@@ -13,11 +13,15 @@
 //     { ask: { toolCall, options } }  a request_permission, waited on
 //     { elicit: { mode, message, toolCallId, requestedSchema } }  an elicitation/create, waited on
 //     { waitCancel: true }  waits for session/cancel and stops as cancelled
+//     { end: "cancelled" }  ends the prompt there, with that stop reason
+//   hidesHttpMcp: doesn't say it takes MCP servers over HTTP, as Antigravity's CLI doesn't
+//   turnByRequest: such steps by a phrase in the prompt; the last phrase in it wins
 //   stopReason, usage: how session/prompt ends ("end_turn" by default)
 //   spend: dollars each turn adds; the turn ends with one usage_update
 //     carrying the session's total, as OpenCode 2 reports it
 //   spent: what resumed sessions had cost before, by id
 //   skills: OpenCode 2's catalog returned by `opencode api GET /api/skill?...`
+//   captureEnvKeys, captureArgv: log those environment variables, or the command line, as it starts
 //   RELAY_ACP_SCENARIO_FILE can supply a scenario too large for an environment variable.
 const fs = require("node:fs");
 const scenario = JSON.parse(
@@ -29,6 +33,7 @@ const log = (v) =>
   process.env.RELAY_ACP_LOG &&
   fs.appendFileSync(process.env.RELAY_ACP_LOG, JSON.stringify(v) + "\n");
 if (scenario.captureEnvKeys) log({ environment: Object.fromEntries(scenario.captureEnvKeys.map((key) => [key, process.env[key] ?? null])) });
+if (scenario.captureArgv) log({ argv: process.argv.slice(2) });
 const send = (v) =>
   process.stdout.write(JSON.stringify({ jsonrpc: "2.0", ...v }) + "\n");
 
@@ -64,11 +69,15 @@ const native = async (path, body) => {
   });
   return res.json();
 };
+const googleLogin = JSON.stringify({
+  token: { access_token: "fixture", refresh_token: "fixture-login", expiry: "2099-01-01T00:00:00Z" },
+});
+
 // Like Antigravity, a process started after a saved Google login is signed in.
 const savedGoogleLogin = () =>
   !!scenario.saveGoogleLogin &&
   fs.existsSync(
-    require("node:path").join(process.env.GEMINI_HOME, "antigravity-acp", "acp_token.json"),
+    require("node:path").join(process.env.GEMINI_HOME, "antigravity-acp", "antigravity-oauth-token"),
   );
 let signedIn = scenario.signedIn ?? (!scenario.signIn || savedGoogleLogin());
 let nextId = 1000;
@@ -85,6 +94,14 @@ const ask = (method, params) =>
     send({ id, method, params });
   });
 
+/** The turn for the `turnByRequest` phrase that comes last in the prompt, past Relay's notes and earlier messages. */
+function lastAsked(text) {
+  const asked = Object.entries(scenario.turnByRequest ?? {})
+    .map(([phrase, steps]) => ({ at: text.lastIndexOf(phrase), steps }))
+    .filter(({ at }) => at >= 0);
+  return asked.sort((a, b) => b.at - a.at)[0]?.steps;
+}
+
 async function prompt(m) {
   const text = m.params.prompt?.find((block) => block.type === "text")?.text ?? "";
   const promptError = Object.entries(scenario.promptErrorByPrefix ?? {}).find(([prefix]) => text.startsWith(prefix))?.[1] ?? scenario.promptError;
@@ -92,7 +109,8 @@ async function prompt(m) {
     return send({ id: m.id, error: promptError ?? { code: -32000, message: "Authentication required: provider authentication required" } });
   const sessionId = m.params.sessionId;
   await native("/fixture/turn", { sessionID: sessionId });
-  const steps = Object.entries(scenario.turnByPrefix ?? {}).find(([prefix]) => text.startsWith(prefix))?.[1] ?? scenario.turn ?? [];
+  const prefixed = Object.entries(scenario.turnByPrefix ?? {}).find(([prefix]) => text.startsWith(prefix))?.[1];
+  const steps = prefixed ?? lastAsked(text) ?? scenario.turn ?? [];
   for (const step of steps) {
     if (step.native)
       await native("/fixture/event", { ...step.native, sessionID: sessionId });
@@ -107,6 +125,7 @@ async function prompt(m) {
       await ask("session/request_permission", { sessionId, ...step.ask });
     if (step.elicit)
       await ask("elicitation/create", { sessionId, ...step.elicit });
+    if (step.end) return send({ id: m.id, result: { stopReason: step.end } });
     if (step.waitCancel) {
       await new Promise((resolve) => (cancelled = resolve));
       return send({ id: m.id, result: { stopReason: "cancelled" } });
@@ -174,7 +193,7 @@ require("node:readline")
                 image: !!scenario.image,
                 audio: !!scenario.audio,
               },
-              mcpCapabilities: { http: true },
+              mcpCapabilities: { http: !scenario.hidesHttpMcp },
               sessionCapabilities:
                 scenario.resume || scenario.nativeUrl ? { resume: {} } : {},
             },
@@ -201,7 +220,7 @@ require("node:readline")
         if (signedIn && scenario.saveGoogleLogin) {
           const dir = require("node:path").join(process.env.GEMINI_HOME, "antigravity-acp");
           fs.mkdirSync(dir, { recursive: true });
-          fs.writeFileSync(require("node:path").join(dir, "acp_token.json"), JSON.stringify({ refresh_token: "fixture-login" }));
+          fs.writeFileSync(require("node:path").join(dir, "antigravity-oauth-token"), googleLogin);
         }
         return send({ id: m.id, result: {} });
       case "session/new": {

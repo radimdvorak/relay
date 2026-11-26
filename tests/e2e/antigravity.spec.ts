@@ -58,11 +58,13 @@ test("Antigravity asks fixed questions in full access, compacts, plans, and offe
     JSON.stringify({ auth: { type: "oauth-personal" } }),
   );
   await writeFile(
-    join(home, "antigravity-acp", "acp_token.json"),
+    join(home, "antigravity-acp", "antigravity-oauth-token"),
     JSON.stringify({
-      client_id: "fixture",
-      client_secret: "fixture",
-      refresh_token: "fixture",
+      token: {
+        access_token: "fixture",
+        refresh_token: "fixture",
+        expiry: "2099-01-01T00:00:00Z",
+      },
     }),
   );
   execFileSync("git", ["init", "-q", "-b", "main", repo]);
@@ -91,7 +93,8 @@ test("Antigravity asks fixed questions in full access, compacts, plans, and offe
     saveGoogleLogin: true,
     resume: true,
     sessions: ["s1", "s2"],
-    captureEnvKeys: ["GEMINI_HOME", "AGY_ACP_FORCE_FILE_STORAGE"],
+    captureEnvKeys: ["GEMINI_HOME", "AGY_CLI_FORCE_FILE_TOKEN_STORAGE"],
+    captureArgv: true,
     configOptions: [
       {
         id: "model",
@@ -115,7 +118,9 @@ test("Antigravity asks fixed questions in full access, compacts, plans, and offe
         update: {
           sessionUpdate: "tool_call",
           toolCallId: "batch",
-          title: "Running start_subagent",
+          name: "invoke_subagent",
+          title: "Run invoke_subagent",
+          rawInput: { Role: "Researcher", Prompt: "Read the docs." },
           kind: "other",
           status: "in_progress",
         },
@@ -137,18 +142,13 @@ test("Antigravity asks fixed questions in full access, compacts, plans, and offe
           sessionUpdate: "tool_call_update",
           toolCallId: "batch",
           status: "completed",
-          rawOutput: "Batch submitted; individual child status unavailable.",
+          rawOutput: "Started.",
         },
       },
       say("Selected Production."),
     ],
     turnByPrefix: {
-      "Summarize this conversation": [
-        say(
-          "The user selected Production. The next task is to design the API.",
-        ),
-      ],
-      "[Compacted conversation]": [say("Ready to continue.")],
+      "/compact": [],
       "/plan": [
         {
           update: {
@@ -168,7 +168,6 @@ test("Antigravity asks fixed questions in full access, compacts, plans, and offe
       RELAY_DEV_URL: "",
       RELAY_TEST_DATA: data,
       GEMINI_HOME: home,
-      AGY_ACP_FORCE_FILE_STORAGE: "1",
       RELAY_ACP_LOG: capture,
       RELAY_ACP_SCENARIO: JSON.stringify(scenario),
     },
@@ -179,8 +178,6 @@ test("Antigravity asks fixed questions in full access, compacts, plans, and offe
       net.fetch = async () => new Response(null, { status: 503 });
       globalThis.fetch = async (input) => {
         const url = String(input);
-        if (url === "https://oauth2.googleapis.com/token")
-          return Response.json({ access_token: "fixture", expires_in: 3600 });
         if (url.endsWith(":retrieveUserQuotaSummary"))
           return Response.json({
             buckets: [
@@ -272,19 +269,12 @@ test("Antigravity asks fixed questions in full access, compacts, plans, and offe
       .click();
     await expect
       .poll(async () =>
-        (await readFile(capture, "utf8")).includes("[Compacted conversation]"),
+        (await readFile(capture, "utf8")).includes('"text":"/compact"'),
       )
       .toBe(true);
-    await page
-      .getByRole("button", { name: "Show what the context was compacted to" })
-      .click();
     await expect(
-      page.getByText(
-        "The user selected Production. The next task is to design the API.",
-        { exact: true },
-      ),
+      page.getByText("Context compacted", { exact: true }),
     ).toBeVisible();
-    await page.keyboard.press("Escape");
     await page.getByLabel("Message project").fill("/plan on");
     await page
       .getByRole("button", { name: "Send message", exact: true })
@@ -313,7 +303,9 @@ test("Antigravity asks fixed questions in full access, compacts, plans, and offe
       .getByRole("button", { name: "Check now", exact: true })
       .click();
     await agents.getByRole("option", { name: /^Antigravity/ }).click();
-    await expect(agents.getByText("~/.gemini", { exact: true })).toBeVisible();
+    await expect(
+      agents.getByText("Signed in · ~/.gemini", { exact: true }),
+    ).toBeVisible();
     await agents
       .getByRole("button", { name: "Add account", exact: true })
       .click();
@@ -383,6 +375,15 @@ test("Antigravity asks fixed questions in full access, compacts, plans, and offe
       .filter(Boolean)
       .map((line) => JSON.parse(line));
     expect(sent.some((m) => m.result?.outcome?.optionId === "prod")).toBe(true);
+    // The CLI keeps each account apart by the folder it's told, and its sign-in in a file there.
+    const argv: string[] = sent.filter((m) => m.argv).at(-1)!.argv;
+    expect(argv[argv.indexOf("--gemini-dir") + 1]).toBe(
+      join(data, "agent-accounts", "antigravity", work.id),
+    );
+    expect(
+      sent.filter((m) => m.environment).at(-1)!.environment
+        .AGY_CLI_FORCE_FILE_TOKEN_STORAGE,
+    ).toBe("1");
   } catch (error) {
     const page = await app.firstWindow();
     await screenshot(page, {
