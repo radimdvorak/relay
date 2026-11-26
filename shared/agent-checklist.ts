@@ -1,10 +1,6 @@
 // The steps an agent set itself, which the app shows as its progress, and the
 // checklist a thread shows as its own. Not a plan to approve: that is Plan mode.
-import {
-  mainConversation,
-  threadOrder,
-  type ChatMessage,
-} from "./projects";
+import { threadOrder, type ChatMessage } from "./projects";
 
 export interface ChecklistStep {
   text: string;
@@ -58,14 +54,20 @@ const isFinishedAnswer = (m: ChatMessage) =>
   !m.worktreeCommand;
 
 /**
+ * The thread's own conversation: no `/btw` question, and no reply, even one
+ * whose parent a phone doesn't hold.
+ */
+const ownConversation = (messages: ChatMessage[]) =>
+  [...messages].sort(threadOrder).filter((m) => !m.parentId && !m.side);
+
+/**
  * The checklist a thread's main conversation is on. A finished one stays until the
  * next message. An unfinished one carries over to the next turn, until an
  * answer ends without having touched it: the agent has moved on.
  */
 export function threadChecklist(messages: ChatMessage[]): ChecklistStep[] | undefined {
-  const main = mainConversation([...messages].sort(threadOrder));
   let askedSince = false;
-  for (const message of main.reverse()) {
+  for (const message of ownConversation(messages).reverse()) {
     const checklist = checklistOf(message);
     if (checklist) {
       const emptied = !checklist.length;

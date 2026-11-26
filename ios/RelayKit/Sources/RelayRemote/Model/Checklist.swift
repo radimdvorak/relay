@@ -30,11 +30,16 @@ private func isFinishedAnswer(_ m: ChatMessage) -> Bool {
         && m.handoff == nil && m.reload == nil && m.worktreeCommand == nil
 }
 
+/// The thread's own conversation: no `/btw` question, and no reply, even one whose parent isn't held.
+private func ownConversation(_ messages: [ChatMessage]) -> [ChatMessage] {
+    messages.sorted(by: threadOrder).filter { $0.parentId == nil && $0.side != true }
+}
+
 /// The checklist the main conversation is on. A finished one stays until the next message; an
 /// unfinished one carries over, until an answer ends without having touched it.
 public func threadChecklist(_ messages: [ChatMessage]) -> [ChecklistStep]? {
     var askedSince = false
-    for message in mainMessages(messages.sorted(by: threadOrder)).reversed() {
+    for message in ownConversation(messages).reversed() {
         if let steps = checklistOf(message) {
             let putAway = askedSince && checklistIsOver(steps)
             return steps.isEmpty || putAway ? nil : steps

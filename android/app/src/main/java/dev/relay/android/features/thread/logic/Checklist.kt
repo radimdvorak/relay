@@ -29,13 +29,17 @@ private fun isFinishedAnswer(m: ChatMessage) =
     m.role == "assistant" && m.status == "complete" && m.compaction != true &&
         m.handoff == null && m.reload == null && m.worktreeCommand == null
 
+/** The thread's own conversation: no `/btw` question, and no reply, even one whose parent isn't held. */
+private fun ownConversation(messages: List<ChatMessage>) =
+    messages.sortedWith(threadOrder).filter { it.parentId == null && it.side != true }
+
 /**
  * The checklist the main conversation is on. A finished one stays until the next message; an
  * unfinished one carries over, until an answer ends without having touched it.
  */
 fun threadChecklist(messages: List<ChatMessage>): List<ChecklistStep>? {
     var askedSince = false
-    for (message in mainMessages(messages.sortedWith(threadOrder)).asReversed()) {
+    for (message in ownConversation(messages).asReversed()) {
         val steps = checklistOf(message)
         if (steps != null) {
             val putAway = askedSince && checklistIsOver(steps)

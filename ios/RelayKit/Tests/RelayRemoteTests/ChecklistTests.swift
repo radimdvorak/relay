@@ -22,7 +22,13 @@ private final class Thread {
         return try! JSON.object(fields).decode()
     }
 
-    func asked() -> ChatMessage { message("user", "complete") }
+    func asked(side: Bool? = nil, steered: Bool? = nil, missed: Bool? = nil) -> ChatMessage {
+        var m = message("user", "complete")
+        m.side = side
+        m.steered = steered
+        m.missed = missed
+        return m
+    }
 
     func answer(
         _ steps: [ChecklistStep]? = nil, status: String = "complete", parentId: String? = nil,
@@ -71,6 +77,15 @@ private final class Thread {
     let own = t.answer(steps("now"))
     #expect(threadChecklist([own, t.answer(steps("now", "now"), parentId: own.id)]) == steps("now"))
     #expect(threadChecklist([t.asked(), t.answer(steps("now"), byAgent: "agent-call")]) == nil)
+}
+
+@Test func leavesOutABtwQuestionAndAReplyWhoseParentIsntHeld() {
+    let t = Thread()
+    let finished = [t.asked(), t.answer(steps("done"))]
+    let question = t.asked(side: true)
+    #expect(threadChecklist(finished + [question, t.answer(parentId: question.id)]) == steps("done"))
+    let open = [t.asked(), t.answer(steps("now"))]
+    #expect(threadChecklist(open + [t.answer(parentId: "not-held")]) == steps("now"))
 }
 
 @Test func docksAFinishedChecklistOnlyWhileTheAnswerRuns() {

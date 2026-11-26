@@ -14,13 +14,16 @@ class ChecklistTest {
 
     private fun steps(vararg states: String) = states.mapIndexed { i, state -> ChecklistStep("Step ${i + 1}", state) }
 
-    private fun message(role: String, status: String = "complete", trace: List<AgentTrace>? = null, parentId: String? = null, compaction: Boolean? = null) =
-        (++seq).let {
-            ChatMessage(id = "m$it", role = role, body = "", status = status, created = it, seq = it, provider = "codex",
-                version = 1, trace = trace, parentId = parentId, compaction = compaction)
-        }
+    private fun message(
+        role: String, status: String = "complete", trace: List<AgentTrace>? = null, parentId: String? = null,
+        compaction: Boolean? = null, side: Boolean? = null, steered: Boolean? = null, missed: Boolean? = null,
+    ) = (++seq).let {
+        ChatMessage(id = "m$it", role = role, body = "", status = status, created = it, seq = it, provider = "codex",
+            version = 1, trace = trace, parentId = parentId, compaction = compaction, side = side, steered = steered, missed = missed)
+    }
 
-    private fun asked() = message("user")
+    private fun asked(side: Boolean? = null, steered: Boolean? = null, missed: Boolean? = null) =
+        message("user", side = side, steered = steered, missed = missed)
 
     private fun answer(steps: List<ChecklistStep>? = null, status: String = "complete", parentId: String? = null, compaction: Boolean? = null, byAgent: String? = null) =
         message("assistant", status, steps?.let {
@@ -53,6 +56,14 @@ class ChecklistTest {
         val own = answer(steps("now"))
         assertEquals(steps("now"), threadChecklist(listOf(asked(), own, answer(steps("now", "now"), parentId = own.id))))
         assertNull(threadChecklist(listOf(asked(), answer(steps("now"), byAgent = "agent-call"))))
+    }
+
+    @Test fun leavesOutABtwQuestionAndAReplyWhoseParentIsntHeld() {
+        val finished = listOf(asked(), answer(steps("done")))
+        val question = asked(side = true)
+        assertEquals(steps("done"), threadChecklist(finished + question + answer(parentId = question.id)))
+        val open = listOf(asked(), answer(steps("now")))
+        assertEquals(steps("now"), threadChecklist(open + answer(parentId = "not-held")))
     }
 
     @Test fun docksAFinishedOneOnlyWhileTheAnswerRuns() {

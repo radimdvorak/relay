@@ -53,6 +53,16 @@ describe("threadChecklist", () => {
     expect(threadChecklist([asked(), answer(steps("now"), {}, { parentId: "agent-call" })])).toBeUndefined();
   });
 
+  it("leaves a /btw question and a reply whose parent isn't held out", () => {
+    const finished = [asked(), answer(steps("done"))];
+    const question = asked({ side: true });
+    const sideAnswer = answer(undefined, { parentId: question.id });
+    expect(threadChecklist([...finished, question, sideAnswer])).toEqual(steps("done"));
+    const open = [asked(), answer(steps("now"))];
+    const orphan = answer(undefined, { parentId: "not-held" });
+    expect(threadChecklist([...open, orphan])).toEqual(steps("now"));
+  });
+
   it("reads messages in the thread's order, however they come", () => {
     const first = answer(steps("now"));
     const second = answer(steps("done"));
