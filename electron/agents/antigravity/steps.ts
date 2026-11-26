@@ -20,12 +20,14 @@ export const updatesSteps = (call: Pick<AcpToolCall, "name">) =>
 /**
  * The task list an `update_steps` call carries, as an ACP plan's entries:
  * Antigravity keeps its list with a tool call instead of a plan update.
+ * Undefined for any other call, and for a list this can't read, which then
+ * shows as a call of its own.
  */
 export function antigravitySteps(call: Partial<AcpToolCall>) {
   if (!updatesSteps(call)) return undefined;
-  const steps = stepsSchema.safeParse(call.rawInput).data?.steps ?? [];
+  const steps = stepsSchema.safeParse(call.rawInput).data?.steps;
   return steps
-    .filter((step) => step.status !== "skipped")
+    ?.filter((step) => step.status !== "skipped")
     .map((step) => ({
       content: step.title,
       status: statuses[step.status] ?? "pending",

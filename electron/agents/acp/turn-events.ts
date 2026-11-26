@@ -8,6 +8,7 @@ import {
   antigravityMcp,
   antigravitySteps,
   antigravitySubagents,
+  updatesSteps,
   TextSpeed,
 } from "../antigravity";
 import { acpActivity, acpEdits, checklistSteps, planText, type PlanEntry } from "./activity";
@@ -26,6 +27,8 @@ export class AcpTurnEvents {
   readonly subagents: AntigravitySubagents | undefined;
   /** A turn picked up again hears what it missed all at once, so it can't be timed. */
   readonly speed: TextSpeed | undefined;
+  /** Whether this turn has shown the agent's checklist. */
+  private checklistShown = false;
   /** Calls that asked the user through a form, with the answers once they're in. */
   private asked = new Map<string, AskedQuestion[] | undefined>();
 
@@ -106,12 +109,12 @@ export class AcpTurnEvents {
     });
   }
 
-  /** The agent's checklist, as one row kept up to date. */
-  private showPlan(entries: PlanEntry[]) {
-    if (!entries.length) return;
+  /** The agent's checklist, as one row kept up to date; an empty one clears it. */
+  private showChecklist(entries: PlanEntry[]) {
     const detail = planText(entries);
     const over = answerLimitError(detail.length);
     if (over) return this.halt(over);
+    this.checklistShown = true;
     this.options.onActivity?.({
       id: `${this.profile.provider}-plan`,
       kind: "tool",
@@ -119,9 +122,16 @@ export class AcpTurnEvents {
       status: "complete",
       label: "Updated progress",
       detail,
-      checklist: checklistSteps(entries),
+      checklist: checklistSteps(entries) ?? [],
     });
-    if (this.options.interactionMode === "plan") this.options.onPlan?.(detail);
+    return detail;
+  }
+
+  /** Antigravity's finished `update_steps` call: its list, or the call itself where the list can't be read. */
+  private showSteps(call: Partial<AcpToolCall> & { toolCallId: string }) {
+    const steps = antigravitySteps(call);
+    if (steps) this.showChecklist(steps);
+    else this.show(call);
   }
 
   /** While Antigravity compacts, it reports the size from before; the next turn says the new one. */
@@ -177,12 +187,12 @@ export class AcpTurnEvents {
         } as Partial<AcpToolCall> & { toolCallId: string };
         this.calls.set(update.toolCallId, call);
         this.speed?.call(call);
-        const steps =
-          this.profile.provider === "antigravity" && antigravitySteps(call);
-        if (steps && call.status !== "failed") {
+        const listsSteps =
+          this.profile.provider === "antigravity" && updatesSteps(call);
+        if (listsSteps && call.status !== "failed") {
           if (!known) this.turn.toNewParagraph();
           // Refused lists fail, so one only counts once its call completed.
-          if (call.status === "completed") this.showPlan(steps);
+          if (call.status === "completed") this.showSteps(call);
           return;
         }
         this.subagents?.update(call);
@@ -192,9 +202,15 @@ export class AcpTurnEvents {
         if (edits.length) this.options.onEdit?.(edits);
         return;
       }
-      case "plan":
-        this.showPlan(update.entries);
+      case "plan": {
+        // Some agents send an empty plan as a matter of course; it clears only a list this turn showed.
+        if (!update.entries.length && !this.checklistShown) return;
+        // The steps the agent keeps, which in Plan mode are the plan it proposes.
+        const detail = this.showChecklist(update.entries);
+        if (detail && this.options.interactionMode === "plan")
+          this.options.onPlan?.(detail);
         return;
+      }
       case "current_mode_update": {
         const modes = this.agent.session?.settings.modes;
         if (modes) modes.currentModeId = update.currentModeId;

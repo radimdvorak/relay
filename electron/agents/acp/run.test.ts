@@ -340,6 +340,44 @@ it("shows Antigravity's update_steps as the plan, once accepted and without skip
   ]);
 });
 
+it("keeps Antigravity's steps out of Plan mode's plan, clears them when none are left, and shows a list it can't read as a call", async () => {
+  const steps = (toolCallId: string, rawInput: unknown) => ({
+    update: {
+      sessionUpdate: "tool_call",
+      toolCallId,
+      name: "update_steps",
+      title: "Run update_steps",
+      kind: "other",
+      status: "completed",
+      rawInput,
+    },
+  });
+  const { acp, root } = await agent({
+    turn: [
+      steps("one", { steps: [{ title: "Look", status: "in_progress" }] }),
+      steps("two", { steps: [{ title: "Look", status: "skipped" }] }),
+      steps("three", { list: "not the shape" }),
+      say("Done."),
+    ],
+  });
+  const onPlan = vi.fn();
+  const rows: { id: string; checklist?: unknown }[] = [];
+  await runAcp(
+    acp,
+    options(root, {
+      interactionMode: "plan",
+      onPlan,
+      onActivity: (a) => rows.push(a),
+    }),
+  );
+  expect(onPlan.mock.calls.map(([text]) => text)).toEqual(["Done."]);
+  expect(rows.map((row) => [row.id, row.checklist])).toEqual([
+    ["antigravity-plan", [{ text: "Look", state: "now" }]],
+    ["antigravity-plan", []],
+    ["three", undefined],
+  ]);
+});
+
 it("names the MCP tool Antigravity calls, in the trace and when it asks, going by the call's name alone", async () => {
   const call = (toolCallId: string, name: string, rawInput: object) => ({
     toolCallId,
