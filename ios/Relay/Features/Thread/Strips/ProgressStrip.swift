@@ -11,9 +11,10 @@ struct ProgressStrip: View {
         Button(action: open) {
             HStack(spacing: 10) {
                 Image(systemName: "checklist").font(.footnote).foregroundStyle(colors.muted).frame(width: 18)
-                Text(currentStep(steps)?.text ?? "Progress").foregroundStyle(colors.foreground)
+                // One Text, the count first so a long step cuts its own end off: split into views it can loop layout.
+                Text("\(Text(checklistProgress(steps)).monospacedDigit().foregroundStyle(colors.muted))  \(currentStep(steps)?.text ?? "Progress")")
+                    .foregroundStyle(colors.foreground)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                Text(checklistProgress(steps)).monospacedDigit().foregroundStyle(colors.muted).fixedSize()
                 Image(systemName: "chevron.up").font(.caption.weight(.semibold)).foregroundStyle(colors.muted)
             }
             .font(.subheadline)
