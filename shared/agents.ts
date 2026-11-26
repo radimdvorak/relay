@@ -220,7 +220,7 @@ export const agents = {
     compactInstructions: false,
     side: false,
     reload: true,
-    usage: true,
+    usage: false,
     modelGroups: false,
     sdk: true,
     audio: true,

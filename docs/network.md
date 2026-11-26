@@ -28,7 +28,6 @@ organization, and the computers and phones you pair.
 | `push.relaycode.io` | Notifications for a paired Android phone while its app isn't open: the phone's Firebase token, the thread's title and how it ended, never the answer. The [Worker](../push/worker.ts) hands it to Firebase and keeps nothing. **Hide thread titles** in the phone app leaves the title out; with phone access off in Settings → Phone, nothing is sent. |
 | `huggingface.co` | Dictation and read-aloud models, downloaded when you turn either on. Dictation's voice detector comes from `github.com`. |
 | `chatgpt.com`, `auth.openai.com` | Codex usage limits on the Usage page and in the picker, with your Codex ChatGPT sign-in. |
-| `cloudcode-pa.googleapis.com`, `daily-cloudcode-pa.googleapis.com` | Antigravity usage limits, with your Antigravity sign-in. |
 | `antigravity-cli-auto-updater-974169037036.us-central1.run.app`, `storage.googleapis.com` | Installing and updating Antigravity's CLI, from where its own updater looks. |
 | `dev.meta.ai` | Installing Muse Code. |
 | `cdn.agentclientprotocol.com` | The ACP agent registry and its icons, when you browse it. |

@@ -1,5 +1,6 @@
 import type { AccountProvider } from "../../../../shared/agent-accounts";
 import { useState } from "react";
+import { reportsUsage } from "../../../../shared/agents";
 import { useUsageReadings } from "../../agents/provider-usage";
 import { useAgentAccounts } from "../../accounts/agent-accounts";
 import { roomAccounts } from "./room";
@@ -9,7 +10,13 @@ import { roomAccounts } from "./room";
  * open. The main process caches readings, so the composer asking too costs one.
  */
 export function useRoom() {
-  const signedIn = useAgentAccounts()?.accounts.filter((a) => a.signedIn) ?? [];
+  const all = useAgentAccounts()?.accounts ?? [];
+  // Only agents whose limits Relay reads.
+  const signedIn = all.flatMap((a) =>
+    a.signedIn && reportsUsage(a.provider)
+      ? [{ ...a, provider: a.provider }]
+      : [],
+  );
   const { readings, refresh, put } = useUsageReadings(
     signedIn.map((a) => ({ provider: a.provider, account: a.id })),
   );

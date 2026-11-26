@@ -21,4 +21,3 @@ export { TextSpeed } from "./text-speed";
 export { antigravityMcp } from "./mcp";
 export { antigravitySteps, updatesSteps } from "./steps";
 export { antigravityHelper } from "./helper";
-export { readAntigravityUsage } from "./usage";

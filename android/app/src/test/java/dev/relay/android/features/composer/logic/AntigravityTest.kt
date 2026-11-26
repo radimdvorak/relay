@@ -8,13 +8,10 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 class AntigravityTest {
-    @Test fun `native choice ids and independent quota pool names survive decoding`() {
+    @Test fun `native choice ids survive decoding`() {
         val question = RemoteJson.decodeFromString<AgentQuestion>("""{"id":"interaction_env","question":"Which environment?","allowCustomAnswer":false,"options":[{"label":"Same","value":"dev"},{"label":"Same","value":"prod"}]}""")
         assertEquals(false, question.allowCustomAnswer)
         assertEquals(listOf("dev", "prod"), question.options?.map { it.value })
-        val window = RemoteJson.decodeFromString<UsageWindow>("""{"id":"3p-5h","label":"Claude & GPT · 5h","kind":"session","usedPercent":25,"resetsAt":null,"periodMs":18000000}""")
-        assertEquals("Claude & GPT · 5h", presentWindow(window, 0).label)
-        assertEquals(true, reportsUsage("antigravity"))
     }
 
     @Test fun `batches do not pretend their children succeeded or can be stopped`() {

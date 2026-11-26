@@ -12,7 +12,7 @@ const now = new Date(2026, 9, 14, 14, 20).getTime();
 const HOUR = 3_600_000;
 
 const account = (
-  provider: "claude" | "codex" | "antigravity",
+  provider: "claude" | "codex",
   id: string,
   label: string,
   signedIn = true,
@@ -25,7 +25,7 @@ const account = (
 });
 
 const usage = (
-  provider: "claude" | "codex" | "antigravity",
+  provider: "claude" | "codex",
   used: { session?: number; weekly?: number },
   resets: SavedResets | null = null,
 ): ProviderUsage => ({

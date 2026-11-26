@@ -395,13 +395,6 @@ function matchesToken(text: string, token: string) {
   return new RegExp(`(^|[^a-z0-9])${escaped}([^a-z0-9]|$)`).test(text);
 }
 
-function antigravityPool(text: string): "gemini-" | "3p-" | null {
-  if (/\bgemini\b/.test(text)) return "gemini-";
-  if (/\b(claude|opus|sonnet|haiku|gpt|openai|o[1-9])\b/.test(text))
-    return "3p-";
-  return null;
-}
-
 function isCursorIncludedModel(model: UsageModel, text: string) {
   // Cursor's Auto runs under id "default" or "auto"; Composer shares the Total-only pool.
   return (
@@ -420,13 +413,6 @@ export function metersForModel<
   const plan = meters.filter((m) => !m.model);
   const text = modelText(model);
   if (!model || !text) return plan;
-
-  if (provider === "antigravity") {
-    const prefix = antigravityPool(text);
-    if (!prefix) return plan;
-    const pool = plan.filter((m) => m.id?.startsWith(prefix));
-    return pool.length ? pool : plan;
-  }
 
   if (provider === "cursor") {
     if (!isCursorIncludedModel(model, text)) return plan;

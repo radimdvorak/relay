@@ -37,70 +37,6 @@ describe("ringState", () => {
     expect(state?.label).toContain("Weekly 5% left");
   });
 
-  it("scopes Antigravity trigger pace and order to the picked model pool", () => {
-    const usage = {
-      provider: "antigravity" as const,
-      message: null,
-      windows: [
-        {
-          id: "gemini-models-5h",
-          label: "Gemini · 5h",
-          kind: "session" as const,
-          usedPercent: 3,
-          resetsAt: now + 4 * 60 * 60 * 1000,
-          periodMs: SESSION_MS,
-        },
-        {
-          id: "3p-weekly",
-          label: "Claude & GPT · Weekly",
-          kind: "weekly" as const,
-          usedPercent: 100,
-          resetsAt: now + 2 * 24 * 60 * 60 * 1000,
-          periodMs: WEEK_MS,
-        },
-        {
-          id: "3p-5h",
-          label: "Claude & GPT · 5h",
-          kind: "session" as const,
-          usedPercent: 100,
-          resetsAt: now + 2 * 60 * 60 * 1000,
-          periodMs: SESSION_MS,
-        },
-      ],
-    };
-
-    const onGemini = ringState(usage, now, {
-      id: "MODEL_PLACEHOLDER_M18",
-      name: "Gemini 3.1 Pro",
-    })!;
-    expect(onGemini.pace).toBe("ok");
-    expect(onGemini.activeMeters.map((m) => m.id)).toEqual([
-      "gemini-models-5h",
-    ]);
-    expect(onGemini.label).toContain("Gemini · 5h 97% left");
-    expect(onGemini.label).not.toContain("Claude");
-    expect(onGemini.meters.map((m) => [m.id, m.active, m.ringRole])).toEqual([
-      ["gemini-models-5h", true, "session"],
-      ["3p-weekly", false, undefined],
-      ["3p-5h", false, undefined],
-    ]);
-
-    const onClaude = ringState(usage, now, {
-      id: "claude-opus-4-6-thinking",
-      name: "Claude Opus 4.6",
-    })!;
-    expect(onClaude.pace).toBe("spent");
-    expect(onClaude.activeMeters.map((m) => m.id)).toEqual([
-      "3p-weekly",
-      "3p-5h",
-    ]);
-    expect(onClaude.meters.map((m) => [m.id, m.active, m.ringRole])).toEqual([
-      ["3p-weekly", true, "long"],
-      ["3p-5h", true, "session"],
-      ["gemini-models-5h", false, undefined],
-    ]);
-  });
-
   it("maps Cursor Total and API across both rings for named models, and Total alone for Auto", () => {
     const usage = {
       provider: "cursor" as const,
@@ -204,7 +140,7 @@ describe("activeUsageModel", () => {
   it("resolves picked models, catalog names, and Default fallbacks", () => {
     const catalogs = {
       of: (p: string) =>
-        p === "antigravity"
+        p === "opencode"
           ? [
               {
                 id: "m18",
@@ -229,7 +165,7 @@ describe("activeUsageModel", () => {
     };
     const runs = {
       choiceFor: (p: string) =>
-        p === "antigravity"
+        p === "opencode"
           ? { model: "m18", reasoningEffort: "" as const, fast: false }
           : { model: "", reasoningEffort: "" as const, fast: false },
       claude: { model: "" },
@@ -243,11 +179,14 @@ describe("activeUsageModel", () => {
       },
     };
 
-    expect(activeUsageModel("antigravity", runs as never, catalogs as never))
-      .toEqual({ id: "m18", name: "Gemini 3.1 Pro" });
-    expect(activeUsageModel("cursor", runs as never, catalogs as never))
-      .toEqual({ id: "default", name: "Auto" });
-    expect(activeUsageModel("claude", runs as never, catalogs as never))
-      .toEqual({ id: "fable claude-fable-5-2", name: "Fable 5.2" });
+    expect(
+      activeUsageModel("opencode", runs as never, catalogs as never),
+    ).toEqual({ id: "m18", name: "Gemini 3.1 Pro" });
+    expect(
+      activeUsageModel("cursor", runs as never, catalogs as never),
+    ).toEqual({ id: "default", name: "Auto" });
+    expect(
+      activeUsageModel("claude", runs as never, catalogs as never),
+    ).toEqual({ id: "fable claude-fable-5-2", name: "Fable 5.2" });
   });
 });

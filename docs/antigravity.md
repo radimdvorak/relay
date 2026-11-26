@@ -61,21 +61,10 @@ and invalidates its model catalog.
 
 ## Quotas
 
-The provider-specific quota reader exchanges the saved Google refresh token
-for a short-lived access token, and reads quota summaries from Google's
-Cloud Code services. Gemini and the shared Claude/GPT pool retain separate
-labels, percentages and reset times. The ring shows the most restrictive
-reading for each cadence; its popup lists every reported pool.
-
-Only reported five-hour and weekly windows are shown. Missing information is
-unavailable, not zero usage or a guessed reset time. The Refresh controls
-recheck the credential source after an external sign-in.
-
-A bearer-token refusal invalidates only that reader's rejected access token
-and allows one read retry. Late failures cannot clear a newer login's token.
-Network failures, permission failures, rate limits and server errors do not
-sign out an account. Saved Google credentials and API keys are never deleted
-by usage checks.
+Relay shows no Antigravity usage limits. The only place they're reported is
+Google's internal Cloud Code API, and Google has said calling it from other
+clients can get an account flagged. Antigravity supports ACP for external
+clients, so Relay talks to it only through the CLI.
 
 ## Protocol limits and verification
 
@@ -86,6 +75,6 @@ Relay does not pretend those features work through this server.
 
 Fixture integration tests cover account isolation, cancellation, compaction
 transactions, native choice responses, subagent batches and auth recovery.
-`tests/e2e/antigravity.spec.ts` checks the desktop's actual question, quota,
+`tests/e2e/antigravity.spec.ts` checks the desktop's actual question,
 compaction, planning and account flows. Phone model tests cover the shared
-choice IDs, quota labels and batch restrictions.
+choice IDs and batch restrictions.

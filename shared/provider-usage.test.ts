@@ -196,38 +196,6 @@ describe("dial ring selection", () => {
     ...overrides,
   });
 
-  it("picks only the matching Antigravity pool and drops empty ring slots", () => {
-    const all = [
-      meter({ id: "gemini-models-5h", kind: "session", leftPercent: 97 }),
-      meter({ id: "3p-weekly", kind: "weekly", leftPercent: 100 }),
-      meter({ id: "3p-5h", kind: "session", leftPercent: 100 }),
-    ];
-
-    const gemini = metersForModel("antigravity", all, {
-      id: "gemini-3-flash",
-      name: "Gemini 3 Flash",
-    });
-    expect(dialRings(gemini).map((r) => [r.role, r.meter.id])).toEqual([
-      ["session", "gemini-models-5h"],
-    ]);
-
-    const gpt = metersForModel("antigravity", all, {
-      id: "gpt-oss-120b",
-      name: "GPT-OSS 120B",
-    });
-    expect(dialRings(gpt).map((r) => [r.role, r.meter.id])).toEqual([
-      ["long", "3p-weekly"],
-      ["session", "3p-5h"],
-    ]);
-
-    // Without a model (e.g. Accounts settings), falls back to worst across pools.
-    const unscoped = metersForModel("antigravity", all);
-    expect(dialRings(unscoped).map((r) => [r.role, r.meter.id])).toEqual([
-      ["long", "3p-weekly"],
-      ["session", "gemini-models-5h"],
-    ]);
-  });
-
   it("draws Cursor Total alone for Auto/Composer and Total + API for named models", () => {
     const all = [
       meter({ id: "api", kind: "monthly", leftPercent: 40 }),

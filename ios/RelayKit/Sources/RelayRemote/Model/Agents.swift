@@ -53,7 +53,7 @@ private let traits: [String: AgentTraits] = [
     "cursor": AgentTraits(fast: true, usage: true),
     "muse": AgentTraits(side: true, usage: true),
     "amp": AgentTraits(),
-    "antigravity": AgentTraits(usage: true),
+    "antigravity": AgentTraits(),
 ]
 
 /// A registry agent has none of the extras.

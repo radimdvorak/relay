@@ -1,7 +1,11 @@
 // "Room left now": each signed-in account's limits as columns, the one with
 // the most room lit, and Codex's saved resets under them. The words and picks
 // live here; RoomLeft draws them.
-import { agentName } from "../../../../shared/agents";
+import {
+  agentName,
+  reportsUsage,
+  type UsageProvider,
+} from "../../../../shared/agents";
 import type {
   AccountProvider,
   AgentAccount,
@@ -26,7 +30,7 @@ const LOW_PERCENT = 20;
 export type RoomTank = { window: UsageWindow; meter: UsageMeter };
 
 export type RoomAccount = {
-  provider: AccountProvider;
+  provider: AccountProvider & UsageProvider;
   id: string;
   name: string;
   /** Shortest limit first. */
@@ -37,11 +41,15 @@ export type RoomAccount = {
 /** Signed-in accounts that report limits, in Settings' order. */
 export function roomAccounts(
   accounts: readonly AgentAccount[],
-  usageOf: (provider: AccountProvider, id: string) => ProviderUsage | undefined,
+  usageOf: (
+    provider: RoomAccount["provider"],
+    id: string,
+  ) => ProviderUsage | undefined,
   now: number,
 ): RoomAccount[] {
   const signedIn = accounts.filter((a) => a.signedIn);
   return signedIn.flatMap((a) => {
+    if (!reportsUsage(a.provider)) return [];
     const usage = usageOf(a.provider, a.id);
     if (!usage?.windows.length) return [];
     // One account per agent goes by the agent's name; "Default" says nothing.

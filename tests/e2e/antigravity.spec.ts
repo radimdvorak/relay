@@ -18,7 +18,7 @@ import { join, resolve } from "node:path";
 import { execFileSync } from "node:child_process";
 import { fakeCli, pathWith } from "../fixtures/fake-cli";
 
-test("Antigravity asks fixed questions in full access, compacts, plans, and offers isolated accounts and quota groups", async () => {
+test("Antigravity asks fixed questions in full access, compacts, plans, and offers isolated accounts", async () => {
   test.setTimeout(120000);
   const root = await realpath(
     await mkdtemp(join(tmpdir(), "relay-antigravity-e2e-")),
@@ -176,39 +176,7 @@ test("Antigravity asks fixed questions in full access, compacts, plans, and offe
     const page = await app.firstWindow();
     await app.evaluate(({ net }) => {
       net.fetch = async () => new Response(null, { status: 503 });
-      globalThis.fetch = async (input) => {
-        const url = String(input);
-        if (url.endsWith(":retrieveUserQuotaSummary"))
-          return Response.json({
-            buckets: [
-              {
-                bucketId: "gemini-5h",
-                window: "5h",
-                remainingFraction: 0.7,
-                resetTime: "2026-10-22T12:00:00Z",
-              },
-              {
-                bucketId: "gemini-weekly",
-                window: "weekly",
-                remainingFraction: 0.4,
-                resetTime: "2026-10-28T12:00:00Z",
-              },
-              {
-                bucketId: "3p-5h",
-                window: "5h",
-                remainingFraction: 0.9,
-                resetTime: "2026-10-22T12:00:00Z",
-              },
-              {
-                bucketId: "3p-weekly",
-                window: "weekly",
-                remainingFraction: 0.6,
-                resetTime: "2026-10-28T12:00:00Z",
-              },
-            ],
-          });
-        return new Response(null, { status: 503 });
-      };
+      globalThis.fetch = async () => new Response(null, { status: 503 });
     });
     await app.evaluate(({ dialog }, repo) => {
       dialog.showOpenDialog = async () => ({
@@ -251,17 +219,10 @@ test("Antigravity asks fixed questions in full access, compacts, plans, and offe
     await expect(
       page.getByText("Selected Production.", { exact: true }),
     ).toBeVisible();
-    const ring = page.getByRole("button", { name: /^Antigravity usage:/ });
-    await expect(ring).toBeVisible();
-    await ring.click();
-    await expect(page.getByText("Gemini · 5h", { exact: true })).toBeVisible();
+    // Google's quota API is internal; reading it can get the account flagged.
     await expect(
-      page.getByText("Claude & GPT · Weekly", { exact: true }),
-    ).toBeVisible();
-    await screenshot(page, {
-      path: join(tmpdir(), "relay-antigravity-quotas.png"),
-    });
-    await page.keyboard.press("Escape");
+      page.getByRole("button", { name: /^Antigravity usage:/ }),
+    ).toHaveCount(0);
 
     await page.getByLabel("Message project").fill("/compact");
     await page
