@@ -9,11 +9,12 @@
 // $RELAY_RECORD_OUT (default /tmp/relay-replays-raw); `node
 // tests/record/redact.mjs` redacts them into tests/fixtures/replays.
 import { execFileSync } from "node:child_process";
-import { mkdir, readFile, rm, stat, symlink } from "node:fs/promises";
+import { lstat, mkdir, readFile, rm, stat, symlink } from "node:fs/promises";
 import { createServer, type AddressInfo } from "node:net";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import { afterEach, describe, it, vi } from "vitest";
+import { installedAntigravity } from "../../electron/agents/antigravity/install";
 import { findExecutable } from "../../electron/platform/executables";
 import { fakeCli } from "../fixtures/fake-cli";
 import { openCodeRecordingProxy } from "./opencode-proxy";
@@ -98,13 +99,12 @@ async function recording(provider: AgentProvider, scenario: string) {
   if (provider === "antigravity") {
     // Its sign-in: the token file and which kind it is.
     env.GEMINI_HOME = clean;
-    if (fresh) {
-      await mkdir(join(clean, "antigravity-acp"), { recursive: true });
-      for (const file of ["antigravity-oauth-token", "settings.json"])
-        await symlink(
-          join(homedir(), ".gemini", "antigravity-acp", file),
-          join(clean, "antigravity-acp", file),
-        ).catch(() => {});
+    // Linked whenever missing: a folder an older recording set up has the old server's file.
+    await mkdir(join(clean, "antigravity-acp"), { recursive: true });
+    for (const file of ["antigravity-oauth-token", "settings.json"]) {
+      const link = join(clean, "antigravity-acp", file);
+      if (await lstat(link).catch(() => null)) continue;
+      await symlink(join(homedir(), ".gemini", "antigravity-acp", file), link);
     }
   }
   let proxy: Awaited<ReturnType<typeof openCodeRecordingProxy>> | undefined;
@@ -165,19 +165,22 @@ async function recording(provider: AgentProvider, scenario: string) {
   return s;
 }
 
-/** The Antigravity CLI Relay downloaded on this computer. */
+/** The Antigravity CLI Relay downloaded on this computer; never Google's older server. */
 async function installedAntigravityHere() {
+  const app = process.env.RELAY_RECORD_APP ?? "Relay Experimental";
   const root = join(
     homedir(),
     "Library",
     "Application Support",
-    process.env.RELAY_RECORD_APP ?? "Relay Experimental",
+    app,
     "antigravity",
   );
-  const { version, cmd } = JSON.parse(
-    await readFile(join(root, "current.json"), "utf8"),
-  ) as { version: string; cmd: string };
-  return { version, command: join(root, version, cmd) };
+  const cli = await installedAntigravity(root);
+  if (!cli)
+    throw new Error(
+      `${app} hasn't downloaded Antigravity's CLI yet (only the older server, or nothing); update it there first.`,
+    );
+  return cli;
 }
 
 const freePort = () =>
