@@ -2853,6 +2853,21 @@ it.each(["handed-off", "remote-owned"] as const)(
       await finished(mini.chats, there, 4);
     }
 
+    // One started and settled there while this computer was away isn't
+    // followed when it's back: it would show under no lead.
+    computers.close();
+    const settled = await mini.chats.create(
+      mini.projectId,
+      { kind: "project" },
+      "checkout",
+      { startedBy: { chatId: there, agent: "codex" } },
+    );
+    await mini.chats.send(settled.id, input("@codex Read the changelog"));
+    await finished(mini.chats, settled.id, 2);
+    await mini.chats.triage(settled.id, { kind: "settle" });
+    await computers.start();
+    await vi.waitFor(() => expect(computers.status(computerId)).toBe("online"));
+
     const started = await mini.chats.create(
       mini.projectId,
       { kind: "project" },
@@ -2909,6 +2924,7 @@ it.each(["handed-off", "remote-owned"] as const)(
       expect(await ids(laptop.chats, here.chatId)).toContain(last),
     );
     expect(underLead()).toHaveLength(1);
+    expect(everyThread().some((c) => c.sentTo?.id === settled.id)).toBe(false);
   },
 );
 

@@ -15,6 +15,7 @@ import type {
   ProjectChatSend,
   StartedBy,
 } from "../../shared/projects";
+import { chatActivitySection } from "../../shared/chat-activity";
 import { promptTitle } from "../../shared/prompt-title";
 import { handoffTriage, type HandoffTriage } from "../../shared/handoff-triage";
 import { sentSettingsOf, workingFor } from "../../shared/projects";
@@ -230,16 +231,26 @@ export class LiveHandoff {
 
   /**
    * The threads the lead's agent started here that the computer following
-   * the lead can follow too: this computer's own, not handed on, archived or
-   * a deep review's. A second opinion is left out: sending it to the lead
-   * is an action of this computer's.
+   * the lead can follow too: this computer's own, not handed on, archived,
+   * settled or a deep review's. A second opinion is left out: sending it to
+   * the lead is an action of this computer's.
    */
   private startedHere(lead: ProjectChat): StartedThere[] {
+    const now = Date.now();
+    const lists = new Map<string, ChatSummary[]>();
+    const listedOf = (c: ChatSummary) => {
+      const list = lists.get(c.projectId) ?? this.list(c.projectId);
+      lists.set(c.projectId, list);
+      return list.find((l) => l.id === c.id) ?? c;
+    };
     return (this.core.store.get().chats ?? []).flatMap((c) => {
       if (!c.startedBy || !workingFor(c, lead.id)) return [];
       const ownHere = !c.cameFrom && !c.sentTo;
       const listed = !c.archivedAt && c.scope.kind !== "review";
       if (!ownHere || !listed) return [];
+      // A settled one shows under no lead, and a lead may have dozens; one
+      // that wakes comes back into Activity and is followed then.
+      if (chatActivitySection(listedOf(c), now) === "settled") return [];
       return [
         {
           id: c.id,
