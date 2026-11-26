@@ -441,7 +441,7 @@ Validated in `electron/remote/bridge.ts`; the schemas are at `bridge.ts`. Argume
 ## 6. Tests that pin this behaviour
 
 **Byte vectors.** The TypeScript's output for fixed keys (server static secret bytes 1…32, client ephemeral 33…64, server ephemeral 65…96) is checked into both apps: `ios/RelayKit/Tests/RelayRemoteTests/Fixtures/ts-*.json` and `android/app/src/test/java/dev/relay/android/remote/TsVectors.kt` hold the same values. They cover public keys, hellos, session keys, seals at counters 0 and 1, desktop frames to open, wire codec, routes, pairing links and patches.
-- Android: `remote/CrossImplementationTest.kt` and `SealedForTsTest.kt` (`./gradlew :app:testDebugUnitTest --tests 'dev.relay.android.remote.*'`).
+- Android: `remote/CrossImplementationTest.kt` (`./gradlew :app:testDebugUnitTest --tests 'dev.relay.android.remote.*'`).
 - iPhone: `CrossImplementationTests.swift` and `PairingRoutesDeltaTests.swift` (`swift test` in `ios/RelayKit`).
 - No script regenerates the vectors. If you change the crypto or the wire on purpose, produce new ones from `shared/remote-crypto.ts` and `remote-wire.ts` with the same fixed secrets and update both files together.
 
@@ -453,4 +453,4 @@ Validated in `electron/remote/bridge.ts`; the schemas are at `bridge.ts`. Argume
 - `electron/remote/link-sender.test.ts`: ack window, ack timeout, patch base.
 - `electron/remote/remote-bridge.test.ts`: 150 ms streaming throttle, diffs, icons, history paging, detail cutting, subagent signatures, images, renders.
 - `electron/remote/phone-remote.test.ts`: about 30 end-to-end tests driving the real `RemoteClient` against the real server. They cover pairing, routes, better-route swaps, a wrong key, revocation, watchdog, allowlist, timeouts, send receipts, `to` gating, patches matching whole events and drafts gating.
-- Also: `electron/remote/remote-devices.test.ts`, `lan.test.ts`, `tailscale.test.ts`, `phone-read-aloud.test.ts`, `presence.test.ts`, `message-batches.test.ts`, `phone-tunnel.test.ts`; `shared/remote-client.test.ts`, `remote-tunnel.test.ts`; `tests/unit/phone-bridge.test.ts`, `phone-fixture.test.ts`; the e2e specs `phone-remote`, `phone-drafts`, `phone-draft-echo`, `phone-dictation` and `phone-read-aloud` `.spec.ts`.
+- Also: `electron/remote/remote-devices.test.ts`, `lan.test.ts`, `tailscale.test.ts`, `phone-read-aloud.test.ts`, `presence.test.ts`, `message-batches.test.ts`, `phone-tunnel.test.ts`; `shared/remote-client.test.ts`, `remote-tunnel.test.ts`; `tests/unit/phone-bridge.test.ts`; the e2e specs `phone-remote`, `phone-drafts`, `phone-draft-echo`, `phone-dictation` and `phone-read-aloud` `.spec.ts`.

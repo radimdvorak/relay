@@ -36,11 +36,10 @@ Debug and launches it with Show touches on. Don't run `xcodebuild` with a
 team, don't send the user to Xcode › Accounts or to Trust, and don't
 mention signing or accounts at all. If the script fails, fix the script.
 
-The live test pairs with the real bridge under Node:
+The stand-in desktop runs the real bridge under Node:
 
 ```
 node_modules/.bin/jiti ios/scripts/live-desktop.ts /tmp/pair.txt &   # from the repo root
-RELAY_PAIR_URL_FILE=/tmp/pair.txt swift test --filter LiveBridgeTests
 ```
 
 `--seed` gives that stand-in desktop sample threads that answer what the
